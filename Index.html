@@ -295,52 +295,57 @@
 <script>
 /* ================= الترجمة (عربي / إنجليزي) ================= */
 /* ================= اتصال الباك-إند =================
-   إذا الصفحة مفتوحة من رابط Apps Script نفسه (/exec)، فـ google.script.run
-   موجود تلقائياً ونستخدمه كما هو. إذا الصفحة مستضافة بمكان ثاني (GitHub Pages
-   مثلاً)، نفعّل بديل يتواصل مع نفس الباك-إند عبر fetch() بدل google.script.run،
-   وبدون ما نغيّر أي سطر من باقي الكود تحت (نفس شكل الاستدعاء تماماً). */
-if (typeof google === 'undefined' || !google.script) {
-  // ▼▼▼ الصق هنا رابط الـ Web App بعد نشر Apps Script (ينتهي بـ /exec) ▼▼▼
+   إذا الصفحة مفتوحة من رابط Apps Script نفسه (/exec) فـ google.script.run موجود
+   تلقائياً ونستخدمه كما هو. وإذا كانت مستضافة بمكان ثاني (GitHub Pages) نستخدم
+   بديلاً يتصل بنفس الباك-إند عبر fetch() بنفس شكل الاستدعاء، فلا يحتاج باقي
+   الكود أي تعديل. */
+(function () {
+  if (typeof google !== 'undefined' && google.script && google.script.run) return;
+
+  /* ▼▼▼ رابط الـ Web App — يُعدَّل مرة واحدة هنا فقط من قِبل مسؤول النظام ▼▼▼ */
   const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbyghqu8hIRgcUKAXWZ2LgnIjplNkPSHtnPCMvreFrodSz-uO1NFSGQ3D2Fkj8ixNBu-/exec';
+  /* ▲▲▲ لا شيء آخر يحتاج تعديلاً ▲▲▲ */
 
-  window.google = {
-    script: {
-      run: {
-        withSuccessHandler(successCb, failureCb) {
-          const api = {
-            failureCb: null,
-            withFailureHandler(cb) { this.failureCb = cb; return api; }
-          };
-          return new Proxy(api, {
-            get(target, fn) {
-              if (fn in target) return target[fn];
-              return function (...args) {
-                fetch(APPS_SCRIPT_URL, {
-                  method: 'POST',
-                  headers: { 'Content-Type': 'text/plain;charset=utf-8' }, // يتجنب طلب OPTIONS المسبق (CORS)
-                  body: JSON.stringify({ fn: fn, args: args })
-                })
-                  .then(function (r) { return r.json(); })
-                  .then(function (res) {
-                    if (res.ok) { successCb && successCb(res.data); }
-                    else { console.error(res.error); target.failureCb && target.failureCb(res.error); }
-                  })
-                  .catch(function (err) {
-                    console.error(err);
-                    target.failureCb && target.failureCb(err);
-                  });
-              };
-            }
-          });
-        }
-      }
-    }
-  };
-
-  if (APPS_SCRIPT_URL.indexOf('PASTE_YOUR') === 0) {
-    console.warn('⚠️ عدّل قيمة APPS_SCRIPT_URL أعلى ملف Index.html برابط الـ Web App الحقيقي بعد النشر.');
+  function callBackend(fn, args, onSuccess, onFailure) {
+    fetch(APPS_SCRIPT_URL, {
+      method: 'POST',
+      // نص عادي حتى لا يطلب المتصفح OPTIONS مسبقاً (تفادي CORS)
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify({ fn: fn, args: args })
+    })
+      .then(function (r) { return r.text(); })
+      .then(function (text) {
+        let res;
+        try { res = JSON.parse(text); }
+        catch (e) { throw new Error('الخادم رجّع صفحة بدل بيانات. تأكد أن النشر: Execute as = Me، Who has access = Anyone.'); }
+        if (res.ok) { onSuccess && onSuccess(res.data); }
+        else { throw new Error(res.error || 'خطأ غير معروف من الخادم'); }
+      })
+      .catch(function (err) {
+        console.error('[Backend]', fn, err);
+        onFailure && onFailure(err);
+      });
   }
-}
+
+  function makeRunner() {
+    const holder = { _s: null, _f: null };
+    const proxy = new Proxy(holder, {
+      get: function (target, prop) {
+        if (prop === 'withSuccessHandler') return function (cb) { target._s = cb; return proxy; };
+        if (prop === 'withFailureHandler') return function (cb) { target._f = cb; return proxy; };
+        if (typeof prop !== 'string') return undefined;
+        return function () {
+          callBackend(prop, Array.prototype.slice.call(arguments), target._s, target._f);
+        };
+      }
+    });
+    return proxy;
+  }
+
+  window.google = { script: { run: makeRunner() } };
+})();
+
+
 
 let LANG = 'ar';
 const I18N = {
@@ -462,16 +467,31 @@ let CURRENT_COMMENT_REQ = null;
 
 /* ================= تسجيل الدخول ================= */
 
+function showLoginError(msg) {
+  const el = document.getElementById('loginError');
+  el.textContent = msg;
+  el.classList.remove('hidden');
+}
+
 function doLogin() {
   const name = document.getElementById('loginName').value.trim();
   const pass = document.getElementById('loginPass').value;
-  document.getElementById('loginError').classList.add('hidden');
-  google.script.run.withSuccessHandler(function (res) {
-    if (!res.success) { document.getElementById('loginError').classList.remove('hidden'); return; }
-    CURRENT_USER = res;
-    afterLogin();
-  }).checkLogin(name, pass);
+  const el = document.getElementById('loginError');
+  el.classList.add('hidden');
+  if (!name || !pass) { showLoginError('اكتب الاسم والرقم السري'); return; }
+
+  google.script.run
+    .withSuccessHandler(function (res) {
+      if (!res || !res.success) { showLoginError(t('login_error')); return; }
+      CURRENT_USER = res;
+      afterLogin();
+    })
+    .withFailureHandler(function (err) {
+      showLoginError('تعذّر الاتصال بالخادم: ' + String((err && err.message) || err));
+    })
+    .checkLogin(name, pass);
 }
+
 
 function logout() { window.location.reload(); }
 
