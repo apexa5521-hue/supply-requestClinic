@@ -1,0 +1,787 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <base target="_top">
+  <meta charset="utf-8">
+<style>
+  :root {
+    --primary: #0f6e56;
+    --primary-dark: #085041;
+    --accent: #185fa5;
+    --danger: #a32d2d;
+    --warning: #854f0b;
+    --bg: #f6f5f1;
+    --bg-alt: #f0efe9;
+    --card: #ffffff;
+    --border: #d3d1c7;
+    --text: #2c2c2a;
+    --text-muted: #5f5e5a;
+
+    --status-new-bg: #e6f1fb;    --status-new-text: #0c447c;
+    --status-progress-bg: #faeeda; --status-progress-text: var(--warning);
+    --status-sent-bg: #eeedfe;   --status-sent-text: #3c3489;
+    --status-received-bg: #eaf3de; --status-received-text: #27500a;
+
+    --fs-xl: 20px; --fs-lg: 17px; --fs-md: 14px; --fs-sm: 13px; --fs-xs: 12px;
+    --radius-sm: 6px; --radius-md: 10px; --radius-pill: 20px;
+  }
+  * { box-sizing: border-box; }
+  body {
+    font-family: 'Segoe UI', Tahoma, Arial, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    margin: 0;
+    padding: 20px 20px 60px;
+  }
+  .card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    padding: 20px;
+    margin-bottom: 16px;
+    max-width: 960px;
+    margin-left: auto;
+    margin-right: auto;
+  }
+  h1, h2, h3 { margin-top: 0; font-weight: 600; }
+  h1 { font-size: var(--fs-xl); color: var(--primary-dark); }
+  h2 { font-size: var(--fs-lg); }
+  h3 { font-size: var(--fs-md); color: var(--text-muted); }
+  label { display: block; margin: 10px 0 4px; font-size: var(--fs-md); color: var(--text-muted); }
+  input, select, textarea {
+    width: 100%;
+    padding: 9px 10px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    font-size: var(--fs-md);
+    background: var(--card);
+    font-family: inherit;
+  }
+  input:focus, select:focus, textarea:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
+  button {
+    cursor: pointer;
+    border: none;
+    border-radius: var(--radius-sm);
+    padding: 10px 16px;
+    font-size: var(--fs-md);
+    font-weight: 600;
+    margin-top: 10px;
+    margin-inline-end: 8px;
+    transition: filter .15s, opacity .15s;
+    font-family: inherit;
+  }
+  button:hover { filter: brightness(0.92); }
+  button:active { filter: brightness(0.85); }
+  button:disabled { opacity: 0.5; cursor: not-allowed; filter: none; }
+  .btn-primary { background: var(--primary); color: #fff; }
+  .btn-secondary { background: #eee; color: var(--text); }
+  .btn-danger { background: var(--danger); color: #fff; }
+  .btn-accent { background: var(--accent); color: #fff; }
+  .btn-icon { background: transparent; color: var(--text-muted); padding: 6px 10px; margin-top: 0; font-size: var(--fs-md); }
+  .btn-icon:hover { background: var(--bg-alt); filter: none; }
+  table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: var(--fs-sm); }
+  th, td { padding: 8px; border-bottom: 1px solid var(--border); text-align: start; }
+  th { background: var(--bg-alt); font-weight: 600; }
+  .badge { padding: 3px 10px; border-radius: var(--radius-pill); font-size: var(--fs-xs); font-weight: 600; }
+  .badge-new { background: var(--status-new-bg); color: var(--status-new-text); }
+  .badge-progress { background: var(--status-progress-bg); color: var(--status-progress-text); }
+  .badge-sent { background: var(--status-sent-bg); color: var(--status-sent-text); }
+  .badge-received { background: var(--status-received-bg); color: var(--status-received-text); }
+  .topbar { max-width: 960px; margin: 0 auto 16px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px; }
+  .topbar .who { font-size: var(--fs-sm); color: var(--text-muted); }
+  .item-row { display: flex; gap: 8px; align-items: center; margin-bottom: 8px; }
+  .item-row input.itemName { flex: 3; }
+  .item-row input.itemQty { flex: 1; }
+  .hidden { display: none !important; }
+  .filters { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 10px; }
+  .filters > div { flex: 1; min-width: 140px; }
+  #sigPad { border: 1px dashed var(--border); border-radius: var(--radius-sm); width: 100%; height: 150px; touch-action: none; }
+  .error { color: var(--danger); font-size: var(--fs-sm); margin-top: 6px; }
+  .req-block { border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 12px; margin-bottom: 10px; display:flex; flex-direction: column; gap:6px; }
+  .req-block-top { display:flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap:6px; }
+
+  .lang-toggle { position: fixed; top: 14px; inset-inline-end: 14px; z-index: 60; background: var(--card); border: 1px solid var(--border); border-radius: var(--radius-pill); padding: 6px 14px; font-size: var(--fs-sm); margin: 0; color: var(--text); }
+
+  .kpi-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 10px; margin: 12px 0; }
+  .kpi-card { background: var(--bg-alt); border-radius: var(--radius-sm); padding: 14px; text-align: center; }
+  .kpi-card .num { font-size: 24px; font-weight: 700; color: var(--primary-dark); }
+  .kpi-card .lbl { font-size: var(--fs-xs); color: var(--text-muted); margin-top: 4px; }
+
+  .notice-box { border-inline-start: 3px solid var(--accent); background: var(--bg-alt); padding: 8px 12px; border-radius: 6px; margin-bottom: 8px; font-size: var(--fs-sm); }
+  .notice-box .meta { color: var(--text-muted); font-size: var(--fs-xs); margin-top: 2px; }
+
+  .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,.35); z-index: 70; }
+  .comment-modal { position: fixed; top: 8%; left: 50%; transform: translateX(-50%); width: 90%; max-width: 520px; z-index: 71; box-shadow: 0 4px 24px rgba(0,0,0,.2); max-height: 82vh; display: flex; flex-direction: column; }
+  .comment-list { overflow-y: auto; flex: 1; margin: 10px 0; max-height: 320px; }
+  .comment-msg { background: var(--bg-alt); border-radius: 8px; padding: 8px 10px; margin-bottom: 8px; font-size: var(--fs-sm); }
+  .comment-msg .meta { font-size: var(--fs-xs); color: var(--text-muted); margin-bottom: 2px; }
+  .comment-input-row { display: flex; gap: 8px; }
+  .comment-input-row textarea { flex: 1; resize: none; height: 44px; }
+</style>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.4/chart.umd.min.js"></script>
+</head>
+<body dir="rtl">
+<button class="lang-toggle" id="langToggleBtn" onclick="toggleLang()">English</button>
+
+<div id="app">
+
+<div id="loginSection" class="card" style="max-width:380px; margin-top:60px;">
+  <h1 data-i18n="login_title">تسجيل الدخول</h1>
+  <label data-i18n="login_name_label">الاسم</label>
+  <input id="loginName" type="text" data-i18n-ph="login_name_ph" placeholder="اكتب اسمك">
+  <label data-i18n="login_pass_label">الرقم السري</label>
+  <input id="loginPass" type="password" data-i18n-ph="login_pass_ph" placeholder="الرقم السري">
+  <div id="loginError" class="error hidden" data-i18n="login_error">الاسم أو الرقم السري غير صحيح</div>
+  <button class="btn-primary" onclick="doLogin()" data-i18n="login_btn">دخول</button>
+</div>
+
+<!-- ============== الممرضة ============== -->
+<div id="nurseSection" class="hidden">
+  <div class="topbar">
+    <div>
+      <button class="btn-secondary" onclick="showNurseTab('create')" data-i18n="nurse_tab_create">طلب جديد</button>
+      <button class="btn-secondary" onclick="showNurseTab('mine')" data-i18n="nurse_tab_myreq">طلباتي</button>
+    </div>
+    <div class="who"><span data-i18n="nurse_hello">مرحباً</span> <span id="nurseNameLbl"></span> · <a href="#" onclick="logout()" data-i18n="logout">خروج</a></div>
+  </div>
+
+  <div id="nurseNoticesBox" class="card hidden"></div>
+
+  <div id="nurseCreateTab" class="card">
+    <h2 data-i18n="nurse_create_title">إنشاء طلب مستلزمات</h2>
+    <label data-i18n="clinic_label">العيادة</label>
+    <select id="reqClinic" onchange="loadDoctorsForClinic()"></select>
+    <label data-i18n="doctor_label">الطبيب</label>
+    <select id="reqDoctor"></select>
+    <label data-i18n="type_label">نوع الطلب</label>
+    <select id="reqType">
+      <option value="شهري" data-i18n="type_monthly">شهري</option>
+      <option value="طارئ" data-i18n="type_emergency">طارئ</option>
+    </select>
+
+    <h3 style="margin-top:18px;" data-i18n="items_title">الأصناف</h3>
+    <datalist id="itemsCatalogList"></datalist>
+    <div id="itemRows"></div>
+    <button class="btn-secondary" onclick="addItemRow()" data-i18n="add_item_row_btn">+ إضافة صنف</button>
+
+    <div id="createError" class="error hidden" data-i18n="create_error">يرجى تعبئة كل الحقول وإضافة صنف واحد على الأقل</div>
+    <div><button class="btn-primary" onclick="submitRequest()" data-i18n="submit_request_btn">إرسال الطلب للتموين</button></div>
+  </div>
+
+  <div id="nurseMineTab" class="card hidden">
+    <h2 data-i18n="my_requests_title">طلباتي</h2>
+    <div id="myRequestsList"></div>
+  </div>
+
+  <div id="receiveModal" class="card hidden" style="position:fixed; top:5%; left:50%; transform:translateX(-50%); width:90%; max-width:500px; z-index:50; box-shadow:0 4px 20px rgba(0,0,0,.15);">
+    <h2><span data-i18n="confirm_receive_title">تأكيد استلام الطلب</span> <span id="recvReqId"></span></h2>
+    <table>
+      <thead><tr><th data-i18n="th_item">الصنف</th><th data-i18n="th_sent_qty">الكمية المرسلة</th><th data-i18n="th_received_qty">الكمية المستلمة فعلياً</th></tr></thead>
+      <tbody id="recvItemsBody"></tbody>
+    </table>
+    <label data-i18n="receiver_name_label">اسم المستلم</label>
+    <input id="recvName" type="text">
+    <label data-i18n="signature_label">التوقيع (اختياري - ارسم بالفأرة أو اللمس)</label>
+    <canvas id="sigPad" width="460" height="150"></canvas>
+    <button class="btn-secondary" onclick="clearSig()" data-i18n="clear_sig_btn">مسح التوقيع</button>
+    <div id="recvError" class="error hidden"></div>
+    <div>
+      <button class="btn-primary" onclick="confirmReceive()" data-i18n="confirm_receive_btn">تأكيد الاستلام</button>
+      <button class="btn-secondary" onclick="closeReceiveModal()" data-i18n="cancel_btn">إلغاء</button>
+    </div>
+  </div>
+</div>
+
+<!-- ============== التموين ============== -->
+<div id="procurementSection" class="hidden">
+  <div class="topbar">
+    <h1 style="margin:0;" data-i18n="procurement_title">لوحة التموين</h1>
+    <div class="who"><span data-i18n="nurse_hello">مرحباً</span> <span id="procNameLbl"></span> · <a href="#" onclick="logout()" data-i18n="logout">خروج</a></div>
+  </div>
+
+  <div id="procNoticesBox" class="card hidden"></div>
+
+  <div class="card">
+    <div class="filters">
+      <div><label data-i18n="status_label">الحالة</label>
+        <select id="procFilterStatus" onchange="loadProcurementRequests()">
+          <option value="" data-i18n="all_option">الكل</option>
+          <option value="جديد" data-i18n="status_new">جديد</option>
+          <option value="قيد التجهيز" data-i18n="status_progress">قيد التجهيز</option>
+          <option value="تم الإرسال" data-i18n="status_sent">تم الإرسال</option>
+          <option value="تم الاستلام" data-i18n="status_received">تم الاستلام</option>
+        </select>
+      </div>
+      <div><label data-i18n="clinic_label">العيادة</label><select id="procFilterClinic" onchange="loadProcurementRequests()"></select></div>
+      <div><label data-i18n="month_label">الشهر</label><input type="month" id="procFilterMonth" onchange="loadProcurementRequests()"></div>
+    </div>
+    <div>
+      <button class="btn-secondary" onclick="bulkAction('قيد التجهيز')" data-i18n="bulk_progress_btn">اعتماد المحدد: قيد التجهيز</button>
+      <button class="btn-accent" onclick="bulkAction('تم الإرسال')" data-i18n="bulk_sent_btn">اعتماد المحدد: تم الإرسال</button>
+    </div>
+    <div id="procRequestsList"></div>
+  </div>
+</div>
+
+<!-- ============== الجودة / الإدارة التنفيذية ============== -->
+<div id="dashboardSection" class="hidden">
+  <div class="topbar">
+    <h1 style="margin:0;" data-i18n="dashboard_title">لوحة الإدارة</h1>
+    <div class="who"><span data-i18n="nurse_hello">مرحباً</span> <span id="dashNameLbl"></span> · <a href="#" onclick="logout()" data-i18n="logout">خروج</a></div>
+  </div>
+
+  <div class="card">
+    <label data-i18n="month_label">الشهر</label>
+    <input type="month" id="dashMonth" onchange="loadDashboard()">
+    <div class="kpi-grid" id="kpiGrid"></div>
+  </div>
+
+  <div class="card">
+    <h3 data-i18n="trend_title">اتجاه متوسط زمن التنفيذ (آخر 6 أشهر)</h3>
+    <canvas id="trendChart" height="90"></canvas>
+  </div>
+
+  <div class="card">
+    <h3 data-i18n="clinic_chart_title">متوسط ساعات التنفيذ حسب العيادة (الشهر المحدد)</h3>
+    <canvas id="clinicChart" height="90"></canvas>
+  </div>
+
+  <div class="card">
+    <h3 data-i18n="top_items_title">الأصناف الأكثر طلباً (تقريبي بدل دوران المخزون الفعلي - النظام لا يتتبع كميات المستودع)</h3>
+    <table><thead><tr><th data-i18n="th_item">الصنف</th><th data-i18n="th_qty">الكمية الإجمالية</th></tr></thead>
+      <tbody id="topItemsBody"></tbody></table>
+  </div>
+
+  <div class="card">
+    <h3 data-i18n="clinic_avg_title">متوسط الوقت (بالساعات) بين رفع الطلب وإرساله - حسب العيادة</h3>
+    <table><thead><tr><th data-i18n="th_clinic">العيادة</th><th data-i18n="th_avg_hours">متوسط الساعات</th><th data-i18n="th_count">عدد الطلبات</th></tr></thead>
+      <tbody id="qAveragesBody"></tbody></table>
+    <h3 style="margin-top:16px;" data-i18n="details_title">تفاصيل كل طلب</h3>
+    <table><thead><tr><th data-i18n="th_request_id">رقم الطلب</th><th data-i18n="th_clinic">العيادة</th><th data-i18n="th_doctor">الطبيب</th><th data-i18n="th_type">النوع</th><th data-i18n="th_hours">الساعات</th></tr></thead>
+      <tbody id="qRowsBody"></tbody></table>
+  </div>
+
+  <div class="card">
+    <h3 data-i18n="notices_compose_title">إرسال ملاحظة</h3>
+    <label data-i18n="notice_target_label">الجهة</label>
+    <select id="noticeTarget">
+      <option value="تموين" data-i18n="target_procurement">التموين</option>
+      <option value="ممرضة" data-i18n="target_nursing">التمريض</option>
+      <option value="الكل" data-i18n="target_all">الكل</option>
+    </select>
+    <textarea id="noticeMsg" rows="2" data-i18n-ph="notice_msg_ph" placeholder="اكتب الملاحظة..."></textarea>
+    <button class="btn-primary" onclick="sendNotice()" data-i18n="send_notice_btn">إرسال</button>
+  </div>
+
+  <div class="card">
+    <h3 data-i18n="recent_comments_title">آخر الملاحظات على الطلبات</h3>
+    <div id="recentCommentsBox"></div>
+  </div>
+</div>
+
+</div>
+
+<!-- ============== شات الملاحظات لكل طلب ============== -->
+<div id="commentOverlay" class="modal-overlay hidden" onclick="closeComments()"></div>
+<div id="commentModal" class="card comment-modal hidden">
+  <h2><span data-i18n="comments_title">ملاحظات الطلب</span> <span id="commentReqId"></span></h2>
+  <div class="comment-list" id="commentList"></div>
+  <div class="comment-input-row">
+    <textarea id="commentInput" data-i18n-ph="comment_ph" placeholder="اكتب ملاحظة... مثلاً: ناقص صنف، الكمية غير مطابقة"></textarea>
+    <button class="btn-primary" onclick="sendComment()" data-i18n="send_btn">إرسال</button>
+  </div>
+  <button class="btn-secondary" onclick="closeComments()" data-i18n="close_btn">إغلاق</button>
+</div>
+<script>
+/* ================= الترجمة (عربي / إنجليزي) ================= */
+let LANG = 'ar';
+const I18N = {
+  ar: {
+    login_title:'تسجيل الدخول', login_name_label:'الاسم', login_pass_label:'الرقم السري',
+    login_error:'الاسم أو الرقم السري غير صحيح', login_btn:'دخول',
+    login_name_ph:'اكتب اسمك', login_pass_ph:'الرقم السري',
+    nurse_tab_create:'طلب جديد', nurse_tab_myreq:'طلباتي', nurse_hello:'مرحباً', logout:'خروج',
+    nurse_create_title:'إنشاء طلب مستلزمات', clinic_label:'العيادة', doctor_label:'الطبيب',
+    type_label:'نوع الطلب', type_monthly:'شهري', type_emergency:'طارئ',
+    items_title:'الأصناف', item_name_ph:'اكتب اسم الصنف أو اختر من القائمة',
+    add_item_row_btn:'+ إضافة صنف',
+    create_error:'يرجى تعبئة كل الحقول وإضافة صنف واحد على الأقل',
+    submit_request_btn:'إرسال الطلب للتموين',
+    my_requests_title:'طلباتي', receive_btn:'استلام وتوقيع', comment_btn:'💬 ملاحظات',
+    no_requests_yet:'لا توجد طلبات بعد',
+    confirm_receive_title:'تأكيد استلام الطلب', th_item:'الصنف', th_sent_qty:'الكمية المرسلة',
+    th_received_qty:'الكمية المستلمة فعلياً', receiver_name_label:'اسم المستلم',
+    signature_label:'التوقيع (اختياري - ارسم بالفأرة أو اللمس)', clear_sig_btn:'مسح التوقيع',
+    confirm_receive_btn:'تأكيد الاستلام', cancel_btn:'إلغاء', recv_name_required:'اسم المستلم إلزامي',
+    procurement_title:'لوحة التموين', status_label:'الحالة', all_option:'الكل',
+    status_new:'جديد', status_progress:'قيد التجهيز', status_sent:'تم الإرسال', status_received:'تم الاستلام',
+    month_label:'الشهر', bulk_progress_btn:'اعتماد المحدد: قيد التجهيز', bulk_sent_btn:'اعتماد المحدد: تم الإرسال',
+    no_matching_requests:'لا توجد طلبات مطابقة', view_items_btn:'عرض/اعتماد الأصناف',
+    th_requested:'المطلوب', th_approved:'المعتمد', select_one_request:'اختر طلب واحد على الأقل',
+    dashboard_title:'لوحة الإدارة',
+    trend_title:'اتجاه متوسط زمن التنفيذ (آخر 6 أشهر)',
+    clinic_chart_title:'متوسط ساعات التنفيذ حسب العيادة (الشهر المحدد)',
+    kpi_total:'إجمالي الطلبات', kpi_avg_hours:'متوسط ساعات التنفيذ',
+    top_items_title:'الأصناف الأكثر طلباً (تقريبي بدل دوران المخزون الفعلي - النظام لا يتتبع كميات المستودع)',
+    th_qty:'الكمية الإجمالية',
+    clinic_avg_title:'متوسط الوقت (بالساعات) بين رفع الطلب وإرساله - حسب العيادة',
+    th_clinic:'العيادة', th_avg_hours:'متوسط الساعات', th_count:'عدد الطلبات',
+    details_title:'تفاصيل كل طلب', th_request_id:'رقم الطلب', th_doctor:'الطبيب', th_type:'النوع', th_hours:'الساعات',
+    notices_compose_title:'إرسال ملاحظة', notice_target_label:'الجهة',
+    target_procurement:'التموين', target_nursing:'التمريض', target_all:'الكل',
+    notice_msg_ph:'اكتب الملاحظة...', send_notice_btn:'إرسال',
+    recent_comments_title:'آخر الملاحظات على الطلبات',
+    comments_title:'ملاحظات الطلب', comment_ph:'اكتب ملاحظة... مثلاً: ناقص صنف، الكمية غير مطابقة',
+    send_btn:'إرسال', close_btn:'إغلاق', no_comments_yet:'لا توجد ملاحظات بعد',
+    notices_from_mgmt:'تنبيهات من الإدارة'
+  },
+  en: {
+    login_title:'Login', login_name_label:'Name', login_pass_label:'Password',
+    login_error:'Incorrect name or password', login_btn:'Log in',
+    login_name_ph:'Enter your name', login_pass_ph:'Password',
+    nurse_tab_create:'New Request', nurse_tab_myreq:'My Requests', nurse_hello:'Hello', logout:'Log out',
+    nurse_create_title:'Create Supply Request', clinic_label:'Clinic', doctor_label:'Doctor',
+    type_label:'Request Type', type_monthly:'Monthly', type_emergency:'Emergency',
+    items_title:'Items', item_name_ph:'Type or pick an item',
+    add_item_row_btn:'+ Add item',
+    create_error:'Please fill all fields and add at least one item',
+    submit_request_btn:'Send request to procurement',
+    my_requests_title:'My Requests', receive_btn:'Receive & sign', comment_btn:'💬 Notes',
+    no_requests_yet:'No requests yet',
+    confirm_receive_title:'Confirm receipt of request', th_item:'Item', th_sent_qty:'Sent qty',
+    th_received_qty:'Actually received', receiver_name_label:'Receiver name',
+    signature_label:'Signature (optional - draw with mouse/touch)', clear_sig_btn:'Clear signature',
+    confirm_receive_btn:'Confirm receipt', cancel_btn:'Cancel', recv_name_required:'Receiver name is required',
+    procurement_title:'Procurement Dashboard', status_label:'Status', all_option:'All',
+    status_new:'New', status_progress:'In Progress', status_sent:'Sent', status_received:'Received',
+    month_label:'Month', bulk_progress_btn:'Approve selected: In progress', bulk_sent_btn:'Approve selected: Sent',
+    no_matching_requests:'No matching requests', view_items_btn:'View / approve items',
+    th_requested:'Requested', th_approved:'Approved', select_one_request:'Select at least one request',
+    dashboard_title:'Management Dashboard',
+    trend_title:'Avg fulfillment time trend (last 6 months)',
+    clinic_chart_title:'Avg fulfillment hours by clinic (selected month)',
+    kpi_total:'Total requests', kpi_avg_hours:'Avg fulfillment (hrs)',
+    top_items_title:'Most requested items (proxy for turnover - actual warehouse stock is not tracked)',
+    th_qty:'Total qty',
+    clinic_avg_title:'Avg hours between submission and dispatch - by clinic',
+    th_clinic:'Clinic', th_avg_hours:'Avg hours', th_count:'Requests',
+    details_title:'Request details', th_request_id:'Request ID', th_doctor:'Doctor', th_type:'Type', th_hours:'Hours',
+    notices_compose_title:'Send a note', notice_target_label:'Send to',
+    target_procurement:'Procurement', target_nursing:'Nursing', target_all:'Everyone',
+    notice_msg_ph:'Write your note...', send_notice_btn:'Send',
+    recent_comments_title:'Recent request notes',
+    comments_title:'Request notes', comment_ph:'Write a note... e.g. item missing, quantity mismatch',
+    send_btn:'Send', close_btn:'Close', no_comments_yet:'No notes yet',
+    notices_from_mgmt:'Notices from management'
+  }
+};
+function t(key) { return (I18N[LANG] && I18N[LANG][key]) || key; }
+
+function toggleLang() {
+  LANG = LANG === 'ar' ? 'en' : 'ar';
+  applyLang();
+}
+
+function applyLang() {
+  document.documentElement.lang = LANG;
+  document.body.dir = LANG === 'ar' ? 'rtl' : 'ltr';
+  document.getElementById('langToggleBtn').textContent = LANG === 'ar' ? 'English' : 'عربي';
+  document.querySelectorAll('[data-i18n]').forEach(function (el) { el.textContent = t(el.dataset.i18n); });
+  document.querySelectorAll('[data-i18n-ph]').forEach(function (el) { el.placeholder = t(el.dataset.i18nPh); });
+  // إعادة رسم أي قوائم ديناميكية مفتوحة حالياً حتى تتحدث لغتها
+  if (CURRENT_USER) {
+    if (CURRENT_USER.role === 'ممرضة') { loadMyRequests(); loadNurseNotices(); }
+    if (CURRENT_USER.role === 'تموين') { loadProcurementRequests(); loadProcNotices(); }
+    if (CURRENT_USER.role === 'جودة' || CURRENT_USER.role === 'تنفيذي') loadDashboard();
+  }
+}
+
+function statusLabel(s) {
+  return { 'جديد': t('status_new'), 'قيد التجهيز': t('status_progress'), 'تم الإرسال': t('status_sent'), 'تم الاستلام': t('status_received') }[s] || s;
+}
+function typeLabel(ty) { return ty === 'شهري' ? t('type_monthly') : (ty === 'طارئ' ? t('type_emergency') : ty); }
+function statusBadgeClass(status) {
+  return { 'جديد': 'badge-new', 'قيد التجهيز': 'badge-progress', 'تم الإرسال': 'badge-sent', 'تم الاستلام': 'badge-received' }[status] || 'badge-new';
+}
+
+/* ================= الحالة العامة ================= */
+let CURRENT_USER = null;
+let ITEMS_CATALOG = [];
+let CLINICS = [];
+let SIG_CTX, SIG_DRAWING = false, SIG_HAS_INK = false;
+let CURRENT_RECEIVE_ID = null;
+let CURRENT_COMMENT_REQ = null;
+
+/* ================= تسجيل الدخول ================= */
+
+function doLogin() {
+  const name = document.getElementById('loginName').value.trim();
+  const pass = document.getElementById('loginPass').value;
+  document.getElementById('loginError').classList.add('hidden');
+  google.script.run.withSuccessHandler(function (res) {
+    if (!res.success) { document.getElementById('loginError').classList.remove('hidden'); return; }
+    CURRENT_USER = res;
+    afterLogin();
+  }).checkLogin(name, pass);
+}
+
+function logout() { window.location.reload(); }
+
+function afterLogin() {
+  document.getElementById('loginSection').classList.add('hidden');
+  google.script.run.withSuccessHandler(function (items) {
+    ITEMS_CATALOG = items;
+    refreshItemsDatalist();
+  }).getItemsCatalog();
+  google.script.run.withSuccessHandler(function (clinics) {
+    CLINICS = clinics;
+    if (CURRENT_USER.role === 'ممرضة') initNurseView();
+    if (CURRENT_USER.role === 'تموين') initProcurementView();
+    if (CURRENT_USER.role === 'جودة' || CURRENT_USER.role === 'تنفيذي') initDashboardView();
+  }).getClinics();
+}
+
+function refreshItemsDatalist() {
+  const dl = document.getElementById('itemsCatalogList');
+  if (!dl) return;
+  dl.innerHTML = ITEMS_CATALOG.map(function (i) { return '<option value="' + i + '">'; }).join('');
+}
+
+/* ================= الممرضة: إنشاء طلب ================= */
+
+function initNurseView() {
+  document.getElementById('nurseSection').classList.remove('hidden');
+  document.getElementById('nurseNameLbl').textContent = CURRENT_USER.name;
+  const clinicSel = document.getElementById('reqClinic');
+  clinicSel.innerHTML = '';
+  const userClinics = CURRENT_USER.clinic ? CURRENT_USER.clinic.split(',').map(function (s) { return s.trim(); }) : CLINICS.map(function (c) { return c.name; });
+  CLINICS.filter(function (c) { return userClinics.indexOf(c.name) !== -1; }).forEach(function (c) {
+    const o = document.createElement('option'); o.value = c.name; o.textContent = c.name; clinicSel.appendChild(o);
+  });
+  loadDoctorsForClinic();
+  document.getElementById('itemRows').innerHTML = '';
+  addItemRow();
+  loadNurseNotices();
+  showNurseTab('create');
+}
+
+function showNurseTab(tab) {
+  document.getElementById('nurseCreateTab').classList.toggle('hidden', tab !== 'create');
+  document.getElementById('nurseMineTab').classList.toggle('hidden', tab !== 'mine');
+  if (tab === 'mine') loadMyRequests();
+}
+
+function loadDoctorsForClinic() {
+  const clinic = document.getElementById('reqClinic').value;
+  google.script.run.withSuccessHandler(function (doctors) {
+    const sel = document.getElementById('reqDoctor');
+    sel.innerHTML = '';
+    doctors.forEach(function (d) {
+      const o = document.createElement('option'); o.value = d.name; o.textContent = d.name; sel.appendChild(o);
+    });
+  }).getDoctors(clinic);
+}
+
+function addItemRow() {
+  const row = document.createElement('div');
+  row.className = 'item-row';
+  row.innerHTML =
+    '<input type="text" class="itemName" list="itemsCatalogList" placeholder="' + t('item_name_ph') + '">' +
+    '<input type="number" class="itemQty" min="1" value="1">' +
+    '<button class="btn-secondary" onclick="this.parentElement.remove()">✕</button>';
+  document.getElementById('itemRows').appendChild(row);
+}
+
+function submitRequest() {
+  const clinic = document.getElementById('reqClinic').value;
+  const doctor = document.getElementById('reqDoctor').value;
+  const type = document.getElementById('reqType').value;
+  const items = Array.from(document.querySelectorAll('#itemRows .item-row')).map(function (row) {
+    return { name: row.querySelector('.itemName').value.trim(), qty: Number(row.querySelector('.itemQty').value) };
+  }).filter(function (it) { return it.name; });
+  const errEl = document.getElementById('createError');
+  if (!clinic || !doctor || items.length === 0) {
+    errEl.classList.remove('hidden');
+    return;
+  }
+  errEl.classList.add('hidden');
+  google.script.run.withSuccessHandler(function (id) {
+    alert(t('submit_request_btn') + ' ✓ — ' + id);
+    google.script.run.withSuccessHandler(function (updated) { ITEMS_CATALOG = updated; refreshItemsDatalist(); }).getItemsCatalog();
+    initNurseView();
+  }).createRequest({ clinic: clinic, doctor: doctor, nurse: CURRENT_USER.name, type: type, items: items });
+}
+
+/* ================= الممرضة: طلباتي (استلام + متابعة) ================= */
+
+function loadMyRequests() {
+  google.script.run.withSuccessHandler(function (reqs) {
+    const mine = reqs.filter(function (r) { return r.nurse === CURRENT_USER.name; });
+    const el = document.getElementById('myRequestsList');
+    if (mine.length === 0) { el.innerHTML = '<p>' + t('no_requests_yet') + '</p>'; return; }
+    el.innerHTML = mine.map(function (r) {
+      const receiveBtn = r.status === 'تم الإرسال'
+        ? '<button class="btn-primary" onclick="openReceiveModal(\'' + r.id + '\')">' + t('receive_btn') + '</button>' : '';
+      return '<div class="req-block"><div class="req-block-top"><b>' + r.id + '</b> — ' + r.clinic + ' / ' + r.doctor +
+        ' <span class="badge ' + statusBadgeClass(r.status) + '">' + statusLabel(r.status) + '</span></div>' +
+        '<div>' + receiveBtn +
+        '<button class="btn-secondary" onclick="openComments(\'' + r.id + '\')">' + t('comment_btn') + '</button></div></div>';
+    }).join('');
+  }).getRequests({});
+}
+
+function openReceiveModal(id) {
+  CURRENT_RECEIVE_ID = id;
+  document.getElementById('recvReqId').textContent = id;
+  document.getElementById('recvName').value = CURRENT_USER.name;
+  google.script.run.withSuccessHandler(function (items) {
+    document.getElementById('recvItemsBody').innerHTML = items.map(function (it) {
+      const sentQty = it.approvedQty !== '' ? it.approvedQty : it.requestedQty;
+      return '<tr><td>' + it.item + '</td><td>' + sentQty + '</td>' +
+             '<td><input type="number" class="recvQty" data-name="' + it.item + '" value="' + sentQty + '" min="0"></td></tr>';
+    }).join('');
+  }).getRequestItems(id);
+  document.getElementById('receiveModal').classList.remove('hidden');
+  initSigPad();
+}
+
+function closeReceiveModal() { document.getElementById('receiveModal').classList.add('hidden'); }
+
+function initSigPad() {
+  const canvas = document.getElementById('sigPad');
+  canvas.width = canvas.clientWidth; canvas.height = canvas.clientHeight;
+  SIG_CTX = canvas.getContext('2d');
+  SIG_CTX.clearRect(0, 0, canvas.width, canvas.height);
+  SIG_HAS_INK = false;
+  const pos = function (e) {
+    const rect = canvas.getBoundingClientRect();
+    const p = e.touches ? e.touches[0] : e;
+    return { x: p.clientX - rect.left, y: p.clientY - rect.top };
+  };
+  canvas.onmousedown = canvas.ontouchstart = function (e) { SIG_DRAWING = true; const p = pos(e); SIG_CTX.beginPath(); SIG_CTX.moveTo(p.x, p.y); e.preventDefault(); };
+  canvas.onmousemove = canvas.ontouchmove = function (e) { if (!SIG_DRAWING) return; const p = pos(e); SIG_CTX.lineTo(p.x, p.y); SIG_CTX.stroke(); SIG_HAS_INK = true; e.preventDefault(); };
+  canvas.onmouseup = canvas.ontouchend = function () { SIG_DRAWING = false; };
+}
+
+function clearSig() { initSigPad(); }
+
+function confirmReceive() {
+  const name = document.getElementById('recvName').value.trim();
+  const errEl = document.getElementById('recvError');
+  if (!name) { errEl.textContent = t('recv_name_required'); errEl.classList.remove('hidden'); return; }
+  errEl.classList.add('hidden');
+  const items = Array.from(document.querySelectorAll('.recvQty')).map(function (inp) { return { name: inp.dataset.name, qty: Number(inp.value) }; });
+  const sigData = SIG_HAS_INK ? document.getElementById('sigPad').toDataURL('image/png') : '';
+  google.script.run.withSuccessHandler(function () {
+    alert(t('confirm_receive_btn') + ' ✓');
+    closeReceiveModal();
+    loadMyRequests();
+  }).receiveRequest(CURRENT_RECEIVE_ID, items, name, sigData);
+}
+
+function loadNurseNotices() {
+  google.script.run.withSuccessHandler(function (notices) { renderNoticesBox('nurseNoticesBox', notices); }).getNotices('ممرضة');
+}
+
+/* ================= التموين ================= */
+
+function initProcurementView() {
+  document.getElementById('procurementSection').classList.remove('hidden');
+  document.getElementById('procNameLbl').textContent = CURRENT_USER.name;
+  const clinicSel = document.getElementById('procFilterClinic');
+  clinicSel.innerHTML = '<option value="">' + t('all_option') + '</option>' +
+    CLINICS.map(function (c) { return '<option value="' + c.name + '">' + c.name + '</option>'; }).join('');
+  loadProcurementRequests();
+  loadProcNotices();
+}
+
+function loadProcurementRequests() {
+  const filters = {
+    status: document.getElementById('procFilterStatus').value,
+    clinic: document.getElementById('procFilterClinic').value,
+    month: document.getElementById('procFilterMonth').value
+  };
+  google.script.run.withSuccessHandler(function (reqs) {
+    const el = document.getElementById('procRequestsList');
+    if (reqs.length === 0) { el.innerHTML = '<p>' + t('no_matching_requests') + '</p>'; return; }
+    el.innerHTML = reqs.map(function (r) {
+      return '<div class="req-block">' +
+        '<div class="req-block-top">' +
+        '<label style="display:inline;"><input type="checkbox" class="reqSelect" value="' + r.id + '"> <b>' + r.id + '</b></label> — ' +
+        r.clinic + ' / ' + r.doctor + ' / ' + r.nurse + ' (' + typeLabel(r.type) + ') ' +
+        '<span class="badge ' + statusBadgeClass(r.status) + '">' + statusLabel(r.status) + '</span></div>' +
+        '<div>' +
+        '<button class="btn-secondary" onclick="toggleItemsView(\'' + r.id + '\')">' + t('view_items_btn') + '</button>' +
+        '<button class="btn-secondary" onclick="openComments(\'' + r.id + '\')">' + t('comment_btn') + '</button>' +
+        '</div>' +
+        '<div id="items-' + r.id + '" class="hidden"></div>' +
+        '</div>';
+    }).join('');
+  }).getRequests(filters);
+}
+
+function toggleItemsView(id) {
+  const el = document.getElementById('items-' + id);
+  if (!el.classList.contains('hidden')) { el.classList.add('hidden'); return; }
+  google.script.run.withSuccessHandler(function (items) {
+    el.innerHTML = '<table><thead><tr><th>' + t('th_item') + '</th><th>' + t('th_requested') + '</th><th>' + t('th_approved') + '</th></tr></thead><tbody>' +
+      items.map(function (it) {
+        return '<tr><td>' + it.item + '</td><td>' + it.requestedQty + '</td>' +
+          '<td><input type="number" value="' + (it.approvedQty || it.requestedQty) + '" min="0" ' +
+          'onchange="updateApproval(\'' + id + '\',\'' + it.item + '\',this.value)"></td></tr>';
+      }).join('') + '</tbody></table>';
+    el.classList.remove('hidden');
+  }).getRequestItems(id);
+}
+
+function updateApproval(reqId, itemName, qty) { google.script.run.updateItemApproval(reqId, itemName, Number(qty)); }
+
+function bulkAction(newStatus) {
+  const ids = Array.from(document.querySelectorAll('.reqSelect:checked')).map(function (c) { return c.value; });
+  if (ids.length === 0) { alert(t('select_one_request')); return; }
+  google.script.run.withSuccessHandler(function () { loadProcurementRequests(); }).bulkUpdateStatus(ids, newStatus);
+}
+
+function loadProcNotices() {
+  google.script.run.withSuccessHandler(function (notices) { renderNoticesBox('procNoticesBox', notices); }).getNotices('تموين');
+}
+
+/* ================= تنبيهات عامة (يراها من ضمن دوره) ================= */
+
+function renderNoticesBox(elId, notices) {
+  const el = document.getElementById(elId);
+  if (!notices || notices.length === 0) { el.classList.add('hidden'); el.innerHTML = ''; return; }
+  el.classList.remove('hidden');
+  el.innerHTML = '<h3>' + t('notices_from_mgmt') + '</h3>' + notices.map(function (n) {
+    return '<div class="notice-box">' + n.message + '<div class="meta">' + n.fromRole + ' · ' + n.fromName + '</div></div>';
+  }).join('');
+}
+
+function sendNotice() {
+  const target = document.getElementById('noticeTarget').value;
+  const msg = document.getElementById('noticeMsg').value.trim();
+  if (!msg) return;
+  google.script.run.withSuccessHandler(function () {
+    document.getElementById('noticeMsg').value = '';
+    alert(t('send_notice_btn') + ' ✓');
+  }).addNotice(CURRENT_USER.role, CURRENT_USER.name, target, msg);
+}
+
+/* ================= لوحة الجودة / الإدارة التنفيذية ================= */
+
+function initDashboardView() {
+  document.getElementById('dashboardSection').classList.remove('hidden');
+  document.getElementById('dashNameLbl').textContent = CURRENT_USER.name;
+  loadDashboard();
+}
+
+function loadDashboard() {
+  const month = document.getElementById('dashMonth').value;
+  google.script.run.withSuccessHandler(function (stats) {
+    const sc = stats.statusCounts || {};
+    document.getElementById('kpiGrid').innerHTML =
+      kpiCard(stats.total, t('kpi_total')) +
+      kpiCard(stats.overallAvgHours, t('kpi_avg_hours')) +
+      kpiCard(sc['جديد'] || 0, t('status_new')) +
+      kpiCard(sc['قيد التجهيز'] || 0, t('status_progress')) +
+      kpiCard(sc['تم الإرسال'] || 0, t('status_sent')) +
+      kpiCard(sc['تم الاستلام'] || 0, t('status_received'));
+
+    document.getElementById('topItemsBody').innerHTML = (stats.topItems || []).map(function (it) {
+      return '<tr><td>' + it.name + '</td><td>' + it.qty + '</td></tr>';
+    }).join('');
+
+    document.getElementById('qAveragesBody').innerHTML = (stats.byClinic || []).map(function (a) {
+      return '<tr><td>' + a.clinic + '</td><td>' + a.avgHours + '</td><td>' + a.count + '</td></tr>';
+    }).join('');
+    renderClinicChart(stats.byClinic || []);
+
+    document.getElementById('recentCommentsBox').innerHTML = (stats.recentComments || []).length === 0
+      ? '<p>' + t('no_comments_yet') + '</p>'
+      : stats.recentComments.map(function (c) {
+          return '<div class="comment-msg"><div class="meta">' + c.requestId + ' · ' + c.author + ' (' + c.role + ')</div>' + c.message + '</div>';
+        }).join('');
+  }).getExecutiveStats(month);
+
+  // تفاصيل كل طلب (زمن التنفيذ) - نفس منطق التقرير السابق
+  google.script.run.withSuccessHandler(function (report) {
+    document.getElementById('qRowsBody').innerHTML = report.rows.map(function (r) {
+      return '<tr><td>' + r.id + '</td><td>' + r.clinic + '</td><td>' + r.doctor + '</td><td>' + typeLabel(r.type) + '</td><td>' + r.hours + '</td></tr>';
+    }).join('');
+  }).getQualityReport(month);
+
+  // اتجاه الأداء الشهري - آخر 6 أشهر
+  google.script.run.withSuccessHandler(function (trend) { renderTrendChart(trend); }).getQualityTrend(6);
+}
+
+let trendChartObj = null, clinicChartObj = null;
+
+function renderTrendChart(trend) {
+  const ctx = document.getElementById('trendChart');
+  const labels = trend.map(function (r) { return r.month; });
+  const data = trend.map(function (r) { return r.avgHours; });
+  if (trendChartObj) trendChartObj.destroy();
+  trendChartObj = new Chart(ctx, {
+    type: 'line',
+    data: { labels: labels, datasets: [{ label: t('kpi_avg_hours'), data: data, borderColor: '#185fa5', backgroundColor: 'rgba(24,95,165,.15)', tension: 0.3, fill: true }] },
+    options: { plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true } } }
+  });
+}
+
+function renderClinicChart(byClinic) {
+  const ctx = document.getElementById('clinicChart');
+  const labels = byClinic.map(function (r) { return r.clinic; });
+  const data = byClinic.map(function (r) { return r.avgHours; });
+  if (clinicChartObj) clinicChartObj.destroy();
+  if (labels.length === 0) return;
+  clinicChartObj = new Chart(ctx, {
+    type: 'bar',
+    data: { labels: labels, datasets: [{ label: t('kpi_avg_hours'), data: data, backgroundColor: '#0f6e56' }] },
+    options: { plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true } } }
+  });
+}
+
+function kpiCard(num, lbl) {
+  return '<div class="kpi-card"><div class="num">' + num + '</div><div class="lbl">' + lbl + '</div></div>';
+}
+
+/* ================= شات ملاحظات الطلب (مشترك بين كل الأدوار) ================= */
+
+function openComments(requestId) {
+  CURRENT_COMMENT_REQ = requestId;
+  document.getElementById('commentReqId').textContent = requestId;
+  document.getElementById('commentInput').value = '';
+  refreshComments();
+  document.getElementById('commentOverlay').classList.remove('hidden');
+  document.getElementById('commentModal').classList.remove('hidden');
+}
+
+function closeComments() {
+  document.getElementById('commentOverlay').classList.add('hidden');
+  document.getElementById('commentModal').classList.add('hidden');
+}
+
+function refreshComments() {
+  google.script.run.withSuccessHandler(function (list) {
+    const el = document.getElementById('commentList');
+    el.innerHTML = list.length === 0 ? '<p>' + t('no_comments_yet') + '</p>' : list.map(function (c) {
+      return '<div class="comment-msg"><div class="meta">' + c.author + ' (' + c.role + ')</div>' + c.message + '</div>';
+    }).join('');
+    el.scrollTop = el.scrollHeight;
+  }).getComments(CURRENT_COMMENT_REQ);
+}
+
+function sendComment() {
+  const msg = document.getElementById('commentInput').value.trim();
+  if (!msg || !CURRENT_COMMENT_REQ) return;
+  google.script.run.withSuccessHandler(function () {
+    document.getElementById('commentInput').value = '';
+    refreshComments();
+  }).addComment(CURRENT_COMMENT_REQ, CURRENT_USER.name, CURRENT_USER.role, msg);
+}
+
+/* ================= بداية التشغيل ================= */
+applyLang();
+</script>
+</body>
+</html>
