@@ -226,7 +226,10 @@
 <!-- ============== الجودة / الإدارة التنفيذية ============== -->
 <div id="dashboardSection" class="hidden">
   <div class="topbar">
-    <h1 style="margin:0;" data-i18n="dashboard_title">لوحة الإدارة</h1>
+    <div>
+      <h1 style="margin:0;display:inline;" data-i18n="dashboard_title">لوحة الإدارة</h1>
+      <button class="btn-secondary" style="margin-right:12px;" onclick="switchToUsers()" data-i18n="users_title">إدارة المستخدمين</button>
+    </div>
     <div class="who"><span data-i18n="nurse_hello">مرحباً</span> <span id="dashNameLbl"></span> · <a href="#" onclick="logout()" data-i18n="logout">خروج</a></div>
   </div>
 
@@ -282,6 +285,105 @@
 </div>
 
 <!-- ============== شات الملاحظات لكل طلب ============== -->
+<!-- ============== إدارة المستخدمين (تنفيذي فقط) ============== -->
+<div id="usersSection" class="hidden">
+  <div class="topbar">
+    <div style="display:flex;align-items:center;gap:10px;">
+      <h1 style="margin:0;" data-i18n="users_title">إدارة المستخدمين</h1>
+      <button class="btn-secondary" style="margin:0;" onclick="switchToDashboard()" data-i18n="dashboard_title">لوحة الإدارة</button>
+    </div>
+    <div class="who"><span id="usersNameLbl"></span> · <a href="#" onclick="logout()" data-i18n="logout">خروج</a></div>
+  </div>
+
+  <div class="card">
+    <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;">
+      <h2 style="margin:0;" data-i18n="users_list_title">قائمة المستخدمين</h2>
+      <button class="btn-primary" onclick="openUserModal()" data-i18n="add_user_btn">+ مستخدم جديد</button>
+    </div>
+    <div id="usersTableWrap" style="margin-top:12px;overflow-x:auto;">
+      <table>
+        <thead><tr>
+          <th data-i18n="th_name">الاسم</th>
+          <th data-i18n="th_role">الدور</th>
+          <th data-i18n="th_clinic">العيادة</th>
+          <th data-i18n="th_email">البريد</th>
+          <th></th>
+        </tr></thead>
+        <tbody id="usersTableBody"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="card">
+    <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;">
+      <h2 style="margin:0;">الأدوار والشاشات</h2>
+      <button class="btn-primary" onclick="openRoleModal()">+ دور جديد</button>
+    </div>
+    <p style="font-size:var(--fs-sm);color:var(--text-muted);margin:6px 0 10px;">كل دور مرتبط بشاشة — يحدد أين يذهب المستخدم بعد الدخول.</p>
+    <table>
+      <thead><tr><th>الدور</th><th>الشاشة</th><th></th></tr></thead>
+      <tbody id="rolesTableBody"></tbody>
+    </table>
+  </div>
+</div>
+
+<!-- مودال إنشاء/تعديل مستخدم -->
+<div id="userModalOverlay" class="modal-overlay hidden" onclick="closeUserModal()"></div>
+<div id="userModal" class="card hidden" style="position:fixed;top:8%;left:50%;transform:translateX(-50%);width:90%;max-width:460px;z-index:71;box-shadow:0 4px 24px rgba(0,0,0,.2);">
+  <h2 id="userModalTitle">مستخدم جديد</h2>
+
+  <label data-i18n="login_name_label">الاسم</label>
+  <input id="uName" type="text" data-i18n-ph="login_name_ph" placeholder="اكتب الاسم">
+
+  <label data-i18n="login_pass_label">الرقم السري</label>
+  <input id="uPass" type="text" placeholder="سيبقى كما هو لو تركته فارغاً عند التعديل">
+
+  <label data-i18n="th_role">الدور</label>
+  <select id="uRole" onchange="toggleClinicField()">
+    <option value="ممرضة">ممرضة</option>
+    <option value="تموين">تموين</option>
+    <option value="جودة">جودة</option>
+    <option value="مالية">مالية</option>
+    <option value="تنفيذي">تنفيذي</option>
+  </select>
+
+  <div id="uClinicWrap">
+    <label data-i18n="clinic_label">العيادة</label>
+    <select id="uClinic"></select>
+  </div>
+
+  <label data-i18n="th_email">البريد الإلكتروني</label>
+  <input id="uEmail" type="email" placeholder="اختياري — للإشعارات">
+
+  <div id="userModalError" class="error hidden"></div>
+
+  <div>
+    <button class="btn-primary" id="userModalSaveBtn" onclick="saveUser()" data-i18n="save_btn">حفظ</button>
+    <button class="btn-secondary" onclick="closeUserModal()" data-i18n="cancel_btn">إلغاء</button>
+    <button class="btn-danger hidden" id="userDeleteBtn" onclick="confirmDeleteUser()" data-i18n="delete_btn" style="float:inline-end;">حذف</button>
+  </div>
+</div>
+
+<!-- مودال الأدوار -->
+<div id="roleModalOverlay" class="modal-overlay hidden" onclick="closeRoleModal()"></div>
+<div id="roleModal" class="card hidden" style="position:fixed;top:15%;left:50%;transform:translateX(-50%);width:90%;max-width:380px;z-index:72;box-shadow:0 4px 24px rgba(0,0,0,.2);">
+  <h2>إعداد دور</h2>
+  <label>اسم الدور</label>
+  <input id="rName" type="text" placeholder="مثال: ممرضة، مشرف...">
+  <label>الشاشة بعد الدخول</label>
+  <select id="rScreen">
+    <option value="nurse">ممرضة — شاشة الطلبات</option>
+    <option value="procurement">تموين — لوحة التموين</option>
+    <option value="dashboard">لوحة الإدارة</option>
+  </select>
+  <div id="roleModalError" class="error hidden"></div>
+  <div>
+    <button class="btn-primary" onclick="saveRole()">حفظ</button>
+    <button class="btn-secondary" onclick="closeRoleModal()">إلغاء</button>
+    <button class="btn-danger hidden" id="roleDeleteBtn" onclick="confirmDeleteRole()" style="float:inline-end;">حذف</button>
+  </div>
+</div>
+
 <div id="commentOverlay" class="modal-overlay hidden" onclick="closeComments()"></div>
 <div id="commentModal" class="card comment-modal hidden">
   <h2><span data-i18n="comments_title">ملاحظات الطلب</span> <span id="commentReqId"></span></h2>
@@ -303,7 +405,7 @@
   if (typeof google !== 'undefined' && google.script && google.script.run) return;
 
   /* ▼▼▼ رابط الـ Web App — يُعدَّل مرة واحدة هنا فقط من قِبل مسؤول النظام ▼▼▼ */
-  const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbyXjW137-lGaIzBwypqX57ckK2VIZuz8VuAqJNJyEsWAk857OnAMOJ-Py6xngB1j_8D/exec';
+  const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbyghqu8hIRgcUKAXWZ2LgnIjplNkPSHtnPCMvreFrodSz-uO1NFSGQ3D2Fkj8ixNBu-/exec';
   /* ▲▲▲ لا شيء آخر يحتاج تعديلاً ▲▲▲ */
 
   function callBackend(fn, args, onSuccess, onFailure) {
@@ -372,6 +474,10 @@ const I18N = {
     no_matching_requests:'لا توجد طلبات مطابقة', view_items_btn:'عرض/اعتماد الأصناف',
     th_requested:'المطلوب', th_approved:'المعتمد', select_one_request:'اختر طلب واحد على الأقل',
     dashboard_title:'لوحة الإدارة',
+    users_title:'إدارة المستخدمين', users_list_title:'قائمة المستخدمين',
+    add_user_btn:'+ مستخدم جديد', save_btn:'حفظ', delete_btn:'حذف',
+    th_name:'الاسم', th_role:'الدور', th_email:'البريد',
+    edit_btn:'تعديل', confirm_delete_user:'هل تريد حذف هذا المستخدم؟',
     trend_title:'اتجاه متوسط زمن التنفيذ (آخر 6 أشهر)',
     clinic_chart_title:'متوسط ساعات التنفيذ حسب العيادة (الشهر المحدد)',
     kpi_total:'إجمالي الطلبات', kpi_avg_hours:'متوسط ساعات التنفيذ',
@@ -411,6 +517,10 @@ const I18N = {
     no_matching_requests:'No matching requests', view_items_btn:'View / approve items',
     th_requested:'Requested', th_approved:'Approved', select_one_request:'Select at least one request',
     dashboard_title:'Management Dashboard',
+    users_title:'User Management', users_list_title:'Users',
+    add_user_btn:'+ New user', save_btn:'Save', delete_btn:'Delete',
+    th_name:'Name', th_role:'Role', th_email:'Email',
+    edit_btn:'Edit', confirm_delete_user:'Delete this user?',
     trend_title:'Avg fulfillment time trend (last 6 months)',
     clinic_chart_title:'Avg fulfillment hours by clinic (selected month)',
     kpi_total:'Total requests', kpi_avg_hours:'Avg fulfillment (hrs)',
@@ -461,9 +571,29 @@ function statusBadgeClass(status) {
 let CURRENT_USER = null;
 let ITEMS_CATALOG = [];
 let CLINICS = [];
+let ROLES = [];           // قائمة الأدوار المجلوبة من الشيت
+let SYNC_TIMER = null;    // مؤقت المزامنة التلقائية
+let PREFETCH_DONE = false;// هل جُلبت البيانات الأولية مسبقاً
 let SIG_CTX, SIG_DRAWING = false, SIG_HAS_INK = false;
 let CURRENT_RECEIVE_ID = null;
 let CURRENT_COMMENT_REQ = null;
+
+/* ================= تحميل مسبق ================= */
+// يبدأ جلب البيانات الثقيلة فور فتح الصفحة بدون انتظار تسجيل الدخول
+function prefetch() {
+  if (PREFETCH_DONE) return;
+  google.script.run
+    .withSuccessHandler(function (cfg) {
+      CLINICS       = cfg.clinics  || [];
+      ITEMS_CATALOG = cfg.catalog  || [];
+      ROLES         = cfg.roles    || [];
+      PREFETCH_DONE = true;
+      refreshItemsDatalist();
+    })
+    .withFailureHandler(function () { /* صامت — سيُعاد الجلب عند الدخول */ })
+    .getAppConfig();
+}
+prefetch();
 
 /* ================= تسجيل الدخول ================= */
 
@@ -497,16 +627,39 @@ function logout() { window.location.reload(); }
 
 function afterLogin() {
   document.getElementById('loginSection').classList.add('hidden');
-  google.script.run.withSuccessHandler(function (items) {
-    ITEMS_CATALOG = items;
-    refreshItemsDatalist();
-  }).getItemsCatalog();
-  google.script.run.withSuccessHandler(function (clinics) {
-    CLINICS = clinics;
-    if (CURRENT_USER.role === 'ممرضة') initNurseView();
-    if (CURRENT_USER.role === 'تموين') initProcurementView();
-    if (CURRENT_USER.role === 'جودة' || CURRENT_USER.role === 'تنفيذي') initDashboardView();
-  }).getClinics();
+
+  function routeUser() {
+    var screen = 'dashboard';
+    var matched = ROLES.find(function (r) { return r.name === CURRENT_USER.role; });
+    if (matched) screen = matched.screen;
+    if (screen === 'nurse')       initNurseView();
+    else if (screen === 'procurement') initProcurementView();
+    else                          initDashboardView();
+    startAutoSync();
+  }
+
+  if (PREFETCH_DONE) {
+    // البيانات جاهزة — دخول فوري بلا انتظار
+    routeUser();
+  } else {
+    google.script.run
+      .withSuccessHandler(function (cfg) {
+        CLINICS       = cfg.clinics  || [];
+        ITEMS_CATALOG = cfg.catalog  || [];
+        ROLES         = cfg.roles    || [];
+        PREFETCH_DONE = true;
+        refreshItemsDatalist();
+        routeUser();
+      })
+      .withFailureHandler(function (e) {
+        // fallback: توجيه بالأدوار الثابتة
+        if (CURRENT_USER.role === 'ممرضة') initNurseView();
+        else if (CURRENT_USER.role === 'تموين') initProcurementView();
+        else initDashboardView();
+        startAutoSync();
+      })
+      .getAppConfig();
+  }
 }
 
 function refreshItemsDatalist() {
@@ -846,6 +999,230 @@ function sendComment() {
     document.getElementById('commentInput').value = '';
     refreshComments();
   }).addComment(CURRENT_COMMENT_REQ, CURRENT_USER.name, CURRENT_USER.role, msg);
+}
+
+/* ================= المزامنة ================= */
+const SYNC_INTERVAL_MS = 5 * 60 * 1000; // كل 5 دقائق تلقائياً
+
+function syncNow(silent) {
+  var btn = document.getElementById('syncBtn');
+  if (btn) { btn.disabled = true; btn.textContent = '🔄 جاري المزامنة...'; }
+  google.script.run
+    .withSuccessHandler(function (cfg) {
+      CLINICS       = cfg.clinics  || [];
+      ITEMS_CATALOG = cfg.catalog  || [];
+      ROLES         = cfg.roles    || [];
+      refreshItemsDatalist();
+      if (btn) { btn.disabled = false; btn.textContent = '🔄 مزامنة'; }
+      var ts = document.getElementById('lastSyncTime');
+      if (ts) ts.textContent = new Date().toLocaleTimeString('ar-SA');
+      // أعد تحميل الواجهة الحالية بصمت
+      if (CURRENT_USER) {
+        var matched = ROLES.find(function (r) { return r.name === CURRENT_USER.role; });
+        var screen  = matched ? matched.screen : 'dashboard';
+        if (screen === 'nurse' && !silent)       { loadMyRequests(); loadNurseNotices(); }
+        if (screen === 'procurement' && !silent) { loadProcurementRequests(); loadProcNotices(); }
+        if (screen === 'dashboard' && !silent)   loadDashboard();
+      }
+    })
+    .withFailureHandler(function () {
+      if (btn) { btn.disabled = false; btn.textContent = '🔄 مزامنة'; }
+    })
+    .getAppConfig();
+}
+
+function startAutoSync() {
+  if (SYNC_TIMER) clearInterval(SYNC_TIMER);
+  SYNC_TIMER = setInterval(function () { syncNow(true); }, SYNC_INTERVAL_MS);
+}
+
+/* ================= إدارة المستخدمين ================= */
+
+let EDITING_USER = null;
+
+function switchToUsers() {
+  document.getElementById('dashboardSection').classList.add('hidden');
+  document.getElementById('usersSection').classList.remove('hidden');
+  document.getElementById('usersNameLbl').textContent = CURRENT_USER.name;
+  loadUsers();
+}
+
+function switchToDashboard() {
+  document.getElementById('usersSection').classList.add('hidden');
+  document.getElementById('dashboardSection').classList.remove('hidden');
+}
+
+function loadUsers() {
+  google.script.run
+    .withSuccessHandler(renderUsersTable)
+    .withFailureHandler(function (e) { alert(String(e)); })
+    .getUsers();
+  google.script.run
+    .withSuccessHandler(renderRolesTable)
+    .withFailureHandler(function () {})
+    .getRoles();
+}
+
+function renderUsersTable(users) {
+  const ROLE_BADGE = {
+    'ممرضة':'badge-new','تموين':'badge-progress','جودة':'badge-sent',
+    'تنفيذي':'badge-received','مالية':'badge-progress'
+  };
+  document.getElementById('usersTableBody').innerHTML = users.map(function (u) {
+    return '<tr>' +
+      '<td><b>' + u.name + '</b></td>' +
+      '<td><span class="badge ' + (ROLE_BADGE[u.role] || 'badge-new') + '">' + u.role + '</span></td>' +
+      '<td>' + (u.clinic || '—') + '</td>' +
+      '<td style="font-size:var(--fs-xs);">' + (u.email || '—') + '</td>' +
+      '<td><button class="btn-secondary" style="margin:0;padding:4px 10px;" onclick="openUserModal(\'' +
+        u.name.replace(/'/g, "\\'") + '\')">' + t('edit_btn') + '</button></td>' +
+      '</tr>';
+  }).join('');
+}
+
+function toggleClinicField() {
+  const role = document.getElementById('uRole').value;
+  document.getElementById('uClinicWrap').classList.toggle('hidden', role !== 'ممرضة');
+}
+
+function openUserModal(editName) {
+  EDITING_USER = editName || null;
+  document.getElementById('userModalError').classList.add('hidden');
+  document.getElementById('uClinic').innerHTML = CLINICS.map(function (c) {
+    return '<option value="' + c.name + '">' + c.name + '</option>';
+  }).join('');
+
+  if (editName) {
+    document.getElementById('userModalTitle').textContent = editName;
+    document.getElementById('uName').value = editName;
+    document.getElementById('uName').disabled = true;
+    document.getElementById('uPass').value = '';
+    document.getElementById('uPass').placeholder = 'اتركه فارغاً لعدم التغيير';
+    document.getElementById('userDeleteBtn').classList.remove('hidden');
+    // جلب بيانات المستخدم من الجدول
+    const row = Array.from(document.querySelectorAll('#usersTableBody tr'))
+      .find(function (r) { return r.cells[0].textContent.trim() === editName; });
+    if (row) {
+      document.getElementById('uRole').value = row.cells[1].textContent.trim();
+      const clinicVal = row.cells[2].textContent.trim();
+      if (clinicVal !== '—') document.getElementById('uClinic').value = clinicVal;
+      document.getElementById('uEmail').value = row.cells[3].textContent.trim() === '—' ? '' : row.cells[3].textContent.trim();
+    }
+  } else {
+    document.getElementById('userModalTitle').textContent = t('add_user_btn');
+    document.getElementById('uName').value = '';
+    document.getElementById('uName').disabled = false;
+    document.getElementById('uPass').value = '';
+    document.getElementById('uPass').placeholder = '';
+    document.getElementById('uRole').value = 'ممرضة';
+    document.getElementById('uEmail').value = '';
+    document.getElementById('userDeleteBtn').classList.add('hidden');
+  }
+  toggleClinicField();
+  document.getElementById('userModalOverlay').classList.remove('hidden');
+  document.getElementById('userModal').classList.remove('hidden');
+}
+
+function closeUserModal() {
+  document.getElementById('userModalOverlay').classList.add('hidden');
+  document.getElementById('userModal').classList.add('hidden');
+  EDITING_USER = null;
+}
+
+function saveUser() {
+  const errEl = document.getElementById('userModalError');
+  errEl.classList.add('hidden');
+  const name = document.getElementById('uName').value.trim();
+  const pass = document.getElementById('uPass').value.trim();
+  const role = document.getElementById('uRole').value;
+  const clinic = role === 'ممرضة' ? document.getElementById('uClinic').value : '';
+  const email = document.getElementById('uEmail').value.trim();
+
+  const btn = document.getElementById('userModalSaveBtn');
+  btn.disabled = true;
+
+  if (EDITING_USER) {
+    google.script.run
+      .withSuccessHandler(function (users) { btn.disabled = false; closeUserModal(); renderUsersTable(users); })
+      .withFailureHandler(function (e) { btn.disabled = false; errEl.textContent = String(e); errEl.classList.remove('hidden'); })
+      .updateUser(EDITING_USER, { password: pass, role: role, clinic: clinic, email: email });
+  } else {
+    if (!name || !pass) { btn.disabled = false; errEl.textContent = 'الاسم والرقم السري إلزاميان'; errEl.classList.remove('hidden'); return; }
+    google.script.run
+      .withSuccessHandler(function (users) { btn.disabled = false; closeUserModal(); renderUsersTable(users); })
+      .withFailureHandler(function (e) { btn.disabled = false; errEl.textContent = String(e); errEl.classList.remove('hidden'); })
+      .createUser({ name: name, password: pass, role: role, clinic: clinic, email: email });
+  }
+}
+
+function confirmDeleteUser() {
+  if (!confirm(t('confirm_delete_user') + '\n' + EDITING_USER)) return;
+  google.script.run
+    .withSuccessHandler(function (users) { closeUserModal(); renderUsersTable(users); })
+    .withFailureHandler(function (e) { alert(String(e)); })
+    .deleteUser(EDITING_USER);
+}
+
+/* ================= إدارة الأدوار ================= */
+
+const SCREEN_LABELS = { nurse: 'ممرضة', procurement: 'تموين', dashboard: 'لوحة الإدارة' };
+let EDITING_ROLE = null;
+
+function renderRolesTable(roles) {
+  ROLES = roles;
+  document.getElementById('rolesTableBody').innerHTML = roles.map(function (r) {
+    return '<tr><td><b>' + r.name + '</b></td>' +
+      '<td>' + (SCREEN_LABELS[r.screen] || r.screen) + '</td>' +
+      '<td><button class="btn-secondary" style="margin:0;padding:4px 10px;" ' +
+        'onclick="openRoleModal(\'' + r.name.replace(/'/g, "\\'") + '\')">' + t('edit_btn') + '</button></td></tr>';
+  }).join('');
+}
+
+function openRoleModal(name) {
+  EDITING_ROLE = name || null;
+  var overlay = document.getElementById('roleModalOverlay');
+  var modal   = document.getElementById('roleModal');
+  document.getElementById('roleModalError').classList.add('hidden');
+  if (name) {
+    var r = ROLES.find(function (x) { return x.name === name; }) || {};
+    document.getElementById('rName').value = name;
+    document.getElementById('rName').disabled = true;
+    document.getElementById('rScreen').value = r.screen || 'dashboard';
+    document.getElementById('roleDeleteBtn').classList.remove('hidden');
+  } else {
+    document.getElementById('rName').value = '';
+    document.getElementById('rName').disabled = false;
+    document.getElementById('rScreen').value = 'nurse';
+    document.getElementById('roleDeleteBtn').classList.add('hidden');
+  }
+  overlay.classList.remove('hidden');
+  modal.classList.remove('hidden');
+}
+
+function closeRoleModal() {
+  document.getElementById('roleModalOverlay').classList.add('hidden');
+  document.getElementById('roleModal').classList.add('hidden');
+  EDITING_ROLE = null;
+}
+
+function saveRole() {
+  var name   = document.getElementById('rName').value.trim();
+  var screen = document.getElementById('rScreen').value;
+  var errEl  = document.getElementById('roleModalError');
+  errEl.classList.add('hidden');
+  if (!name) { errEl.textContent = 'اسم الدور مطلوب'; errEl.classList.remove('hidden'); return; }
+  google.script.run
+    .withSuccessHandler(function (roles) { closeRoleModal(); renderRolesTable(roles); })
+    .withFailureHandler(function (e) { errEl.textContent = String(e); errEl.classList.remove('hidden'); })
+    .saveRole(name, screen);
+}
+
+function confirmDeleteRole() {
+  if (!confirm('حذف الدور: ' + EDITING_ROLE + '؟')) return;
+  google.script.run
+    .withSuccessHandler(function (roles) { closeRoleModal(); renderRolesTable(roles); })
+    .withFailureHandler(function (e) { alert(String(e)); })
+    .deleteRole(EDITING_ROLE);
 }
 
 /* ================= بداية التشغيل ================= */
