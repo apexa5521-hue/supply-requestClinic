@@ -294,6 +294,54 @@
 </div>
 <script>
 /* ================= الترجمة (عربي / إنجليزي) ================= */
+/* ================= اتصال الباك-إند =================
+   إذا الصفحة مفتوحة من رابط Apps Script نفسه (/exec)، فـ google.script.run
+   موجود تلقائياً ونستخدمه كما هو. إذا الصفحة مستضافة بمكان ثاني (GitHub Pages
+   مثلاً)، نفعّل بديل يتواصل مع نفس الباك-إند عبر fetch() بدل google.script.run،
+   وبدون ما نغيّر أي سطر من باقي الكود تحت (نفس شكل الاستدعاء تماماً). */
+if (typeof google === 'undefined' || !google.script) {
+  // ▼▼▼ الصق هنا رابط الـ Web App بعد نشر Apps Script (ينتهي بـ /exec) ▼▼▼
+  const APPS_SCRIPT_URL = 'PASTE_YOUR_APPS_SCRIPT_WEB_APP_URL_HERE';
+
+  window.google = {
+    script: {
+      run: {
+        withSuccessHandler(successCb, failureCb) {
+          const api = {
+            failureCb: null,
+            withFailureHandler(cb) { this.failureCb = cb; return api; }
+          };
+          return new Proxy(api, {
+            get(target, fn) {
+              if (fn in target) return target[fn];
+              return function (...args) {
+                fetch(APPS_SCRIPT_URL, {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'text/plain;charset=utf-8' }, // يتجنب طلب OPTIONS المسبق (CORS)
+                  body: JSON.stringify({ fn: fn, args: args })
+                })
+                  .then(function (r) { return r.json(); })
+                  .then(function (res) {
+                    if (res.ok) { successCb && successCb(res.data); }
+                    else { console.error(res.error); target.failureCb && target.failureCb(res.error); }
+                  })
+                  .catch(function (err) {
+                    console.error(err);
+                    target.failureCb && target.failureCb(err);
+                  });
+              };
+            }
+          });
+        }
+      }
+    }
+  };
+
+  if (APPS_SCRIPT_URL.indexOf('PASTE_YOUR') === 0) {
+    console.warn('⚠️ عدّل قيمة APPS_SCRIPT_URL أعلى ملف Index.html برابط الـ Web App الحقيقي بعد النشر.');
+  }
+}
+
 let LANG = 'ar';
 const I18N = {
   ar: {
