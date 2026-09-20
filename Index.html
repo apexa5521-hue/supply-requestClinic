@@ -138,9 +138,10 @@
 <!-- ============== الممرضة ============== -->
 <div id="nurseSection" class="hidden">
   <div class="topbar">
-    <div>
+    <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
       <button class="btn-secondary" onclick="showNurseTab('create')" data-i18n="nurse_tab_create">طلب جديد</button>
       <button class="btn-secondary" onclick="showNurseTab('mine')" data-i18n="nurse_tab_myreq">طلباتي</button>
+      <button onclick="syncNow()" id="syncBtnNurse" class="btn-secondary" style="margin:0;padding:6px 14px;font-size:var(--fs-sm);">🔄 مزامنة</button>
     </div>
     <div class="who"><span data-i18n="nurse_hello">مرحباً</span> <span id="nurseNameLbl"></span> · <a href="#" onclick="logout()" data-i18n="logout">خروج</a></div>
   </div>
@@ -195,7 +196,10 @@
 <!-- ============== التموين ============== -->
 <div id="procurementSection" class="hidden">
   <div class="topbar">
-    <h1 style="margin:0;" data-i18n="procurement_title">لوحة التموين</h1>
+    <div style="display:flex;align-items:center;gap:8px;">
+      <h1 style="margin:0;" data-i18n="procurement_title">لوحة التموين</h1>
+      <button onclick="syncNow()" class="btn-secondary" style="margin:0;padding:6px 14px;font-size:var(--fs-sm);">🔄 مزامنة</button>
+    </div>
     <div class="who"><span data-i18n="nurse_hello">مرحباً</span> <span id="procNameLbl"></span> · <a href="#" onclick="logout()" data-i18n="logout">خروج</a></div>
   </div>
 
@@ -697,6 +701,11 @@ function loadDoctorsForClinic() {
   google.script.run.withSuccessHandler(function (doctors) {
     const sel = document.getElementById('reqDoctor');
     sel.innerHTML = '';
+    if (doctors.length === 0) {
+      const o = document.createElement('option');
+      o.value = ''; o.textContent = '— لا يوجد أطباء لهذا التخصص —'; sel.appendChild(o);
+      return;
+    }
     doctors.forEach(function (d) {
       const o = document.createElement('option'); o.value = d.name; o.textContent = d.name; sel.appendChild(o);
     });
@@ -1069,15 +1078,19 @@ function sendComment() {
 const SYNC_INTERVAL_MS = 5 * 60 * 1000; // كل 5 دقائق تلقائياً
 
 function syncNow(silent) {
-  var btn = document.getElementById('syncBtn');
-  if (btn) { btn.disabled = true; btn.textContent = '🔄 جاري المزامنة...'; }
+  // تعطيل كل أزرار المزامنة
+  document.querySelectorAll('[onclick="syncNow()"]').forEach(function(b){
+    b.disabled = true; b.textContent = '⏳ جاري...';
+  });
   google.script.run
     .withSuccessHandler(function (cfg) {
       CLINICS       = cfg.clinics  || [];
       ITEMS_CATALOG = cfg.catalog  || [];
       ROLES         = cfg.roles    || [];
       refreshItemsDatalist();
-      if (btn) { btn.disabled = false; btn.textContent = '🔄 مزامنة'; }
+      document.querySelectorAll('[onclick="syncNow()"]').forEach(function(b){
+        b.disabled = false; b.textContent = '🔄 مزامنة';
+      });
       var ts = document.getElementById('lastSyncTime');
       if (ts) ts.textContent = new Date().toLocaleTimeString('ar-SA');
       // أعد تحميل الواجهة الحالية بصمت
@@ -1090,7 +1103,9 @@ function syncNow(silent) {
       }
     })
     .withFailureHandler(function () {
-      if (btn) { btn.disabled = false; btn.textContent = '🔄 مزامنة'; }
+      document.querySelectorAll('[onclick="syncNow()"]').forEach(function(b){
+        b.disabled = false; b.textContent = '🔄 مزامنة';
+      });
     })
     .getAppConfig();
 }
