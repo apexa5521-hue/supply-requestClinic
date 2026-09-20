@@ -170,9 +170,30 @@
   </div>
 
   <div id="nurseMineTab" class="card hidden">
-    <h2 data-i18n="my_requests_title">طلباتي</h2>
-    <div id="myRequestsList"></div>
+    <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;">
+      <h2 style="margin:0;" data-i18n="my_requests_title">طلباتي</h2>
+      <input type="text" id="nurseSearch" placeholder="🔍 بحث..." style="width:220px;" oninput="filterMyRequests()">
+    </div>
+    <div id="myRequestsList" style="margin-top:12px;"></div>
   </div>
+
+  <!-- تفاصيل طلب -->
+  <div id="requestDetailModal" class="card hidden" style="position:fixed;top:4%;left:50%;transform:translateX(-50%);width:94%;max-width:600px;z-index:55;box-shadow:0 4px 24px rgba(0,0,0,.2);max-height:88vh;overflow-y:auto;">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+      <h2 style="margin:0;" id="detailReqTitle">تفاصيل الطلب</h2>
+      <button class="btn-secondary" style="margin:0;" onclick="closeDetail()">✕ إغلاق</button>
+    </div>
+    <div id="detailMeta" style="font-size:var(--fs-sm);color:var(--text-muted);margin-bottom:12px;line-height:1.8;"></div>
+    <h3>الأصناف</h3>
+    <table><thead><tr><th>الصنف</th><th>مطلوب</th><th>معتمد</th><th>مستلم</th></tr></thead>
+      <tbody id="detailItemsBody"></tbody></table>
+    <h3 style="margin-top:16px;">ملاحظات الطلب</h3>
+    <div id="detailComments"></div>
+    <div id="detailReceiptWrap" class="hidden" style="margin-top:12px;">
+      <a id="detailReceiptLink" href="#" target="_blank" class="btn-primary" style="display:inline-block;text-decoration:none;">📄 عرض صورة الطلب</a>
+    </div>
+  </div>
+  <div id="detailOverlay" class="modal-overlay hidden" onclick="closeDetail()"></div>
 
   <div id="receiveModal" class="card hidden" style="position:fixed; top:5%; left:50%; transform:translateX(-50%); width:90%; max-width:500px; z-index:50; box-shadow:0 4px 20px rgba(0,0,0,.15);">
     <h2><span data-i18n="confirm_receive_title">تأكيد استلام الطلب</span> <span id="recvReqId"></span></h2>
@@ -206,6 +227,10 @@
   <div id="procNoticesBox" class="card hidden"></div>
 
   <div class="card">
+    <div style="display:flex;gap:8px;margin-bottom:12px;align-items:center;">
+      <input type="text" id="procSearch" placeholder="🔍 بحث برقم الطلب، العيادة، الطبيب، الحالة..." style="flex:1;" oninput="searchOrFilter()">
+      <button class="btn-secondary" style="margin:0;white-space:nowrap;" onclick="clearSearch()">مسح</button>
+    </div>
     <div class="filters">
       <div><label data-i18n="status_label">الحالة</label>
         <select id="procFilterStatus" onchange="loadProcurementRequests()">
@@ -802,11 +827,59 @@ function confirmReceive() {
   errEl.classList.add('hidden');
   const items = Array.from(document.querySelectorAll('.recvQty')).map(function (inp) { return { name: inp.dataset.name, qty: Number(inp.value) }; });
   const sigData = SIG_HAS_INK ? document.getElementById('sigPad').toDataURL('image/png') : '';
-  google.script.run.withSuccessHandler(function () {
-    alert(t('confirm_receive_btn') + ' ✓');
-    closeReceiveModal();
-    loadMyRequests();
-  }).receiveRequest(CURRENT_RECEIVE_ID, items, name, sigData);
+
+  // توليد صورة الطلب الكاملة (HTML → canvas) للرفع
+  const receiptImageData = generateReceiptImage(CURRENT_RECEIVE_ID, items, name);
+
+  const btn = document.getElementById('receiveModal').querySelector('.btn-primary');
+  btn.disabled = true; btn.textContent = '⏳ جاري الرفع...';
+
+  google.script.run
+    .withSuccessHandler(function () {
+      btn.disabled = false; btn.textContent = t('confirm_receive_btn');
+      alert(t('confirm_receive_btn') + ' ✓');
+      closeReceiveModal();
+      loadMyRequests();
+    })
+    .withFailureHandler(function(e){ btn.disabled=false; btn.textContent=t('confirm_receive_btn'); alert(String(e)); })
+    .receiveRequest(CURRENT_RECEIVE_ID, items, name, sigData, receiptImageData);
+}
+
+function generateReceiptImage(requestId, items, receiverName) {
+  try {
+    const c = document.createElement('canvas');
+    c.width = 600; c.height = 80 + items.length * 32 + 120;
+    const ctx = c.getContext('2d');
+    ctx.fillStyle = '#fff'; ctx.fillRect(0,0,c.width,c.height);
+    ctx.fillStyle = '#0f6e56'; ctx.fillRect(0,0,c.width,8);
+    ctx.fillStyle = '#2c2c2a'; ctx.font = 'bold 18px sans-serif'; ctx.textAlign='center';
+    ctx.fillText('ApexCare — Order Receipt', c.width/2, 40);
+    ctx.font = '13px sans-serif'; ctx.fillStyle='#555';
+    ctx.fillText(requestId + ' | ' + new Date().toLocaleDateString('ar-SA'), c.width/2, 62);
+    ctx.textAlign='start';
+    let y = 90;
+    ctx.fillStyle='#f0efe9'; ctx.fillRect(20,y,560,24);
+    ctx.fillStyle='#333'; ctx.font='bold 12px sans-serif';
+    ctx.fillText('Item', 30,y+16); ctx.fillText('Qty', 380,y+16); ctx.fillText('Received',460,y+16);
+    y+=32;
+    items.forEach(function(it){
+      ctx.fillStyle='#f9f9f9'; ctx.fillRect(20,y,560,28);
+      ctx.strokeStyle='#e0ded8'; ctx.strokeRect(20,y,560,28);
+      ctx.fillStyle='#333'; ctx.font='12px sans-serif';
+      ctx.fillText(it.name, 30,y+18); ctx.fillText(it.qty, 390,y+18); ctx.fillText(it.qty,470,y+18);
+      y+=32;
+    });
+    y+=10;
+    ctx.fillStyle='#555'; ctx.font='13px sans-serif';
+    ctx.fillText('Receiver: ' + receiverName, 30, y+16);
+    // ألصق التوقيع إن وجد
+    const sigCanvas = document.getElementById('sigPad');
+    if (SIG_HAS_INK && sigCanvas) {
+      ctx.drawImage(sigCanvas, 30, y+30, 200, 70);
+    }
+    ctx.fillStyle='#0f6e56'; ctx.fillRect(0,c.height-6,c.width,6);
+    return c.toDataURL('image/png');
+  } catch(e) { return ''; }
 }
 
 function loadNurseNotices() {
@@ -1113,6 +1186,81 @@ function syncNow(silent) {
 function startAutoSync() {
   if (SYNC_TIMER) clearInterval(SYNC_TIMER);
   SYNC_TIMER = setInterval(function () { syncNow(true); }, SYNC_INTERVAL_MS);
+}
+
+/* ================= بحث التموين ================= */
+
+let ALL_PROC_REQUESTS = [];
+
+function searchOrFilter() {
+  const q = (document.getElementById('procSearch').value || '').trim().toLowerCase();
+  if (!q) { loadProcurementRequests(); return; }
+  const filtered = ALL_PROC_REQUESTS.filter(function(r){
+    return (r.id+r.clinic+r.doctor+r.nurse+r.status).toLowerCase().indexOf(q) !== -1;
+  });
+  renderProcurementList(filtered);
+}
+
+function clearSearch() {
+  document.getElementById('procSearch').value = '';
+  loadProcurementRequests();
+}
+
+/* ================= بحث طلبات الممرضة ================= */
+
+let ALL_MY_REQUESTS = [];
+
+function filterMyRequests() {
+  const q = (document.getElementById('nurseSearch').value || '').trim().toLowerCase();
+  if (!q) { renderMyRequests(ALL_MY_REQUESTS); return; }
+  const filtered = ALL_MY_REQUESTS.filter(function(r){
+    return (r.id+r.clinic+r.doctor+r.status).toLowerCase().indexOf(q) !== -1;
+  });
+  renderMyRequests(filtered);
+}
+
+/* ================= تفاصيل الطلب ================= */
+
+function openDetail(requestId) {
+  document.getElementById('detailReqTitle').textContent = requestId;
+  document.getElementById('detailMeta').textContent = 'جاري التحميل...';
+  document.getElementById('detailItemsBody').innerHTML = '';
+  document.getElementById('detailComments').innerHTML = '';
+  document.getElementById('detailReceiptWrap').classList.add('hidden');
+  document.getElementById('detailOverlay').classList.remove('hidden');
+  document.getElementById('requestDetailModal').classList.remove('hidden');
+
+  google.script.run
+    .withSuccessHandler(function(detail){
+      if (!detail) { document.getElementById('detailMeta').textContent = 'لم يُوجد الطلب'; return; }
+      document.getElementById('detailMeta').innerHTML =
+        '<b>العيادة:</b> '+detail.clinic+' &nbsp;|&nbsp; <b>الطبيب:</b> '+detail.doctor+
+        ' &nbsp;|&nbsp; <b>الممرضة:</b> '+detail.nurse+'<br>'+
+        '<b>النوع:</b> '+typeLabel(detail.type)+' &nbsp;|&nbsp; '+
+        '<span class="badge '+statusBadgeClass(detail.status)+'">'+statusLabel(detail.status)+'</span><br>'+
+        '<b>رُفع:</b> '+(detail.submittedAt?new Date(detail.submittedAt).toLocaleString('ar-SA'):'-')+
+        ' &nbsp;|&nbsp; <b>أُرسل:</b> '+(detail.sentAt?new Date(detail.sentAt).toLocaleString('ar-SA'):'-')+
+        ' &nbsp;|&nbsp; <b>استُلم:</b> '+(detail.receivedAt?new Date(detail.receivedAt).toLocaleString('ar-SA'):'-');
+      document.getElementById('detailItemsBody').innerHTML = (detail.items||[]).map(function(it){
+        return '<tr><td>'+it.item+'</td><td>'+it.requestedQty+'</td><td>'+(it.approvedQty||'-')+'</td><td>'+(it.receivedQty||'-')+'</td></tr>';
+      }).join('');
+      document.getElementById('detailComments').innerHTML = (detail.comments||[]).length === 0
+        ? '<p style="color:var(--text-muted);font-size:var(--fs-sm);">لا توجد ملاحظات</p>'
+        : detail.comments.map(function(c){
+            return '<div class="comment-msg"><div class="meta">'+c.author+' ('+c.role+')</div>'+c.message+'</div>';
+          }).join('');
+      if (detail.receiptUrl) {
+        document.getElementById('detailReceiptLink').href = detail.receiptUrl;
+        document.getElementById('detailReceiptWrap').classList.remove('hidden');
+      }
+    })
+    .withFailureHandler(function(e){ document.getElementById('detailMeta').textContent = String(e); })
+    .getRequestDetail(requestId);
+}
+
+function closeDetail() {
+  document.getElementById('detailOverlay').classList.add('hidden');
+  document.getElementById('requestDetailModal').classList.add('hidden');
 }
 
 /* ================= إدارة المستخدمين ================= */
