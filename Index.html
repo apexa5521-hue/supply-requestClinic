@@ -141,7 +141,7 @@
     <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
       <button class="btn-secondary" onclick="showNurseTab('create')" data-i18n="nurse_tab_create">طلب جديد</button>
       <button class="btn-secondary" onclick="showNurseTab('mine')" data-i18n="nurse_tab_myreq">طلباتي</button>
-      <button onclick="syncNow()" id="syncBtnNurse" class="btn-secondary" style="margin:0;padding:6px 14px;font-size:var(--fs-sm);">🔄 مزامنة</button>
+      <button onclick="syncNow()" class="btn-secondary syncBtn" style="margin:0;padding:6px 14px;font-size:var(--fs-sm);">🔄 مزامنة</button>
     </div>
     <div class="who"><span data-i18n="nurse_hello">مرحباً</span> <span id="nurseNameLbl"></span> · <a href="#" onclick="logout()" data-i18n="logout">خروج</a></div>
   </div>
@@ -1079,7 +1079,7 @@ const SYNC_INTERVAL_MS = 5 * 60 * 1000; // كل 5 دقائق تلقائياً
 
 function syncNow(silent) {
   // تعطيل كل أزرار المزامنة
-  document.querySelectorAll('[onclick="syncNow()"]').forEach(function(b){
+  document.querySelectorAll('.syncBtn').forEach(function(b){
     b.disabled = true; b.textContent = '⏳ جاري...';
   });
   google.script.run
@@ -1088,7 +1088,7 @@ function syncNow(silent) {
       ITEMS_CATALOG = cfg.catalog  || [];
       ROLES         = cfg.roles    || [];
       refreshItemsDatalist();
-      document.querySelectorAll('[onclick="syncNow()"]').forEach(function(b){
+      document.querySelectorAll('.syncBtn').forEach(function(b){
         b.disabled = false; b.textContent = '🔄 مزامنة';
       });
       var ts = document.getElementById('lastSyncTime');
@@ -1103,7 +1103,7 @@ function syncNow(silent) {
       }
     })
     .withFailureHandler(function () {
-      document.querySelectorAll('[onclick="syncNow()"]').forEach(function(b){
+      document.querySelectorAll('.syncBtn').forEach(function(b){
         b.disabled = false; b.textContent = '🔄 مزامنة';
       });
     })
