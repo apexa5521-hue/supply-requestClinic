@@ -103,6 +103,12 @@
   .alert-bar.info    { background:#e6f1fb; color:#0c447c; border-inline-start:4px solid var(--accent); }
   .alert-bar .icon   { font-size:18px; flex-shrink:0; }
   #alertsContainer   { max-width:960px; margin:0 auto 12px; }
+  /* مؤشرات تحميل */
+  .loading { opacity:.5; pointer-events:none; }
+  .spinner { display:inline-block; width:14px; height:14px; border:2px solid currentColor; border-top-color:transparent; border-radius:50%; animation:spin .7s linear infinite; vertical-align:middle; margin-inline-end:6px; }
+  @keyframes spin { to { transform:rotate(360deg); } }
+  .toast { position:fixed; bottom:24px; inset-inline-end:24px; background:#2c2c2a; color:#fff; padding:10px 18px; border-radius:var(--radius-sm); font-size:var(--fs-sm); z-index:99; opacity:0; transform:translateY(10px); transition:all .25s; pointer-events:none; }
+  .toast.show { opacity:1; transform:translateY(0); }
   .req-block { border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 12px; margin-bottom: 10px; display:flex; flex-direction: column; gap:6px; }
   .req-block-top { display:flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap:6px; }
 
@@ -128,12 +134,13 @@
 </head>
 <body dir="rtl">
 <div id="alertsContainer"></div>
+<div id="toast" class="toast"></div>
 <button class="lang-toggle" id="langToggleBtn" onclick="toggleLang()">English</button>
 
 <div id="app">
 
 <div id="loginSection" class="card" style="max-width:380px; margin-top:60px;">
-  <div style="text-align:center;margin-bottom:16px;"><div style="font-size:22px;font-weight:700;color:var(--primary-dark);">SupplyFlow</div><div style="font-size:var(--fs-xs);color:var(--text-muted);margin-top:2px;">-</div></div><h1 data-i18n="login_title">تسجيل الدخول</h1>
+  <div style="text-align:center;margin-bottom:16px;"><div style="font-size:22px;font-weight:700;color:var(--primary-dark);">SupplyFlow</div><div style="font-size:var(--fs-xs);color:var(--text-muted);margin-top:2px;">ApexCare Clinics</div></div><h1 data-i18n="login_title">تسجيل الدخول</h1>
   <label data-i18n="login_name_label">الاسم</label>
   <input id="loginName" type="text" data-i18n-ph="login_name_ph" placeholder="اكتب اسمك">
   <label data-i18n="login_pass_label">الرقم السري</label>
@@ -252,8 +259,8 @@
       <div><label data-i18n="month_label">الشهر</label><input type="month" id="procFilterMonth" onchange="loadProcurementRequests()"></div>
     </div>
     <div>
-      <button class="btn-secondary" onclick="bulkAction('قيد التجهيز')" data-i18n="bulk_progress_btn">اعتماد المحدد: قيد التجهيز</button>
-      <button class="btn-accent" onclick="bulkAction('تم الإرسال')" data-i18n="bulk_sent_btn">اعتماد المحدد: تم الإرسال</button>
+      <button class="btn-secondary" onclick="bulkAction('قيد التجهيز', this)" data-i18n="bulk_progress_btn">اعتماد المحدد: قيد التجهيز</button>
+      <button class="btn-accent" onclick="bulkAction('تم الإرسال', this)" data-i18n="bulk_sent_btn">اعتماد المحدد: تم الإرسال</button>
     </div>
     <div id="procRequestsList"></div>
   </div>
@@ -637,6 +644,30 @@ function prefetch() {
 }
 prefetch();
 
+/* ================= Toast + أزرار ================= */
+
+let _toastTimer = null;
+function toast(msg, ms) {
+  ms = ms || 2500;
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.classList.add('show');
+  clearTimeout(_toastTimer);
+  _toastTimer = setTimeout(function(){ el.classList.remove('show'); }, ms);
+}
+
+function btnBusy(btn, msg) {
+  if (!btn) return;
+  btn._origText = btn.textContent;
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner"></span>' + (msg || '');
+}
+function btnFree(btn) {
+  if (!btn) return;
+  btn.disabled = false;
+  btn.textContent = btn._origText || btn.textContent;
+}
+
 /* ================= إشعارات الدخول ================= */
 
 function loadLoginAlerts() {
@@ -792,11 +823,17 @@ function submitRequest() {
     return;
   }
   errEl.classList.add('hidden');
-  google.script.run.withSuccessHandler(function (id) {
-    alert(t('submit_request_btn') + ' ✓ — ' + id);
-    google.script.run.withSuccessHandler(function (updated) { ITEMS_CATALOG = updated; refreshItemsDatalist(); }).getItemsCatalog();
-    initNurseView();
-  }).createRequest({ clinic: clinic, doctor: doctor, nurse: CURRENT_USER.name, type: type, items: items });
+  const submitBtn = document.querySelector('#nurseCreateTab .btn-primary');
+  btnBusy(submitBtn, LANG==='ar' ? 'جاري الإرسال...' : 'Sending...');
+  google.script.run
+    .withSuccessHandler(function (id) {
+      btnFree(submitBtn);
+      toast('✅ ' + (LANG==='ar' ? 'تم إرسال الطلب: ' : 'Request sent: ') + id);
+      google.script.run.withSuccessHandler(function (updated) { ITEMS_CATALOG = updated; refreshItemsDatalist(); }).getItemsCatalog();
+      initNurseView();
+    })
+    .withFailureHandler(function(e){ btnFree(submitBtn); toast('❌ ' + String(e), 4000); })
+    .createRequest({ clinic: clinic, doctor: doctor, nurse: CURRENT_USER.name, type: type, items: items });
 }
 
 /* ================= الممرضة: طلباتي (استلام + متابعة) ================= */
@@ -885,7 +922,7 @@ function generateReceiptImage(requestId, items, receiverName) {
     ctx.fillStyle = '#fff'; ctx.fillRect(0,0,c.width,c.height);
     ctx.fillStyle = '#0f6e56'; ctx.fillRect(0,0,c.width,8);
     ctx.fillStyle = '#2c2c2a'; ctx.font = 'bold 18px sans-serif'; ctx.textAlign='center';
-    ctx.fillText(' — Supply Order', c.width/2, 40);
+    ctx.fillText('ApexCare — Supply Order', c.width/2, 40);
     ctx.font = '13px sans-serif'; ctx.fillStyle='#555';
     ctx.fillText(requestId + ' | ' + new Date().toLocaleDateString('ar-SA'), c.width/2, 62);
     ctx.textAlign='start';
@@ -927,7 +964,6 @@ function initProcurementView() {
   clinicSel.innerHTML = '<option value="">' + t('all_option') + '</option>' +
     CLINICS.map(function (c) { return '<option value="' + c.name + '">' + c.name + '</option>'; }).join('');
   loadProcurementRequests();
-  loadProcNotices();
 }
 
 function loadProcurementRequests() {
@@ -971,10 +1007,19 @@ function toggleItemsView(id) {
 
 function updateApproval(reqId, itemName, qty) { google.script.run.updateItemApproval(reqId, itemName, Number(qty)); }
 
-function bulkAction(newStatus) {
+function bulkAction(newStatus, btn) {
   const ids = Array.from(document.querySelectorAll('.reqSelect:checked')).map(function (c) { return c.value; });
-  if (ids.length === 0) { alert(t('select_one_request')); return; }
-  google.script.run.withSuccessHandler(function () { loadProcurementRequests(); }).bulkUpdateStatus(ids, newStatus);
+  if (ids.length === 0) { toast(t('select_one_request')); return; }
+  btnBusy(btn, newStatus === 'تم الإرسال' ? (LANG==='ar'?'جاري الإرسال...':'Sending...') : (LANG==='ar'?'جاري الاعتماد...':'Processing...'));
+  google.script.run
+    .withSuccessHandler(function () {
+      btnFree(btn);
+      toast(LANG==='ar' ? '✅ تم بنجاح' : '✅ Done');
+      loadProcurementRequests();
+      loadLoginAlerts();
+    })
+    .withFailureHandler(function(e){ btnFree(btn); toast('❌ ' + String(e), 4000); })
+    .bulkUpdateStatus(ids, newStatus);
 }
 
 function loadProcNotices() {
@@ -1256,7 +1301,7 @@ function filterMyRequests() {
 
 function openDetail(requestId) {
   document.getElementById('detailReqTitle').textContent = requestId;
-  document.getElementById('detailMeta').textContent = 'جاري التحميل...';
+  document.getElementById('detailMeta').innerHTML = '<span class="spinner"></span> ' + (LANG==='ar'?'جاري التحميل...':'Loading...');
   document.getElementById('detailItemsBody').innerHTML = '';
   document.getElementById('detailComments').innerHTML = '';
   document.getElementById('detailReceiptWrap').classList.add('hidden');
