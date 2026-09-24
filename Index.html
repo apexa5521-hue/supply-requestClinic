@@ -475,11 +475,7 @@
 
   <label data-i18n="th_role">الدور</label>
   <select id="uRole" onchange="toggleClinicField()">
-    <option value="ممرضة">ممرضة</option>
-    <option value="تموين">تموين</option>
-    <option value="جودة">جودة</option>
-    <option value="مالية">مالية</option>
-    <option value="تنفيذي">تنفيذي</option>
+    <option value="">جاري التحميل...</option>
   </select>
 
   <div id="uClinicWrap">
@@ -509,6 +505,7 @@
   <select id="rScreen">
     <option value="nurse">ممرضة — شاشة الطلبات</option>
     <option value="procurement">تموين — لوحة التموين</option>
+    <option value="doctor">طبيب — مراجعة الطلبات</option>
     <option value="dashboard">لوحة الإدارة</option>
   </select>
   <div id="roleModalError" class="error hidden"></div>
@@ -1792,6 +1789,12 @@ function openUserModal(editName) {
     return '<option value="' + c.name + '">' + c.name + '</option>';
   }).join('');
 
+  // ملء قائمة الأدوار ديناميكياً من الشيت
+  const uRoleSel = document.getElementById('uRole');
+  uRoleSel.innerHTML = ROLES.length
+    ? ROLES.map(function(r){ return '<option value="' + r.name + '">' + r.name + '</option>'; }).join('')
+    : '<option value="ممرضة">ممرضة</option><option value="تموين">تموين</option><option value="تنفيذي">تنفيذي</option>';
+
   if (editName) {
     document.getElementById('userModalTitle').textContent = editName;
     document.getElementById('uName').value = editName;
@@ -1865,7 +1868,7 @@ function confirmDeleteUser() {
 
 /* ================= إدارة الأدوار ================= */
 
-const SCREEN_LABELS = { nurse: 'ممرضة', procurement: 'تموين', dashboard: 'لوحة الإدارة' };
+const SCREEN_LABELS = { nurse: 'ممرضة', procurement: 'تموين', dashboard: 'لوحة الإدارة', doctor: 'طبيب' };
 let EDITING_ROLE = null;
 
 function renderRolesTable(roles) {
