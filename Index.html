@@ -89,6 +89,7 @@
   .badge-received { background: var(--status-received-bg); color: var(--status-received-text); }
   .badge-vendor    { background: #fff3e0; color: #6d3a00; }
   .badge-review    { background: #f3e5f5; color: #4a148c; }
+  .badge-approved  { background: #e0f2e9; color: #0f6e56; }
   .badge-rejected  { background: #fde8e8; color: #8b1a1a; }
 
   /* أزرار الحالة — نفس لون الشارة المقابلة بالضبط، لتفادي أي لبس */
@@ -340,15 +341,18 @@
         <div>
           <div style="font-size:var(--fs-xs);color:var(--text-muted);margin-bottom:4px;">المسار الأساسي</div>
           <button class="btn-status-progress" onclick="bulkAction('قيد التجهيز', this)" data-i18n="bulk_progress_btn">1️⃣ قيد التجهيز</button>
-          <button class="btn-status-sent" onclick="bulkAction('تم الإرسال', this)" data-i18n="bulk_sent_btn">2️⃣ تم الإرسال ✅</button>
-          <button class="btn-status-review" onclick="bulkAction('مراجعة الطبيب', this)">3️⃣ إرسال لمراجعة الطبيب 👨‍⚕️</button>
+          <button class="btn-status-review" onclick="bulkAction('مراجعة الطبيب', this)">2️⃣ إرسال لمراجعة الطبيب 👨‍⚕️</button>
+          <button class="btn-status-sent" onclick="bulkAction('تم الإرسال', this)" data-i18n="bulk_sent_btn">3️⃣ إرسال الطلب للفرع 🚚</button>
         </div>
         <div style="border-top:1px dashed var(--border);padding-top:8px;">
           <div style="font-size:var(--fs-xs);color:var(--text-muted);margin-bottom:4px;">
-            خطوة اختيارية — استخدمها فقط لو المستلزم يحتاج توريد من مندوب خارجي (وإلا تجاهلها وروح مباشرة لـ"تم الإرسال")
+            خطوة اختيارية — استخدمها فقط لو المستلزم يحتاج توريد من مندوب خارجي (وإلا تجاهلها وروح مباشرة لمراجعة الطبيب)
           </div>
-          <button class="btn-status-vendor" onclick="bulkAction('بانتظار المندوب', this)">🚚 بانتظار المندوب</button>
+          <button class="btn-status-vendor" onclick="bulkAction('بانتظار المندوب', this)">🚛 بانتظار المندوب</button>
           <button class="btn-status-vendor" onclick="bulkAction('استلم المندوب', this)">📥 استلم من المندوب</button>
+        </div>
+        <div style="font-size:var(--fs-xs);color:var(--text-muted);">
+          ⓘ زر "3️⃣ إرسال الطلب للفرع" يعمل فقط بعد اعتماد الطبيب — راح يظهر خطأ واضح لو استعجلته قبل الاعتماد
         </div>
       </div>
     </div>
@@ -438,8 +442,9 @@
       <div style="display:flex;gap:8px;flex-wrap:wrap;">
         <select id="doctorFilterStatus" onchange="loadDoctorRequests()" style="min-width:160px;">
           <option value="">كل الحالات</option>
-          <option value="تم الإرسال">تم الإرسال</option>
           <option value="مراجعة الطبيب">مراجعة الطبيب</option>
+          <option value="معتمد من الطبيب">معتمد من الطبيب</option>
+          <option value="تم الإرسال">تم الإرسال</option>
           <option value="تم الاستلام">تم الاستلام</option>
           <option value="مرفوض">مرفوض</option>
         </select>
@@ -783,7 +788,9 @@ function statusLabel(s) {
   const MAP = { 'جديد':t('status_new'), 'قيد التجهيز':t('status_progress'),
     'بانتظار المندوب':(LANG==='ar'?'بانتظار المندوب':'Awaiting Vendor'),
     'استلم المندوب':(LANG==='ar'?'استلم المندوب':'Vendor Received'),
-    'تم الإرسال':t('status_sent'), 'مراجعة الطبيب':(LANG==='ar'?'مراجعة الطبيب':'Doctor Review'),
+    'مراجعة الطبيب':(LANG==='ar'?'مراجعة الطبيب':'Doctor Review'),
+    'معتمد من الطبيب':(LANG==='ar'?'معتمد من الطبيب':'Doctor-Approved'),
+    'تم الإرسال':t('status_sent'),
     'تم الاستلام':t('status_received'), 'مرفوض':(LANG==='ar'?'مرفوض':'Rejected') };
   return MAP[s] || s;
 }
@@ -791,7 +798,8 @@ function typeLabel(ty) { return ty === 'شهري' ? t('type_monthly') : (ty === 
 function statusBadgeClass(status) {
   return { 'جديد':'badge-new', 'قيد التجهيز':'badge-progress',
     'بانتظار المندوب':'badge-vendor', 'استلم المندوب':'badge-progress',
-    'تم الإرسال':'badge-sent', 'مراجعة الطبيب':'badge-review',
+    'مراجعة الطبيب':'badge-review', 'معتمد من الطبيب':'badge-approved',
+    'تم الإرسال':'badge-sent',
     'تم الاستلام':'badge-received', 'مرفوض':'badge-rejected' }[status] || 'badge-new';
 }
 
@@ -1796,13 +1804,14 @@ function loadDoctorRequests() {
 }
 
 function renderDoctorDashboard(reqs) {
-  const counts = { 'تم الإرسال': 0, 'مراجعة الطبيب': 0, 'تم الاستلام': 0, 'مرفوض': 0 };
+  const counts = { 'مراجعة الطبيب': 0, 'معتمد من الطبيب': 0, 'تم الإرسال': 0, 'تم الاستلام': 0, 'مرفوض': 0 };
   reqs.forEach(function(r){ if (counts[r.status] !== undefined) counts[r.status]++; });
   document.getElementById('doctorKPIGrid').innerHTML =
-    kpiCard(counts['مراجعة الطبيب'], '⏳ بانتظار مراجعتك') +
-    kpiCard(counts['تم الإرسال'],    '🚚 تم الإرسال') +
-    kpiCard(counts['تم الاستلام'],   '✅ تم الاستلام') +
-    kpiCard(counts['مرفوض'],         '❌ مرفوض');
+    kpiCard(counts['مراجعة الطبيب'],   '⏳ بانتظار مراجعتك') +
+    kpiCard(counts['معتمد من الطبيب'], '✅ اعتمدته — بانتظار الإرسال') +
+    kpiCard(counts['تم الإرسال'],      '🚚 أُرسل للفرع') +
+    kpiCard(counts['تم الاستلام'],     '📦 تم الاستلام') +
+    kpiCard(counts['مرفوض'],           '❌ مرفوض');
 }
 
 function renderDoctorDropdown(reqs) {
@@ -1869,7 +1878,7 @@ function onDoctorSelectRequest(id) {
       ' &nbsp;|&nbsp; <span class="badge ' + statusBadgeClass(req.status) + '">' + statusLabel(req.status) + '</span>';
 
     // أزرار المراجعة فقط للطلبات اللي وصلت
-    const canReview = req.status === 'مراجعة الطبيب' || req.status === 'تم الإرسال';
+    const canReview = req.status === 'مراجعة الطبيب';
     document.getElementById('doctorReviewActions').classList.toggle('hidden', !canReview);
 
     // سبب الرفض إن كان مرفوضاً
