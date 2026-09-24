@@ -87,6 +87,35 @@
   .badge-progress { background: var(--status-progress-bg); color: var(--status-progress-text); }
   .badge-sent { background: var(--status-sent-bg); color: var(--status-sent-text); }
   .badge-received { background: var(--status-received-bg); color: var(--status-received-text); }
+  .badge-vendor    { background: #fff3e0; color: #6d3a00; }
+  .badge-review    { background: #f3e5f5; color: #4a148c; }
+  .badge-rejected  { background: #fde8e8; color: #8b1a1a; }
+  .kpi-timeline { display:flex; gap:0; flex-wrap:wrap; margin:10px 0; }
+  .kpi-step { flex:1; min-width:100px; padding:8px 6px; text-align:center; border-inline-end:1px solid var(--border); font-size:var(--fs-xs); }
+  .kpi-step:last-child { border:none; }
+  .kpi-step .kpi-hrs { font-size:16px; font-weight:700; color:var(--primary-dark); }
+  .kpi-step .kpi-hrs.late { color:var(--danger); }
+  .kpi-step .kpi-lbl { color:var(--text-muted); margin-top:2px; }
+  /* Live Search */
+  .search-wrap { position:relative; }
+  .search-dropdown { position:absolute; top:100%; inset-inline-start:0; inset-inline-end:0; background:var(--card);
+    border:1px solid var(--border); border-top:none; border-radius:0 0 var(--radius-sm) var(--radius-sm);
+    z-index:40; max-height:240px; overflow-y:auto; box-shadow:0 4px 12px rgba(0,0,0,.1); }
+  .search-item { padding:10px 14px; cursor:pointer; font-size:var(--fs-sm); border-bottom:1px solid var(--border); }
+  .search-item:hover, .search-item.active { background:var(--bg-alt); }
+  .search-item .si-name { font-weight:600; }
+  .search-item .si-meta { color:var(--text-muted); font-size:var(--fs-xs); margin-top:2px; }
+  /* بكج الطبيب */
+  .profile-tag { display:inline-flex; align-items:center; gap:6px; background:var(--bg-alt);
+    border:1px solid var(--border); border-radius:var(--radius-pill); padding:4px 10px;
+    font-size:var(--fs-sm); margin:3px; cursor:pointer; transition:background .15s; }
+  .profile-tag:hover { background:#e0ede9; }
+  .profile-tag .pt-qty { font-weight:700; color:var(--primary-dark); }
+  /* ملاحظات الصنف */
+  .item-note-list { padding:4px 0; }
+  .item-note { background:var(--bg-alt); border-radius:4px; padding:4px 8px; margin-bottom:4px; font-size:var(--fs-xs); }
+  .item-note .note-meta { color:var(--text-muted); }
+  .rejection-box { background:#fde8e8; border-inline-start:3px solid var(--danger); padding:8px 12px; border-radius:var(--radius-sm); font-size:var(--fs-sm); margin-top:8px; }
   .topbar { max-width: 960px; margin: 0 auto 16px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px; }
   .topbar .who { font-size: var(--fs-sm); color: var(--text-muted); }
   .item-row { display: flex; gap: 8px; align-items: center; margin-bottom: 8px; }
@@ -164,23 +193,46 @@
 
   <div id="nurseCreateTab" class="card">
     <h2 data-i18n="nurse_create_title">إنشاء طلب مستلزمات</h2>
-    <label data-i18n="clinic_label">العيادة</label>
-    <select id="reqClinic" onchange="loadDoctorsForClinic()"></select>
-    <label data-i18n="doctor_label">الطبيب</label>
-    <select id="reqDoctor"></select>
+
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:4px;">
+      <div>
+        <label data-i18n="clinic_label">العيادة</label>
+        <select id="reqClinic" onchange="loadDoctorsForClinic()"></select>
+      </div>
+      <div>
+        <label data-i18n="doctor_label">الطبيب</label>
+        <select id="reqDoctor" onchange="loadDoctorProfile()"></select>
+      </div>
+    </div>
     <label data-i18n="type_label">نوع الطلب</label>
-    <select id="reqType">
+    <select id="reqType" style="max-width:200px;">
       <option value="شهري" data-i18n="type_monthly">شهري</option>
       <option value="طارئ" data-i18n="type_emergency">طارئ</option>
     </select>
 
-    <h3 style="margin-top:18px;" data-i18n="items_title">الأصناف</h3>
-    <datalist id="itemsCatalogList"></datalist>
+    <!-- بكج الطبيب -->
+    <div id="doctorProfileWrap" class="hidden" style="margin-top:14px;padding:10px;background:var(--bg-alt);border-radius:var(--radius-sm);">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+        <span style="font-size:var(--fs-sm);font-weight:600;">📋 البكج المعتاد للطبيب — اضغط لإضافة</span>
+        <button class="btn-secondary" style="margin:0;padding:4px 10px;font-size:var(--fs-xs);" onclick="addAllProfile()">إضافة الكل</button>
+      </div>
+      <div id="doctorProfileTags"></div>
+    </div>
+
+    <h3 style="margin-top:16px;" data-i18n="items_title">الأصناف المحددة</h3>
+
+    <!-- بحث ذكي -->
+    <div class="search-wrap" style="margin-bottom:10px;">
+      <input type="text" id="itemSearchInput" placeholder="🔍 ابحث عن صنف وأضفه..." oninput="onItemSearch(this.value)" onkeydown="onItemSearchKey(event)" autocomplete="off">
+      <div id="itemSearchDropdown" class="search-dropdown hidden"></div>
+    </div>
+
     <div id="itemRows"></div>
-    <button class="btn-secondary" onclick="addItemRow()" data-i18n="add_item_row_btn">+ إضافة صنف</button>
 
     <div id="createError" class="error hidden" data-i18n="create_error">يرجى تعبئة كل الحقول وإضافة صنف واحد على الأقل</div>
-    <div><button class="btn-primary" onclick="submitRequest()" data-i18n="submit_request_btn">إرسال الطلب للتموين</button></div>
+    <div style="margin-top:12px;">
+      <button class="btn-primary" id="submitRequestBtn" onclick="submitRequest()" data-i18n="submit_request_btn">إرسال الطلب للتموين</button>
+    </div>
   </div>
 
   <div id="nurseMineTab" class="card hidden">
@@ -203,6 +255,10 @@
       <tbody id="detailItemsBody"></tbody></table>
     <h3 style="margin-top:16px;">ملاحظات الطلب</h3>
     <div id="detailComments"></div>
+    <div id="detailKPI" class="hidden" style="margin-top:12px;">
+      <h3>مؤشرات الأداء — زمن كل مرحلة (بالساعات)</h3>
+      <div class="kpi-timeline" id="detailKPITimeline"></div>
+    </div>
     <div id="detailReceiptWrap" class="hidden" style="margin-top:12px;">
       <a id="detailReceiptLink" href="#" target="_blank" class="btn-primary" style="display:inline-block;text-decoration:none;">📄 عرض صورة الطلب</a>
     </div>
@@ -259,8 +315,11 @@
       <div><label data-i18n="month_label">الشهر</label><input type="month" id="procFilterMonth" onchange="loadProcurementRequests()"></div>
     </div>
     <div>
-      <button class="btn-secondary" onclick="bulkAction('قيد التجهيز', this)" data-i18n="bulk_progress_btn">اعتماد المحدد: قيد التجهيز</button>
-      <button class="btn-accent" onclick="bulkAction('تم الإرسال', this)" data-i18n="bulk_sent_btn">اعتماد المحدد: تم الإرسال</button>
+      <button class="btn-secondary" onclick="bulkAction('قيد التجهيز', this)" data-i18n="bulk_progress_btn">قيد التجهيز</button>
+      <button class="btn-secondary" onclick="bulkAction('بانتظار المندوب', this)">🚚 بانتظار المندوب</button>
+      <button class="btn-secondary" onclick="bulkAction('استلم المندوب', this)">✅ استلم المندوب</button>
+      <button class="btn-accent" onclick="bulkAction('تم الإرسال', this)" data-i18n="bulk_sent_btn">تم الإرسال</button>
+      <button class="btn-accent" onclick="bulkAction('مراجعة الطبيب', this)">👨‍⚕️ إرسال لمراجعة الطبيب</button>
     </div>
     <div id="procRequestsList"></div>
   </div>
@@ -328,6 +387,39 @@
 </div>
 
 <!-- ============== شات الملاحظات لكل طلب ============== -->
+<!-- ============== الطبيب ============== -->
+<div id="doctorSection" class="hidden">
+  <div class="topbar">
+    <h1 style="margin:0;">مراجعة الطلبات</h1>
+    <div class="who">مرحباً <span id="doctorNameLbl"></span> · <a href="#" onclick="logout()">خروج</a></div>
+  </div>
+  <div id="doctorAlerts"></div>
+  <div class="card">
+    <h2>طلباتك بانتظار المراجعة</h2>
+    <div id="doctorRequestsList"></div>
+  </div>
+</div>
+
+<!-- مودال مراجعة الطبيب -->
+<div id="reviewOverlay" class="modal-overlay hidden" onclick="closeReview()"></div>
+<div id="reviewModal" class="card hidden" style="position:fixed;top:4%;left:50%;transform:translateX(-50%);width:94%;max-width:580px;z-index:71;box-shadow:0 4px 24px rgba(0,0,0,.2);max-height:88vh;overflow-y:auto;">
+  <h2 id="reviewReqTitle">مراجعة الطلب</h2>
+  <table id="reviewItemsTable">
+    <thead><tr><th>الصنف</th><th>الكمية</th><th>ملاحظة</th></tr></thead>
+    <tbody id="reviewItemsBody"></tbody>
+  </table>
+  <div style="margin-top:16px;">
+    <label>سبب الرفض (إلزامي عند الرفض)</label>
+    <textarea id="reviewReason" rows="2" placeholder="اكتب سبب الرفض أو أي ملاحظة عامة..."></textarea>
+  </div>
+  <div id="reviewError" class="error hidden"></div>
+  <div style="margin-top:12px;">
+    <button class="btn-primary" onclick="submitReview('اعتمد')">✅ اعتماد الطلب</button>
+    <button class="btn-danger" onclick="submitReview('رفض')">❌ رفض الطلب</button>
+    <button class="btn-secondary" onclick="closeReview()">إلغاء</button>
+  </div>
+</div>
+
 <!-- ============== إدارة المستخدمين (تنفيذي فقط) ============== -->
 <div id="usersSection" class="hidden">
   <div class="topbar">
@@ -609,11 +701,19 @@ function applyLang() {
 }
 
 function statusLabel(s) {
-  return { 'جديد': t('status_new'), 'قيد التجهيز': t('status_progress'), 'تم الإرسال': t('status_sent'), 'تم الاستلام': t('status_received') }[s] || s;
+  const MAP = { 'جديد':t('status_new'), 'قيد التجهيز':t('status_progress'),
+    'بانتظار المندوب':(LANG==='ar'?'بانتظار المندوب':'Awaiting Vendor'),
+    'استلم المندوب':(LANG==='ar'?'استلم المندوب':'Vendor Received'),
+    'تم الإرسال':t('status_sent'), 'مراجعة الطبيب':(LANG==='ar'?'مراجعة الطبيب':'Doctor Review'),
+    'تم الاستلام':t('status_received'), 'مرفوض':(LANG==='ar'?'مرفوض':'Rejected') };
+  return MAP[s] || s;
 }
 function typeLabel(ty) { return ty === 'شهري' ? t('type_monthly') : (ty === 'طارئ' ? t('type_emergency') : ty); }
 function statusBadgeClass(status) {
-  return { 'جديد': 'badge-new', 'قيد التجهيز': 'badge-progress', 'تم الإرسال': 'badge-sent', 'تم الاستلام': 'badge-received' }[status] || 'badge-new';
+  return { 'جديد':'badge-new', 'قيد التجهيز':'badge-progress',
+    'بانتظار المندوب':'badge-vendor', 'استلم المندوب':'badge-progress',
+    'تم الإرسال':'badge-sent', 'مراجعة الطبيب':'badge-review',
+    'تم الاستلام':'badge-received', 'مرفوض':'badge-rejected' }[status] || 'badge-new';
 }
 
 /* ================= الحالة العامة ================= */
@@ -722,9 +822,10 @@ function afterLogin() {
     var screen = 'dashboard';
     var matched = ROLES.find(function (r) { return r.name === CURRENT_USER.role; });
     if (matched) screen = matched.screen;
-    if (screen === 'nurse')       initNurseView();
+    if (screen === 'nurse')            initNurseView();
     else if (screen === 'procurement') initProcurementView();
-    else                          initDashboardView();
+    else if (screen === 'doctor')      initDoctorView();
+    else                               initDashboardView();
     startAutoSync();
   }
 
@@ -755,9 +856,7 @@ function afterLogin() {
 }
 
 function refreshItemsDatalist() {
-  const dl = document.getElementById('itemsCatalogList');
-  if (!dl) return;
-  dl.innerHTML = ITEMS_CATALOG.map(function (i) { return '<option value="' + i + '">'; }).join('');
+  // البحث الآن عبر Live Search — لا حاجة لـ datalist
 }
 
 /* ================= الممرضة: إنشاء طلب ================= */
@@ -795,19 +894,117 @@ function loadDoctorsForClinic() {
       return;
     }
     doctors.forEach(function (d) {
-      const o = document.createElement('option'); o.value = d.name; o.textContent = d.name; sel.appendChild(o);
+      const o = document.createElement('option');
+      o.value = d.name;
+      o.textContent = d.name + (d.subspecialty ? ' — ' + d.subspecialty : '');
+      sel.appendChild(o);
     });
   }).getDoctors(clinic);
 }
 
-function addItemRow() {
+/* ---- Live Search ---- */
+let _searchTimer = null;
+let _searchActive = -1;
+
+function onItemSearch(q) {
+  clearTimeout(_searchTimer);
+  const dd = document.getElementById('itemSearchDropdown');
+  if (!q.trim()) { dd.classList.add('hidden'); return; }
+  _searchTimer = setTimeout(function() {
+    google.script.run
+      .withSuccessHandler(function(results) {
+        if (!results.length) { dd.classList.add('hidden'); return; }
+        _searchActive = -1;
+        dd.innerHTML = results.map(function(r, i) {
+          const showPrice = CURRENT_USER.role !== 'ممرضة' && r.price;
+          return '<div class="search-item" data-idx="' + i + '" onclick="pickSearchItem(' + i + ')">' +
+            '<div class="si-name">' + r.name + '</div>' +
+            '<div class="si-meta">' +
+            (r.commercial ? r.commercial : '') +
+            (r.category ? ' · ' + r.category : '') +
+            (showPrice ? ' · <b>' + r.price + ' ر.س</b>' : '') +
+            '</div></div>';
+        }).join('');
+        dd.classList.remove('hidden');
+        dd._results = results;
+      })
+      .withFailureHandler(function(){ dd.classList.add('hidden'); })
+      .searchItems(q);
+  }, 200);
+}
+
+function onItemSearchKey(e) {
+  const dd = document.getElementById('itemSearchDropdown');
+  const items = dd.querySelectorAll('.search-item');
+  if (!items.length) return;
+  if (e.key === 'ArrowDown') { _searchActive = Math.min(_searchActive + 1, items.length - 1); }
+  else if (e.key === 'ArrowUp') { _searchActive = Math.max(_searchActive - 1, 0); }
+  else if (e.key === 'Enter') { if (_searchActive >= 0) pickSearchItem(_searchActive); return; }
+  else return;
+  items.forEach(function(el, i) { el.classList.toggle('active', i === _searchActive); });
+}
+
+function pickSearchItem(idx) {
+  const dd = document.getElementById('itemSearchDropdown');
+  const r = (dd._results || [])[idx];
+  if (!r) return;
+  addItemRowWithData(r.name, 1);
+  document.getElementById('itemSearchInput').value = '';
+  dd.classList.add('hidden');
+  dd._results = null;
+  _searchActive = -1;
+}
+
+function addItemRowWithData(name, qty) {
+  // منع التكرار في نفس الطلب
+  const existing = Array.from(document.querySelectorAll('.itemNameHidden')).find(function(el){ return el.value === name; });
+  if (existing) {
+    const qtyEl = existing.parentElement.querySelector('.itemQty');
+    if (qtyEl) { qtyEl.value = Number(qtyEl.value) + qty; qtyEl.focus(); }
+    return;
+  }
   const row = document.createElement('div');
   row.className = 'item-row';
   row.innerHTML =
-    '<input type="text" class="itemName" data-i18n-ph="item_name_ph" list="itemsCatalogList" placeholder="' + t('item_name_ph') + '">' +
-    '<input type="number" class="itemQty" min="1" value="1">' +
-    '<button class="btn-secondary" onclick="this.parentElement.remove()">✕</button>';
+    '<span style="flex:3;font-size:var(--fs-sm);padding:8px 4px;">' + name + '</span>' +
+    '<input type="hidden" class="itemNameHidden" value="' + name.replace(/"/g,'&quot;') + '">' +
+    '<input type="number" class="itemQty" min="1" value="' + qty + '" style="flex:1;">' +
+    '<button class="btn-secondary" style="margin:0;" onclick="this.parentElement.remove()">✕</button>';
   document.getElementById('itemRows').appendChild(row);
+}
+
+function addItemRow() { /* legacy — استخدم addItemRowWithData */ }
+
+/* ---- بكج الطبيب ---- */
+
+function loadDoctorProfile() {
+  const doctor = document.getElementById('reqDoctor').value;
+  if (!doctor) { document.getElementById('doctorProfileWrap').classList.add('hidden'); return; }
+  google.script.run
+    .withSuccessHandler(function(profile) {
+      const wrap = document.getElementById('doctorProfileWrap');
+      if (!profile || !profile.length) { wrap.classList.add('hidden'); return; }
+      wrap._profile = profile;
+      document.getElementById('doctorProfileTags').innerHTML = profile.map(function(p, i) {
+        return '<span class="profile-tag" onclick="addProfileItem(' + i + ')">' +
+          '<span class="pt-qty">×' + p.qty + '</span>' + p.item + '</span>';
+      }).join('');
+      wrap.classList.remove('hidden');
+    })
+    .withFailureHandler(function(){})
+    .getDoctorProfile(doctor);
+}
+
+function addProfileItem(idx) {
+  const profile = document.getElementById('doctorProfileWrap')._profile || [];
+  const p = profile[idx];
+  if (p) addItemRowWithData(p.item, p.qty);
+}
+
+function addAllProfile() {
+  const profile = document.getElementById('doctorProfileWrap')._profile || [];
+  document.getElementById('itemRows').innerHTML = '';
+  profile.forEach(function(p){ addItemRowWithData(p.item, p.qty); });
 }
 
 function submitRequest() {
@@ -815,7 +1012,8 @@ function submitRequest() {
   const doctor = document.getElementById('reqDoctor').value;
   const type = document.getElementById('reqType').value;
   const items = Array.from(document.querySelectorAll('#itemRows .item-row')).map(function (row) {
-    return { name: row.querySelector('.itemName').value.trim(), qty: Number(row.querySelector('.itemQty').value) };
+    const nameEl = row.querySelector('.itemNameHidden') || row.querySelector('.itemName');
+    return { name: (nameEl ? nameEl.value.trim() : ''), qty: Number(row.querySelector('.itemQty').value) };
   }).filter(function (it) { return it.name; });
   const errEl = document.getElementById('createError');
   if (!clinic || !doctor || items.length === 0) {
@@ -823,13 +1021,18 @@ function submitRequest() {
     return;
   }
   errEl.classList.add('hidden');
-  const submitBtn = document.querySelector('#nurseCreateTab .btn-primary');
+  const submitBtn = document.getElementById('submitRequestBtn');
+  if (submitBtn.disabled) return; // منع الضغط المزدوج
   btnBusy(submitBtn, LANG==='ar' ? 'جاري الإرسال...' : 'Sending...');
   google.script.run
-    .withSuccessHandler(function (id) {
+    .withSuccessHandler(function (res) {
       btnFree(submitBtn);
+      if (res && res.duplicate) {
+        toast(LANG==='ar' ? '⚠️ الطلب موجود مسبقاً: ' + res.id : '⚠️ Duplicate request: ' + res.id, 4000);
+        return;
+      }
+      const id = res && res.id ? res.id : res;
       toast('✅ ' + (LANG==='ar' ? 'تم إرسال الطلب: ' : 'Request sent: ') + id);
-      google.script.run.withSuccessHandler(function (updated) { ITEMS_CATALOG = updated; refreshItemsDatalist(); }).getItemsCatalog();
       initNurseView();
     })
     .withFailureHandler(function(e){ btnFree(submitBtn); toast('❌ ' + String(e), 4000); })
@@ -916,39 +1119,119 @@ function confirmReceive() {
 
 function generateReceiptImage(requestId, items, receiverName) {
   try {
-    const c = document.createElement('canvas');
-    c.width = 600; c.height = 80 + items.length * 32 + 120;
-    const ctx = c.getContext('2d');
-    ctx.fillStyle = '#fff'; ctx.fillRect(0,0,c.width,c.height);
-    ctx.fillStyle = '#0f6e56'; ctx.fillRect(0,0,c.width,8);
-    ctx.fillStyle = '#2c2c2a'; ctx.font = 'bold 18px sans-serif'; ctx.textAlign='center';
-    ctx.fillText('ApexCare — Supply Order', c.width/2, 40);
-    ctx.font = '13px sans-serif'; ctx.fillStyle='#555';
-    ctx.fillText(requestId + ' | ' + new Date().toLocaleDateString('ar-SA'), c.width/2, 62);
-    ctx.textAlign='start';
-    let y = 90;
-    ctx.fillStyle='#f0efe9'; ctx.fillRect(20,y,560,24);
-    ctx.fillStyle='#333'; ctx.font='bold 12px sans-serif';
-    ctx.fillText('Item', 30,y+16); ctx.fillText('Qty', 380,y+16); ctx.fillText('Received',460,y+16);
-    y+=32;
-    items.forEach(function(it){
-      ctx.fillStyle='#f9f9f9'; ctx.fillRect(20,y,560,28);
-      ctx.strokeStyle='#e0ded8'; ctx.strokeRect(20,y,560,28);
-      ctx.fillStyle='#333'; ctx.font='12px sans-serif';
-      ctx.fillText(it.name, 30,y+18); ctx.fillText(it.qty, 390,y+18); ctx.fillText(it.qty,470,y+18);
-      y+=32;
+    // تصفية الأصناف الفارغة وتأكيد الاسم
+    const validItems = items.filter(function(it){ return it && (it.name || it.item); }).map(function(it){
+      return { name: it.name || it.item || '—', qty: it.qty || 0 };
     });
-    y+=10;
-    ctx.fillStyle='#555'; ctx.font='13px sans-serif';
-    ctx.fillText('Receiver: ' + receiverName, 30, y+16);
-    // ألصق التوقيع إن وجد
+
+    const rowH = 30;
+    const sigH = 90;
+    const totalH = 110 + validItems.length * rowH + 40 + sigH + 30;
+
+    const c = document.createElement('canvas');
+    c.width = 620; c.height = totalH;
+    const ctx = c.getContext('2d');
+
+    // خلفية بيضاء
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(0, 0, c.width, c.height);
+
+    // شريط أعلى
+    ctx.fillStyle = '#0f6e56';
+    ctx.fillRect(0, 0, c.width, 10);
+
+    // العنوان
+    ctx.fillStyle = '#0f6e56';
+    ctx.font = 'bold 20px Arial, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('SupplyFlow — ApexCare', c.width / 2, 42);
+
+    ctx.fillStyle = '#555';
+    ctx.font = '13px Arial, sans-serif';
+    ctx.fillText(requestId + '   |   ' + new Date().toLocaleDateString('en-SA'), c.width / 2, 65);
+
+    // رأس الجدول
+    let y = 88;
+    ctx.fillStyle = '#e8f4f0';
+    ctx.fillRect(20, y, 580, rowH);
+    ctx.fillStyle = '#0f6e56';
+    ctx.font = 'bold 13px Arial, sans-serif';
+    ctx.textAlign = 'start';
+    ctx.fillText('Item', 30, y + 20);
+    ctx.textAlign = 'center';
+    ctx.fillText('Requested', 450, y + 20);
+    ctx.fillText('Received', 560, y + 20);
+    y += rowH;
+
+    // صفوف الأصناف
+    validItems.forEach(function(it, idx) {
+      ctx.fillStyle = idx % 2 === 0 ? '#fafafa' : '#ffffff';
+      ctx.fillRect(20, y, 580, rowH);
+      ctx.strokeStyle = '#e0ded8';
+      ctx.strokeRect(20, y, 580, rowH);
+
+      ctx.fillStyle = '#2c2c2a';
+      ctx.font = '13px Arial, sans-serif';
+      ctx.textAlign = 'start';
+      // اقتص الاسم لو طال
+      const maxW = 380;
+      let name = String(it.name);
+      ctx.fillText(name, 30, y + 20, maxW);
+
+      ctx.textAlign = 'center';
+      ctx.fillText(String(it.qty), 450, y + 20);
+      ctx.fillText(String(it.qty), 560, y + 20);
+      y += rowH;
+    });
+
+    y += 16;
+
+    // خط فاصل
+    ctx.strokeStyle = '#d3d1c7';
+    ctx.beginPath();
+    ctx.moveTo(20, y); ctx.lineTo(600, y);
+    ctx.stroke();
+    y += 14;
+
+    // اسم المستلم
+    ctx.fillStyle = '#333';
+    ctx.font = 'bold 13px Arial, sans-serif';
+    ctx.textAlign = 'start';
+    ctx.fillText('Receiver: ' + receiverName, 30, y + 16);
+    y += 36;
+
+    // التوقيع
     const sigCanvas = document.getElementById('sigPad');
-    if (SIG_HAS_INK && sigCanvas) {
-      ctx.drawImage(sigCanvas, 30, y+30, 200, 70);
+    if (SIG_HAS_INK && sigCanvas && sigCanvas.width > 0) {
+      ctx.strokeStyle = '#d3d1c7';
+      ctx.strokeRect(30, y, 220, sigH - 10);
+      ctx.drawImage(sigCanvas, 30, y, 220, sigH - 10);
+      ctx.fillStyle = '#888';
+      ctx.font = '11px Arial, sans-serif';
+      ctx.fillText('Signature', 30, y + sigH);
+    } else {
+      ctx.strokeStyle = '#d3d1c7';
+      ctx.strokeRect(30, y, 220, sigH - 10);
+      ctx.fillStyle = '#aaa';
+      ctx.font = '11px Arial, sans-serif';
+      ctx.fillText('No signature', 30, y + sigH);
     }
-    ctx.fillStyle='#0f6e56'; ctx.fillRect(0,c.height-6,c.width,6);
+
+    // الوقت أسفل اليمين
+    ctx.fillStyle = '#888';
+    ctx.font = '11px Arial, sans-serif';
+    ctx.textAlign = 'end';
+    ctx.fillText(new Date().toLocaleString('en-SA'), 600, y + sigH);
+
+    // شريط أسفل
+    ctx.fillStyle = '#0f6e56';
+    ctx.fillRect(0, c.height - 8, c.width, 8);
+
     return c.toDataURL('image/png');
-  } catch(e) { return ''; }
+  } catch(e) {
+    console.error('generateReceiptImage error:', e);
+    return '';
+  }
 }
 
 function loadNurseNotices() {
@@ -1266,6 +1549,93 @@ function startAutoSync() {
   SYNC_TIMER = setInterval(function () { syncNow(true); }, SYNC_INTERVAL_MS);
 }
 
+/* ================= الطبيب ================= */
+
+let CURRENT_REVIEW_ID = null;
+
+function initDoctorView() {
+  document.getElementById('doctorSection').classList.remove('hidden');
+  document.getElementById('doctorNameLbl').textContent = CURRENT_USER.name;
+  loadDoctorRequests();
+}
+
+function loadDoctorRequests() {
+  google.script.run
+    .withSuccessHandler(function(reqs) {
+      const el = document.getElementById('doctorRequestsList');
+      if (!reqs.length) { el.innerHTML = '<p>لا توجد طلبات بانتظار مراجعتك</p>'; return; }
+      el.innerHTML = reqs.map(function(r) {
+        const hasSent = r.status === 'تم الإرسال' || r.status === 'مراجعة الطبيب';
+        return '<div class="req-block">' +
+          '<div class="req-block-top"><b>' + r.id + '</b> — ' + r.clinic +
+          ' <span class="badge ' + statusBadgeClass(r.status) + '">' + statusLabel(r.status) + '</span></div>' +
+          '<div style="margin-top:4px;">' +
+          (hasSent ? '<button class="btn-primary" style="margin:0 4px 0 0;" onclick="openReview(\'' + r.id + '\')">👨‍⚕️ مراجعة واعتماد</button>' : '') +
+          '<button class="btn-secondary" style="margin:0;" onclick="openDetail(\'' + r.id + '\')">📋 تفاصيل</button>' +
+          '</div></div>';
+      }).join('');
+    })
+    .withFailureHandler(function(e){ console.error(e); })
+    .getDoctorRequests(CURRENT_USER.name);
+}
+
+function openReview(requestId) {
+  CURRENT_REVIEW_ID = requestId;
+  document.getElementById('reviewReqTitle').textContent = 'مراجعة الطلب — ' + requestId;
+  document.getElementById('reviewReason').value = '';
+  document.getElementById('reviewError').classList.add('hidden');
+  document.getElementById('reviewItemsBody').innerHTML =
+    '<tr><td colspan="3"><span class="spinner"></span> جاري التحميل...</td></tr>';
+  document.getElementById('reviewOverlay').classList.remove('hidden');
+  document.getElementById('reviewModal').classList.remove('hidden');
+  google.script.run
+    .withSuccessHandler(function(items) {
+      document.getElementById('reviewItemsBody').innerHTML = items.map(function(it, idx) {
+        return '<tr>' +
+          '<td>' + it.item + '</td>' +
+          '<td>' + (it.approvedQty || it.requestedQty) + '</td>' +
+          '<td><input type="text" class="reviewNote" data-item="' + it.item + '" value="' + (it.note||'') + '" placeholder="ملاحظة اختيارية..."></td>' +
+          '</tr>';
+      }).join('');
+    })
+    .withFailureHandler(function(e){ document.getElementById('reviewItemsBody').innerHTML = '<tr><td colspan="3" style="color:var(--danger);">' + e + '</td></tr>'; })
+    .getRequestItems(requestId);
+}
+
+function closeReview() {
+  document.getElementById('reviewOverlay').classList.add('hidden');
+  document.getElementById('reviewModal').classList.add('hidden');
+  CURRENT_REVIEW_ID = null;
+}
+
+function submitReview(decision) {
+  const reason = document.getElementById('reviewReason').value.trim();
+  const errEl = document.getElementById('reviewError');
+  if (decision === 'رفض' && !reason) {
+    errEl.textContent = 'سبب الرفض إلزامي';
+    errEl.classList.remove('hidden');
+    return;
+  }
+  errEl.classList.add('hidden');
+  const itemNotes = Array.from(document.querySelectorAll('.reviewNote'))
+    .map(function(inp){ return { item: inp.dataset.item, note: inp.value.trim() }; })
+    .filter(function(n){ return n.note; });
+  const btn = decision === 'اعتمد'
+    ? document.querySelector('#reviewModal .btn-primary')
+    : document.querySelector('#reviewModal .btn-danger');
+  btnBusy(btn, decision === 'اعتمد' ? 'جاري الاعتماد...' : 'جاري الرفض...');
+  google.script.run
+    .withSuccessHandler(function() {
+      btnFree(btn);
+      toast(decision === 'اعتمد' ? '✅ تم اعتماد الطلب' : '❌ تم رفض الطلب');
+      closeReview();
+      loadDoctorRequests();
+      loadLoginAlerts();
+    })
+    .withFailureHandler(function(e){ btnFree(btn); toast('❌ ' + String(e), 4000); })
+    .doctorReview(CURRENT_REVIEW_ID, decision, reason, itemNotes);
+}
+
 /* ================= بحث التموين ================= */
 
 let ALL_PROC_REQUESTS = [];
@@ -1327,9 +1697,34 @@ function openDetail(requestId) {
         : detail.comments.map(function(c){
             return '<div class="comment-msg"><div class="meta">'+c.author+' ('+c.role+')</div>'+c.message+'</div>';
           }).join('');
+        // ملاحظات الأصناف في الجدول
+      document.getElementById('detailItemsBody').innerHTML = (detail.items||[]).map(function(it){
+        return '<tr><td>'+it.item+'</td><td>'+it.requestedQty+'</td><td>'+(it.approvedQty||'-')+'</td><td>'+(it.receivedQty||'-')+'</td></tr>'
+          + (it.note ? '<tr><td colspan="4"><span style="color:var(--accent);font-size:var(--fs-xs);">📝 '+it.note+'</span></td></tr>' : '');
+      }).join('');
       if (detail.receiptUrl) {
         document.getElementById('detailReceiptLink').href = detail.receiptUrl;
         document.getElementById('detailReceiptWrap').classList.remove('hidden');
+      }
+      // KPI
+      google.script.run.withSuccessHandler(function(kpi){
+        if (!kpi) return;
+        const steps = [
+          { lbl: LANG==='ar'?'رفع → تجهيز':'Submit → Prep', hrs: kpi.submitToPrep },
+          { lbl: LANG==='ar'?'تجهيز → مندوب':'Prep → Vendor', hrs: kpi.prepToVendor },
+          { lbl: LANG==='ar'?'انتظار المندوب':'Vendor Wait', hrs: kpi.vendorWait },
+          { lbl: LANG==='ar'?'مندوب → إرسال':'Vendor → Send', hrs: kpi.vendorToSend },
+          { lbl: LANG==='ar'?'إرسال → مراجعة':'Send → Review', hrs: kpi.sendToReview },
+          { lbl: LANG==='ar'?'مراجعة → استلام':'Review → Recv', hrs: kpi.reviewToReceive },
+          { lbl: LANG==='ar'?'إجمالي':'Total', hrs: kpi.totalCycle }
+        ].filter(function(s){ return s.hrs !== null && s.hrs !== undefined; });
+        document.getElementById('detailKPITimeline').innerHTML = steps.map(function(s){
+          return '<div class="kpi-step"><div class="kpi-hrs' + (s.hrs > 48?' late':'') + '">' + s.hrs + 'h</div><div class="kpi-lbl">' + s.lbl + '</div></div>';
+        }).join('');
+        document.getElementById('detailKPI').classList.remove('hidden');
+      }).withFailureHandler(function(){}).getRequestKPI(requestId);
+      if (detail.rejectionReason) {
+        document.getElementById('detailMeta').innerHTML += '<div class="rejection-box">❌ سبب الرفض: ' + detail.rejectionReason + '</div>';
       }
     })
     .withFailureHandler(function(e){ document.getElementById('detailMeta').textContent = String(e); })
