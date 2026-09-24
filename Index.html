@@ -90,6 +90,13 @@
   .badge-vendor    { background: #fff3e0; color: #6d3a00; }
   .badge-review    { background: #f3e5f5; color: #4a148c; }
   .badge-rejected  { background: #fde8e8; color: #8b1a1a; }
+
+  /* أزرار الحالة — نفس لون الشارة المقابلة بالضبط، لتفادي أي لبس */
+  .btn-status-progress { background: var(--status-progress-bg); color: var(--status-progress-text); border: 1px solid #e0c68a; }
+  .btn-status-vendor   { background: #fff3e0; color: #6d3a00; border: 1px solid #e0b784; }
+  .btn-status-sent     { background: var(--status-sent-bg); color: var(--status-sent-text); border: 1px solid #c9c5f5; }
+  .btn-status-review   { background: #f3e5f5; color: #4a148c; border: 1px solid #d9b3de; }
+  .btn-status-progress:hover, .btn-status-vendor:hover, .btn-status-sent:hover, .btn-status-review:hover { filter: brightness(0.94); }
   .kpi-timeline { display:flex; gap:0; flex-wrap:wrap; margin:10px 0; }
   .kpi-step { flex:1; min-width:100px; padding:8px 6px; text-align:center; border-inline-end:1px solid var(--border); font-size:var(--fs-xs); }
   .kpi-step:last-child { border:none; }
@@ -318,13 +325,32 @@
       </div>
       <div><label data-i18n="clinic_label">العيادة</label><select id="procFilterClinic" onchange="loadProcurementRequests()"></select></div>
       <div><label data-i18n="month_label">الشهر</label><input type="month" id="procFilterMonth" onchange="loadProcurementRequests()"></div>
+      <div><label>الترتيب</label>
+        <select id="procSortBy" onchange="renderProcurementList(ALL_PROC_REQUESTS)">
+          <option value="date_desc">الأحدث أولاً</option>
+          <option value="date_asc">الأقدم أولاً</option>
+          <option value="sent_desc">تاريخ الإرسال (الأحدث)</option>
+          <option value="sent_asc">تاريخ الإرسال (الأقدم)</option>
+          <option value="received_desc">تاريخ الاستلام</option>
+        </select>
+      </div>
     </div>
     <div>
-      <button class="btn-secondary" onclick="bulkAction('قيد التجهيز', this)" data-i18n="bulk_progress_btn">قيد التجهيز</button>
-      <button class="btn-secondary" onclick="bulkAction('بانتظار المندوب', this)">🚚 بانتظار المندوب</button>
-      <button class="btn-secondary" onclick="bulkAction('استلم المندوب', this)">✅ استلم المندوب</button>
-      <button class="btn-accent" onclick="bulkAction('تم الإرسال', this)" data-i18n="bulk_sent_btn">تم الإرسال</button>
-      <button class="btn-accent" onclick="bulkAction('مراجعة الطبيب', this)">👨‍⚕️ إرسال لمراجعة الطبيب</button>
+      <div style="display:flex;flex-direction:column;gap:10px;">
+        <div>
+          <div style="font-size:var(--fs-xs);color:var(--text-muted);margin-bottom:4px;">المسار الأساسي</div>
+          <button class="btn-status-progress" onclick="bulkAction('قيد التجهيز', this)" data-i18n="bulk_progress_btn">1️⃣ قيد التجهيز</button>
+          <button class="btn-status-sent" onclick="bulkAction('تم الإرسال', this)" data-i18n="bulk_sent_btn">2️⃣ تم الإرسال ✅</button>
+          <button class="btn-status-review" onclick="bulkAction('مراجعة الطبيب', this)">3️⃣ إرسال لمراجعة الطبيب 👨‍⚕️</button>
+        </div>
+        <div style="border-top:1px dashed var(--border);padding-top:8px;">
+          <div style="font-size:var(--fs-xs);color:var(--text-muted);margin-bottom:4px;">
+            خطوة اختيارية — استخدمها فقط لو المستلزم يحتاج توريد من مندوب خارجي (وإلا تجاهلها وروح مباشرة لـ"تم الإرسال")
+          </div>
+          <button class="btn-status-vendor" onclick="bulkAction('بانتظار المندوب', this)">🚚 بانتظار المندوب</button>
+          <button class="btn-status-vendor" onclick="bulkAction('استلم المندوب', this)">📥 استلم من المندوب</button>
+        </div>
+      </div>
     </div>
     <div id="procRequestsList"></div>
   </div>
@@ -1208,7 +1234,7 @@ function confirmReceive() {
       loadMyRequests();
     })
     .withFailureHandler(function(e){ btn.disabled=false; btn.textContent=t('confirm_receive_btn'); alert(String(e)); })
-    .receiveRequest(CURRENT_RECEIVE_ID, items, name, sigData, receiptImageData);
+    .receiveRequest(CURRENT_RECEIVE_ID, items, name, sigData, receiptImageData, CURRENT_USER.name);
 }
 
 function generateReceiptImage(requestId, items, receiverName) {
@@ -1349,23 +1375,46 @@ function loadProcurementRequests() {
     clinic: document.getElementById('procFilterClinic').value,
     month: document.getElementById('procFilterMonth').value
   };
-  google.script.run.withSuccessHandler(function (reqs) {
-    const el = document.getElementById('procRequestsList');
-    if (reqs.length === 0) { el.innerHTML = '<p>' + t('no_matching_requests') + '</p>'; return; }
-    el.innerHTML = reqs.map(function (r) {
-      return '<div class="req-block">' +
-        '<div class="req-block-top">' +
-        '<label style="display:inline;"><input type="checkbox" class="reqSelect" value="' + r.id + '"> <b>' + r.id + '</b></label> — ' +
-        r.clinic + ' / ' + r.doctor + ' / ' + r.nurse + ' (' + typeLabel(r.type) + ') ' +
-        '<span class="badge ' + statusBadgeClass(r.status) + '">' + statusLabel(r.status) + '</span></div>' +
-        '<div>' +
-        '<button class="btn-secondary" onclick="toggleItemsView(\'' + r.id + '\')">' + t('view_items_btn') + '</button>' +
-        '<button class="btn-secondary" onclick="openComments(\'' + r.id + '\')">' + t('comment_btn') + '</button>' +
-        '</div>' +
-        '<div id="items-' + r.id + '" class="hidden"></div>' +
-        '</div>';
-    }).join('');
-  }).getRequests(filters);
+  google.script.run
+    .withSuccessHandler(function (reqs) {
+      ALL_PROC_REQUESTS = reqs;
+      renderProcurementList(reqs);
+    })
+    .withFailureHandler(function(e){ console.error(e); })
+    .getRequests(filters);
+}
+
+function renderProcurementList(reqs) {
+  const sortBy = document.getElementById('procSortBy');
+  const sortVal = sortBy ? sortBy.value : 'date_desc';
+  const sorted = reqs.slice().sort(function(a, b) {
+    function val(r, field) { return r[field] ? new Date(r[field]).getTime() : 0; }
+    switch (sortVal) {
+      case 'date_asc':   return val(a,'date') - val(b,'date');
+      case 'sent_desc':  return val(b,'sentAt') - val(a,'sentAt');
+      case 'sent_asc':   return val(a,'sentAt') - val(b,'sentAt');
+      case 'received_desc': return val(b,'receivedAt') - val(a,'receivedAt');
+      default:           return val(b,'date') - val(a,'date'); // date_desc
+    }
+  });
+
+  const el = document.getElementById('procRequestsList');
+  if (sorted.length === 0) { el.innerHTML = '<p>' + t('no_matching_requests') + '</p>'; return; }
+  el.innerHTML = sorted.map(function (r) {
+    const dateStr = r.date ? new Date(r.date).toLocaleDateString('ar-SA') : '';
+    return '<div class="req-block">' +
+      '<div class="req-block-top">' +
+      '<label style="display:inline;"><input type="checkbox" class="reqSelect" value="' + r.id + '"> <b>' + r.id + '</b></label> ' +
+      '<span style="color:var(--text-muted);font-size:var(--fs-xs);">' + dateStr + '</span> — ' +
+      r.clinic + ' / ' + r.doctor + ' / ' + r.nurse + ' (' + typeLabel(r.type) + ') ' +
+      '<span class="badge ' + statusBadgeClass(r.status) + '">' + statusLabel(r.status) + '</span></div>' +
+      '<div style="margin-top:4px;">' +
+      '<button class="btn-secondary" style="margin:0 4px 0 0;" onclick="toggleItemsView(\'' + r.id + '\')">' + t('view_items_btn') + '</button>' +
+      '<button class="btn-secondary" style="margin:0;" onclick="openDetail(\'' + r.id + '\')">📋 تفاصيل</button>' +
+      '</div>' +
+      '<div id="items-' + r.id + '" class="hidden"></div>' +
+      '</div>';
+  }).join('');
 }
 
 function toggleItemsView(id) {
@@ -1373,19 +1422,12 @@ function toggleItemsView(id) {
   if (!el.classList.contains('hidden')) { el.classList.add('hidden'); return; }
   el.innerHTML = '<p style="padding:8px;color:var(--text-muted);font-size:var(--fs-sm);"><span class="spinner"></span> جاري التحميل...</p>';
   el.classList.remove('hidden');
-  Promise.resolve().then(function(){
-    google.script.run
-      .withSuccessHandler(function (items) {
-        google.script.run
-          .withSuccessHandler(function(dispatchStatus) {
-            renderItemsViewTable(el, id, items, dispatchStatus);
-          })
-          .withFailureHandler(function(){ renderItemsViewTable(el, id, items, {}); })
-          .getDispatchStatus(id);
-      })
-      .withFailureHandler(function(e){ el.innerHTML = '<p style="color:var(--danger);padding:8px;">' + String(e) + '</p>'; })
-      .getRequestItems(id);
-  });
+  google.script.run
+    .withSuccessHandler(function (full) {
+      renderItemsViewTable(el, id, full.items, full.dispatchStatus || {});
+    })
+    .withFailureHandler(function(e){ el.innerHTML = '<p style="color:var(--danger);padding:8px;">' + String(e) + '</p>'; })
+    .getRequestItemsFull(id);
 }
 
 function renderItemsViewTable(el, id, items, dispatchStatus) {
@@ -1438,7 +1480,7 @@ function bulkAction(newStatus, btn) {
       loadLoginAlerts();
     })
     .withFailureHandler(function(e){ btnFree(btn); toast('❌ ' + String(e), 4000); })
-    .bulkUpdateStatus(ids, newStatus);
+    .bulkUpdateStatus(ids, newStatus, CURRENT_USER.name);
 }
 
 function loadProcNotices() {
@@ -1892,7 +1934,7 @@ function submitDoctorReview(decision) {
       loadLoginAlerts();
     })
     .withFailureHandler(function(e){ btnFree(btn); toast('❌ ' + String(e), 4000); })
-    .doctorReview(CURRENT_REVIEW_ID, decision, reason, []);
+    .doctorReview(CURRENT_REVIEW_ID, decision, reason, [], CURRENT_USER.name);
 }
 
 function openReview(requestId) {
