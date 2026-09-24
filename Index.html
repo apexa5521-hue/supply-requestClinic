@@ -390,13 +390,62 @@
 <!-- ============== الطبيب ============== -->
 <div id="doctorSection" class="hidden">
   <div class="topbar">
-    <h1 style="margin:0;">مراجعة الطلبات</h1>
+    <div style="display:flex;align-items:center;gap:10px;">
+      <h1 style="margin:0;">لوحة الطبيب</h1>
+      <button onclick="syncNow()" class="btn-secondary syncBtn" style="margin:0;padding:6px 12px;font-size:var(--fs-sm);">🔄 مزامنة</button>
+    </div>
     <div class="who">مرحباً <span id="doctorNameLbl"></span> · <a href="#" onclick="logout()">خروج</a></div>
   </div>
-  <div id="doctorAlerts"></div>
+
+  <!-- داشبورد الطبيب -->
+  <div class="kpi-grid" id="doctorKPIGrid" style="max-width:960px;margin:0 auto 16px;"></div>
+
+  <!-- قائمة الطلبات -->
   <div class="card">
-    <h2>طلباتك بانتظار المراجعة</h2>
-    <div id="doctorRequestsList"></div>
+    <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:14px;">
+      <h2 style="margin:0;">الطلبات</h2>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;">
+        <select id="doctorFilterStatus" onchange="loadDoctorRequests()" style="min-width:160px;">
+          <option value="">كل الحالات</option>
+          <option value="تم الإرسال">تم الإرسال</option>
+          <option value="مراجعة الطبيب">مراجعة الطبيب</option>
+          <option value="تم الاستلام">تم الاستلام</option>
+          <option value="مرفوض">مرفوض</option>
+        </select>
+        <input type="month" id="doctorFilterMonth" onchange="loadDoctorRequests()" style="min-width:150px;">
+      </div>
+    </div>
+
+    <!-- قائمة منسدلة بالطلبات -->
+    <div style="margin-bottom:14px;">
+      <label style="font-size:var(--fs-sm);color:var(--text-muted);">اختر طلباً للمراجعة</label>
+      <select id="doctorRequestSelect" onchange="onDoctorSelectRequest(this.value)" style="width:100%;">
+        <option value="">— اختر طلب —</option>
+      </select>
+    </div>
+
+    <!-- تفاصيل الطلب المختار -->
+    <div id="doctorRequestDetail" class="hidden">
+      <div id="doctorDetailMeta" style="font-size:var(--fs-sm);color:var(--text-muted);margin-bottom:10px;line-height:1.8;"></div>
+      <table>
+        <thead><tr><th>الصنف</th><th>الاسم التجاري</th><th>النوع</th><th>الكمية</th><th>السعر</th><th>ملاحظة</th></tr></thead>
+        <tbody id="doctorDetailItems"></tbody>
+      </table>
+      <div id="doctorDetailTotal" style="text-align:end;font-weight:700;margin-top:8px;font-size:var(--fs-sm);color:var(--primary-dark);"></div>
+      <div id="doctorReviewActions" class="hidden" style="margin-top:14px;padding:12px;background:var(--bg-alt);border-radius:var(--radius-sm);">
+        <label>ملاحظة عامة أو سبب الرفض</label>
+        <textarea id="doctorReviewReason" rows="2" placeholder="اختياري للاعتماد، إلزامي للرفض..."></textarea>
+        <div id="doctorReviewError" class="error hidden"></div>
+        <div style="margin-top:8px;">
+          <button class="btn-primary" onclick="submitDoctorReview('اعتمد')">✅ اعتماد الطلب</button>
+          <button class="btn-danger" onclick="submitDoctorReview('رفض')">❌ رفض الطلب</button>
+        </div>
+      </div>
+      <div id="doctorRejectionBox" class="rejection-box hidden"></div>
+    </div>
+
+    <!-- قائمة كل الطلبات -->
+    <div id="doctorRequestsList" style="margin-top:14px;"></div>
   </div>
 </div>
 
@@ -1548,6 +1597,7 @@ function startAutoSync() {
 
 /* ================= الطبيب ================= */
 
+let DOCTOR_REQUESTS = [];
 let CURRENT_REVIEW_ID = null;
 
 function initDoctorView() {
@@ -1559,21 +1609,155 @@ function initDoctorView() {
 function loadDoctorRequests() {
   google.script.run
     .withSuccessHandler(function(reqs) {
-      const el = document.getElementById('doctorRequestsList');
-      if (!reqs.length) { el.innerHTML = '<p>لا توجد طلبات بانتظار مراجعتك</p>'; return; }
-      el.innerHTML = reqs.map(function(r) {
-        const hasSent = r.status === 'تم الإرسال' || r.status === 'مراجعة الطبيب';
-        return '<div class="req-block">' +
-          '<div class="req-block-top"><b>' + r.id + '</b> — ' + r.clinic +
-          ' <span class="badge ' + statusBadgeClass(r.status) + '">' + statusLabel(r.status) + '</span></div>' +
-          '<div style="margin-top:4px;">' +
-          (hasSent ? '<button class="btn-primary" style="margin:0 4px 0 0;" onclick="openReview(\'' + r.id + '\')">👨‍⚕️ مراجعة واعتماد</button>' : '') +
-          '<button class="btn-secondary" style="margin:0;" onclick="openDetail(\'' + r.id + '\')">📋 تفاصيل</button>' +
-          '</div></div>';
-      }).join('');
+      DOCTOR_REQUESTS = reqs;
+      renderDoctorDashboard(reqs);
+      renderDoctorDropdown(reqs);
+      renderDoctorList(reqs);
     })
     .withFailureHandler(function(e){ console.error(e); })
     .getDoctorRequests(CURRENT_USER.name);
+}
+
+function renderDoctorDashboard(reqs) {
+  const counts = { 'تم الإرسال': 0, 'مراجعة الطبيب': 0, 'تم الاستلام': 0, 'مرفوض': 0 };
+  reqs.forEach(function(r){ if (counts[r.status] !== undefined) counts[r.status]++; });
+  document.getElementById('doctorKPIGrid').innerHTML =
+    kpiCard(counts['مراجعة الطبيب'], '⏳ بانتظار مراجعتك') +
+    kpiCard(counts['تم الإرسال'],    '🚚 تم الإرسال') +
+    kpiCard(counts['تم الاستلام'],   '✅ تم الاستلام') +
+    kpiCard(counts['مرفوض'],         '❌ مرفوض');
+}
+
+function renderDoctorDropdown(reqs) {
+  const filterStatus = document.getElementById('doctorFilterStatus').value;
+  const filterMonth  = document.getElementById('doctorFilterMonth').value;
+  const filtered = reqs.filter(function(r){
+    if (filterStatus && r.status !== filterStatus) return false;
+    if (filterMonth  && String(r.date).slice(0,7) !== filterMonth) return false;
+    return true;
+  });
+  const sel = document.getElementById('doctorRequestSelect');
+  sel.innerHTML = '<option value="">— اختر طلب —</option>' +
+    filtered.map(function(r){
+      const dateStr = r.date ? new Date(r.date).toLocaleDateString('en-SA') : '';
+      return '<option value="' + r.id + '">' +
+        r.id + ' | ' + dateStr + ' | ' + r.clinic + ' | ' + statusLabel(r.status) +
+        '</option>';
+    }).join('');
+  // إخفاء التفاصيل عند إعادة التحميل
+  document.getElementById('doctorRequestDetail').classList.add('hidden');
+}
+
+function renderDoctorList(reqs) {
+  const filterStatus = document.getElementById('doctorFilterStatus').value;
+  const filterMonth  = document.getElementById('doctorFilterMonth').value;
+  const filtered = reqs.filter(function(r){
+    if (filterStatus && r.status !== filterStatus) return false;
+    if (filterMonth  && String(r.date).slice(0,7) !== filterMonth) return false;
+    return true;
+  });
+  const el = document.getElementById('doctorRequestsList');
+  if (!filtered.length) { el.innerHTML = '<p style="color:var(--text-muted);">لا توجد طلبات</p>'; return; }
+  el.innerHTML = filtered.map(function(r) {
+    const dateStr = r.date ? new Date(r.date).toLocaleDateString('ar-SA') : '';
+    return '<div class="req-block" style="cursor:pointer;" onclick="onDoctorSelectRequest(\'' + r.id + '\')">' +
+      '<div class="req-block-top">' +
+      '<b>' + r.id + '</b> <span style="color:var(--text-muted);font-size:var(--fs-xs);">' + dateStr + '</span>' +
+      ' — ' + r.clinic +
+      ' <span class="badge ' + statusBadgeClass(r.status) + '">' + statusLabel(r.status) + '</span></div>' +
+      '<div style="font-size:var(--fs-xs);color:var(--text-muted);margin-top:2px;">' + typeLabel(r.type) + '</div>' +
+      '</div>';
+  }).join('');
+}
+
+function onDoctorSelectRequest(id) {
+  if (!id) { document.getElementById('doctorRequestDetail').classList.add('hidden'); return; }
+  // حدّث القائمة المنسدلة إذا جاء من click على البطاقة
+  document.getElementById('doctorRequestSelect').value = id;
+  CURRENT_REVIEW_ID = id;
+  const req = DOCTOR_REQUESTS.find(function(r){ return r.id === id; });
+  const detail = document.getElementById('doctorRequestDetail');
+  detail.classList.remove('hidden');
+  document.getElementById('doctorReviewReason').value = '';
+  document.getElementById('doctorReviewError').classList.add('hidden');
+  document.getElementById('doctorRejectionBox').classList.add('hidden');
+
+  if (req) {
+    const dateStr = req.date ? new Date(req.date).toLocaleDateString('ar-SA') : '';
+    document.getElementById('doctorDetailMeta').innerHTML =
+      '<b>العيادة:</b> ' + req.clinic +
+      ' &nbsp;|&nbsp; <b>الممرضة:</b> ' + req.nurse +
+      ' &nbsp;|&nbsp; <b>النوع:</b> ' + typeLabel(req.type) +
+      ' &nbsp;|&nbsp; <b>التاريخ:</b> ' + dateStr +
+      ' &nbsp;|&nbsp; <span class="badge ' + statusBadgeClass(req.status) + '">' + statusLabel(req.status) + '</span>';
+
+    // أزرار المراجعة فقط للطلبات اللي وصلت
+    const canReview = req.status === 'مراجعة الطبيب' || req.status === 'تم الإرسال';
+    document.getElementById('doctorReviewActions').classList.toggle('hidden', !canReview);
+
+    // سبب الرفض إن كان مرفوضاً
+    if (req.rejectionReason) {
+      const rb = document.getElementById('doctorRejectionBox');
+      rb.textContent = '❌ سبب الرفض: ' + req.rejectionReason;
+      rb.classList.remove('hidden');
+    }
+  }
+
+  // جلب الأصناف مع السعر
+  document.getElementById('doctorDetailItems').innerHTML =
+    '<tr><td colspan="6"><span class="spinner"></span> جاري التحميل...</td></tr>';
+  document.getElementById('doctorDetailTotal').textContent = '';
+
+  google.script.run
+    .withSuccessHandler(function(items) {
+      let total = 0;
+      document.getElementById('doctorDetailItems').innerHTML = items.map(function(it) {
+        const price = parseFloat(it.price || 0);
+        const qty   = parseFloat(it.requestedQty || 0);
+        total += price * qty;
+        return '<tr>' +
+          '<td>' + it.item + '</td>' +
+          '<td style="color:var(--text-muted);font-size:var(--fs-xs);">' + (it.commercial||'—') + '</td>' +
+          '<td style="color:var(--text-muted);font-size:var(--fs-xs);">' + (it.category||'—') + '</td>' +
+          '<td>' + it.requestedQty + '</td>' +
+          '<td style="color:var(--primary-dark);">' + (price ? price + ' ر.س' : '—') + '</td>' +
+          '<td style="font-size:var(--fs-xs);color:var(--accent);">' + (it.note||'') + '</td>' +
+          '</tr>';
+      }).join('');
+      if (total > 0) {
+        document.getElementById('doctorDetailTotal').textContent =
+          'إجمالي تقديري: ' + total.toFixed(2) + ' ر.س';
+      }
+    })
+    .withFailureHandler(function(e){
+      document.getElementById('doctorDetailItems').innerHTML =
+        '<tr><td colspan="6" style="color:var(--danger);">' + String(e) + '</td></tr>';
+    })
+    .getRequestItemsWithCatalog(id);
+}
+
+function submitDoctorReview(decision) {
+  const reason = document.getElementById('doctorReviewReason').value.trim();
+  const errEl  = document.getElementById('doctorReviewError');
+  if (decision === 'رفض' && !reason) {
+    errEl.textContent = 'سبب الرفض إلزامي';
+    errEl.classList.remove('hidden');
+    return;
+  }
+  errEl.classList.add('hidden');
+  const btn = decision === 'اعتمد'
+    ? document.querySelector('#doctorReviewActions .btn-primary')
+    : document.querySelector('#doctorReviewActions .btn-danger');
+  btnBusy(btn, decision === 'اعتمد' ? 'جاري الاعتماد...' : 'جاري الرفض...');
+  google.script.run
+    .withSuccessHandler(function() {
+      btnFree(btn);
+      toast(decision === 'اعتمد' ? '✅ تم اعتماد الطلب' : '❌ تم رفض الطلب');
+      loadDoctorRequests();
+      loadLoginAlerts();
+    })
+    .withFailureHandler(function(e){ btnFree(btn); toast('❌ ' + String(e), 4000); })
+    .doctorReview(CURRENT_REVIEW_ID, decision, reason, []);
 }
 
 function openReview(requestId) {
