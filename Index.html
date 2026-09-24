@@ -866,8 +866,10 @@ function afterLogin() {
 
   function routeUser() {
     var screen = 'dashboard';
-    var matched = ROLES.find(function (r) { return r.name === CURRENT_USER.role; });
-    if (matched) screen = matched.screen;
+    var userRole = String(CURRENT_USER.role || '').trim();
+    var matched = ROLES.find(function (r) { return String(r.name || '').trim() === userRole; });
+    if (matched) screen = String(matched.screen || '').trim();
+    else console.warn('[routeUser] لم يُطابَق دور "' + userRole + '" مع أي دور في تبويب Roles — سيُوجَّه للوحة الإدارة');
     if (screen === 'nurse')            initNurseView();
     else if (screen === 'procurement') initProcurementView();
     else if (screen === 'doctor')      initDoctorView();
