@@ -1325,15 +1325,57 @@ function loadProcurementRequests() {
 function toggleItemsView(id) {
   const el = document.getElementById('items-' + id);
   if (!el.classList.contains('hidden')) { el.classList.add('hidden'); return; }
-  google.script.run.withSuccessHandler(function (items) {
-    el.innerHTML = '<table><thead><tr><th>' + t('th_item') + '</th><th>' + t('th_requested') + '</th><th>' + t('th_approved') + '</th></tr></thead><tbody>' +
-      items.map(function (it) {
-        return '<tr><td>' + it.item + '</td><td>' + it.requestedQty + '</td>' +
-          '<td><input type="number" value="' + (it.approvedQty || it.requestedQty) + '" min="0" ' +
-          'onchange="updateApproval(\'' + id + '\',\'' + it.item + '\',this.value)"></td></tr>';
-      }).join('') + '</tbody></table>';
-    el.classList.remove('hidden');
-  }).getRequestItems(id);
+  el.innerHTML = '<p style="padding:8px;color:var(--text-muted);font-size:var(--fs-sm);"><span class="spinner"></span> جاري التحميل...</p>';
+  el.classList.remove('hidden');
+  Promise.resolve().then(function(){
+    google.script.run
+      .withSuccessHandler(function (items) {
+        google.script.run
+          .withSuccessHandler(function(dispatchStatus) {
+            renderItemsViewTable(el, id, items, dispatchStatus);
+          })
+          .withFailureHandler(function(){ renderItemsViewTable(el, id, items, {}); })
+          .getDispatchStatus(id);
+      })
+      .withFailureHandler(function(e){ el.innerHTML = '<p style="color:var(--danger);padding:8px;">' + String(e) + '</p>'; })
+      .getRequestItems(id);
+  });
+}
+
+function renderItemsViewTable(el, id, items, dispatchStatus) {
+  el.innerHTML =
+    '<table><thead><tr><th></th><th>' + t('th_item') + '</th><th>' + t('th_requested') + '</th><th>' + t('th_approved') + '</th><th>حالة الإرسال</th><th></th></tr></thead><tbody>' +
+    items.map(function (it) {
+      const sent = dispatchStatus[it.item];
+      const checkbox = sent
+        ? '<span style="color:var(--primary-dark);">✓</span>'
+        : '<input type="checkbox" class="dispatchCheck" value="' + it.item.replace(/"/g,'&quot;') + '" data-req="' + id + '">';
+      return '<tr><td>' + checkbox + '</td><td>' + it.item + '</td><td>' + it.requestedQty + '</td>' +
+        '<td><input type="number" value="' + (it.approvedQty || it.requestedQty) + '" min="0" ' +
+        'onchange="updateApproval(\'' + id + '\',\'' + it.item.replace(/'/g,"\\'") + '\',this.value)"></td>' +
+        '<td>' + (sent ? '<span class="badge badge-sent" style="font-size:10px;">أُرسل</span>' : '<span style="color:var(--text-muted);font-size:11px;">بالانتظار</span>') + '</td>' +
+        '<td><button class="btn-icon" onclick="openItemNotes(\'' + id + '\',\'' + it.item.replace(/'/g,"\\'") + '\')" title="ملاحظات الصنف">💬</button></td>' +
+        '</tr>';
+    }).join('') + '</tbody></table>' +
+    '<div style="margin-top:8px;">' +
+    '<button class="btn-accent" style="margin:0;padding:6px 14px;font-size:var(--fs-sm);" onclick="dispatchSelectedItems(\'' + id + '\', this)">🚚 إرسال المحدد فقط</button>' +
+    '</div>';
+}
+
+function dispatchSelectedItems(requestId, btn) {
+  const checked = Array.from(document.querySelectorAll('.dispatchCheck[data-req="' + requestId + '"]:checked')).map(function(c){ return c.value; });
+  if (!checked.length) { toast('اختر صنف واحد على الأقل'); return; }
+  btnBusy(btn, 'جاري الإرسال...');
+  google.script.run
+    .withSuccessHandler(function(res) {
+      btnFree(btn);
+      toast(res.allSent ? '✅ اكتمل إرسال كل الأصناف — الطلب تم إرساله بالكامل' : '✅ تم إرسال ' + checked.length + ' صنف — الباقي بالانتظار');
+      toggleItemsView(requestId); // إغلاق
+      toggleItemsView(requestId); // إعادة فتح بالحالة الجديدة
+      loadProcurementRequests();
+    })
+    .withFailureHandler(function(e){ btnFree(btn); toast('❌ ' + String(e), 4000); })
+    .dispatchItems(requestId, checked, CURRENT_USER.name);
 }
 
 function updateApproval(reqId, itemName, qty) { google.script.run.updateItemApproval(reqId, itemName, Number(qty)); }
@@ -1522,9 +1564,27 @@ function kpiCard(num, lbl) {
 
 /* ================= شات ملاحظات الطلب (مشترك بين كل الأدوار) ================= */
 
+let CURRENT_NOTE_MODE = 'request'; // 'request' | 'item'
+let CURRENT_NOTE_ITEM = null;
+
 function openComments(requestId) {
+  CURRENT_NOTE_MODE = 'request';
   CURRENT_COMMENT_REQ = requestId;
+  CURRENT_NOTE_ITEM = null;
   document.getElementById('commentReqId').textContent = requestId;
+  document.querySelector('#commentModal h2 [data-i18n="comments_title"]').textContent = t('comments_title');
+  document.getElementById('commentInput').value = '';
+  refreshComments();
+  document.getElementById('commentOverlay').classList.remove('hidden');
+  document.getElementById('commentModal').classList.remove('hidden');
+}
+
+function openItemNotes(requestId, itemName) {
+  CURRENT_NOTE_MODE = 'item';
+  CURRENT_COMMENT_REQ = requestId;
+  CURRENT_NOTE_ITEM = itemName;
+  document.getElementById('commentReqId').textContent = itemName;
+  document.querySelector('#commentModal h2 [data-i18n="comments_title"]').textContent = LANG==='ar' ? 'ملاحظات الصنف' : 'Item notes';
   document.getElementById('commentInput').value = '';
   refreshComments();
   document.getElementById('commentOverlay').classList.remove('hidden');
@@ -1537,22 +1597,39 @@ function closeComments() {
 }
 
 function refreshComments() {
-  google.script.run.withSuccessHandler(function (list) {
-    const el = document.getElementById('commentList');
-    el.innerHTML = list.length === 0 ? '<p>' + t('no_comments_yet') + '</p>' : list.map(function (c) {
-      return '<div class="comment-msg"><div class="meta">' + c.author + ' (' + c.role + ')</div>' + c.message + '</div>';
-    }).join('');
-    el.scrollTop = el.scrollHeight;
-  }).getComments(CURRENT_COMMENT_REQ);
+  if (CURRENT_NOTE_MODE === 'item') {
+    google.script.run.withSuccessHandler(function (list) {
+      const el = document.getElementById('commentList');
+      el.innerHTML = list.length === 0 ? '<p>' + t('no_comments_yet') + '</p>' : list.map(function (n) {
+        return '<div class="comment-msg"><div class="meta">' + n.author + ' (' + n.role + ')</div>' + n.note + '</div>';
+      }).join('');
+      el.scrollTop = el.scrollHeight;
+    }).getItemNotes(CURRENT_COMMENT_REQ, CURRENT_NOTE_ITEM);
+  } else {
+    google.script.run.withSuccessHandler(function (list) {
+      const el = document.getElementById('commentList');
+      el.innerHTML = list.length === 0 ? '<p>' + t('no_comments_yet') + '</p>' : list.map(function (c) {
+        return '<div class="comment-msg"><div class="meta">' + c.author + ' (' + c.role + ')</div>' + c.message + '</div>';
+      }).join('');
+      el.scrollTop = el.scrollHeight;
+    }).getComments(CURRENT_COMMENT_REQ);
+  }
 }
 
 function sendComment() {
   const msg = document.getElementById('commentInput').value.trim();
   if (!msg || !CURRENT_COMMENT_REQ) return;
-  google.script.run.withSuccessHandler(function () {
-    document.getElementById('commentInput').value = '';
-    refreshComments();
-  }).addComment(CURRENT_COMMENT_REQ, CURRENT_USER.name, CURRENT_USER.role, msg);
+  if (CURRENT_NOTE_MODE === 'item') {
+    google.script.run.withSuccessHandler(function () {
+      document.getElementById('commentInput').value = '';
+      refreshComments();
+    }).addItemNote(CURRENT_COMMENT_REQ, CURRENT_NOTE_ITEM, CURRENT_USER.name, CURRENT_USER.role, msg);
+  } else {
+    google.script.run.withSuccessHandler(function () {
+      document.getElementById('commentInput').value = '';
+      refreshComments();
+    }).addComment(CURRENT_COMMENT_REQ, CURRENT_USER.name, CURRENT_USER.role, msg);
+  }
 }
 
 /* ================= المزامنة ================= */
@@ -1723,7 +1800,7 @@ function onDoctorSelectRequest(id) {
           '<td style="color:var(--text-muted);font-size:var(--fs-xs);">' + (it.category||'—') + '</td>' +
           '<td>' + it.requestedQty + '</td>' +
           '<td style="color:var(--primary-dark);">' + (price ? price + ' ر.س' : '—') + '</td>' +
-          '<td style="font-size:var(--fs-xs);color:var(--accent);">' + (it.note||'') + '</td>' +
+          '<td><button class="btn-icon" style="padding:2px 8px;" onclick="openItemNotes(\'' + id + '\',\'' + it.item.replace(/'/g,"\\'") + '\')" title="ملاحظات الصنف">💬</button></td>' +
           '</tr>';
       }).join('');
       if (total > 0) {
@@ -1889,20 +1966,22 @@ function openDetail(requestId) {
         document.getElementById('detailReceiptLink').href = detail.receiptUrl;
         document.getElementById('detailReceiptWrap').classList.remove('hidden');
       }
-      // KPI
+      // KPI — الوحدة تتغير حسب نوع الطلب (ساعات للطارئ، أيام للشهري)
       google.script.run.withSuccessHandler(function(kpi){
         if (!kpi) return;
+        const unitLbl = kpi.unit === 'hours' ? 'h' : 'd';
+        const lateThreshold = kpi.unit === 'hours' ? 48 : 3; // 48 ساعة أو 3 أيام
         const steps = [
-          { lbl: LANG==='ar'?'رفع → تجهيز':'Submit → Prep', hrs: kpi.submitToPrep },
-          { lbl: LANG==='ar'?'تجهيز → مندوب':'Prep → Vendor', hrs: kpi.prepToVendor },
-          { lbl: LANG==='ar'?'انتظار المندوب':'Vendor Wait', hrs: kpi.vendorWait },
-          { lbl: LANG==='ar'?'مندوب → إرسال':'Vendor → Send', hrs: kpi.vendorToSend },
-          { lbl: LANG==='ar'?'إرسال → مراجعة':'Send → Review', hrs: kpi.sendToReview },
-          { lbl: LANG==='ar'?'مراجعة → استلام':'Review → Recv', hrs: kpi.reviewToReceive },
-          { lbl: LANG==='ar'?'إجمالي':'Total', hrs: kpi.totalCycle }
-        ].filter(function(s){ return s.hrs !== null && s.hrs !== undefined; });
+          { lbl: LANG==='ar'?'رفع → تجهيز':'Submit → Prep', v: kpi.submitToPrep },
+          { lbl: LANG==='ar'?'تجهيز → مندوب':'Prep → Vendor', v: kpi.prepToVendor },
+          { lbl: LANG==='ar'?'انتظار المندوب':'Vendor Wait', v: kpi.vendorWait },
+          { lbl: LANG==='ar'?'مندوب → إرسال':'Vendor → Send', v: kpi.vendorToSend },
+          { lbl: LANG==='ar'?'إرسال → مراجعة':'Send → Review', v: kpi.sendToReview },
+          { lbl: LANG==='ar'?'مراجعة → استلام':'Review → Recv', v: kpi.reviewToReceive },
+          { lbl: LANG==='ar'?'إجمالي':'Total', v: kpi.totalCycle }
+        ].filter(function(s){ return s.v !== null && s.v !== undefined; });
         document.getElementById('detailKPITimeline').innerHTML = steps.map(function(s){
-          return '<div class="kpi-step"><div class="kpi-hrs' + (s.hrs > 48?' late':'') + '">' + s.hrs + 'h</div><div class="kpi-lbl">' + s.lbl + '</div></div>';
+          return '<div class="kpi-step"><div class="kpi-hrs' + (s.v > lateThreshold?' late':'') + '">' + s.v + unitLbl + '</div><div class="kpi-lbl">' + s.lbl + '</div></div>';
         }).join('');
         document.getElementById('detailKPI').classList.remove('hidden');
       }).withFailureHandler(function(){}).getRequestKPI(requestId);
