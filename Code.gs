@@ -131,11 +131,33 @@ function api(token, fn, args) {
   args = Array.isArray(args) ? args : [];
   if (fn === 'login') return sanitize_(login_(args[0], args[1]));
   if (fn === 'logout') { logout_(token); return true; }
+  if (fn === 'batch') return batch_(token, args[0]);
   const def = API_[fn];
   if (!def) throw new Error('ERR_UNKNOWN_FN');
   const user = session_(token);
   if (def.screens !== '*' && def.screens.indexOf(user.screen) === -1) throw new Error('ERR_FORBIDDEN');
   return sanitize_(def.fn.apply(null, [user].concat(args)));
+}
+
+/**
+ * عدة عمليات قراءة في تنفيذ واحد (تقلل عدد الاستدعاءات المتزامنة على Apps Script).
+ * calls = [[fn, args], ...] → [{ok, data} | {ok:false, error}, ...]
+ */
+const BATCH_MAX = 12;
+function batch_(token, calls) {
+  if (!Array.isArray(calls) || !calls.length || calls.length > BATCH_MAX) throw new Error('ERR_BAD_BATCH');
+  const user = session_(token);
+  return calls.map(function (c) {
+    try {
+      const fn = String(c && c[0]);
+      const def = API_[fn];
+      if (!def || fn.indexOf('get') !== 0) throw new Error('ERR_UNKNOWN_FN'); // القراءة فقط
+      if (def.screens !== '*' && def.screens.indexOf(user.screen) === -1) throw new Error('ERR_FORBIDDEN');
+      return { ok: true, data: sanitize_(def.fn.apply(null, [user].concat(Array.isArray(c[1]) ? c[1] : []))) };
+    } catch (e) {
+      return { ok: false, error: String((e && e.message) || e) };
+    }
+  });
 }
 
 const ALL = '*';

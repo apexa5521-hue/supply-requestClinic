@@ -327,6 +327,20 @@ test('doctors match clinics by name, list, specialty or branch; empty clinic = a
   throwsCode(() => api(n, 'createRequest', { clinic: 'Dental Clinic 8 - Buraydah', doctor: 'Dr Derma', type: 'شهري', items: [{ name: 'X', qty: 1 }] }), 'ERR_BAD_DOCTOR');
 });
 
+test('batch runs several reads in one execution with per-call errors, and rejects writes', () => {
+  const { api, login } = boot();
+  const n = login('سارة', '1111');
+  const res = api(n, 'batch', [['getConfig', []], ['getMyRequests', []], ['getUsers', []], ['createRequest', [{}]], ['nope', []]]);
+  assert.equal(res.length, 5);
+  assert.equal(res[0].ok, true);
+  assert.ok(Array.isArray(res[1].data));
+  assert.deepEqual([res[2].ok, res[2].error.indexOf('ERR_FORBIDDEN') !== -1], [false, true]);
+  assert.match(res[3].error, /ERR_UNKNOWN_FN/, 'writes are not allowed in a batch');
+  assert.match(res[4].error, /ERR_UNKNOWN_FN/);
+  throwsCode(() => api('bad', 'batch', [['getConfig', []]]), 'ERR_SESSION');
+  throwsCode(() => api(n, 'batch', []), 'ERR_BAD_BATCH');
+});
+
 test('doGet renders the Index template and include_ is not exposed to the browser', () => {
   const { ctx, api } = boot();
   assert.ok(ctx.doGet());

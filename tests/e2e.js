@@ -332,20 +332,40 @@ function log(msg) { console.log('  ✔ ' + msg); }
   await page.keyboard.press('Escape');
   await logout(page);
 
-  // ---------- GitHub Pages mode (no server-side include) ----------
+  // ---------- GitHub Pages mode: fetch → real doPost (Node vm), batching + retry ----------
   {
+    const vm = require('vm');
+    const { createGas } = require('./gas-mock');
+    const { seedFixtures } = require('./fixtures');
+    const gas = createGas();
+    seedFixtures(gas);
+    const sctx = vm.createContext(Object.assign({ Buffer }, gas.globals));
+    vm.runInContext(fs.readFileSync(path.join(ROOT, 'Code.gs'), 'utf8'), sctx);
+    const net = { posts: 0, batches: 0, failNext: 0 };
     const ctx = await browser.newContext({ viewport: { width: 1200, height: 800 } });
     await ctx.route(/fonts\.(googleapis|gstatic)\.com/, r => r.abort());
-    await ctx.addInitScript(initScript);
     await ctx.route('http://pages.test/Index.html', r => r.fulfill({ contentType: 'text/html; charset=utf-8', body: fs.readFileSync(path.join(ROOT, 'Index.html'), 'utf8') }));
     await ctx.route('http://pages.test/JavaScript.html', r => r.fulfill({ contentType: 'text/html; charset=utf-8', body: fs.readFileSync(path.join(ROOT, 'JavaScript.html'), 'utf8') }));
+    await ctx.route(/script\.google\.com\/macros/, r => {
+      net.posts++;
+      const body = r.request().postData() || '{}';
+      if (JSON.parse(body).fn === 'batch') net.batches++;
+      if (net.failNext > 0) { net.failNext--; return r.fulfill({ status: 500, body: '<html>Google error</html>' }); }
+      const out = sctx.doPost({ postData: { contents: body } }).getContent();
+      r.fulfill({ contentType: 'application/json', headers: { 'Access-Control-Allow-Origin': '*' }, body: out });
+    });
     const gp = await ctx.newPage();
     gp.on('pageerror', e => errors.push('pages-mode pageerror: ' + e.message));
     await gp.goto('http://pages.test/Index.html');
     await gp.waitForSelector('#loginView:not(.hidden)');
     expect(!(await gp.isVisible('text=include_')), 'Pages mode: include line is invisible');
-    await login(gp, 'سارة', '1111');
-    expect(await gp.isVisible('#appShell'), 'Pages mode: JavaScript.html loads and app works');
+    await login(gp, 'علي', '3333');
+    await gp.waitForSelector('#procList .req, #procList .empty, #cList .req, #cList .empty');
+    expect(net.batches >= 1, 'Pages mode: simultaneous reads are sent as one batch (' + net.posts + ' posts, ' + net.batches + ' batches)');
+    net.failNext = 2;
+    await gp.click('.topbar [data-act="sync"]');
+    expect(await toastHas(gp, 'تم بنجاح'), 'Pages mode: reads recover from two failed server responses (retry)');
+    expect(!(await gp.isVisible('.toast.error')), 'Pages mode: no error shown to the user after retry');
     await ctx.close();
   }
 

@@ -100,7 +100,7 @@ const I18N = {
     ERR_BAD_TARGET: 'جهة غير صالحة', ERR_BAD_EMAIL: 'البريد الإلكتروني غير صالح', ERR_WEAK_PASSWORD: 'الرقم السري قصير (4 خانات على الأقل)',
     ERR_USER_EXISTS: 'يوجد مستخدم بنفس الاسم', ERR_LAST_ADMIN: 'لا يمكن — يجب أن يبقى مدير تنفيذي واحد على الأقل', ERR_DELETE_SELF: 'لا يمكنك حذف حسابك',
     ERR_BAD_SCREEN: 'شاشة غير صالحة', ERR_ROLE_IN_USE: 'الدور مستخدم من مستخدمين حاليين', ERR_UNKNOWN_FN: 'الخادم لا يدعم هذه العملية — حدّث Code.gs',
-    ERR_BAD_RESPONSE: 'الخادم رجّع صفحة بدل بيانات — تأكد من إعدادات النشر', ERR_NETWORK: 'تعذّر الاتصال بالخادم'
+    ERR_BAD_RESPONSE: 'الخادم رجّع صفحة بدل بيانات — تأكد من إعدادات النشر', ERR_NETWORK: 'تعذّر الاتصال بالخادم — حاول مرة أخرى', ERR_BAD_BATCH: 'طلب غير صالح'
   },
   en: {
     lang_switch: 'عربي', theme_toggle: 'Toggle dark mode', brand_tag: 'Clinic supply management',
@@ -190,7 +190,7 @@ const I18N = {
     ERR_BAD_TARGET: 'Invalid target', ERR_BAD_EMAIL: 'Invalid email', ERR_WEAK_PASSWORD: 'Password too short (min 4)',
     ERR_USER_EXISTS: 'A user with this name exists', ERR_LAST_ADMIN: 'At least one executive admin must remain', ERR_DELETE_SELF: "You can't delete your own account",
     ERR_BAD_SCREEN: 'Invalid screen', ERR_ROLE_IN_USE: 'Role is used by existing users', ERR_UNKNOWN_FN: 'Server does not support this — update Code.gs',
-    ERR_BAD_RESPONSE: 'Server returned a page instead of data — check deployment settings', ERR_NETWORK: 'Could not reach the server'
+    ERR_BAD_RESPONSE: 'Server returned a page instead of data — check deployment settings', ERR_NETWORK: 'Could not reach the server — please retry', ERR_BAD_BATCH: 'Invalid request'
   }
 };
 
@@ -281,6 +281,66 @@ const S = {
 /* =====================================================================
    Backend transport
    ===================================================================== */
+/* عبر google.script.run (داخل Apps Script) كل استدعاء مباشر.
+   عبر fetch (GitHub Pages): عمليات القراءة التي تصدر في نفس اللحظة تُجمَّع في طلب واحد (batch)،
+   بحد أقصى طلبين متزامنين، مع إعادة محاولة تلقائية للقراءة فقط عند فشل الشبكة. */
+const NET = { queue: [], inflight: 0, max: 2, flushTimer: null };
+const RETRYABLE = ['ERR_NETWORK', 'ERR_BAD_RESPONSE'];
+function isRead(fn) { return /^get/.test(fn); }
+
+function postJson(body) {
+  return fetch(APPS_SCRIPT_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'text/plain;charset=utf-8' }, // نص عادي لتفادي طلب CORS المسبق
+    body: JSON.stringify(body)
+  }).then(r => {
+    if (!r.ok) throw new Error('ERR_NETWORK');
+    return r.text();
+  }).then(txt => {
+    try { return JSON.parse(txt); } catch (e) { throw new Error('ERR_BAD_RESPONSE'); }
+  }, e => { throw (e && /^ERR_/.test(e.message)) ? e : new Error('ERR_NETWORK'); });
+}
+function withRetry(fn, tries) {
+  return fn().catch(e => {
+    if (tries > 0 && RETRYABLE.indexOf(errCode(e)) !== -1) {
+      return new Promise(r => setTimeout(r, (3 - tries) * 700 + 400)).then(() => withRetry(fn, tries - 1));
+    }
+    throw e;
+  });
+}
+function pumpQueue() {
+  while (NET.inflight < NET.max && NET.queue.length) {
+    // اجمع كل القراءات المتتالية في رأس الطابور في دفعة واحدة
+    let group = [NET.queue.shift()];
+    if (isRead(group[0].fn)) {
+      while (NET.queue.length && isRead(NET.queue[0].fn) && group.length < 12) group.push(NET.queue.shift());
+    }
+    NET.inflight++;
+    sendGroup(group).finally(() => { NET.inflight--; pumpQueue(); });
+  }
+}
+function sendGroup(group) {
+  const token = S.token;
+  if (group.length === 1) {
+    const c = group[0];
+    const once = () => postJson({ token: token, fn: c.fn, args: c.args }).then(res => {
+      if (res.ok) return res.data;
+      throw new Error(res.error || 'ERR_NETWORK');
+    });
+    return (isRead(c.fn) ? withRetry(once, 2) : once()).then(c.resolve, c.reject);
+  }
+  const once = () => postJson({ token: token, fn: 'batch', args: [group.map(c => [c.fn, c.args])] }).then(res => {
+    if (!res.ok) throw new Error(res.error || 'ERR_NETWORK');
+    return res.data;
+  });
+  return withRetry(once, 2).then(results => {
+    group.forEach((c, i) => {
+      const r = results[i];
+      if (r && r.ok) c.resolve(r.data); else c.reject(new Error((r && r.error) || 'ERR_NETWORK'));
+    });
+  }, e => { group.forEach(c => c.reject(e)); });
+}
+
 function call(fn) {
   const args = Array.prototype.slice.call(arguments, 1);
   return new Promise((resolve, reject) => {
@@ -288,15 +348,9 @@ function call(fn) {
       google.script.run.withSuccessHandler(resolve).withFailureHandler(reject).api(S.token, fn, args);
       return;
     }
-    fetch(APPS_SCRIPT_URL, {
-      method: 'POST',
-      headers: { 'Content-Type': 'text/plain;charset=utf-8' }, // نص عادي لتفادي طلب CORS المسبق
-      body: JSON.stringify({ token: S.token, fn: fn, args: args })
-    }).then(r => r.text()).then(txt => {
-      let res;
-      try { res = JSON.parse(txt); } catch (e) { throw new Error('ERR_BAD_RESPONSE'); }
-      if (res.ok) resolve(res.data); else reject(new Error(res.error || 'ERR_NETWORK'));
-    }).catch(e => reject(e instanceof TypeError ? new Error('ERR_NETWORK') : e));
+    NET.queue.push({ fn: fn, args: args, resolve: resolve, reject: reject });
+    clearTimeout(NET.flushTimer);
+    NET.flushTimer = setTimeout(pumpQueue, 15); // لحظة قصيرة لتجميع الطلبات المتزامنة
   }).catch(e => {
     if (errCode(e) === 'ERR_SESSION' && fn !== 'login' && S.user) sessionExpired();
     throw e;
