@@ -412,13 +412,68 @@ function getConfig_(user) {
   };
 }
 
+/** تطبيع نص للمقارنة: مسافات، حالة الأحرف، والتشكيل */
+function norm_(v) {
+  return str_(v).toLowerCase().replace(/[\u064B-\u0652\u0640]/g, '').replace(/\s+/g, ' ')
+    .replace(/[أإآ]/g, 'ا').replace(/ة/g, 'ه').replace(/ى/g, 'ي');
+}
+
+// مرادفات التخصصات حتى يتطابق "أسنان" مع "Dental" وهكذا
+const SPECIALTY_ALIASES_ = [
+  ['اسنان', 'dental', 'dentistry', 'dent'],
+  ['جلديه', 'derma', 'dermatology', 'skin', 'جلدية']
+];
+function specialtyKey_(v) {
+  const n = norm_(v);
+  if (!n) return '';
+  for (let i = 0; i < SPECIALTY_ALIASES_.length; i++) {
+    if (SPECIALTY_ALIASES_[i].some(function (a) { return n === a || n.indexOf(a) !== -1; })) return 'sp' + i;
+  }
+  return n;
+}
+
+/** كلمة تخصص مجردة (مثل "أسنان" أو "Dental Clinic") وليست اسم عيادة محددة */
+function isSpecialtyWord_(n) {
+  n = n.replace(/\b(clinic|clinics|dept|department)\b|عياده|عيادات|قسم/g, '').trim();
+  return SPECIALTY_ALIASES_.some(function (a) { return a.indexOf(n) !== -1; });
+}
+
+/**
+ * هل الطبيب يتبع هذه العيادة؟ عمود Clinic في Doctors يقبل:
+ *  - فارغ → متاح لكل العيادات
+ *  - اسم العيادة (أو عدة أسماء مفصولة بفاصلة)
+ *  - نوع/تخصص العيادة (مثل "أسنان" أو "Dental") أو الفرع (مثل "Buraydah")
+ * ويُقرأ أيضاً عمود اختياري Specialty / Type / التخصص إن وُجد.
+ */
+function doctorMatchesClinic_(d, clinic) {
+  if (!clinic) return true;
+  const targets = str_(d.clinic).split(/[,،]/).map(norm_).filter(String);
+  const spec = specialtyKey_(d.specialty);
+  if (!targets.length && !spec) return true;
+  const cName = norm_(clinic.name);
+  const cType = specialtyKey_(clinic.type) || specialtyKey_(clinic.name);
+  const cBranch = norm_(clinic.branch);
+  if (spec && cType && spec === cType) return true;
+  return targets.some(function (tg) {
+    return tg === cName || (cBranch && tg === cBranch) || (cType && isSpecialtyWord_(tg) && specialtyKey_(tg) === cType);
+  });
+}
+
+function allDoctors_() {
+  return read_('Doctors').rows.filter(function (r) { return str_(r.DoctorName); }).map(function (r) {
+    return {
+      name: str_(r.DoctorName), clinic: str_(r.Clinic), nurse: str_(r.NurseName), subspecialty: str_(r.Subspecialty),
+      specialty: str_(r.Specialty || r.Type || r['التخصص'] || r['النوع'])
+    };
+  });
+}
+
 function getDoctors_(user, clinicFilter) {
   clinicFilter = str_(clinicFilter);
-  return read_('Doctors').rows
-    .filter(function (r) { return str_(r.DoctorName) && (!clinicFilter || str_(r.Clinic) === clinicFilter); })
-    .map(function (r) {
-      return { name: str_(r.DoctorName), clinic: str_(r.Clinic), nurse: str_(r.NurseName), subspecialty: str_(r.Subspecialty) };
-    });
+  const clinic = getClinics_().filter(function (c) { return c.name === clinicFilter; })[0] ||
+    (clinicFilter ? { name: clinicFilter, type: '', branch: '' } : null);
+  return allDoctors_().filter(function (d) { return doctorMatchesClinic_(d, clinic); })
+    .map(function (d) { return { name: d.name, clinic: d.clinic, nurse: d.nurse, subspecialty: d.subspecialty || d.specialty }; });
 }
 
 /** البكج المعتاد: من تبويب DoctorProfiles إن وُجد، وإلا من آخر 10 طلبات للطبيب */
@@ -538,7 +593,7 @@ function createRequest_(user, payload) {
   const mine = userClinics_(user);
   if (mine.length && mine.indexOf(clinic) === -1) throw new Error('ERR_FORBIDDEN');
   if (!getClinics_().some(function (c) { return c.name === clinic; })) throw new Error('ERR_BAD_CLINIC');
-  if (!getDoctors_(user, '').some(function (d) { return d.name === doctor && (!d.clinic || d.clinic === clinic); })) {
+  if (!getDoctors_(user, clinic).some(function (d) { return d.name === doctor; })) {
     throw new Error('ERR_BAD_DOCTOR');
   }
 

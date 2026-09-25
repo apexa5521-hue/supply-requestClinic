@@ -302,6 +302,31 @@ test('admin: users & roles management with safety rails', () => {
   assert.ok(!api(a, 'deleteUser', 'جديد').some(u => u.name === 'جديد'));
 });
 
+test('doctors match clinics by name, list, specialty or branch; empty clinic = all clinics', () => {
+  const { api, login } = boot(g => {
+    g.seed('Clinics', ['ClinicName', 'Branch', 'Type'], [
+      ['Dental Clinic 8 - Buraydah', 'Buraydah', 'أسنان'], ['Derma Clinic 2 - Riyadh', 'Riyadh', 'Dermatology'], ['عيادة الأسنان 1', 'الرياض', 'أسنان']
+    ]);
+    g.seed('Doctors', ['DoctorName', 'Clinic', 'NurseName', 'Subspecialty'], [
+      ['Dr Exact', 'Dental Clinic 8 - Buraydah', '', ''],
+      ['Dr BySpecialty', 'Dental', '', ''],
+      ['Dr ArabicSpecialty', 'أسنان', '', ''],
+      ['Dr Anywhere', '', '', ''],
+      ['Dr List', 'Derma Clinic 2 - Riyadh, عيادة الأسنان 1', '', ''],
+      ['Dr Branch', 'Buraydah', '', ''],
+      ['Dr Derma', 'جلدية', '', '']
+    ]);
+    g.seed('Users', ['Name', 'Password', 'Role', 'Clinic', 'Email'], [['هيا', '1111', 'ممرضة', '', ''], ['المدير', '1234', 'تنفيذي', '', '']]);
+  });
+  const n = login('هيا', '1111');
+  const names = c => api(n, 'getDoctors', c).map(d => d.name).sort();
+  assert.deepEqual(names('Dental Clinic 8 - Buraydah'), ['Dr Anywhere', 'Dr ArabicSpecialty', 'Dr Branch', 'Dr BySpecialty', 'Dr Exact']);
+  assert.deepEqual(names('Derma Clinic 2 - Riyadh'), ['Dr Anywhere', 'Dr Derma', 'Dr List']);
+  assert.deepEqual(names('عيادة الأسنان 1'), ['Dr Anywhere', 'Dr ArabicSpecialty', 'Dr BySpecialty', 'Dr List']);
+  assert.match(api(n, 'createRequest', { clinic: 'Dental Clinic 8 - Buraydah', doctor: 'Dr BySpecialty', type: 'شهري', items: [{ name: 'X', qty: 1 }] }).id, /^REQ-/);
+  throwsCode(() => api(n, 'createRequest', { clinic: 'Dental Clinic 8 - Buraydah', doctor: 'Dr Derma', type: 'شهري', items: [{ name: 'X', qty: 1 }] }), 'ERR_BAD_DOCTOR');
+});
+
 test('doGet renders the Index template and include_ is not exposed to the browser', () => {
   const { ctx, api } = boot();
   assert.ok(ctx.doGet());
