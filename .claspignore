@@ -1,5 +1,6 @@
-# يُرفع إلى Apps Script فقط: Code.gs و Index.html و appsscript.json
+# يُرفع إلى Apps Script فقط: Code.gs و Index.html و JavaScript.html و appsscript.json
 **/**
 !Code.gs
 !Index.html
+!JavaScript.html
 !appsscript.json

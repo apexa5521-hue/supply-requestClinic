@@ -154,7 +154,8 @@
       },
       HtmlService: {
         XFrameOptionsMode: { ALLOWALL: 'ALLOWALL' },
-        createHtmlOutputFromFile() { const o = { setTitle() { return o; }, addMetaTag() { return o; }, setXFrameOptionsMode() { return o; } }; return o; }
+        createHtmlOutputFromFile(name) { const o = { setTitle() { return o; }, addMetaTag() { return o; }, setXFrameOptionsMode() { return o; }, getContent() { return '<!-- ' + name + ' -->'; } }; return o; },
+        createTemplateFromFile(name) { return { evaluate() { return globals.HtmlService.createHtmlOutputFromFile(name); } }; }
       },
       console: typeof console !== 'undefined' ? console : { log() {}, error() {} }
     };

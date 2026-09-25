@@ -302,6 +302,13 @@ test('admin: users & roles management with safety rails', () => {
   assert.ok(!api(a, 'deleteUser', 'جديد').some(u => u.name === 'جديد'));
 });
 
+test('doGet renders the Index template and include_ is not exposed to the browser', () => {
+  const { ctx, api } = boot();
+  assert.ok(ctx.doGet());
+  assert.equal(ctx.include_('JavaScript'), '<!-- JavaScript -->');
+  throwsCode(() => api(null, 'include_', 'Code'), 'ERR_UNKNOWN_FN');
+});
+
 test('doPost returns JSON envelope for external hosting', () => {
   const { ctx } = boot();
   const out = ctx.doPost({ postData: { contents: JSON.stringify({ fn: 'login', args: ['سارة', '1111'] }) } });

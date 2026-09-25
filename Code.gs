@@ -98,10 +98,16 @@ function setupSheets() {
  * ===================================================================== */
 
 function doGet() {
-  return HtmlService.createHtmlOutputFromFile('Index')
+  return HtmlService.createTemplateFromFile('Index').evaluate()
     .setTitle('SupplyFlow — ApexCare')
     .addMetaTag('viewport', 'width=device-width, initial-scale=1, viewport-fit=cover')
     .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
+}
+
+/** يضمّن ملف HTML آخر (مثل JavaScript.html) داخل Index عبر <?!= include_('JavaScript'); ?>
+ *  ينتهي بـ "_" فلا يمكن استدعاؤه من المتصفح عبر google.script.run */
+function include_(name) {
+  return HtmlService.createHtmlOutputFromFile(name).getContent();
 }
 
 /** للاستضافة الخارجية (GitHub Pages...) عبر fetch — نفس عقد api() */

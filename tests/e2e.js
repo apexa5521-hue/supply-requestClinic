@@ -91,7 +91,11 @@ function log(msg) { console.log('  ✔ ' + msg); }
     const page = await ctx.newPage();
     page.on('pageerror', e => errors.push('pageerror: ' + e.message + '\n' + (e.stack || '').split('\n').slice(0, 4).join('\n')));
     page.on('console', m => { if (m.type() === 'error' && !/fonts\.g|ERR_FAILED|net::/.test(m.text())) errors.push('console: ' + m.text()); });
-    await page.goto('file://' + path.join(ROOT, 'Index.html'));
+    // مثل HtmlService: يستبدل <?!= include_('X'); ?> بمحتوى X.html
+    const html = fs.readFileSync(path.join(ROOT, 'Index.html'), 'utf8')
+      .replace(/<\?!=\s*include_\('([\w-]+)'\);?\s*\?>/g, (_, f) => fs.readFileSync(path.join(ROOT, f + '.html'), 'utf8'));
+    await ctx.route('http://supplyflow.test/', r => r.fulfill({ contentType: 'text/html; charset=utf-8', body: html }));
+    await page.goto('http://supplyflow.test/');
     await page.waitForSelector('#loginView:not(.hidden)');
     return page;
   }
