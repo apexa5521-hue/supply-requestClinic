@@ -723,5 +723,17 @@ button.kpi[aria-pressed="true"] { border-color: var(--tone); box-shadow: 0 0 0 3
 <div class="toasts" id="toasts" aria-live="polite"></div>
 
 <?!= include_('JavaScript'); ?>
+<script>
+/* داخل Apps Script يُضمَّن JavaScript.html في السطر السابق على الخادم.
+   على GitHub Pages لا يعمل ذلك السطر (المتصفح يتجاهله)، فنحمّل الملف هنا. */
+if (!window.__SF_LOADED) {
+  fetch('JavaScript.html', { cache: 'no-cache' }).then(function (r) { return r.text(); }).then(function (txt) {
+    var m = /<script>([\s\S]*)<\/script>/.exec(txt);
+    var el = document.createElement('script');
+    el.textContent = m ? m[1] : '';
+    document.body.appendChild(el);
+  }).catch(function () { document.body.insertAdjacentHTML('beforeend', '<p style="padding:20px;color:#c93a3a">تعذّر تحميل JavaScript.html</p>'); });
+}
+</script>
 </body>
 </html>

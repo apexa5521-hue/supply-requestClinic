@@ -332,6 +332,23 @@ function log(msg) { console.log('  ✔ ' + msg); }
   await page.keyboard.press('Escape');
   await logout(page);
 
+  // ---------- GitHub Pages mode (no server-side include) ----------
+  {
+    const ctx = await browser.newContext({ viewport: { width: 1200, height: 800 } });
+    await ctx.route(/fonts\.(googleapis|gstatic)\.com/, r => r.abort());
+    await ctx.addInitScript(initScript);
+    await ctx.route('http://pages.test/Index.html', r => r.fulfill({ contentType: 'text/html; charset=utf-8', body: fs.readFileSync(path.join(ROOT, 'Index.html'), 'utf8') }));
+    await ctx.route('http://pages.test/JavaScript.html', r => r.fulfill({ contentType: 'text/html; charset=utf-8', body: fs.readFileSync(path.join(ROOT, 'JavaScript.html'), 'utf8') }));
+    const gp = await ctx.newPage();
+    gp.on('pageerror', e => errors.push('pages-mode pageerror: ' + e.message));
+    await gp.goto('http://pages.test/Index.html');
+    await gp.waitForSelector('#loginView:not(.hidden)');
+    expect(!(await gp.isVisible('text=include_')), 'Pages mode: include line is invisible');
+    await login(gp, 'سارة', '1111');
+    expect(await gp.isVisible('#appShell'), 'Pages mode: JavaScript.html loads and app works');
+    await ctx.close();
+  }
+
   // ---------- Mobile ----------
   const m = await newPage({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true });
   await shot(m, 'mobile-login');
