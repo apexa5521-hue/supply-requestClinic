@@ -312,7 +312,7 @@ function pumpQueue() {
   while (NET.inflight < NET.max && NET.queue.length) {
     // اجمع كل القراءات المتتالية في رأس الطابور في دفعة واحدة
     let group = [NET.queue.shift()];
-    if (isRead(group[0].fn)) {
+    if (isRead(group[0].fn) && !NET.noBatch) {
       while (NET.queue.length && isRead(NET.queue[0].fn) && group.length < 12) group.push(NET.queue.shift());
     }
     NET.inflight++;
@@ -338,7 +338,14 @@ function sendGroup(group) {
       const r = results[i];
       if (r && r.ok) c.resolve(r.data); else c.reject(new Error((r && r.error) || 'ERR_NETWORK'));
     });
-  }, e => { group.forEach(c => c.reject(e)); });
+  }, e => {
+    // خادم قديم لا يعرف batch → أرسل كل طلب منفرداً من الآن فصاعداً
+    if (errCode(e) === 'ERR_UNKNOWN_FN' && !NET.noBatch) {
+      NET.noBatch = true;
+      return Promise.all(group.map(c => sendGroup([c])));
+    }
+    group.forEach(c => c.reject(e));
+  });
 }
 
 function call(fn) {

@@ -350,6 +350,7 @@ function log(msg) { console.log('  ✔ ' + msg); }
       net.posts++;
       const body = r.request().postData() || '{}';
       if (JSON.parse(body).fn === 'batch') net.batches++;
+      if (net.rejectBatch && JSON.parse(body).fn === 'batch') return r.fulfill({ contentType: 'application/json', headers: { 'Access-Control-Allow-Origin': '*' }, body: JSON.stringify({ ok: false, error: 'ERR_UNKNOWN_FN' }) });
       if (net.failNext > 0) { net.failNext--; return r.fulfill({ status: 500, body: '<html>Google error</html>' }); }
       const out = sctx.doPost({ postData: { contents: body } }).getContent();
       r.fulfill({ contentType: 'application/json', headers: { 'Access-Control-Allow-Origin': '*' }, body: out });
@@ -366,6 +367,12 @@ function log(msg) { console.log('  ✔ ' + msg); }
     await gp.click('.topbar [data-act="sync"]');
     expect(await toastHas(gp, 'تم بنجاح'), 'Pages mode: reads recover from two failed server responses (retry)');
     expect(!(await gp.isVisible('.toast.error')), 'Pages mode: no error shown to the user after retry');
+    // خادم قديم بدون batch: الواجهة ترجع تلقائياً للإرسال المنفرد
+    await gp.evaluate(() => { NET.noBatch = false; });
+    net.rejectBatch = true;
+    await gp.click('.topbar [data-act="sync"]');
+    expect(await toastHas(gp, 'تم بنجاح'), 'Pages mode: falls back to single calls when the server has no batch support');
+    expect(!(await gp.isVisible('.toast.error')), 'Pages mode: fallback shows no error');
     await ctx.close();
   }
 
