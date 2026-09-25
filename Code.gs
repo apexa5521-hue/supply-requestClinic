@@ -556,7 +556,7 @@ function mapRequest_(r) {
 /** صلاحية رؤية طلب معيّن */
 function canSee_(user, req) {
   if (user.screen === 'nurse') return req.nurse === user.name;
-  if (user.screen === 'doctor') return req.doctor === user.name;
+  if (user.screen === 'doctor') return isMyDoctor_(user, req.doctor);
   return true;
 }
 
@@ -568,7 +568,7 @@ function queryRequests_(filters) {
     if (filters.status && r.status !== filters.status) return false;
     if (filters.clinic && r.clinic !== filters.clinic) return false;
     if (filters.nurse && r.nurse !== filters.nurse) return false;
-    if (filters.doctor && r.doctor !== filters.doctor) return false;
+    if (filters.doctorUser && !isMyDoctor_(filters.doctorUser, r.doctor)) return false;
     if (filters.month && monthOf_(r.date) !== filters.month) return false;
     return true;
   }).map(function (r) {
@@ -593,7 +593,7 @@ function itemCounts_() {
 
 function getRequestsApi_(user, filters) { return queryRequests_(filters); }
 function getMyRequests_(user) { return queryRequests_({ nurse: user.name }); }
-function getDoctorRequests_(user) { return queryRequests_({ doctor: user.name }); }
+function getDoctorRequests_(user) { return queryRequests_({ doctorUser: user }); }
 
 function nextRequestId_() {
   const prefix = 'REQ-' + Utilities.formatDate(new Date(), TZ, 'yyMMdd') + '-';
@@ -742,14 +742,55 @@ function updateItemApproval_(user, requestId, itemName, approvedQty) {
   return true;
 }
 
-/** أسماء الأطباء الذين لديهم حساب يستطيعون المراجعة به */
+/** مفتاح مقارنة لاسم طبيب: بدون ألقاب (Dr / د. / دكتور) ونقاط وشرطات */
+function doctorKey_(v) {
+  return norm_(v).replace(/[._\-]/g, ' ')
+    .replace(/^(dr|doctor|الدكتور|الدكتوره|دكتور|دكتوره|د)\s+/, '').replace(/\s+/g, ' ').trim();
+}
+
+/**
+ * ربط أسماء الأطباء (كما في Doctors والطلبات) بحسابات المستخدمين ذوي شاشة doctor.
+ * لكل حساب طبيب: عمود اختياري DoctorName في Users يحدد الاسم صراحةً؛ وإلا تطابق الاسم
+ * بعد التطبيع ("Dr.Sami" = "Dr Sami")؛ وإلا اسم مختصر يطابق طبيباً واحداً فقط
+ * ("Dr.Sami" ← "Dr. Sami Al-Duwaihi"). عند وجود أكثر من طبيب محتمل لا يُخمَّن.
+ * يرجع { اسم الطبيب: اسم الحساب }.
+ */
 function doctorAccounts_() {
   if (MEMO_.docAcc) return MEMO_.docAcc;
+  const names = {};
+  read_('Doctors').rows.forEach(function (r) { if (str_(r.DoctorName)) names[str_(r.DoctorName)] = true; });
+  requestRows_().forEach(function (r) { if (str_(r.Doctor)) names[str_(r.Doctor)] = true; });
+  const all = Object.keys(names);
   const out = {};
-  read_('Users').rows.forEach(function (u) { if (roleScreen_(u.Role) === 'doctor') out[str_(u.Name)] = true; });
+  read_('Users').rows.forEach(function (u) {
+    if (roleScreen_(u.Role) !== 'doctor' || !str_(u.Name)) return;
+    const acc = str_(u.Name);
+    out[acc] = acc;
+    const explicit = str_(u.DoctorName);
+    let matches;
+    if (explicit) {
+      matches = all.filter(function (n) { return n === explicit || doctorKey_(n) === doctorKey_(explicit); });
+      if (!matches.length) matches = [explicit];
+    } else {
+      const key = doctorKey_(acc);
+      matches = all.filter(function (n) { return doctorKey_(n) === key; });
+      if (!matches.length && key) {
+        const toks = key.split(' ');
+        const fuzzy = all.filter(function (n) {
+          const nt = doctorKey_(n).split(' ');
+          return toks.every(function (t) { return nt.indexOf(t) !== -1; });
+        });
+        if (fuzzy.length === 1) matches = fuzzy;
+      }
+    }
+    matches.forEach(function (n) { if (!out[n]) out[n] = acc; });
+  });
   MEMO_.docAcc = out;
   return out;
 }
+
+/** هل هذا الطبيب (باسمه في الطلب) هو صاحب الحساب المسجّل؟ */
+function isMyDoctor_(user, doctorName) { return doctorAccounts_()[str_(doctorName)] === user.name; }
 
 /** هل للطبيب حساب يستطيع المراجعة به؟ (إن لم يوجد، يُسمح بالإرسال بدون مراجعة) */
 function doctorHasAccount_(doctorName) { return !!doctorAccounts_()[str_(doctorName)]; }
@@ -792,7 +833,7 @@ function bulkUpdateStatus_(user, requestIds, newStatus) {
   });
   toNotify.forEach(function (req) {
     if (newStatus === ST.SENT) notifyNurseSent_(req);
-    if (newStatus === ST.REVIEW) notifyUser_(req.doctor, 'طلب بانتظار مراجعتك - ' + req.id,
+    if (newStatus === ST.REVIEW) notifyUser_(doctorAccounts_()[req.doctor] || req.doctor, 'طلب بانتظار مراجعتك - ' + req.id,
       'الطلب ' + req.id + ' (عيادة ' + req.clinic + ') جاهز لمراجعتك واعتمادك من داخل النظام.');
   });
   return result;
@@ -838,7 +879,7 @@ function doctorReview_(user, requestId, decision, reason, itemNotes) {
     resetMemo_();
     const f = findRequest_(requestId);
     req = mapRequest_(f.row);
-    if (req.doctor !== user.name) throw new Error('ERR_FORBIDDEN');
+    if (!isMyDoctor_(user, req.doctor)) throw new Error('ERR_FORBIDDEN');
     if (req.status !== ST.REVIEW) throw new Error('ERR_BAD_TRANSITION');
     const status = decision === 'اعتمد' ? ST.APPROVED : ST.REJECTED;
     setCells_(f.t, f.row, { Status: status, ReviewedAt: new Date(), RejectionReason: decision === 'رفض' ? reason : '' });
@@ -1069,7 +1110,7 @@ function getAlerts_(user) {
     if (rejected) alerts.push({ type: 'warning', code: 'alert_rejected_proc', n: rejected });
     if (stale) alerts.push({ type: 'warning', code: 'alert_stale', n: stale });
   } else if (user.screen === 'doctor') {
-    const pending = reqs.filter(function (r) { return r.doctor === user.name && r.status === ST.REVIEW; }).length;
+    const pending = reqs.filter(function (r) { return isMyDoctor_(user, r.doctor) && r.status === ST.REVIEW; }).length;
     if (pending) alerts.push({ type: 'warning', code: 'alert_pending_review', n: pending });
   } else {
     const open = getComplaints_(user, true).length;

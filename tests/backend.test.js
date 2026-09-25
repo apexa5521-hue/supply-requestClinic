@@ -341,6 +341,40 @@ test('batch runs several reads in one execution with per-call errors, and reject
   throwsCode(() => api(n, 'batch', []), 'ERR_BAD_BATCH');
 });
 
+test('doctor account with a short name sees and reviews requests for the full doctor name', () => {
+  const { api, login, gas } = boot(g => {
+    g.seed('Clinics', ['ClinicName', 'Branch', 'Type'], [['Dental Clinic 8 - Buraydah', 'Buraydah', 'Dental']]);
+    g.seed('Doctors', ['DoctorName', 'Clinic', 'NurseName', 'Subspecialty'], [
+      ['Dr. Sami Al-Duwaihi', 'Dental Clinic 8 - Buraydah', '', ''],
+      ['Dr. Turki Al-Mutairi', 'Dental Clinic 8 - Buraydah', '', ''],
+      ['Dr. Fahad Al-Harbi', 'Dental Clinic 8 - Buraydah', '', ''],
+      ['Dr. Fahad Al-Qahtani', 'Dental Clinic 8 - Buraydah', '', '']
+    ]);
+    g.seed('Users', ['Name', 'Password', 'Role', 'Clinic', 'Email'], [
+      ['Abhie', '1', 'ممرضة', '', ''], ['ahmed', '2', 'تموين', '', ''],
+      ['Dr.Sami', '3', 'طبيب', '', 'sami@example.com'],
+      ['د. تركي', '4', 'طبيب', '', ''],          // لا يطابق أي اسم → لا ربط
+      ['Dr.Fahad', '5', 'طبيب', '', ''],          // يطابق طبيبين → لا تخمين
+      ['المدير', '1234', 'تنفيذي', '', '']
+    ]);
+  });
+  const n = login('Abhie', '1'), p = login('ahmed', '2'), sami = login('Dr.Sami', '3'), fahad = login('Dr.Fahad', '5');
+  const mk = doc => api(n, 'createRequest', { clinic: 'Dental Clinic 8 - Buraydah', doctor: doc, type: 'شهري', items: [{ name: 'X', qty: 1 }] }).id;
+  const a = mk('Dr. Sami Al-Duwaihi'), b = mk('Dr. Turki Al-Mutairi'), c = mk('Dr. Fahad Al-Harbi');
+  api(p, 'bulkUpdateStatus', [a, b, c], 'قيد التجهيز');
+  api(p, 'bulkUpdateStatus', [a, b, c], 'مراجعة الطبيب');
+  assert.ok(gas.mails.some(m => m.to === 'sami@example.com'), 'review email reaches the linked account');
+  assert.deepEqual(api(sami, 'getDoctorRequests').map(r => r.id), [a]);
+  assert.equal(api(sami, 'getAlerts')[0].n, 1);
+  api(sami, 'doctorReview', a, 'اعتمد', '', []);
+  assert.equal(api(sami, 'getRequestDetail', a).status, 'معتمد من الطبيب');
+  throwsCode(() => api(sami, 'getRequestDetail', b), 'ERR_FORBIDDEN');
+  assert.equal(api(fahad, 'getDoctorRequests').length, 0, 'ambiguous short name is not guessed');
+  const list = api(p, 'getRequests', {});
+  assert.equal(list.find(r => r.id === a).needsReview, true);
+  assert.equal(list.find(r => r.id === b).needsReview, false, 'no linked account → can dispatch without review');
+});
+
 test('doGet renders the Index template and include_ is not exposed to the browser', () => {
   const { ctx, api } = boot();
   assert.ok(ctx.doGet());
