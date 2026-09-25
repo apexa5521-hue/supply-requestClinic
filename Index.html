@@ -275,6 +275,9 @@
     <div id="detailReceiptWrap" class="hidden" style="margin-top:12px;">
       <a id="detailReceiptLink" href="#" target="_blank" class="btn-primary" style="display:inline-block;text-decoration:none;">📄 عرض صورة الطلب</a>
     </div>
+    <div style="margin-top:12px;">
+      <button class="btn-secondary" style="background:#fff3e0;color:#6d3a00;" onclick="openComplaintModal(CURRENT_DETAIL_REQ)">⚠️ إبلاغ عن مشكلة (تأخير / نقص / زيادة)</button>
+    </div>
   </div>
   <div id="detailOverlay" class="modal-overlay hidden" onclick="closeDetail()"></div>
 
@@ -417,6 +420,14 @@
     <h3 data-i18n="recent_comments_title">آخر الملاحظات على الطلبات</h3>
     <div id="recentCommentsBox"></div>
   </div>
+
+  <div class="card">
+    <div style="display:flex;justify-content:space-between;align-items:center;">
+      <h3 style="margin:0;">⚠️ الشكاوى المفتوحة</h3>
+      <button class="btn-secondary" style="margin:0;padding:4px 10px;font-size:var(--fs-xs);" onclick="loadComplaints()">🔄 تحديث</button>
+    </div>
+    <div id="complaintsBox" style="margin-top:10px;"></div>
+  </div>
 </div>
 
 </div>
@@ -468,6 +479,9 @@
         <tbody id="doctorDetailItems"></tbody>
       </table>
       <div id="doctorDetailTotal" style="text-align:end;font-weight:700;margin-top:8px;font-size:var(--fs-sm);color:var(--primary-dark);"></div>
+      <div style="margin-top:10px;">
+        <button class="btn-secondary" style="background:#fff3e0;color:#6d3a00;" onclick="openComplaintModal(CURRENT_REVIEW_ID)">⚠️ إبلاغ عن مشكلة (تأخير / نقص / زيادة)</button>
+      </div>
       <div id="doctorReviewActions" class="hidden" style="margin-top:14px;padding:12px;background:var(--bg-alt);border-radius:var(--radius-sm);">
         <label>ملاحظة عامة أو سبب الرفض</label>
         <textarea id="doctorReviewReason" rows="2" placeholder="اختياري للاعتماد، إلزامي للرفض..."></textarea>
@@ -478,6 +492,27 @@
         </div>
       </div>
       <div id="doctorRejectionBox" class="rejection-box hidden"></div>
+    </div>
+
+    <!-- مودال الإبلاغ عن مشكلة -->
+    <div id="complaintOverlay" class="modal-overlay hidden" onclick="closeComplaintModal()"></div>
+    <div id="complaintModal" class="card hidden" style="position:fixed;top:15%;left:50%;transform:translateX(-50%);width:90%;max-width:440px;z-index:75;box-shadow:0 4px 24px rgba(0,0,0,.2);">
+      <h2>⚠️ إبلاغ عن مشكلة</h2>
+      <p style="font-size:var(--fs-sm);color:var(--text-muted);">راح يوصل فوراً للتموين والجودة والإدارة — الطلب يستمر بسيره الطبيعي بدون توقف.</p>
+      <label>نوع المشكلة</label>
+      <select id="complaintType">
+        <option value="تأخير">⏱ تأخير</option>
+        <option value="نقص">📉 نقص بالكمية</option>
+        <option value="زيادة">📈 زيادة عن الحاجة</option>
+        <option value="أخرى">أخرى</option>
+      </select>
+      <label>التفاصيل</label>
+      <textarea id="complaintMessage" rows="3" placeholder="اكتب المشكلة بالتفصيل..."></textarea>
+      <div id="complaintError" class="error hidden"></div>
+      <div style="margin-top:10px;">
+        <button class="btn-primary" onclick="submitComplaint()">إرسال البلاغ</button>
+        <button class="btn-secondary" onclick="closeComplaintModal()">إلغاء</button>
+      </div>
     </div>
 
     <!-- قائمة كل الطلبات -->
@@ -762,6 +797,23 @@ const I18N = {
   }
 };
 function t(key) { return (I18N[LANG] && I18N[LANG][key]) || key; }
+
+/* ================= تنسيق موحّد للتاريخ/الوقت — دايماً بتوقيت الرياض ================= */
+function fmtDate(val) {
+  if (!val) return '';
+  const locale = LANG === 'ar' ? 'ar-SA' : 'en-GB';
+  return new Date(val).toLocaleDateString(locale, { timeZone: 'Asia/Riyadh' });
+}
+function fmtDateTime(val) {
+  if (!val) return '';
+  const locale = LANG === 'ar' ? 'ar-SA' : 'en-GB';
+  return new Date(val).toLocaleString(locale, { timeZone: 'Asia/Riyadh', hour: '2-digit', minute: '2-digit' });
+}
+function fmtTime(val) {
+  if (!val) return '';
+  const locale = LANG === 'ar' ? 'ar-SA' : 'en-GB';
+  return new Date(val).toLocaleTimeString(locale, { timeZone: 'Asia/Riyadh', hour: '2-digit', minute: '2-digit' });
+}
 
 function toggleLang() {
   LANG = LANG === 'ar' ? 'en' : 'ar';
@@ -1170,19 +1222,28 @@ function submitRequest() {
 /* ================= الممرضة: طلباتي (استلام + متابعة) ================= */
 
 function loadMyRequests() {
-  google.script.run.withSuccessHandler(function (reqs) {
-    const mine = reqs.filter(function (r) { return r.nurse === CURRENT_USER.name; });
-    const el = document.getElementById('myRequestsList');
-    if (mine.length === 0) { el.innerHTML = '<p>' + t('no_requests_yet') + '</p>'; return; }
-    el.innerHTML = mine.map(function (r) {
-      const receiveBtn = r.status === 'تم الإرسال'
-        ? '<button class="btn-primary" onclick="openReceiveModal(\'' + r.id + '\')">' + t('receive_btn') + '</button>' : '';
-      return '<div class="req-block"><div class="req-block-top"><b>' + r.id + '</b> — ' + r.clinic + ' / ' + r.doctor +
-        ' <span class="badge ' + statusBadgeClass(r.status) + '">' + statusLabel(r.status) + '</span></div>' +
-        '<div>' + receiveBtn +
-        '<button class="btn-secondary" onclick="openComments(\'' + r.id + '\')">' + t('comment_btn') + '</button></div></div>';
-    }).join('');
-  }).getRequests({});
+  google.script.run
+    .withSuccessHandler(function (reqs) {
+      ALL_MY_REQUESTS = reqs.filter(function (r) { return r.nurse === CURRENT_USER.name; });
+      renderMyRequests(ALL_MY_REQUESTS);
+    })
+    .withFailureHandler(function(e){ console.error(e); })
+    .getRequests({});
+}
+
+function renderMyRequests(list) {
+  const el = document.getElementById('myRequestsList');
+  if (!list.length) { el.innerHTML = '<p>' + t('no_requests_yet') + '</p>'; return; }
+  el.innerHTML = list.map(function (r) {
+    const receiveBtn = r.status === 'تم الإرسال'
+      ? '<button class="btn-primary" style="margin:0 4px 0 0;" onclick="openReceiveModal(\'' + r.id + '\')">' + t('receive_btn') + '</button>' : '';
+    return '<div class="req-block"><div class="req-block-top"><b>' + r.id + '</b> — ' + r.clinic + ' / ' + r.doctor +
+      ' <span class="badge ' + statusBadgeClass(r.status) + '">' + statusLabel(r.status) + '</span></div>' +
+      '<div style="margin-top:4px;">' + receiveBtn +
+      '<button class="btn-secondary" style="margin:0 4px 0 0;" onclick="openDetail(\'' + r.id + '\')">📊 التفاصيل</button>' +
+      '<button class="btn-secondary" style="background:#fff3e0;color:#6d3a00;margin:0;" onclick="openComplaintModal(\'' + r.id + '\')">⚠️ إبلاغ</button>' +
+      '</div></div>';
+  }).join('');
 }
 
 function openReceiveModal(id) {
@@ -1276,7 +1337,7 @@ function generateReceiptImage(requestId, items, receiverName) {
 
     ctx.fillStyle = '#555';
     ctx.font = '13px Arial, sans-serif';
-    ctx.fillText(requestId + '   |   ' + new Date().toLocaleDateString('en-SA'), c.width / 2, 65);
+    ctx.fillText(requestId + '   |   ' + fmtDate(new Date()), c.width / 2, 65);
 
     // رأس الجدول
     let y = 88;
@@ -1349,7 +1410,7 @@ function generateReceiptImage(requestId, items, receiverName) {
     ctx.fillStyle = '#888';
     ctx.font = '11px Arial, sans-serif';
     ctx.textAlign = 'end';
-    ctx.fillText(new Date().toLocaleString('en-SA'), 600, y + sigH);
+    ctx.fillText(fmtDateTime(new Date()), 600, y + sigH);
 
     // شريط أسفل
     ctx.fillStyle = '#0f6e56';
@@ -1409,7 +1470,7 @@ function renderProcurementList(reqs) {
   const el = document.getElementById('procRequestsList');
   if (sorted.length === 0) { el.innerHTML = '<p>' + t('no_matching_requests') + '</p>'; return; }
   el.innerHTML = sorted.map(function (r) {
-    const dateStr = r.date ? new Date(r.date).toLocaleDateString('ar-SA') : '';
+    const dateStr = r.date ? fmtDate(r.date) : '';
     return '<div class="req-block">' +
       '<div class="req-block-top">' +
       '<label style="display:inline;"><input type="checkbox" class="reqSelect" value="' + r.id + '"> <b>' + r.id + '</b></label> ' +
@@ -1418,7 +1479,7 @@ function renderProcurementList(reqs) {
       '<span class="badge ' + statusBadgeClass(r.status) + '">' + statusLabel(r.status) + '</span></div>' +
       '<div style="margin-top:4px;">' +
       '<button class="btn-secondary" style="margin:0 4px 0 0;" onclick="toggleItemsView(\'' + r.id + '\')">' + t('view_items_btn') + '</button>' +
-      '<button class="btn-secondary" style="margin:0;" onclick="openDetail(\'' + r.id + '\')">📋 تفاصيل</button>' +
+      '<button class="btn-secondary" style="margin:0;" onclick="openDetail(\'' + r.id + '\')">📊 زمن التنفيذ والتفاصيل</button>' +
       '</div>' +
       '<div id="items-' + r.id + '" class="hidden"></div>' +
       '</div>';
@@ -1522,6 +1583,36 @@ function initDashboardView() {
   document.getElementById('dashboardSection').classList.remove('hidden');
   document.getElementById('dashNameLbl').textContent = CURRENT_USER.name;
   loadDashboard();
+  loadComplaints();
+}
+
+function loadComplaints() {
+  google.script.run
+    .withSuccessHandler(function(list) {
+      const el = document.getElementById('complaintsBox');
+      const open = list.filter(function(c){ return !c.resolved; });
+      if (!open.length) { el.innerHTML = '<p style="color:var(--text-muted);font-size:var(--fs-sm);">لا توجد شكاوى مفتوحة 👍</p>'; return; }
+      const TYPE_ICON = { 'تأخير':'⏱', 'نقص':'📉', 'زيادة':'📈', 'أخرى':'⚠️' };
+      el.innerHTML = open.map(function(c) {
+        return '<div class="req-block">' +
+          '<div class="req-block-top">' + (TYPE_ICON[c.type]||'⚠️') + ' <b>' + c.type + '</b> — ' +
+          '<a href="#" onclick="openDetail(\'' + c.requestId + '\');return false;">' + c.requestId + '</a>' +
+          ' <span style="color:var(--text-muted);font-size:var(--fs-xs);">' + fmtDateTime(c.time) + '</span></div>' +
+          '<div style="font-size:var(--fs-sm);margin-top:4px;">' + c.message + '</div>' +
+          '<div style="font-size:var(--fs-xs);color:var(--text-muted);margin-top:2px;">بواسطة: ' + c.author + ' (' + c.role + ')</div>' +
+          '<div style="margin-top:6px;"><button class="btn-secondary" style="margin:0;padding:4px 10px;font-size:var(--fs-xs);" onclick="markComplaintResolved(\'' + c.id + '\')">✓ إغلاق الشكوى</button></div>' +
+          '</div>';
+      }).join('');
+    })
+    .withFailureHandler(function(){})
+    .getComplaints(true);
+}
+
+function markComplaintResolved(complaintId) {
+  google.script.run
+    .withSuccessHandler(function() { toast('✅ تم إغلاق الشكوى'); loadComplaints(); })
+    .withFailureHandler(function(e){ toast('❌ ' + String(e), 4000); })
+    .resolveComplaint(complaintId, CURRENT_USER.name);
 }
 
 function loadDashboard() {
@@ -1747,7 +1838,7 @@ function syncNow(silent) {
         b.disabled = false; b.textContent = '🔄 مزامنة';
       });
       var ts = document.getElementById('lastSyncTime');
-      if (ts) ts.textContent = new Date().toLocaleTimeString('ar-SA');
+      if (ts) ts.textContent = fmtTime(new Date());
       if (!silent) loadLoginAlerts();
 
       // حدّث قائمة البحث عن الأصناف إذا كانت مفتوحة الآن
@@ -1825,7 +1916,7 @@ function renderDoctorDropdown(reqs) {
   const sel = document.getElementById('doctorRequestSelect');
   sel.innerHTML = '<option value="">— اختر طلب —</option>' +
     filtered.map(function(r){
-      const dateStr = r.date ? new Date(r.date).toLocaleDateString('en-SA') : '';
+      const dateStr = r.date ? fmtDate(r.date) : '';
       return '<option value="' + r.id + '">' +
         r.id + ' | ' + dateStr + ' | ' + r.clinic + ' | ' + statusLabel(r.status) +
         '</option>';
@@ -1845,7 +1936,7 @@ function renderDoctorList(reqs) {
   const el = document.getElementById('doctorRequestsList');
   if (!filtered.length) { el.innerHTML = '<p style="color:var(--text-muted);">لا توجد طلبات</p>'; return; }
   el.innerHTML = filtered.map(function(r) {
-    const dateStr = r.date ? new Date(r.date).toLocaleDateString('ar-SA') : '';
+    const dateStr = r.date ? fmtDate(r.date) : '';
     return '<div class="req-block" style="cursor:pointer;" onclick="onDoctorSelectRequest(\'' + r.id + '\')">' +
       '<div class="req-block-top">' +
       '<b>' + r.id + '</b> <span style="color:var(--text-muted);font-size:var(--fs-xs);">' + dateStr + '</span>' +
@@ -1869,7 +1960,7 @@ function onDoctorSelectRequest(id) {
   document.getElementById('doctorRejectionBox').classList.add('hidden');
 
   if (req) {
-    const dateStr = req.date ? new Date(req.date).toLocaleDateString('ar-SA') : '';
+    const dateStr = req.date ? fmtDate(req.date) : '';
     document.getElementById('doctorDetailMeta').innerHTML =
       '<b>العيادة:</b> ' + req.clinic +
       ' &nbsp;|&nbsp; <b>الممرضة:</b> ' + req.nurse +
@@ -1920,6 +2011,43 @@ function onDoctorSelectRequest(id) {
         '<tr><td colspan="6" style="color:var(--danger);">' + String(e) + '</td></tr>';
     })
     .getRequestItemsWithCatalog(id);
+}
+
+/* ================= الإبلاغ عن مشكلة ================= */
+
+let CURRENT_COMPLAINT_REQ = null;
+
+function openComplaintModal(requestId) {
+  if (!requestId) { toast('اختر طلب أولاً'); return; }
+  CURRENT_COMPLAINT_REQ = requestId;
+  document.getElementById('complaintType').selectedIndex = 0;
+  document.getElementById('complaintMessage').value = '';
+  document.getElementById('complaintError').classList.add('hidden');
+  document.getElementById('complaintOverlay').classList.remove('hidden');
+  document.getElementById('complaintModal').classList.remove('hidden');
+}
+
+function closeComplaintModal() {
+  document.getElementById('complaintOverlay').classList.add('hidden');
+  document.getElementById('complaintModal').classList.add('hidden');
+}
+
+function submitComplaint() {
+  const type = document.getElementById('complaintType').value;
+  const msg = document.getElementById('complaintMessage').value.trim();
+  const errEl = document.getElementById('complaintError');
+  if (!msg) { errEl.textContent = 'يرجى كتابة التفاصيل'; errEl.classList.remove('hidden'); return; }
+  errEl.classList.add('hidden');
+  const btn = document.querySelector('#complaintModal .btn-primary');
+  btnBusy(btn, 'جاري الإرسال...');
+  google.script.run
+    .withSuccessHandler(function() {
+      btnFree(btn);
+      toast('✅ تم إرسال البلاغ — التموين والجودة استلموا إشعاراً فورياً');
+      closeComplaintModal();
+    })
+    .withFailureHandler(function(e){ btnFree(btn); errEl.textContent = String(e); errEl.classList.remove('hidden'); })
+    .addComplaint(CURRENT_COMPLAINT_REQ, CURRENT_USER.name, CURRENT_USER.role, type, msg);
 }
 
 function submitDoctorReview(decision) {
@@ -2036,7 +2164,10 @@ function filterMyRequests() {
 
 /* ================= تفاصيل الطلب ================= */
 
+let CURRENT_DETAIL_REQ = null;
+
 function openDetail(requestId) {
+  CURRENT_DETAIL_REQ = requestId;
   document.getElementById('detailReqTitle').textContent = requestId;
   document.getElementById('detailMeta').innerHTML = '<span class="spinner"></span> ' + (LANG==='ar'?'جاري التحميل...':'Loading...');
   document.getElementById('detailItemsBody').innerHTML = '';
@@ -2053,9 +2184,9 @@ function openDetail(requestId) {
         ' &nbsp;|&nbsp; <b>الممرضة:</b> '+detail.nurse+'<br>'+
         '<b>النوع:</b> '+typeLabel(detail.type)+' &nbsp;|&nbsp; '+
         '<span class="badge '+statusBadgeClass(detail.status)+'">'+statusLabel(detail.status)+'</span><br>'+
-        '<b>رُفع:</b> '+(detail.submittedAt?new Date(detail.submittedAt).toLocaleString('ar-SA'):'-')+
-        ' &nbsp;|&nbsp; <b>أُرسل:</b> '+(detail.sentAt?new Date(detail.sentAt).toLocaleString('ar-SA'):'-')+
-        ' &nbsp;|&nbsp; <b>استُلم:</b> '+(detail.receivedAt?new Date(detail.receivedAt).toLocaleString('ar-SA'):'-');
+        '<b>رُفع:</b> '+(detail.submittedAt?fmtDateTime(detail.submittedAt):'-')+
+        ' &nbsp;|&nbsp; <b>أُرسل:</b> '+(detail.sentAt?fmtDateTime(detail.sentAt):'-')+
+        ' &nbsp;|&nbsp; <b>استُلم:</b> '+(detail.receivedAt?fmtDateTime(detail.receivedAt):'-');
       document.getElementById('detailItemsBody').innerHTML = (detail.items||[]).map(function(it){
         return '<tr><td>'+it.item+'</td><td>'+it.requestedQty+'</td><td>'+(it.approvedQty||'-')+'</td><td>'+(it.receivedQty||'-')+'</td></tr>';
       }).join('');
