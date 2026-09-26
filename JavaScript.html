@@ -2179,7 +2179,7 @@ Object.assign(I18N.ar, {
   t_users_t: 'المستخدمون والأدوار', t_users_b: 'أضف المستخدمين، عيّن أدوارهم وعياداتهم، وحدّد الشاشة لكل دور.',
   nav_workflow: 'سير العمل', sub_workflow: 'مراحل الطلب من الرفع حتى الاستلام، ومن المسؤول عن كل مرحلة',
   wf_flow_title: 'مسار الطلب', wf_you: 'دورك',
-  wf_r_nurse: 'التمريض', wf_r_procurement: 'التموين', wf_r_doctor: 'الطبيب', wf_r_mgmt: 'الجودة والإدارة',
+  wf_r_nurse: 'التمريض', wf_r_procurement: 'التموين', wf_r_doctor: 'الطبيب', wf_r_quality: 'الجودة', wf_r_exec: 'الإدارة التنفيذية',
   wf_s1_t: 'رفع الطلب', wf_s1_d: 'اختيار العيادة والطبيب والأصناف (شهري أو طارئ). يصل بريد للتموين فوراً.',
   wf_s2_t: 'التجهيز', wf_s2_d: 'مراجعة الطلب وتعديل الكميات المعتمدة حسب المتوفر.',
   wf_s3_t: 'إرسال للمراجعة', wf_s3_d: 'يُحال الطلب لطبيب العيادة وتُقفل الكميات. يصل بريد للطبيب.',
@@ -2194,7 +2194,8 @@ Object.assign(I18N.ar, {
   wf_do_nurse: 'رفع الطلبات الشهرية والطارئة|متابعة حالة كل طلب لحظياً|الاستلام والتوقيع وتسجيل أي نقص|الإبلاغ عن أي مشكلة',
   wf_do_procurement: 'تجهيز الطلبات وتعديل الكميات|إدارة مسار المندوب عند الحاجة|الإرسال للمراجعة ثم للفرع (كامل أو جزئي)|متابعة البلاغات وإغلاقها',
   wf_do_doctor: 'مراجعة طلبات العيادة|إضافة ملاحظات على الأصناف|الاعتماد أو الرفض مع ذكر السبب',
-  wf_do_mgmt: 'متابعة مؤشرات الأداء وزمن التنفيذ|متابعة البلاغات وإرسال تنبيهات للإدارات|إدارة المستخدمين والأدوار (الإدارة التنفيذية)',
+  wf_do_quality: 'متابعة زمن التنفيذ ومؤشرات الأداء|مراجعة البلاغات وإغلاقها بعد الحل|تحليل نقص الاستلام والأصناف الأكثر طلباً|إرسال تنبيهات للإدارات',
+  wf_do_exec: 'نظرة شاملة على أداء كل العيادات|إدارة المستخدمين والأدوار والصلاحيات|متابعة البلاغات والتصعيد عند الحاجة|توجيه الإدارات بالتنبيهات',
   wf_notif_title: 'الإشعارات التلقائية بالبريد', wf_event: 'الحدث', wf_to: 'يصل إلى',
   wf_n1: 'طلب جديد (والطارئ بعنوان مميز)|التموين', wf_n2: 'إرسال الطلب للمراجعة|الطبيب', wf_n3: 'اعتماد أو رفض الطبيب|التموين (+ الممرضة عند الرفض)',
   wf_n4: 'إرسال الطلب للفرع|الممرضة', wf_n5: 'بلاغ جديد|التموين والجودة والإدارة',
@@ -2236,7 +2237,7 @@ Object.assign(I18N.en, {
   t_users_t: 'Users & roles', t_users_b: 'Add users, set their roles and clinics, and choose the screen for each role.',
   nav_workflow: 'Workflow', sub_workflow: 'Request stages from submission to receipt, and who owns each one',
   wf_flow_title: 'Request flow', wf_you: 'You',
-  wf_r_nurse: 'Nursing', wf_r_procurement: 'Procurement', wf_r_doctor: 'Doctor', wf_r_mgmt: 'Quality & management',
+  wf_r_nurse: 'Nursing', wf_r_procurement: 'Procurement', wf_r_doctor: 'Doctor', wf_r_quality: 'Quality', wf_r_exec: 'Executive management',
   wf_s1_t: 'Submit request', wf_s1_d: 'Pick clinic, doctor and items (monthly or emergency). Procurement is emailed immediately.',
   wf_s2_t: 'Prepare', wf_s2_d: 'Review the request and adjust approved quantities to what’s available.',
   wf_s3_t: 'Send for review', wf_s3_d: 'Goes to the clinic doctor and quantities lock. The doctor is emailed.',
@@ -2251,7 +2252,8 @@ Object.assign(I18N.en, {
   wf_do_nurse: 'Submit monthly and emergency requests|Track every request live|Receive, sign and record any shortage|Report any issue',
   wf_do_procurement: 'Prepare requests and adjust quantities|Handle the vendor path when needed|Send for review, then dispatch (full or partial)|Follow up and resolve issues',
   wf_do_doctor: 'Review clinic requests|Add notes on items|Approve or reject with a reason',
-  wf_do_mgmt: 'Monitor KPIs and fulfilment time|Follow issues and send department notices|Manage users and roles (executive)',
+  wf_do_quality: 'Monitor fulfilment time and KPIs|Review issues and resolve them|Analyse short receipts and top items|Send department notices',
+  wf_do_exec: 'Full view of every clinic’s performance|Manage users, roles and permissions|Follow issues and escalate when needed|Direct departments through notices',
   wf_notif_title: 'Automatic email notifications', wf_event: 'Event', wf_to: 'Sent to',
   wf_n1: 'New request (emergency flagged)|Procurement', wf_n2: 'Sent for review|Doctor', wf_n3: 'Doctor approved / rejected|Procurement (+ nurse on reject)',
   wf_n4: 'Dispatched to branch|Nurse', wf_n5: 'New issue report|Procurement, quality & management',
@@ -2456,9 +2458,10 @@ const WF_ROLE = {
   nurse: { k: 'wf_r_nurse', tone: 'var(--t-blue)', ic: 'user' },
   procurement: { k: 'wf_r_procurement', tone: 'var(--t-amber)', ic: 'package' },
   doctor: { k: 'wf_r_doctor', tone: 'var(--t-violet)', ic: 'steth' },
-  mgmt: { k: 'wf_r_mgmt', tone: 'var(--t-teal)', ic: 'chart' }
+  quality: { k: 'wf_r_quality', tone: 'var(--t-teal)', ic: 'chart' },
+  exec: { k: 'wf_r_exec', tone: 'var(--t-green)', ic: 'shield' }
 };
-function myWfRole() { const s = S.user.screen; return s === 'dashboard' || s === 'admin' ? 'mgmt' : s; }
+function myWfRole() { const s = S.user.screen; return s === 'dashboard' ? 'quality' : s === 'admin' ? 'exec' : s; }
 VIEWS.workflow = {
   title: 'nav_workflow', sub: 'sub_workflow',
   render() {
