@@ -197,6 +197,51 @@ test('full workflow: prep → review → approve → partial dispatch → receiv
   assert.equal(stats.shortages, 1, 'DENTAL FLOSS received 6 of approved 8');
 });
 
+test('items can be dispatched in numbered shipments with a sent/remaining tracker', () => {
+  const { api, login, gas } = boot();
+  const n = login('سارة', '1111'), p = login('علي', '3333'), d = login('د. خالد', '4444');
+  const names = ['MICRO BRUSH FINE', 'PROPHY PASTE', 'DENTAL FLOSS', 'Etchant Blue Tip', 'Ivoclar Tetric-N A2'];
+  const id = api(n, 'createRequest', { clinic: 'عيادة الأسنان 1', doctor: 'د. خالد', type: 'شهري', items: names.map(x => ({ name: x, qty: 2 })) }).id;
+  api(p, 'bulkUpdateStatus', [id], 'قيد التجهيز');
+  throwsCode(() => api(p, 'dispatchItems', id, [names[0]]), 'ERR_NEEDS_APPROVAL');
+  api(p, 'bulkUpdateStatus', [id], 'مراجعة الطبيب');
+  api(d, 'doctorReview', id, 'اعتمد', '', []);
+
+  // الشحنة 1: صنفان
+  let ds = api(p, 'dispatchItems', id, [names[0], names[1]]);
+  assert.deepEqual([ds.batch, ds.count, ds.sent, ds.remaining, ds.total, ds.allSent], [1, 2, 2, 3, 5, false]);
+  const mail = gas.mails.find(m => m.to === 'sara@example.com' && /شحنة جزئية/.test(m.subject));
+  assert.ok(mail && /المتبقي 3/.test(mail.body) && mail.body.includes('PROPHY PASTE'), 'nurse is told what was sent and what remains');
+
+  // الطلب يبقى «معتمد» والتتبع ظاهر للممرضة والتموين
+  let mine = api(n, 'getMyRequests').find(r => r.id === id);
+  assert.deepEqual([mine.status, mine.itemCount, mine.dispatchedCount, mine.shipmentCount], ['معتمد من الطبيب', 5, 2, 1]);
+
+  // لا يمكن إعادة إرسال صنف أُرسل، ولا أصناف غير موجودة
+  throwsCode(() => api(p, 'dispatchItems', id, [names[0]]), 'ERR_NO_ITEMS');
+  throwsCode(() => api(p, 'dispatchItems', id, ['NOT IN REQUEST']), 'ERR_NO_ITEMS');
+
+  // الشحنة 2: صنف واحد
+  ds = api(p, 'dispatchItems', id, [names[2], names[0]]);
+  assert.deepEqual([ds.batch, ds.count, ds.remaining], [2, 1, 2], 'already-sent items in the selection are ignored');
+
+  // إرسال الباقي دفعة واحدة من الإجراء الجماعي = شحنة 3
+  assert.deepEqual(api(p, 'bulkUpdateStatus', [id], 'تم الإرسال').updated, [id]);
+  const det = api(n, 'getRequestDetail', id);
+  assert.equal(det.status, 'تم الإرسال');
+  assert.deepEqual(det.items.map(i => i.batch), [1, 1, 2, 3, 3]);
+  mine = api(n, 'getMyRequests').find(r => r.id === id);
+  assert.deepEqual([mine.dispatchedCount, mine.shipmentCount], [5, 3]);
+  assert.deepEqual(api(p, 'getRequestItems', id).map(i => i.batch), [1, 1, 2, 3, 3]);
+
+  // صفوف قديمة بدون رقم شحنة تُرقَّم حسب وقت الإرسال
+  const t = gas.ss.getSheetByName('RequestItems');
+  const col = t._data[0].indexOf('DispatchBatch'), at = t._data[0].indexOf('DispatchedAt');
+  const rows = t._data.slice(1).filter(r => r[0] === id);
+  rows.forEach((r, i) => { r[col] = ''; r[at] = new Date(Date.UTC(2025, 0, i < 3 ? 1 : 2)); });
+  assert.deepEqual(api(p, 'getRequestItems', id).map(i => i.batch), [1, 1, 1, 2, 2]);
+});
+
 test('doctor rejection returns to procurement and can be re-prepared', () => {
   const { api, login, gas } = boot();
   const n = login('سارة', '1111'), p = login('علي', '3333'), d = login('د. خالد', '4444');

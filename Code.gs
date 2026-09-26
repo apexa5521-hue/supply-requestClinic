@@ -25,7 +25,7 @@ const SCHEMA = {
                  'SubmittedAt', 'SentAt', 'ReceivedAt', 'ReceiverName', 'SignatureURL',
                  'PrepAt', 'VendorWaitAt', 'VendorReceivedAt', 'ReviewAt', 'ReviewedAt',
                  'RejectionReason', 'ReceiptURL'],
-  RequestItems: ['RequestID', 'ItemName', 'RequestedQty', 'ApprovedQty', 'ReceivedQty', 'DispatchedAt'],
+  RequestItems: ['RequestID', 'ItemName', 'RequestedQty', 'ApprovedQty', 'ReceivedQty', 'DispatchedAt', 'DispatchBatch'],
   ItemNotes:    ['Timestamp', 'RequestID', 'ItemName', 'Author', 'Role', 'Note'],
   Log:          ['Timestamp', 'RequestID', 'Action', 'User'],
   Comments:     ['Timestamp', 'RequestID', 'Author', 'Role', 'Message'],
@@ -588,9 +588,10 @@ function queryRequests_(filters) {
     if (filters.month && monthOf_(r.date) !== filters.month) return false;
     return true;
   }).map(function (r) {
-    const c = counts[r.id] || { items: 0, dispatched: 0 };
+    const c = counts[r.id] || { items: 0, dispatched: 0, batches: 0 };
     r.itemCount = c.items;
     r.dispatchedCount = c.dispatched;
+    r.shipmentCount = c.batches;
     r.needsReview = !!reviewers[r.doctor];
     return r;
   }).sort(function (a, b) { return toMs_(b.date) - toMs_(a.date); });
@@ -598,13 +599,37 @@ function queryRequests_(filters) {
 
 function itemCounts_() {
   const out = {};
+  const rowsBy = {};
   read_('RequestItems').rows.forEach(function (r) {
     const id = str_(r.RequestID);
-    out[id] = out[id] || { items: 0, dispatched: 0 };
+    out[id] = out[id] || { items: 0, dispatched: 0, batches: 0 };
     out[id].items++;
     if (r.DispatchedAt) out[id].dispatched++;
+    (rowsBy[id] = rowsBy[id] || []).push(r);
   });
+  Object.keys(rowsBy).forEach(function (id) { out[id].batches = batchesOf_(rowsBy[id]).count; });
   return out;
+}
+
+/**
+ * رقم شحنة كل صنف مُرسل. الأصناف القديمة (قبل عمود DispatchBatch) تُرقَّم حسب وقت إرسالها.
+ * يعيد { of: function(row) -> رقم الشحنة أو 0, count: عدد الشحنات }
+ */
+function batchesOf_(rows) {
+  let max = 0;
+  rows.forEach(function (r) { const b = Number(r.DispatchBatch) || 0; if (r.DispatchedAt && b > max) max = b; });
+  const legacy = {};
+  rows.filter(function (r) { return r.DispatchedAt && !(Number(r.DispatchBatch) > 0); })
+    .map(function (r) { return toMs_(r.DispatchedAt); })
+    .sort(function (a, b) { return a - b; })
+    .forEach(function (ms) { if (!legacy[ms]) legacy[ms] = ++max; });
+  return {
+    of: function (r) {
+      if (!r.DispatchedAt) return 0;
+      return Number(r.DispatchBatch) > 0 ? Number(r.DispatchBatch) : legacy[toMs_(r.DispatchedAt)];
+    },
+    count: max
+  };
 }
 
 function getRequestsApi_(user, filters) { return queryRequests_(filters); }
@@ -698,11 +723,19 @@ function itemsOf_(requestId) {
   return read_('RequestItems').rows.filter(function (r) { return str_(r.RequestID) === requestId; });
 }
 
-function mapItem_(r) {
+function mapItem_(r, batches) {
   return {
     item: str_(r.ItemName), requestedQty: r.RequestedQty, approvedQty: r.ApprovedQty,
-    receivedQty: r.ReceivedQty, dispatchedAt: r.DispatchedAt
+    receivedQty: r.ReceivedQty, dispatchedAt: r.DispatchedAt,
+    batch: batches ? batches.of(r) : (Number(r.DispatchBatch) || 0)
   };
+}
+
+/** أصناف الطلب مع رقم الشحنة لكل صنف */
+function mappedItems_(requestId) {
+  const rows = itemsOf_(requestId);
+  const b = batchesOf_(rows);
+  return rows.map(function (r) { return mapItem_(r, b); });
 }
 
 function guardSee_(user, requestId) {
@@ -714,11 +747,11 @@ function guardSee_(user, requestId) {
 
 function getRequestItemsApi_(user, requestId) {
   guardSee_(user, requestId);
-  return itemsOf_(requestId).map(mapItem_);
+  return mappedItems_(requestId);
 }
 
 function getRequestItemsFull_(user, requestId) {
-  const items = itemsOf_(requestId).map(mapItem_);
+  const items = mappedItems_(requestId);
   const dispatchStatus = {};
   items.forEach(function (it) { if (it.dispatchedAt) dispatchStatus[it.item] = true; });
   const notes = {};
@@ -732,8 +765,7 @@ function getRequestItemsWithCatalog_(user, requestId) {
   getCatalog_(true).forEach(function (c) { cat[c.name.toLowerCase()] = c; });
   const noteMap = {};
   itemNotes_(requestId).forEach(function (n) { (noteMap[n.item] = noteMap[n.item] || []).push(n); });
-  return itemsOf_(requestId).map(function (r) {
-    const it = mapItem_(r);
+  return mappedItems_(requestId).map(function (it) {
     const c = cat[it.item.toLowerCase()] || {};
     it.commercial = c.commercial || '';
     it.category = c.category || '';
@@ -838,8 +870,10 @@ function bulkUpdateStatus_(user, requestIds, newStatus) {
       setCells_(t, row, upd);
       if (newStatus === ST.SENT) {
         const ri = read_('RequestItems');
-        ri.rows.forEach(function (r) {
-          if (str_(r.RequestID) === id && !r.DispatchedAt) setCells_(ri, r, { DispatchedAt: upd.SentAt });
+        const mine = ri.rows.filter(function (r) { return str_(r.RequestID) === id; });
+        const next = batchesOf_(mine).count + 1;
+        mine.forEach(function (r) {
+          if (!r.DispatchedAt) setCells_(ri, r, { DispatchedAt: upd.SentAt, DispatchBatch: next });
         });
       }
       logAction_(id, 'تغيير الحالة: ' + cur + ' ← ' + newStatus, user.name);
@@ -855,9 +889,12 @@ function bulkUpdateStatus_(user, requestIds, newStatus) {
   return result;
 }
 
-/** إرسال جزئي لأصناف محددة؛ يكتمل الطلب تلقائياً عند إرسال كل الأصناف */
+/**
+ * إرسال أصناف محددة كشحنة مستقلة ضمن نفس الطلب (رقم شحنة متسلسل).
+ * يبقى الطلب «معتمد» حتى تُرسل كل أصنافه، ثم يصبح «تم الإرسال» تلقائياً.
+ */
 function dispatchItems_(user, requestId, itemNames) {
-  itemNames = (itemNames || []).map(str_);
+  itemNames = (itemNames || []).map(str_).filter(String);
   if (!itemNames.length) throw new Error('ERR_NO_ITEMS');
   let res;
   withLock_(function () {
@@ -870,18 +907,24 @@ function dispatchItems_(user, requestId, itemNames) {
     const ri = read_('RequestItems');
     const now = new Date();
     const mine = ri.rows.filter(function (r) { return str_(r.RequestID) === str_(requestId); });
-    mine.forEach(function (r) {
-      if (itemNames.indexOf(str_(r.ItemName)) !== -1 && !r.DispatchedAt) setCells_(ri, r, { DispatchedAt: now });
-    });
-    const allSent = mine.every(function (r) { return !!r.DispatchedAt; });
-    logAction_(requestId, 'إرسال جزئي: ' + itemNames.join('، '), user.name);
+    const toSend = mine.filter(function (r) { return !r.DispatchedAt && itemNames.indexOf(str_(r.ItemName)) !== -1; });
+    if (!toSend.length) throw new Error('ERR_NO_ITEMS');
+    const batch = batchesOf_(mine).count + 1;
+    toSend.forEach(function (r) { setCells_(ri, r, { DispatchedAt: now, DispatchBatch: batch }); });
+    const sent = mine.filter(function (r) { return !!r.DispatchedAt; }).length;
+    const allSent = sent === mine.length;
+    const names = toSend.map(function (r) { return str_(r.ItemName); });
+    logAction_(requestId, 'إرسال الشحنة ' + batch + ' (' + names.length + ' صنف): ' + names.join('، ') +
+      ' — المتبقي ' + (mine.length - sent), user.name);
     if (allSent) {
       setCells_(f.t, f.row, { Status: ST.SENT, SentAt: now });
       logAction_(requestId, 'تغيير الحالة: ' + cur + ' ← ' + ST.SENT, user.name);
     }
-    res = { allSent: allSent, sent: mine.filter(function (r) { return !!r.DispatchedAt; }).length, total: mine.length, req: mapRequest_(f.row) };
+    res = { allSent: allSent, batch: batch, count: names.length, items: names, sent: sent, total: mine.length,
+      remaining: mine.length - sent, req: mapRequest_(f.row) };
   });
   if (res.allSent) notifyNurseSent_(res.req);
+  else notifyNursePartial_(res.req, res);
   delete res.req;
   return res;
 }
@@ -965,8 +1008,7 @@ function getRequestDetail_(user, requestId) {
   const req = g.req;
   const noteMap = {};
   itemNotes_(requestId).forEach(function (n) { (noteMap[n.item] = noteMap[n.item] || []).push(n); });
-  req.items = itemsOf_(requestId).map(function (r) {
-    const it = mapItem_(r);
+  req.items = mappedItems_(requestId).map(function (it) {
     it.notes = noteMap[it.item] || [];
     it.note = it.notes.map(function (n) { return n.note; }).join(' · ');
     return it;
@@ -1158,6 +1200,13 @@ function notifyRole_(screen, subject, body) {
 function notifyUser_(name, subject, body) {
   const u = read_('Users').rows.filter(function (r) { return str_(r.Name) === str_(name); })[0];
   if (u && str_(u.Email)) sendMail_(str_(u.Email), subject, body);
+}
+
+function notifyNursePartial_(req, r) {
+  notifyUser_(req.nurse, 'شحنة جزئية من طلبك - ' + req.id + ' (' + r.sent + '/' + r.total + ')',
+    'تم إرسال الشحنة رقم ' + r.batch + ' من طلبك ' + req.id + ' الخاص بعيادة ' + req.clinic + ':\n- ' +
+    r.items.join('\n- ') + '\n\nأُرسل ' + r.sent + ' من ' + r.total + ' صنف، والمتبقي ' + r.remaining +
+    ' صنف سيُرسل لاحقاً.\nتأكيد الاستلام والتوقيع يكون من داخل النظام بعد وصول كامل الطلب.');
 }
 
 function notifyNurseSent_(req) {

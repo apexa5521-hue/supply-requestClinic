@@ -55,8 +55,10 @@ const I18N = {
     act_prep: 'قيد التجهيز', act_vendor_wait: 'بانتظار المندوب', act_vendor_recv: 'استلم المندوب', act_review: 'إرسال لمراجعة الطبيب', act_send: 'إرسال للفرع',
     bulk_done: 'تم تحديث {n} طلب', bulk_skipped_title: 'بعض الطلبات لم تُحدَّث', bulk_skipped_sub: 'تم تحديث {a} وتخطي {b} للأسباب التالية:',
     view_items: 'الأصناف والاعتماد', requested: 'المطلوب', approved: 'المعتمد', received: 'المستلم', dispatch_status: 'الإرسال',
-    dispatched: 'أُرسل', waiting: 'بالانتظار', dispatch_selected: 'إرسال المحدد فقط', select_item: 'اختر صنفاً واحداً على الأقل',
-    dispatch_all_done: 'اكتمل إرسال كل الأصناف — تم إرسال الطلب', dispatch_partial: 'تم إرسال {n} صنف — الباقي بالانتظار',
+    dispatched: 'أُرسل', waiting: 'بالانتظار', dispatch_selected: 'إرسال المحدد كشحنة', select_item: 'اختر صنفاً واحداً على الأقل',
+    dispatch_all_done: 'اكتمل إرسال كل الأصناف — تم إرسال الطلب', dispatch_partial: 'أُرسلت الشحنة #{b} ({n} صنف) — متبقي {r} صنف',
+    ship_sent_of: 'أُرسل {a} من {b}', ship_left: 'متبقي {n}', ship_total: 'إجمالي الأصناف', ship_remaining: 'متبقي', shipment_n: 'شحنة #{n}',
+    shipments: 'الشحنات', ship_title: 'تتبع الإرسال', select_remaining: 'تحديد كل المتبقي', grp_partial: 'إرسال جزئي', ship_all_done: 'اكتمل الإرسال',
     approval_locked: 'الكميات مقفلة بعد إرسال الطلب للمراجعة', bulk_not_applicable: 'لا ينطبق على حالة الطلبات المحددة', saved: 'تم الحفظ', item_notes: 'ملاحظات الصنف', request_notes: 'ملاحظات الطلب',
     workflow_hint: 'المسار: قيد التجهيز ← (المندوب اختياري) ← مراجعة الطبيب ← إرسال للفرع بعد الاعتماد',
     pending_review: 'بانتظار مراجعتك', approved_by_you: 'اعتمدتها', sent_to_branch: 'أُرسلت للفرع', received_k: 'تم استلامها', rejected_k: 'مرفوضة',
@@ -145,8 +147,10 @@ const I18N = {
     act_prep: 'In progress', act_vendor_wait: 'Awaiting vendor', act_vendor_recv: 'Vendor received', act_review: 'Send to doctor review', act_send: 'Dispatch',
     bulk_done: '{n} request(s) updated', bulk_skipped_title: 'Some requests were not updated', bulk_skipped_sub: '{a} updated, {b} skipped:',
     view_items: 'Items & approval', requested: 'Requested', approved: 'Approved', received: 'Received', dispatch_status: 'Dispatch',
-    dispatched: 'Sent', waiting: 'Waiting', dispatch_selected: 'Dispatch selected', select_item: 'Select at least one item',
-    dispatch_all_done: 'All items dispatched — request sent', dispatch_partial: '{n} item(s) dispatched — rest pending',
+    dispatched: 'Sent', waiting: 'Waiting', dispatch_selected: 'Dispatch selected as a shipment', select_item: 'Select at least one item',
+    dispatch_all_done: 'All items dispatched — request sent', dispatch_partial: 'Shipment #{b} sent ({n} items) — {r} remaining',
+    ship_sent_of: '{a} of {b} sent', ship_left: '{n} remaining', ship_total: 'Total items', ship_remaining: 'Remaining', shipment_n: 'Shipment #{n}',
+    shipments: 'Shipments', ship_title: 'Dispatch tracking', select_remaining: 'Select all remaining', grp_partial: 'Partially sent', ship_all_done: 'Fully dispatched',
     approval_locked: 'Quantities are locked after sending to review', bulk_not_applicable: 'Not applicable to the selected requests’ status', saved: 'Saved', item_notes: 'Item notes', request_notes: 'Request notes',
     workflow_hint: 'Flow: In progress → (vendor optional) → Doctor review → Dispatch after approval',
     pending_review: 'Awaiting your review', approved_by_you: 'Approved', sent_to_branch: 'Sent to branch', received_k: 'Received', rejected_k: 'Rejected',
@@ -396,6 +400,39 @@ function progressBar(s) {
   const m = stMeta(s);
   const pct = s === ST.REJECTED ? 40 : Math.round((m.step / 5) * 100);
   return '<div class="progress" style="--tone:' + m.tone + '"><i data-w="' + Math.max(pct, 6) + '%"></i></div>';
+}
+/* تتبع الإرسال الجزئي: سطر مختصر في بطاقة الطلب */
+function shipTrack(r) {
+  const n = r.itemCount || 0, d = r.dispatchedCount || 0;
+  if (!n || !d || d >= n) return '';
+  return '<div class="ship-track">' + icon('truck', 'i-sm') + '<span><b>' + esc(t('ship_sent_of', { a: d, b: n })) + '</b> · ' + esc(t('ship_left', { n: n - d })) + '</span>' +
+    '<div class="progress"><i data-w="' + Math.max(6, Math.round(d / n * 100)) + '%"></i></div></div>';
+}
+/* ملخص الشحنات: الإجمالي / المرسل / المتبقي + قائمة الشحنات بأصنافها */
+function shipSummary(items) {
+  items = items || [];
+  const n = items.length, sent = items.filter(i => i.dispatchedAt), d = sent.length;
+  if (!n || !d) return '';
+  const byB = {};
+  sent.forEach(i => { (byB[i.batch || 1] = byB[i.batch || 1] || []).push(i); });
+  const nums = Object.keys(byB).map(Number).sort((a, b) => a - b);
+  return '<div class="ship-sum">' +
+    '<div class="between"><div class="section-title" style="margin:0">' + icon('truck', 'i-sm') + esc(t('ship_title')) + '</div>' +
+      (d === n ? '<span class="badge" style="--tone:var(--t-green)"><i class="dot"></i>' + esc(t('ship_all_done')) + '</span>' : '') + '</div>' +
+    '<div class="ship-stats"><div><b>' + n + '</b><span>' + esc(t('ship_total')) + '</span></div>' +
+      '<div class="is-sent"><b>' + d + '</b><span>' + esc(t('dispatched')) + '</span></div>' +
+      '<div class="' + (n - d ? 'is-left' : 'is-sent') + '"><b>' + (n - d) + '</b><span>' + esc(t('ship_remaining')) + '</span></div></div>' +
+    '<div class="progress wide"><i data-w="' + Math.max(6, Math.round(d / n * 100)) + '%"></i></div>' +
+    '<div class="ship-list">' + nums.map(b =>
+      '<div class="ship"><span class="ship-no">' + icon('truck', 'i-sm') + esc(t('shipment_n', { n: b })) + '</span>' +
+      '<span class="muted">' + esc(fmtDateTime(byB[b][0].dispatchedAt)) + ' · ' + esc(t('items_count', { n: byB[b].length })) + '</span>' +
+      '<span class="ship-items">' + byB[b].map(i => esc(i.item)).join(' · ') + '</span></div>').join('') + '</div>' +
+  '</div>';
+}
+function shipBadge(it) {
+  return it.dispatchedAt
+    ? '<span class="badge" style="--tone:var(--t-indigo)"><i class="dot"></i>' + esc(it.batch ? t('shipment_n', { n: it.batch }) : t('dispatched')) + '</span>'
+    : '<span class="muted" style="font-size:12.5px">' + esc(t('waiting')) + '</span>';
 }
 function animateBars(root) {
   requestAnimationFrame(() => requestAnimationFrame(() => {
@@ -776,7 +813,7 @@ function groupCounts(groups, list) {
   groups.forEach(g => { c[g.id] = list.filter(r => matchGroup(g, r)).length; });
   return c;
 }
-function matchGroup(g, r) { return !g.statuses || g.statuses.indexOf(r.status) !== -1; }
+function matchGroup(g, r) { return g.test ? g.test(r) : (!g.statuses || g.statuses.indexOf(r.status) !== -1); }
 function reqSearch(r, q) {
   if (!q) return true;
   return [r.id, r.clinic, r.doctor, r.nurse, statusLabel(r.status), r.type].join(' ').toLowerCase().indexOf(q.toLowerCase()) !== -1;
@@ -866,13 +903,13 @@ function openDetail(id) {
         '<div><dt>' + esc(t('nurse')) + '</dt><dd>' + esc(d.nurse) + '</dd></div>' +
         (d.receiver ? '<div><dt>' + esc(t('receiver')) + '</dt><dd>' + esc(d.receiver) + '</dd></div>' : '') +
       '</dl>' +
-      kpiStepsHtml(d.kpi) +
+      kpiStepsHtml(d.kpi) + shipSummary(d.items) +
       '<div><div class="section-title">' + icon('package', 'i-sm') + esc(t('items')) + ' · ' + d.items.length + '</div>' +
-        '<div class="table-wrap"><table class="table"><thead><tr><th>' + esc(t('items')) + '</th><th class="num">' + esc(t('requested')) + '</th><th class="num">' + esc(t('approved')) + '</th><th class="num">' + esc(t('received')) + '</th></tr></thead><tbody>' +
+        '<div class="table-wrap"><table class="table"><thead><tr><th>' + esc(t('items')) + '</th><th class="num">' + esc(t('requested')) + '</th><th class="num">' + esc(t('approved')) + '</th><th>' + esc(t('dispatch_status')) + '</th><th class="num">' + esc(t('received')) + '</th></tr></thead><tbody>' +
         d.items.map(it => {
           const short = it.receivedQty !== '' && it.receivedQty !== null && Number(it.receivedQty) < Number(it.approvedQty !== '' ? it.approvedQty : it.requestedQty);
           return '<tr><td><div style="font-weight:600">' + esc(it.item) + '</div>' + (it.notes && it.notes.length ? '<div class="hint">' + icon('msg', 'i-sm') + ' ' + esc(it.notes.map(n => n.author + ': ' + n.note).join(' · ')) + '</div>' : '') + '</td>' +
-            '<td class="num">' + esc(it.requestedQty) + '</td><td class="num">' + esc(it.approvedQty === '' ? '—' : it.approvedQty) + '</td>' +
+            '<td class="num">' + esc(it.requestedQty) + '</td><td class="num">' + esc(it.approvedQty === '' ? '—' : it.approvedQty) + '</td><td>' + shipBadge(it) + '</td>' +
             '<td class="num"' + (short ? ' style="color:var(--t-red);font-weight:700"' : '') + '>' + esc(it.receivedQty === '' ? '—' : it.receivedQty) + '</td></tr>';
         }).join('') + '</tbody></table></div></div>' +
       '<div><div class="section-title">' + icon('msg', 'i-sm') + esc(t('request_notes')) + '</div>' +
@@ -888,6 +925,7 @@ function openDetail(id) {
       '<span class="spacer"></span>' +
       (canReceive ? '<button class="btn btn-primary" data-act="receive" data-id="' + esc(d.id) + '">' + icon('pen', 'i-sm') + esc(t('receive_btn')) + '</button>' : '<button class="btn" data-close>' + esc(t('close')) + '</button>');
     m.el.querySelector('.modal').appendChild(foot);
+    animateBars(body);
     const th = $('#dThread', m.el); th.scrollTop = th.scrollHeight;
     const send = () => {
       const ta = $('#dComment', m.el); const msg = ta.value.trim(); if (!msg) return;
@@ -1254,7 +1292,7 @@ function renderMineList(animate) {
     '<article class="req' + (r.type === 'طارئ' ? ' urgent' : '') + '">' +
       '<div class="req-main clickable" data-act="detail" data-id="' + esc(r.id) + '">' +
         '<div class="grow"><div class="row-wrap"><span class="req-id">' + esc(r.id) + '</span>' + typeTag(r.type) + '</div>' +
-          '<div class="req-sub"><span>' + icon('building') + esc(r.clinic) + '</span><span>' + icon('steth') + esc(r.doctor) + '</span><span>' + icon('calendar') + esc(fmtDate(r.date)) + '</span><span>' + icon('package') + esc(t('items_count', { n: r.itemCount || 0 })) + '</span></div></div>' +
+          '<div class="req-sub"><span>' + icon('building') + esc(r.clinic) + '</span><span>' + icon('steth') + esc(r.doctor) + '</span><span>' + icon('calendar') + esc(fmtDate(r.date)) + '</span><span>' + icon('package') + esc(t('items_count', { n: r.itemCount || 0 })) + '</span></div>' + shipTrack(r) + '</div>' +
         '<div class="req-side">' + badge(r.status) + progressBar(r.status) + '</div>' +
       '</div>' +
       '<div class="req-actions">' +
@@ -1392,6 +1430,7 @@ const PROC_GROUPS = [
   { id: 'prep', k: 'grp_prep', statuses: [ST.PREP, ST.VENDOR_WAIT, ST.VENDOR_RECV], tone: 'var(--t-amber)' },
   { id: 'review', k: 'st_review', statuses: [ST.REVIEW], tone: 'var(--t-violet)' },
   { id: 'approved', k: 'st_approved', statuses: [ST.APPROVED], tone: 'var(--t-teal)' },
+  { id: 'partial', k: 'grp_partial', test: r => r.dispatchedCount > 0 && r.dispatchedCount < r.itemCount, tone: 'var(--t-indigo)' },
   { id: 'rejected', k: 'st_rejected', statuses: [ST.REJECTED], tone: 'var(--t-red)' },
   { id: 'sent', k: 'st_sent', statuses: [ST.SENT], tone: 'var(--t-indigo)' },
   { id: 'received', k: 'st_received', statuses: [ST.RECEIVED], tone: 'var(--t-green)' }
@@ -1477,8 +1516,8 @@ function procCard(r) {
     '<div class="req-main">' +
       '<input type="checkbox" class="check" data-change="procSel" data-id="' + esc(r.id) + '"' + (sel ? ' checked' : '') + ' aria-label="' + esc(r.id) + '">' +
       '<div class="grow clickable" data-act="procToggle" data-id="' + esc(r.id) + '" style="cursor:pointer"><div class="row-wrap"><span class="req-id">' + esc(r.id) + '</span>' + typeTag(r.type) +
-        (r.dispatchedCount && r.dispatchedCount < r.itemCount ? '<span class="tag">' + icon('truck') + esc(t('dispatched_of', { a: r.dispatchedCount, b: r.itemCount })) + '</span>' : '') + '</div>' +
-        '<div class="req-sub"><span>' + icon('building') + esc(r.clinic) + '</span><span>' + icon('steth') + esc(r.doctor) + '</span><span>' + icon('user') + esc(r.nurse) + '</span><span>' + icon('clock') + esc(relTime(r.date)) + '</span><span>' + icon('package') + esc(t('items_count', { n: r.itemCount || 0 })) + '</span></div></div>' +
+        '</div>' +
+        '<div class="req-sub"><span>' + icon('building') + esc(r.clinic) + '</span><span>' + icon('steth') + esc(r.doctor) + '</span><span>' + icon('user') + esc(r.nurse) + '</span><span>' + icon('clock') + esc(relTime(r.date)) + '</span><span>' + icon('package') + esc(t('items_count', { n: r.itemCount || 0 })) + '</span></div>' + shipTrack(r) + '</div>' +
       '<div class="req-side">' + badge(r.status) + progressBar(r.status) + '</div>' +
     '</div>' +
     '<div class="req-actions">' +
@@ -1496,19 +1535,20 @@ function procItemsHtml(r) {
   const ds = data.dispatchStatus || {};
   const nc = data.noteCounts || {};
   const pending = data.items.filter(it => !ds[it.item]).length;
-  return '<div class="table-wrap"><table class="table"><thead><tr>' + (canDispatch ? '<th style="width:36px"></th>' : '') + '<th>' + esc(t('items')) + '</th><th class="num">' + esc(t('requested')) + '</th><th class="num">' + esc(t('approved')) + '</th><th>' + esc(t('dispatch_status')) + '</th><th style="width:44px"></th></tr></thead><tbody>' +
+  return shipSummary(data.items) +
+    '<div class="table-wrap"><table class="table"><thead><tr>' + (canDispatch ? '<th style="width:36px">' + (pending ? '<input type="checkbox" class="check" data-change="dspAll" data-id="' + esc(r.id) + '" title="' + esc(t('select_remaining')) + '" aria-label="' + esc(t('select_remaining')) + '">' : '') + '</th>' : '') + '<th>' + esc(t('items')) + '</th><th class="num">' + esc(t('requested')) + '</th><th class="num">' + esc(t('approved')) + '</th><th>' + esc(t('dispatch_status')) + '</th><th style="width:44px"></th></tr></thead><tbody>' +
     data.items.map(it => {
       const sent = !!ds[it.item];
       const appr = it.approvedQty === '' || it.approvedQty === null ? it.requestedQty : it.approvedQty;
-      return '<tr>' + (canDispatch ? '<td>' + (sent ? icon('checkc', 'i-sm') : '<input type="checkbox" class="check dsp" data-item="' + esc(it.item) + '">') + '</td>' : '') +
+      return '<tr>' + (canDispatch ? '<td>' + (sent ? icon('checkc', 'i-sm') : '<input type="checkbox" class="check dsp" data-change="dspSel" data-id="' + esc(r.id) + '" data-item="' + esc(it.item) + '">') + '</td>' : '') +
         '<td style="font-weight:600">' + esc(it.item) + '</td><td class="num">' + esc(it.requestedQty) + '</td>' +
         '<td class="num">' + (editable ? '<input class="input" type="number" min="0" inputmode="numeric" value="' + esc(appr) + '" data-change="approveQty" data-id="' + esc(r.id) + '" data-item="' + esc(it.item) + '">' : esc(appr)) + '</td>' +
-        '<td>' + (sent ? '<span class="badge" style="--tone:var(--t-indigo)"><i class="dot"></i>' + esc(t('dispatched')) + '</span>' : '<span class="muted" style="font-size:12.5px">' + esc(t('waiting')) + '</span>') + '</td>' +
+        '<td>' + shipBadge(it) + '</td>' +
         '<td><button class="btn btn-ghost btn-icon btn-sm" data-act="itemNotes" data-id="' + esc(r.id) + '" data-item="' + esc(it.item) + '" title="' + esc(t('item_notes')) + '" style="position:relative">' + icon('msg', 'i-sm') +
           (nc[it.item] ? '<span class="count-pill" style="position:absolute;top:-4px;inset-inline-end:-4px;height:16px;min-width:16px;font-size:10px;background:var(--primary);color:var(--on-primary)">' + nc[it.item] + '</span>' : '') + '</button></td></tr>';
     }).join('') + '</tbody></table></div>' +
     '<div class="row-wrap" style="margin-top:12px">' +
-      (canDispatch && pending ? '<button class="btn btn-tone btn-sm" style="--tone:var(--t-indigo)" data-act="dispatch" data-id="' + esc(r.id) + '">' + icon('truck', 'i-sm') + esc(t('dispatch_selected')) + '</button>' : '') +
+      (canDispatch && pending ? '<button class="btn btn-tone btn-sm dsp-btn" style="--tone:var(--t-indigo)" data-act="dispatch" data-id="' + esc(r.id) + '" disabled>' + icon('truck', 'i-sm') + esc(t('dispatch_selected')) + '<span class="count-pill hidden"></span></button>' : '') +
       (!editable ? '<span class="hint">' + icon('lock', 'i-sm') + ' ' + esc(t('approval_locked')) + '</span>' : '') +
     '</div>';
 }
@@ -1517,7 +1557,7 @@ function loadProcItems(id, silent) {
     S.proc.items[id] = data;
     const exp = document.getElementById('exp-' + id);
     const r = S.proc.list.find(x => x.id === id);
-    if (exp && r) exp.innerHTML = procItemsHtml(r);
+    if (exp && r) { exp.innerHTML = procItemsHtml(r); animateBars(exp); }
   }).catch(e => { if (!silent) toast(errMsg(e), 'error'); });
 }
 ACT.procToggle = el => {
@@ -1595,6 +1635,17 @@ ACT.approveQty = el => {
     const d = S.proc.items[el.dataset.id]; if (d) { const it = d.items.find(x => x.item === el.dataset.item); if (it) it.approvedQty = v; }
   }).catch(e => { el.disabled = false; toast(errMsg(e), 'error'); });
 };
+function syncDispatchBtn(exp) {
+  const n = $$('.dsp:checked', exp).length, all = $$('.dsp', exp).length;
+  const b = $('.dsp-btn', exp); if (b) { b.disabled = !n; const p = b.querySelector('.count-pill'); p.textContent = n; p.classList.toggle('hidden', !n); }
+  const h = $('[data-change="dspAll"]', exp); if (h) { h.checked = n > 0 && n === all; h.indeterminate = n > 0 && n < all; }
+}
+ACT.dspSel = el => syncDispatchBtn(document.getElementById('exp-' + el.dataset.id));
+ACT.dspAll = el => {
+  const exp = document.getElementById('exp-' + el.dataset.id);
+  $$('.dsp', exp).forEach(c => { c.checked = el.checked; });
+  syncDispatchBtn(exp);
+};
 ACT.dispatch = el => {
   const id = el.dataset.id;
   const exp = document.getElementById('exp-' + id);
@@ -1602,7 +1653,7 @@ ACT.dispatch = el => {
   if (!names.length) { toast(t('select_item'), 'warning'); return; }
   busy(el, true, t('sending'));
   call('dispatchItems', id, names).then(res => {
-    toast(res.allSent ? t('dispatch_all_done') : t('dispatch_partial', { n: names.length }));
+    toast(res.allSent ? t('dispatch_all_done') : t('dispatch_partial', { n: res.count, r: res.remaining, b: res.batch }));
     loadProcItems(id, true); loadProc(true);
   }).catch(e => { busy(el, false); toast(errMsg(e), 'error'); });
 };
