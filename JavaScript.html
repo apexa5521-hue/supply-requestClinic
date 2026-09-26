@@ -529,6 +529,7 @@ function toggleLang() {
   store.set('lang', S.lang);
   applyLang();
   if (S.user) { renderShell(); go(S.view, true); renderAlerts(S.alerts || []); }
+  if (typeof TOUR !== 'undefined' && TOUR.active) showTourStep(TOUR.i);
 }
 
 /* =====================================================================
@@ -558,7 +559,10 @@ ACT.togglePass = el => {
 function showLogin() {
   $('#appShell').classList.add('hidden');
   $('#loginView').classList.remove('hidden');
-  setTimeout(() => $('#loginName').focus(), 50);
+  setTimeout(() => { // لا تسحب التركيز من حقل بدأ المستخدم الكتابة فيه
+    const a = document.activeElement;
+    if (!a || a === document.body || !$('#loginView').contains(a)) $('#loginName').focus();
+  }, 50);
 }
 function loginError(msg) {
   const el = $('#loginError');
@@ -590,6 +594,7 @@ function sessionExpired() {
   resetApp();
 }
 function resetApp() {
+  if (TOUR.active) { TOUR.active = false; Object.keys(TOUR.els).forEach(k => TOUR.els[k].remove()); document.removeEventListener('keydown', tourKeys, true); }
   clearInterval(S.syncTimer);
   S.token = null; S.user = null; S.view = null; S.loaded = {};
   session.clear();
@@ -636,6 +641,7 @@ function enterApp(cfg) {
   if (['procurement', 'dashboard', 'admin'].indexOf(S.user.screen) !== -1 && S.view !== 'complaints') loadComplaints(true);
   clearInterval(S.syncTimer);
   S.syncTimer = setInterval(() => { if (!document.hidden && S.user) sync(true); }, SYNC_INTERVAL_MS);
+  if (!tourSeen()) setTimeout(() => { if (S.user && !MODALS.length) startTour(); }, 900);
 }
 function renderShell() {
   const u = S.user;
@@ -1010,30 +1016,35 @@ ACT.nDoctor = el => { nurseDraft().doctor = el.value; saveDraft(); loadProfile()
 function loadDoctors() {
   const d = nurseDraft();
   const sel = $('#fDoctor');
+  if (!sel) return;
   if (!d.clinic) { sel.innerHTML = '<option value="">' + esc(t('no_doctors')) + '</option>'; return; }
   sel.disabled = true;
   call('getDoctors', d.clinic).then(list => {
     S.nurse.doctors = list || [];
+    if (!document.contains(sel)) return; // المستخدم انتقل لشاشة أخرى قبل وصول الرد
     sel.disabled = false;
-    if (!list.length) { sel.innerHTML = '<option value="">' + esc(t('no_doctors')) + '</option>'; d.doctor = ''; $('#pkgCard').classList.add('hidden'); return; }
+    if (!list.length) { sel.innerHTML = '<option value="">' + esc(t('no_doctors')) + '</option>'; d.doctor = ''; const pc = $('#pkgCard'); if (pc) pc.classList.add('hidden'); return; }
     if (!list.some(x => x.name === d.doctor)) d.doctor = list[0].name;
     sel.innerHTML = list.map(x => '<option value="' + esc(x.name) + '"' + (x.name === d.doctor ? ' selected' : '') + '>' + esc(x.name + (x.subspecialty ? ' — ' + x.subspecialty : '')) + '</option>').join('');
     saveDraft();
     loadProfile();
-  }).catch(e => { sel.disabled = false; toast(errMsg(e), 'error'); });
+  }).catch(e => { if (document.contains(sel)) sel.disabled = false; toast(errMsg(e), 'error'); });
 }
 function loadProfile() {
   const d = nurseDraft();
   const card = $('#pkgCard');
+  if (!card) return;
   if (!d.doctor) { card.classList.add('hidden'); return; }
   call('getDoctorProfile', d.doctor).then(p => {
     S.nurse.profile = p || [];
+    if (!document.contains(card)) return;
     if (!S.nurse.profile.length) { card.classList.add('hidden'); return; }
     card.classList.remove('hidden');
     renderProfileChips();
   }).catch(() => card.classList.add('hidden'));
 }
 function renderProfileChips() {
+  if (!$('#pkgChips')) return;
   const have = {};
   nurseDraft().items.forEach(i => { have[i.name.toLowerCase()] = true; });
   $('#pkgChips').innerHTML = S.nurse.profile.map((p, i) =>
@@ -1406,7 +1417,7 @@ VIEWS.requests = {
     const p = S.proc;
     return '<div id="pNotices"></div>' +
       '<div id="procChips"></div>' +
-      '<div class="card card-pad" style="padding:14px"><div class="form-grid" style="grid-template-columns:minmax(220px,2fr) repeat(3,minmax(150px,1fr))">' +
+      '<div class="card card-pad" id="procFilters" style="padding:14px"><div class="form-grid" style="grid-template-columns:minmax(220px,2fr) repeat(3,minmax(150px,1fr))">' +
         '<div class="input-icon">' + icon('search') + '<input class="input" data-input="procQ" value="' + esc(p.q) + '" placeholder="' + esc(t('search_requests')) + '"></div>' +
         '<select class="select" data-change="procClinic" aria-label="' + esc(t('clinic')) + '"><option value="">' + esc(t('all_clinics')) + '</option>' + S.clinics.map(c => '<option' + (c.name === p.clinic ? ' selected' : '') + '>' + esc(c.name) + '</option>').join('') + '</select>' +
         '<input class="input" type="month" data-change="procMonth" value="' + esc(p.month) + '" aria-label="' + esc(t('month')) + '">' +
@@ -2127,6 +2138,367 @@ function openRoleModal(r) {
 }
 ACT.roleNew = () => openRoleModal(null);
 ACT.roleEdit = el => openRoleModal(S.roles.find(r => r.name === el.dataset.name));
+
+/* =====================================================================
+   Guided tour (per role, bilingual, skippable)
+   ===================================================================== */
+Object.assign(I18N.ar, {
+  tour_replay: 'جولة تعريفية', tour_skip: 'تخطي الجولة', tour_next: 'التالي', tour_back: 'السابق', tour_done: 'ابدأ العمل', tour_of: '{a} من {b}',
+  tour_welcome_t: 'أهلاً {n} 👋', tour_start: 'ابدأ الجولة',
+  tour_welcome_nurse: 'جولة سريعة (أقل من دقيقة) تعرّفك على رفع طلب المستلزمات ومتابعته حتى الاستلام والتوقيع.',
+  tour_welcome_procurement: 'جولة سريعة (أقل من دقيقة) تعرّفك على تجهيز الطلبات واعتماد الكميات وإرسالها للفرع.',
+  tour_welcome_doctor: 'جولة سريعة (أقل من دقيقة) تعرّفك على مراجعة طلبات عيادتك واعتمادها أو رفضها.',
+  tour_welcome_dashboard: 'جولة سريعة (أقل من دقيقة) تعرّفك على مؤشرات الأداء والبلاغات والتنبيهات.',
+  tour_welcome_admin: 'جولة سريعة (أقل من دقيقة) تعرّفك على مؤشرات الأداء والبلاغات والتنبيهات وإدارة المستخدمين.',
+  t_nav_t: 'القائمة', t_nav_b: 'من هنا تنتقل بين شاشاتك. الأرقام بجانب العناصر تنبهك لما ينتظر إجراءً منك.',
+  t_new_details_t: 'بيانات الطلب', t_new_details_b: 'اختر العيادة والطبيب ونوع الطلب. الطلب «الطارئ» يصل للتموين فوراً بتنبيه خاص.',
+  t_pkg_t: 'البكج المعتاد للطبيب', t_pkg_b: 'أصناف يطلبها هذا الطبيب عادةً — اضغط أي صنف لإضافته أو «إضافة الكل».',
+  t_items_t: 'إضافة الأصناف', t_items_b: 'ابحث بالاسم أو الاسم التجاري واضغط Enter. إن لم تجد الصنف أضفه كصنف جديد، وعدّل الكمية بـ + و −.',
+  t_summary_t: 'المراجعة والإرسال', t_summary_b: 'راجع الملخص ثم أرسل الطلب للتموين. المسودة تُحفظ تلقائياً حتى لو أغلقت الصفحة.',
+  t_mine_filters_t: 'متابعة طلباتك', t_mine_filters_b: 'صفِّ طلباتك حسب الحالة: قيد التنفيذ، بانتظار استلامك، مستلمة، مرفوضة.',
+  t_mine_card_t: 'بطاقة الطلب', t_mine_card_b: 'تعرض الحالة ومقدار التقدم. عند وصول الطلب اضغط «استلام وتوقيع» لتسجيل الكميات الفعلية والتوقيع، ويمكنك الإبلاغ عن أي مشكلة.',
+  t_alerts_t: 'تنبيهات مهمة', t_alerts_b: 'تظهر هنا تلقائياً الأمور التي تحتاج انتباهك، مع زر للانتقال إليها مباشرة.',
+  t_sync_t: 'المزامنة', t_sync_b: 'البيانات تتحدث تلقائياً كل دقيقة، ويمكنك المزامنة يدوياً في أي وقت.',
+  t_prefs_t: 'اللغة والمظهر', t_prefs_b: 'بدّل بين العربية والإنجليزية، وبين الوضع الليلي والنهاري.',
+  t_workflow_t: 'دليل سير العمل', t_workflow_b: 'شرح مرئي لكل مراحل الطلب ومن المسؤول عن كل مرحلة.',
+  t_help_t: 'إعادة الجولة', t_help_b: 'يمكنك تشغيل هذه الجولة مرة أخرى في أي وقت من هذا الزر.',
+  t_proc_chips_t: 'حالات الطلبات', t_proc_chips_b: 'كل حالة مع عدد طلباتها — اضغط أي حالة لتصفية القائمة.',
+  t_proc_filters_t: 'البحث والفلترة', t_proc_filters_b: 'ابحث برقم الطلب أو العيادة أو الطبيب، وصفِّ حسب العيادة والشهر، ورتّب «الطارئ أولاً».',
+  t_proc_card_t: 'إدارة الطلب', t_proc_card_b: 'حدّد الطلب لتظهر أزرار الإجراءات أسفل الشاشة — غير المناسب لحالته يظهر مظللاً. افتح «الأصناف والاعتماد» لتعديل الكميات أو إرسال أصناف محددة فقط.',
+  t_proc_selall_t: 'إجراء جماعي', t_proc_selall_b: 'حدّد عدة طلبات دفعة واحدة وطبّق عليها نفس الإجراء.',
+  t_complaints_t: 'البلاغات', t_complaints_b: 'بلاغات التأخير أو النقص أو الزيادة — راجعها وأغلقها بعد الحل.',
+  t_doc_kpis_t: 'ملخص طلباتك', t_doc_kpis_b: 'اضغط أي مربع لعرض طلباته — ابدأ دائماً بـ«بانتظار مراجعتك».',
+  t_doc_list_t: 'مراجعة الطلب', t_doc_list_b: 'افتح الطلب لترى الأصناف والأسعار والإجمالي التقديري، أضف ملاحظة لأي صنف، ثم اعتمد أو ارفض مع ذكر السبب.',
+  t_dash_month_t: 'الفترة', t_dash_month_b: 'اختر شهراً محدداً أو «كل الفترات» لتتحدث كل المؤشرات والرسوم.',
+  t_dash_kpis_t: 'مؤشرات الأداء', t_dash_kpis_b: 'إجمالي الطلبات، متوسط زمن التنفيذ، الطارئ، نسبة الاستلام، البلاغات المفتوحة، ونقص الاستلام.',
+  t_dash_charts_t: 'الرسوم البيانية', t_dash_charts_b: 'اتجاه زمن التنفيذ لآخر 6 أشهر والمقارنة بين العيادات — مرّر المؤشر لرؤية التفاصيل.',
+  t_notices_t: 'تنبيهات للإدارات', t_notices_b: 'أرسل تنبيهاً يظهر أعلى شاشة التموين أو التمريض أو الأطباء أو الجميع.',
+  t_users_t: 'المستخدمون والأدوار', t_users_b: 'أضف المستخدمين، عيّن أدوارهم وعياداتهم، وحدّد الشاشة لكل دور.',
+  nav_workflow: 'سير العمل', sub_workflow: 'مراحل الطلب من الرفع حتى الاستلام، ومن المسؤول عن كل مرحلة',
+  wf_flow_title: 'مسار الطلب', wf_you: 'دورك',
+  wf_r_nurse: 'التمريض', wf_r_procurement: 'التموين', wf_r_doctor: 'الطبيب', wf_r_mgmt: 'الجودة والإدارة',
+  wf_s1_t: 'رفع الطلب', wf_s1_d: 'اختيار العيادة والطبيب والأصناف (شهري أو طارئ). يصل بريد للتموين فوراً.',
+  wf_s2_t: 'التجهيز', wf_s2_d: 'مراجعة الطلب وتعديل الكميات المعتمدة حسب المتوفر.',
+  wf_s3_t: 'إرسال للمراجعة', wf_s3_d: 'يُحال الطلب لطبيب العيادة وتُقفل الكميات. يصل بريد للطبيب.',
+  wf_s4_t: 'اعتماد الطبيب', wf_s4_d: 'يراجع الأصناف والأسعار ويضيف ملاحظاته، ثم يعتمد أو يرفض مع السبب.',
+  wf_s5_t: 'الإرسال للفرع', wf_s5_d: 'إرسال الطلب كاملاً أو أصناف محددة على دفعات. يصل بريد للممرضة.',
+  wf_s6_t: 'الاستلام والتوقيع', wf_s6_d: 'تسجيل الكميات المستلمة فعلياً والتوقيع، وتُحفظ صورة الاستلام تلقائياً.',
+  wf_b_any_t: 'في أي مرحلة', wf_b_any_d: 'ملاحظات على الطلب وعلى كل صنف، وبلاغات (تأخير / نقص / زيادة) تصل للتموين والإدارة فوراً.',
+  wf_b_vendor_t: 'مسار المندوب (اختياري)', wf_b_vendor_d: 'إذا احتاج صنف توريداً خارجياً، ثم يكمل الطلب إلى المراجعة.',
+  wf_b_reject_t: 'عند الرفض', wf_b_reject_d: 'يعود الطلب للتموين مع السبب، فيُعاد تجهيزه وإرساله للمراجعة.',
+  wf_b_nodoc_t: 'طبيب بدون حساب', wf_b_nodoc_d: 'إن لم يكن للطبيب حساب في النظام يمكن الإرسال للفرع مباشرة بعد التجهيز.',
+  wf_roles_title: 'من يفعل ماذا',
+  wf_do_nurse: 'رفع الطلبات الشهرية والطارئة|متابعة حالة كل طلب لحظياً|الاستلام والتوقيع وتسجيل أي نقص|الإبلاغ عن أي مشكلة',
+  wf_do_procurement: 'تجهيز الطلبات وتعديل الكميات|إدارة مسار المندوب عند الحاجة|الإرسال للمراجعة ثم للفرع (كامل أو جزئي)|متابعة البلاغات وإغلاقها',
+  wf_do_doctor: 'مراجعة طلبات العيادة مع الأسعار|إضافة ملاحظات على الأصناف|الاعتماد أو الرفض مع ذكر السبب',
+  wf_do_mgmt: 'متابعة مؤشرات الأداء وزمن التنفيذ|متابعة البلاغات وإرسال تنبيهات للإدارات|إدارة المستخدمين والأدوار (الإدارة التنفيذية)',
+  wf_notif_title: 'الإشعارات التلقائية بالبريد', wf_event: 'الحدث', wf_to: 'يصل إلى',
+  wf_n1: 'طلب جديد (والطارئ بعنوان مميز)|التموين', wf_n2: 'إرسال الطلب للمراجعة|الطبيب', wf_n3: 'اعتماد أو رفض الطبيب|التموين (+ الممرضة عند الرفض)',
+  wf_n4: 'إرسال الطلب للفرع|الممرضة', wf_n5: 'بلاغ جديد|التموين والجودة والإدارة',
+  wf_status_title: 'دلالة الحالات',
+  wf_st_new: 'رُفع ولم يبدأ تجهيزه', wf_st_prep: 'التموين يجهّزه', wf_st_vendor_wait: 'ينتظر توريداً من مندوب', wf_st_vendor_recv: 'وصل من المندوب',
+  wf_st_review: 'لدى الطبيب للمراجعة', wf_st_approved: 'جاهز للإرسال للفرع', wf_st_rejected: 'رفضه الطبيب — يعود للتموين', wf_st_sent: 'في الطريق للعيادة', wf_st_received: 'اكتمل بالتوقيع'
+});
+Object.assign(I18N.en, {
+  tour_replay: 'Guided tour', tour_skip: 'Skip tour', tour_next: 'Next', tour_back: 'Back', tour_done: 'Get started', tour_of: '{a} of {b}',
+  tour_welcome_t: 'Welcome, {n} 👋', tour_start: 'Start tour',
+  tour_welcome_nurse: 'A quick (under a minute) tour of creating a supply request and following it through to signed receipt.',
+  tour_welcome_procurement: 'A quick (under a minute) tour of preparing requests, approving quantities and dispatching to branches.',
+  tour_welcome_doctor: 'A quick (under a minute) tour of reviewing your clinic’s requests and approving or rejecting them.',
+  tour_welcome_dashboard: 'A quick (under a minute) tour of performance KPIs, issues and notices.',
+  tour_welcome_admin: 'A quick (under a minute) tour of performance KPIs, issues, notices and user management.',
+  t_nav_t: 'Menu', t_nav_b: 'Move between your screens here. Numbers next to items flag things waiting for you.',
+  t_new_details_t: 'Request details', t_new_details_b: 'Pick the clinic, doctor and request type. “Emergency” requests alert procurement immediately.',
+  t_pkg_t: 'Doctor’s usual package', t_pkg_b: 'Items this doctor usually orders — tap one to add it, or “Add all”.',
+  t_items_t: 'Adding items', t_items_b: 'Search by name or brand and press Enter. Not in the catalog? Add it as a new item, and adjust quantities with + and −.',
+  t_summary_t: 'Review & send', t_summary_b: 'Check the summary, then send to procurement. Your draft is saved automatically even if you close the page.',
+  t_mine_filters_t: 'Track your requests', t_mine_filters_b: 'Filter by status: active, to receive, received, rejected.',
+  t_mine_card_t: 'Request card', t_mine_card_b: 'Shows status and progress. When it arrives, tap “Receive & sign” to record actual quantities and sign; you can also report any issue.',
+  t_alerts_t: 'Important alerts', t_alerts_b: 'Things that need your attention appear here, with a button to jump straight to them.',
+  t_sync_t: 'Sync', t_sync_b: 'Data refreshes automatically every minute; you can also sync manually any time.',
+  t_prefs_t: 'Language & theme', t_prefs_b: 'Switch between Arabic and English, and between dark and light mode.',
+  t_workflow_t: 'Workflow guide', t_workflow_b: 'A visual guide to every request stage and who owns it.',
+  t_help_t: 'Replay the tour', t_help_b: 'You can run this tour again any time from this button.',
+  t_proc_chips_t: 'Request statuses', t_proc_chips_b: 'Each status with its count — tap one to filter the list.',
+  t_proc_filters_t: 'Search & filters', t_proc_filters_b: 'Search by ID, clinic or doctor, filter by clinic and month, and sort “Emergency first”.',
+  t_proc_card_t: 'Managing a request', t_proc_card_b: 'Select it and the action bar appears at the bottom — actions that don’t fit its status are greyed out. Open “Items & approval” to adjust quantities or dispatch selected items only.',
+  t_proc_selall_t: 'Bulk actions', t_proc_selall_b: 'Select several requests at once and apply the same action.',
+  t_complaints_t: 'Issues', t_complaints_b: 'Delay, shortage or excess reports — review them and resolve when fixed.',
+  t_doc_kpis_t: 'Your requests at a glance', t_doc_kpis_b: 'Tap any tile to list its requests — always start with “Awaiting your review”.',
+  t_doc_list_t: 'Reviewing a request', t_doc_list_b: 'Open it to see items, prices and the estimated total, add notes per item, then approve or reject with a reason.',
+  t_dash_month_t: 'Period', t_dash_month_b: 'Pick a month or “All time” to refresh every KPI and chart.',
+  t_dash_kpis_t: 'Performance KPIs', t_dash_kpis_b: 'Total requests, average fulfilment time, emergencies, received rate, open issues and short receipts.',
+  t_dash_charts_t: 'Charts', t_dash_charts_b: 'Fulfilment time trend over 6 months and clinic comparison — hover for details.',
+  t_notices_t: 'Department notices', t_notices_b: 'Send a notice that appears at the top of procurement, nursing, doctors or everyone’s screen.',
+  t_users_t: 'Users & roles', t_users_b: 'Add users, set their roles and clinics, and choose the screen for each role.',
+  nav_workflow: 'Workflow', sub_workflow: 'Request stages from submission to receipt, and who owns each one',
+  wf_flow_title: 'Request flow', wf_you: 'You',
+  wf_r_nurse: 'Nursing', wf_r_procurement: 'Procurement', wf_r_doctor: 'Doctor', wf_r_mgmt: 'Quality & management',
+  wf_s1_t: 'Submit request', wf_s1_d: 'Pick clinic, doctor and items (monthly or emergency). Procurement is emailed immediately.',
+  wf_s2_t: 'Prepare', wf_s2_d: 'Review the request and adjust approved quantities to what’s available.',
+  wf_s3_t: 'Send for review', wf_s3_d: 'Goes to the clinic doctor and quantities lock. The doctor is emailed.',
+  wf_s4_t: 'Doctor approval', wf_s4_d: 'Reviews items and prices, adds notes, then approves or rejects with a reason.',
+  wf_s5_t: 'Dispatch', wf_s5_d: 'Send the whole request or selected items in batches. The nurse is emailed.',
+  wf_s6_t: 'Receive & sign', wf_s6_d: 'Record actually received quantities and sign; a receipt image is saved automatically.',
+  wf_b_any_t: 'At any stage', wf_b_any_d: 'Notes on the request and on each item, and issue reports (delay / shortage / excess) reach procurement and management instantly.',
+  wf_b_vendor_t: 'Vendor path (optional)', wf_b_vendor_d: 'When an item needs outside supply; the request then continues to review.',
+  wf_b_reject_t: 'If rejected', wf_b_reject_d: 'Returns to procurement with the reason, then is re-prepared and sent for review again.',
+  wf_b_nodoc_t: 'Doctor without an account', wf_b_nodoc_d: 'If the doctor has no account, procurement can dispatch right after preparation.',
+  wf_roles_title: 'Who does what',
+  wf_do_nurse: 'Submit monthly and emergency requests|Track every request live|Receive, sign and record any shortage|Report any issue',
+  wf_do_procurement: 'Prepare requests and adjust quantities|Handle the vendor path when needed|Send for review, then dispatch (full or partial)|Follow up and resolve issues',
+  wf_do_doctor: 'Review clinic requests with prices|Add notes on items|Approve or reject with a reason',
+  wf_do_mgmt: 'Monitor KPIs and fulfilment time|Follow issues and send department notices|Manage users and roles (executive)',
+  wf_notif_title: 'Automatic email notifications', wf_event: 'Event', wf_to: 'Sent to',
+  wf_n1: 'New request (emergency flagged)|Procurement', wf_n2: 'Sent for review|Doctor', wf_n3: 'Doctor approved / rejected|Procurement (+ nurse on reject)',
+  wf_n4: 'Dispatched to branch|Nurse', wf_n5: 'New issue report|Procurement, quality & management',
+  wf_status_title: 'What each status means',
+  wf_st_new: 'Submitted, not started', wf_st_prep: 'Procurement is preparing it', wf_st_vendor_wait: 'Waiting on a vendor', wf_st_vendor_recv: 'Arrived from vendor',
+  wf_st_review: 'With the doctor for review', wf_st_approved: 'Ready to dispatch', wf_st_rejected: 'Rejected — back to procurement', wf_st_sent: 'On its way to the clinic', wf_st_received: 'Completed with signature'
+});
+
+Object.keys(NAV).forEach(k => NAV[k].push({ id: 'workflow', icon: 'route', k: 'nav_workflow' }));
+
+const NAV_SEL = v => '.sidebar [data-view="' + v + '"], .bottom-nav [data-view="' + v + '"]';
+const TOUR_TAIL = [
+  { sel: '#alerts .alert', t: 't_alerts_t', b: 't_alerts_b', icon: 'bell', optional: true },
+  { sel: '#syncBtn', t: 't_sync_t', b: 't_sync_b', icon: 'refresh' },
+  { sel: '.topbar [data-act="toggleLang"]', t: 't_prefs_t', b: 't_prefs_b', icon: 'globe' },
+  { sel: NAV_SEL('workflow'), t: 't_workflow_t', b: 't_workflow_b', icon: 'route' },
+  { sel: '#tourBtn', t: 't_help_t', b: 't_help_b', icon: 'info' }
+];
+const TOUR_STEPS = {
+  nurse: [
+    { sel: NAV_SEL('new'), t: 't_nav_t', b: 't_nav_b', icon: 'menu' },
+    { view: 'new', sel: '#fClinic', up: '.card', t: 't_new_details_t', b: 't_new_details_b', icon: 'building' },
+    { view: 'new', sel: '#pkgCard:not(.hidden)', t: 't_pkg_t', b: 't_pkg_b', icon: 'layers', optional: true },
+    { view: 'new', sel: '#combo', up: '.card', t: 't_items_t', b: 't_items_b', icon: 'search' },
+    { view: 'new', sel: '.summary', t: 't_summary_t', b: 't_summary_b', icon: 'send' },
+    { view: 'mine', sel: '#mineChips .chips', t: 't_mine_filters_t', b: 't_mine_filters_b', icon: 'clipboard' },
+    { view: 'mine', sel: '#mineList .req', t: 't_mine_card_t', b: 't_mine_card_b', icon: 'pen', optional: true }
+  ],
+  procurement: [
+    { sel: NAV_SEL('requests'), t: 't_nav_t', b: 't_nav_b', icon: 'menu' },
+    { view: 'requests', sel: '#procChips .chips', t: 't_proc_chips_t', b: 't_proc_chips_b', icon: 'layers' },
+    { view: 'requests', sel: '#procFilters', t: 't_proc_filters_t', b: 't_proc_filters_b', icon: 'search' },
+    { view: 'requests', sel: '#procList .req', t: 't_proc_card_t', b: 't_proc_card_b', icon: 'package', optional: true },
+    { view: 'requests', sel: '#selAll', up: 'label', t: 't_proc_selall_t', b: 't_proc_selall_b', icon: 'check' },
+    { sel: NAV_SEL('complaints'), t: 't_complaints_t', b: 't_complaints_b', icon: 'alert' }
+  ],
+  doctor: [
+    { sel: NAV_SEL('reviews'), t: 't_nav_t', b: 't_nav_b', icon: 'menu' },
+    { view: 'reviews', sel: '#docKpis', t: 't_doc_kpis_t', b: 't_doc_kpis_b', icon: 'chart' },
+    { view: 'reviews', sel: '#docList .req', t: 't_doc_list_t', b: 't_doc_list_b', icon: 'steth', optional: true }
+  ],
+  dashboard: [
+    { sel: NAV_SEL('overview'), t: 't_nav_t', b: 't_nav_b', icon: 'menu' },
+    { view: 'overview', sel: '[data-change="dashMonth"]', up: '.between', t: 't_dash_month_t', b: 't_dash_month_b', icon: 'calendar' },
+    { view: 'overview', sel: '#dashKpis', t: 't_dash_kpis_t', b: 't_dash_kpis_b', icon: 'activity' },
+    { view: 'overview', sel: '#trendChart', up: '.grid-2', t: 't_dash_charts_t', b: 't_dash_charts_b', icon: 'chart' },
+    { sel: NAV_SEL('complaints'), t: 't_complaints_t', b: 't_complaints_b', icon: 'alert' },
+    { sel: NAV_SEL('notices'), t: 't_notices_t', b: 't_notices_b', icon: 'mega' }
+  ]
+};
+TOUR_STEPS.admin = TOUR_STEPS.dashboard.concat([{ sel: NAV_SEL('users'), t: 't_users_t', b: 't_users_b', icon: 'users' }]);
+
+const TOUR = { active: false, steps: [], i: 0, dir: 1, startView: null, els: null, raf: 0 };
+function tourKey() { return 'tour_' + S.user.screen + '_' + S.user.name; }
+function tourSeen() { return store.get('tour_off', false) || store.get(tourKey(), false); }
+function visibleEl(sel) {
+  return $$(sel).find(e => e.getClientRects().length && getComputedStyle(e).visibility !== 'hidden' && e.offsetParent !== null) || null;
+}
+function waitForEl(sel, ms) {
+  return new Promise(resolve => {
+    const t0 = Date.now();
+    (function poll() {
+      const el = visibleEl(sel);
+      if (el || Date.now() - t0 > ms) resolve(el); else setTimeout(poll, 80);
+    })();
+  });
+}
+function startTour() {
+  if (!S.user || TOUR.active) return;
+  while (MODALS.length) closeModal(topModal());
+  const sc = S.user.screen;
+  TOUR.steps = [{ center: true, t: 'tour_welcome_t', b: 'tour_welcome_' + sc, icon: 'sparkle' }].concat(TOUR_STEPS[sc] || [], TOUR_TAIL);
+  TOUR.i = 0; TOUR.dir = 1; TOUR.active = true; TOUR.startView = S.view;
+  const block = document.createElement('div'); block.className = 'tour-block';
+  const spot = document.createElement('div'); spot.className = 'tour-spot center';
+  const card = document.createElement('div'); card.className = 'tour-card'; card.setAttribute('role', 'dialog'); card.setAttribute('aria-modal', 'true');
+  document.body.append(block, spot, card);
+  TOUR.els = { block: block, spot: spot, card: card };
+  block.addEventListener('click', e => e.stopPropagation());
+  window.addEventListener('resize', tourReposition);
+  window.addEventListener('scroll', tourReposition, true);
+  document.addEventListener('keydown', tourKeys, true);
+  showTourStep(0);
+}
+function endTour() {
+  if (!TOUR.active) return;
+  TOUR.active = false;
+  store.set(tourKey(), true);
+  window.removeEventListener('resize', tourReposition);
+  window.removeEventListener('scroll', tourReposition, true);
+  document.removeEventListener('keydown', tourKeys, true);
+  const els = TOUR.els;
+  Object.keys(els).forEach(k => { els[k].style.transition = 'opacity .2s'; els[k].style.opacity = '0'; });
+  setTimeout(() => Object.keys(els).forEach(k => els[k].remove()), REDUCED ? 0 : 220);
+  if (TOUR.startView && S.view !== TOUR.startView) go(TOUR.startView);
+}
+function tourKeys(e) {
+  if (!TOUR.active) return;
+  if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); endTour(); }
+  else if (e.key === 'Enter') { e.preventDefault(); e.stopPropagation(); tourNext(); }
+  else if (e.key === 'Tab') { // إبقاء التركيز داخل بطاقة الجولة
+    const f = $$('button', TOUR.els.card); if (!f.length) return;
+    const i = f.indexOf(document.activeElement);
+    e.preventDefault();
+    f[(i + (e.shiftKey ? -1 : 1) + f.length) % f.length].focus();
+  }
+}
+function tourNext() { if (TOUR.i >= TOUR.steps.length - 1) endTour(); else { TOUR.dir = 1; showTourStep(TOUR.i + 1); } }
+function tourBack() { if (TOUR.i > 0) { TOUR.dir = -1; showTourStep(TOUR.i - 1); } }
+
+function showTourStep(i) {
+  const st = TOUR.steps[i];
+  if (!st) return endTour();
+  TOUR.i = i;
+  const token = TOUR.token = {};
+  const proceed = el => {
+    if (token !== TOUR.token || !TOUR.active) return;
+    if (!el && st.optional) { const n = i + TOUR.dir; return n >= 0 && n < TOUR.steps.length ? showTourStep(n) : endTour(); }
+    if (el && st.up) el = el.closest(st.up) || el;
+    TOUR.target = el;
+    renderTourCard(st);
+    if (el) {
+      el.scrollIntoView({ block: 'center', inline: 'nearest', behavior: REDUCED ? 'auto' : 'smooth' });
+      setTimeout(() => { if (token === TOUR.token) tourReposition(); }, REDUCED ? 0 : 380);
+    }
+    tourReposition();
+  };
+  if (st.center) return proceed(null);
+  if (st.view && S.view !== st.view) go(st.view);
+  waitForEl(st.sel, st.view ? 2500 : 600).then(proceed);
+}
+function renderTourCard(st) {
+  const card = TOUR.els.card;
+  const center = !TOUR.target;
+  const real = TOUR.steps.length;
+  const last = TOUR.i === real - 1;
+  card.className = 'tour-card' + (center ? ' center-card' : '');
+  card.innerHTML =
+    '<div class="t-head"><span class="t-ic">' + icon(st.icon === 'sparkle' ? 'package' : (st.icon || 'info')) + '</span>' +
+      '<div class="grow"><h3 id="tourTitle">' + esc(t(st.t, { n: (S.user.name || '').split(' ')[0] })) + '</h3>' +
+      '<div class="t-step">' + esc(t('tour_of', { a: TOUR.i + 1, b: real })) + '</div></div></div>' +
+    '<p>' + esc(t(st.b)) + '</p>' +
+    '<div class="t-dots">' + TOUR.steps.map((x, k) => '<i class="' + (k <= TOUR.i ? 'on' : '') + '"></i>').join('') + '</div>' +
+    '<div class="t-foot">' +
+      (last ? '' : '<button class="btn btn-ghost btn-sm" data-tour="skip">' + esc(t('tour_skip')) + '</button>') +
+      '<span class="spacer"></span>' +
+      (TOUR.i > 0 ? '<button class="btn btn-sm" data-tour="back">' + esc(t('tour_back')) + '</button>' : '') +
+      '<button class="btn btn-primary btn-sm" data-tour="next">' + esc(TOUR.i === 0 ? t('tour_start') : (last ? t('tour_done') : t('tour_next'))) + '</button>' +
+    '</div>' + (center ? '' : '<span class="t-arrow"></span>');
+  card.setAttribute('aria-labelledby', 'tourTitle');
+  card.classList.remove('enter'); void card.offsetWidth; card.classList.add('enter');
+  card.querySelector('[data-tour="next"]').addEventListener('click', tourNext);
+  const sk = card.querySelector('[data-tour="skip"]'); if (sk) sk.addEventListener('click', endTour);
+  const bk = card.querySelector('[data-tour="back"]'); if (bk) bk.addEventListener('click', tourBack);
+  setTimeout(() => { const n = card.querySelector('[data-tour="next"]'); if (n && TOUR.active) n.focus({ preventScroll: true }); }, 60);
+}
+function tourReposition() {
+  if (!TOUR.active) return;
+  cancelAnimationFrame(TOUR.raf);
+  TOUR.raf = requestAnimationFrame(() => {
+    const els = TOUR.els, el = TOUR.target;
+    if (!el || !document.contains(el)) {
+      els.spot.classList.add('center');
+      els.spot.removeAttribute('style');
+      if (el) { TOUR.target = null; renderTourCard(TOUR.steps[TOUR.i]); }
+      return;
+    }
+    els.spot.classList.remove('center');
+    const r = el.getBoundingClientRect(), pad = 6, vw = window.innerWidth, vh = window.innerHeight;
+    const top = Math.max(r.top - pad, 4), left = Math.max(r.left - pad, 4);
+    const w = Math.min(r.width + pad * 2, vw - left - 4), h = Math.min(r.bottom + pad, vh - 4) - top;
+    Object.assign(els.spot.style, { top: top + 'px', left: left + 'px', width: w + 'px', height: Math.max(h, 24) + 'px' });
+    const card = els.card, cw = card.offsetWidth, ch = card.offsetHeight, gap = 14, m = 12;
+    let ct, below = true;
+    if (r.bottom + gap + ch <= vh - m) ct = r.bottom + gap;
+    else if (r.top - gap - ch >= m) { ct = r.top - gap - ch; below = false; }
+    else ct = vh - ch - m;
+    let cl = r.left + r.width / 2 - cw / 2;
+    cl = Math.min(Math.max(cl, m), vw - cw - m);
+    card.style.top = ct + 'px';
+    card.style.left = cl + 'px';
+    const arrow = card.querySelector('.t-arrow');
+    if (arrow) {
+      const cr = card.getBoundingClientRect();
+      const ax = Math.min(Math.max(r.left + r.width / 2 - cr.left - 7, 16), cr.width - 30);
+      const overlapping = ct < r.bottom && ct + ch > r.top;
+      arrow.style.display = overlapping ? 'none' : '';
+      arrow.style.left = ax + 'px';
+      arrow.style.top = below ? '-8px' : '';
+      arrow.style.bottom = below ? '' : '-8px';
+      arrow.style.borderRight = below ? 'none' : ''; arrow.style.borderBottom = below ? 'none' : '';
+      arrow.style.borderLeft = below ? '' : 'none'; arrow.style.borderTop = below ? '' : 'none';
+    }
+  });
+}
+ACT.startTour = () => startTour();
+
+/* =====================================================================
+   WORKFLOW (all roles)
+   ===================================================================== */
+const WF_ROLE = {
+  nurse: { k: 'wf_r_nurse', tone: 'var(--t-blue)', ic: 'user' },
+  procurement: { k: 'wf_r_procurement', tone: 'var(--t-amber)', ic: 'package' },
+  doctor: { k: 'wf_r_doctor', tone: 'var(--t-violet)', ic: 'steth' },
+  mgmt: { k: 'wf_r_mgmt', tone: 'var(--t-teal)', ic: 'chart' }
+};
+function myWfRole() { const s = S.user.screen; return s === 'dashboard' || s === 'admin' ? 'mgmt' : s; }
+VIEWS.workflow = {
+  title: 'nav_workflow', sub: 'sub_workflow',
+  render() {
+    const mine = myWfRole();
+    const stages = [
+      { r: 'nurse', k: 's1', st: ST.NEW }, { r: 'procurement', k: 's2', st: ST.PREP }, { r: 'procurement', k: 's3', st: ST.REVIEW },
+      { r: 'doctor', k: 's4', st: ST.APPROVED }, { r: 'procurement', k: 's5', st: ST.SENT }, { r: 'nurse', k: 's6', st: ST.RECEIVED }
+    ];
+    const roleTag = r => '<span class="wf-role">' + icon(WF_ROLE[r].ic) + esc(t(WF_ROLE[r].k)) + '</span>';
+    const branch = (tone, ic, k, badges, col) => '<div class="wf-branch" style="--tone:' + tone + ';grid-column:' + col + '"><b>' + icon(ic) + esc(t('wf_b_' + k + '_t')) + '</b>' +
+      esc(t('wf_b_' + k + '_d')) + (badges ? '<div class="row-wrap">' + badges.map(badge).join('') + '</div>' : '') + '</div>';
+    const all = [ST.NEW, ST.PREP, ST.VENDOR_WAIT, ST.VENDOR_RECV, ST.REVIEW, ST.APPROVED, ST.REJECTED, ST.SENT, ST.RECEIVED];
+    const stKey = { 'st_new': 'wf_st_new', 'st_prep': 'wf_st_prep', 'st_vendor_wait': 'wf_st_vendor_wait', 'st_vendor_recv': 'wf_st_vendor_recv', 'st_review': 'wf_st_review', 'st_approved': 'wf_st_approved', 'st_rejected': 'wf_st_rejected', 'st_sent': 'wf_st_sent', 'st_received': 'wf_st_received' };
+    return '<section class="card"><div class="card-head"><h2>' + icon('route') + esc(t('wf_flow_title')) + '</h2>' +
+        '<div class="row-wrap">' + Object.keys(WF_ROLE).map(r => '<span class="badge" style="--tone:' + WF_ROLE[r].tone + '"><i class="dot"></i>' + esc(t(WF_ROLE[r].k)) + '</span>').join('') + '</div></div>' +
+      '<div class="card-body">' +
+        '<div class="wf-flow stagger">' + stages.map((s, i) =>
+          '<div class="wf-stage" style="--i:' + i + '"><div class="wf-card' + (s.r === mine ? ' mine' : '') + '" style="--tone:' + WF_ROLE[s.r].tone + '">' +
+            (s.r === mine ? '<span class="wf-you">' + esc(t('wf_you')) + '</span>' : '') +
+            '<span class="wf-num">' + (i + 1) + '</span>' + roleTag(s.r) +
+            '<h4>' + esc(t('wf_' + s.k + '_t')) + '</h4><p>' + esc(t('wf_' + s.k + '_d')) + '</p>' + badge(s.st) + '</div></div>').join('') + '</div>' +
+        '<div class="wf-branches stagger" style="row-gap:12px">' +
+          branch('var(--t-gray)', 'msg', 'any', null, '1') +
+          branch('var(--t-orange)', 'truck', 'vendor', [ST.VENDOR_WAIT, ST.VENDOR_RECV], '2 / span 2') +
+          branch('var(--t-red)', 'refresh', 'reject', [ST.REJECTED], '4') +
+          branch('var(--t-indigo)', 'info', 'nodoc', null, '5') +
+        '</div>' +
+      '</div></section>' +
+      '<section class="card"><div class="card-head"><h2>' + icon('users') + esc(t('wf_roles_title')) + '</h2></div><div class="card-body"><div class="wf-grid stagger">' +
+        Object.keys(WF_ROLE).map((r, i) => '<div class="wf-rolecard' + (r === mine ? ' mine' : '') + '" style="--tone:' + WF_ROLE[r].tone + ';--i:' + i + '"><div class="head"><span class="ic">' + icon(WF_ROLE[r].ic) + '</span><h3>' + esc(t(WF_ROLE[r].k)) + '</h3>' +
+          (r === mine ? '<span class="badge" style="--tone:' + WF_ROLE[r].tone + ';margin-inline-start:auto">' + esc(t('wf_you')) + '</span>' : '') + '</div><ul>' +
+          t('wf_do_' + r).split('|').map(x => '<li>' + esc(x) + '</li>').join('') + '</ul></div>').join('') +
+      '</div></div></section>' +
+      '<div class="grid-2">' +
+        '<section class="card"><div class="card-head"><h3>' + icon('mega') + esc(t('wf_notif_title')) + '</h3></div><div class="card-body"><div class="table-wrap"><table class="table"><thead><tr><th>' + esc(t('wf_event')) + '</th><th>' + esc(t('wf_to')) + '</th></tr></thead><tbody>' +
+          ['wf_n1', 'wf_n2', 'wf_n3', 'wf_n4', 'wf_n5'].map(k => { const p = t(k).split('|'); return '<tr><td>' + esc(p[0]) + '</td><td class="muted">' + esc(p[1]) + '</td></tr>'; }).join('') +
+        '</tbody></table></div></div></section>' +
+        '<section class="card"><div class="card-head"><h3>' + icon('layers') + esc(t('wf_status_title')) + '</h3></div><div class="card-body"><div class="table-wrap"><table class="table"><tbody>' +
+          all.map(st => '<tr><td style="width:1%">' + badge(st) + '</td><td class="muted">' + esc(t(stKey[stMeta(st).k])) + '</td></tr>').join('') +
+        '</tbody></table></div></div></section>' +
+      '</div>';
+  }
+};
 
 /* =====================================================================
    Boot

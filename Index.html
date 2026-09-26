@@ -536,6 +536,84 @@ button.kpi[aria-pressed="true"] { border-color: var(--tone); box-shadow: 0 0 0 3
 .boot .brand-logo .i { width: 28px; height: 28px; }
 @keyframes breathe { to { transform: scale(1.08); box-shadow: 0 14px 30px -10px rgba(15,122,95,.5); } }
 
+
+/* =====================================================================
+   Guided tour
+   ===================================================================== */
+.tour-block { position: fixed; inset: 0; z-index: 150; background: transparent; }
+.tour-spot { position: fixed; z-index: 151; border-radius: 14px; pointer-events: none;
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--primary) 55%, transparent), 0 0 0 9999px rgba(8, 18, 14, .58);
+  transition: top .38s var(--ease-out), left .38s var(--ease-out), width .38s var(--ease-out), height .38s var(--ease-out), border-radius .3s, opacity .25s; }
+.tour-spot.center { top: 50% !important; left: 50% !important; width: 0 !important; height: 0 !important; box-shadow: 0 0 0 9999px rgba(8, 18, 14, .58); }
+.tour-spot::after { content: ""; position: absolute; inset: -4px; border-radius: inherit; border: 2px solid var(--primary); animation: tourPulse 1.8s var(--ease) infinite; }
+.tour-spot.center::after { display: none; }
+@keyframes tourPulse { 0% { opacity: .9; transform: scale(1); } 70%, 100% { opacity: 0; transform: scale(1.06); } }
+.tour-card { position: fixed; z-index: 152; width: min(360px, calc(100vw - 24px)); background: var(--surface); color: var(--text); border: 1px solid var(--border);
+  border-radius: 18px; box-shadow: var(--shadow-lg); padding: 18px 18px 14px; transition: top .38s var(--ease-out), left .38s var(--ease-out), opacity .2s; }
+.tour-card.enter { animation: tourIn .32s var(--ease-out) both; }
+@keyframes tourIn { from { opacity: 0; transform: translateY(8px) scale(.97); } }
+.tour-card .t-head { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
+.tour-card .t-ic { width: 34px; height: 34px; border-radius: 11px; display: grid; place-items: center; background: var(--primary-soft); color: var(--primary); flex: none; }
+.tour-card h3 { font-size: 16px; }
+.tour-card .t-step { font-size: 12px; color: var(--muted); font-weight: 600; font-variant-numeric: tabular-nums; }
+.tour-card p { font-size: 14px; color: var(--text-2); line-height: 1.7; }
+.tour-card .t-dots { display: flex; gap: 5px; margin: 14px 0 12px; }
+.tour-card .t-dots i { height: 5px; flex: 1; border-radius: 99px; background: var(--surface-3); transition: background-color .3s; }
+.tour-card .t-dots i.on { background: var(--primary); }
+.tour-card .t-foot { display: flex; align-items: center; gap: 8px; }
+.tour-card .t-foot .spacer { flex: 1; }
+.tour-card .t-arrow { position: absolute; width: 14px; height: 14px; background: var(--surface); border: 1px solid var(--border); transform: rotate(45deg); }
+.tour-card.center-card { top: 50% !important; left: 50% !important; transform: translate(-50%, -50%); width: min(420px, calc(100vw - 24px)); text-align: center; }
+.tour-card.center-card.enter { animation: tourInC .34s var(--ease-out) both; }
+@keyframes tourInC { from { opacity: 0; transform: translate(-50%, -46%) scale(.96); } }
+.tour-card.center-card .t-head { flex-direction: column; }
+.tour-card.center-card .t-ic { width: 56px; height: 56px; border-radius: 18px; }
+.tour-card.center-card .t-ic .i { width: 26px; height: 26px; }
+@media (max-width: 900px) {
+  .tour-card:not(.center-card) { left: 12px !important; right: 12px; width: auto; }
+}
+
+/* =====================================================================
+   Workflow page
+   ===================================================================== */
+.wf-flow { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 0; align-items: stretch; }
+.wf-stage { position: relative; display: flex; flex-direction: column; padding: 0 10px; }
+.wf-stage + .wf-stage::before { content: ""; position: absolute; top: 34px; inset-inline-start: -8px; width: 16px; height: 16px; border-top: 2px solid var(--border-strong); border-inline-end: 2px solid var(--border-strong); transform: rotate(45deg); }
+[dir="rtl"] .wf-stage + .wf-stage::before { transform: rotate(-135deg); }
+.wf-card { --tone: var(--primary); flex: 1; display: flex; flex-direction: column; gap: 8px; padding: 14px; border-radius: 16px; background: var(--surface); border: 1px solid var(--border); box-shadow: var(--shadow-sm); position: relative; overflow: hidden; transition: transform .2s var(--ease), box-shadow .2s; }
+.wf-card:hover { transform: translateY(-2px); box-shadow: var(--shadow-md); }
+.wf-card::before { content: ""; position: absolute; inset-inline: 0; top: 0; height: 4px; background: var(--tone); }
+.wf-card.mine { box-shadow: 0 0 0 2px var(--tone), var(--shadow-md); }
+.wf-num { width: 30px; height: 30px; border-radius: 10px; display: grid; place-items: center; font-weight: 700; font-size: 14px; color: var(--tone); background: color-mix(in srgb, var(--tone) 13%, transparent); }
+.wf-role { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 700; color: color-mix(in srgb, var(--tone) 80%, var(--text)); }
+.wf-role .i { width: 14px; height: 14px; }
+.wf-card h4 { font-size: 14.5px; line-height: 1.4; }
+.wf-card p { font-size: 12.5px; color: var(--muted); line-height: 1.6; }
+.wf-card .badge { align-self: flex-start; }
+.wf-you { position: absolute; top: 10px; inset-inline-end: 10px; font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 99px; background: var(--tone); color: #fff; }
+.wf-branches { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); margin-top: 12px; }
+.wf-branch { padding: 12px 14px; border-radius: 14px; border: 1.5px dashed color-mix(in srgb, var(--tone) 55%, var(--border)); background: color-mix(in srgb, var(--tone) 6%, var(--surface)); font-size: 13px; margin: 0 10px; }
+.wf-branch b { display: flex; align-items: center; gap: 6px; color: color-mix(in srgb, var(--tone) 80%, var(--text)); margin-bottom: 4px; }
+.wf-branch b .i { width: 15px; height: 15px; }
+.wf-branch .row-wrap { margin-top: 6px; }
+.wf-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 14px; }
+.wf-rolecard { --tone: var(--primary); padding: 16px; border-radius: 16px; border: 1px solid var(--border); background: var(--surface); }
+.wf-rolecard .head { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+.wf-rolecard .head .ic { width: 38px; height: 38px; border-radius: 12px; display: grid; place-items: center; color: var(--tone); background: color-mix(in srgb, var(--tone) 13%, transparent); }
+.wf-rolecard ul { margin: 0; padding-inline-start: 18px; font-size: 13.5px; color: var(--text-2); line-height: 1.9; }
+.wf-rolecard.mine { box-shadow: 0 0 0 2px var(--tone); }
+@media (max-width: 1080px) {
+  .wf-flow, .wf-branches { grid-template-columns: repeat(3, minmax(0, 1fr)); row-gap: 18px; }
+  .wf-stage:nth-child(4)::before { display: none; }
+}
+@media (max-width: 640px) {
+  .wf-flow, .wf-branches { grid-template-columns: 1fr; row-gap: 22px; }
+  .wf-stage { padding: 0; }
+  .wf-stage + .wf-stage::before, .wf-stage:nth-child(4)::before { display: block; top: -17px; inset-inline-start: calc(50% - 8px); transform: rotate(135deg); }
+  [dir="rtl"] .wf-stage + .wf-stage::before { transform: rotate(135deg); }
+  .wf-branch { margin: 0; }
+}
+
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; animation-delay: 0ms !important; transition-duration: .01ms !important; scroll-behavior: auto !important; }
 }
@@ -635,6 +713,7 @@ button.kpi[aria-pressed="true"] { border-color: var(--tone); box-shadow: 0 0 0 3
     <symbol id="i-lock" viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></symbol>
     <symbol id="i-activity" viewBox="0 0 24 24"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></symbol>
     <symbol id="i-cart" viewBox="0 0 24 24"><circle cx="8" cy="21" r="1"/><circle cx="19" cy="21" r="1"/><path d="M2.05 2.05h2l2.66 12.42a2 2 0 0 0 2 1.58h9.78a2 2 0 0 0 1.95-1.57l1.65-7.43H5.12"/></symbol>
+    <symbol id="i-route" viewBox="0 0 24 24"><circle cx="6" cy="19" r="3"/><path d="M9 19h8.5a3.5 3.5 0 0 0 0-7h-11a3.5 3.5 0 0 1 0-7H15"/><circle cx="18" cy="5" r="3"/></symbol>
     <symbol id="i-layers" viewBox="0 0 24 24"><path d="m12.83 2.18a2 2 0 0 0-1.66 0L2.6 6.08a1 1 0 0 0 0 1.83l8.58 3.91a2 2 0 0 0 1.66 0l8.58-3.9a1 1 0 0 0 0-1.83ZM2 12l9.17 4.17a2 2 0 0 0 1.66 0L22 12M2 17l9.17 4.17a2 2 0 0 0 1.66 0L22 17"/></symbol>
   </defs>
 </svg>
@@ -705,6 +784,7 @@ button.kpi[aria-pressed="true"] { border-color: var(--tone); box-shadow: 0 0 0 3
       <div class="avatar mobile-only" id="userAvatarM" style="width:34px;height:34px"></div>
       <div class="title"><h1 id="pageTitle"></h1><p id="pageSub"></p></div>
       <div class="topbar-actions">
+        <button class="btn btn-ghost btn-icon btn-sm" id="tourBtn" data-act="startTour" data-i18n-title="tour_replay"><svg class="i i-sm"><use href="#i-info"/></svg></button>
         <button class="btn btn-ghost btn-sm sync-btn" id="syncBtn" data-act="sync" data-i18n-title="sync"><svg class="i i-sm"><use href="#i-refresh"/></svg><span class="sync-time" id="syncTime"></span></button>
         <button class="btn btn-ghost btn-sm" data-act="toggleLang" data-i18n-title="lang_switch"><svg class="i i-sm"><use href="#i-globe"/></svg><span class="desktop-only" data-i18n="lang_switch"></span></button>
         <button class="btn btn-ghost btn-icon btn-sm" data-act="toggleTheme" data-i18n-title="theme_toggle"><svg class="i i-sm theme-ic"><use href="#i-moon"/></svg></button>

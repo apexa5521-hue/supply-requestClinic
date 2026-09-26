@@ -77,17 +77,21 @@ const initScript = [
 ].join('\n');
 
 const errors = [];
+let browser_ = null;
 let step = 0;
 function log(msg) { console.log('  ✔ ' + msg); }
 
 (async () => {
   const browser = await playwright.chromium.launch();
+  browser_ = browser;
   const results = { screenshots: [] };
 
-  async function newPage(opts) {
+  async function newPage(opts, withTour) {
     const ctx = await browser.newContext(Object.assign({ viewport: { width: 1360, height: 900 }, deviceScaleFactor: 1 }, opts || {}));
     await ctx.route(/fonts\.(googleapis|gstatic)\.com/, r => r.abort());
     await ctx.addInitScript(initScript);
+    // الجولة التعريفية تُختبر في قسم مستقل؛ هنا نوقفها حتى لا تغطي الشاشة
+    if (!withTour) await ctx.addInitScript(() => { try { localStorage.setItem('sf_tour_off', 'true'); } catch (e) { /* ignore */ } });
     const page = await ctx.newPage();
     page.on('pageerror', e => errors.push('pageerror: ' + e.message + '\n' + (e.stack || '').split('\n').slice(0, 4).join('\n')));
     page.on('console', m => { if (m.type() === 'error' && !/fonts\.g|ERR_FAILED|net::/.test(m.text())) errors.push('console: ' + m.text()); });
@@ -349,6 +353,7 @@ function log(msg) { console.log('  ✔ ' + msg); }
     const net = { posts: 0, batches: 0, failNext: 0 };
     const ctx = await browser.newContext({ viewport: { width: 1200, height: 800 } });
     await ctx.route(/fonts\.(googleapis|gstatic)\.com/, r => r.abort());
+    await ctx.addInitScript(() => { try { localStorage.setItem('sf_tour_off', 'true'); } catch (e) { /* ignore */ } });
     await ctx.route('http://pages.test/Index.html', r => r.fulfill({ contentType: 'text/html; charset=utf-8', body: fs.readFileSync(path.join(ROOT, 'Index.html'), 'utf8') }));
     await ctx.route('http://pages.test/JavaScript.html', r => r.fulfill({ contentType: 'text/html; charset=utf-8', body: fs.readFileSync(path.join(ROOT, 'JavaScript.html'), 'utf8') }));
     await ctx.route(/script\.google\.com\/macros/, r => {
@@ -381,6 +386,64 @@ function log(msg) { console.log('  ✔ ' + msg); }
     await ctx.close();
   }
 
+  // ---------- Onboarding tour & workflow ----------
+  {
+    const tp = await newPage(null, true);
+    await login(tp, 'سارة', '1111');
+    await tp.waitForSelector('.tour-card', { timeout: 5000 });
+    expect((await tp.innerText('.tour-card h3')).includes('أهلاً'), 'tour opens automatically on first login (Arabic)');
+    await shot(tp, 'tour-welcome');
+    await tp.click('[data-tour="next"]');
+    await tp.waitForTimeout(500);
+    expect(await tp.isVisible('.tour-spot:not(.center)'), 'tour highlights a real element');
+    await tp.click('[data-tour="next"]');
+    await tp.waitForTimeout(700);
+    await shot(tp, 'tour-step');
+    const total = Number((await tp.innerText('.tour-card .t-step')).match(/\d+/g)[1]);
+    expect(total >= 8, 'nurse tour has ' + total + ' steps');
+    await tp.click('[data-tour="back"]');
+    await tp.click('[data-tour="skip"]');
+    await tp.waitForTimeout(400);
+    expect(!(await tp.isVisible('.tour-card')), 'skip closes the tour');
+    await logout(tp);
+    await login(tp, 'سارة', '1111');
+    await tp.waitForTimeout(1500);
+    expect(!(await tp.isVisible('.tour-card')), 'tour does not reappear after skipping');
+    await tp.click('.topbar [data-act="toggleLang"]');
+    await tp.click('#tourBtn');
+    await tp.waitForSelector('.tour-card');
+    expect((await tp.innerText('.tour-card h3')).includes('Welcome'), 'replayed tour follows page language (English)');
+    for (let i = 0; i < total; i++) {
+      if (!(await tp.isVisible('.tour-card'))) break;
+      await tp.click('[data-tour="next"]');
+      await tp.waitForTimeout(450);
+    }
+    expect(!(await tp.isVisible('.tour-card')), 'tour can be completed to the end');
+    await tp.click('.topbar [data-act="toggleLang"]');
+    await tp.click('.sidebar [data-view="workflow"]');
+    await tp.waitForSelector('.wf-flow');
+    expect(await tp.locator('.wf-stage').count() === 6 && await tp.isVisible('.wf-card.mine'), 'workflow page shows 6 stages and highlights your role');
+    await shot(tp, 'workflow', true);
+    await logout(tp);
+    await login(tp, 'علي', '3333');
+    await tp.waitForSelector('.tour-card');
+    await tp.click('[data-tour="next"]'); await tp.waitForTimeout(400);
+    await tp.click('[data-tour="next"]'); await tp.waitForTimeout(700);
+    await shot(tp, 'tour-procurement');
+    await tp.keyboard.press('Escape');
+    await tp.waitForTimeout(300);
+    expect(!(await tp.isVisible('.tour-card')), 'Esc skips the tour (procurement)');
+    await tp.context().close();
+    const tm = await newPage({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true }, true);
+    await login(tm, 'د. خالد', '4444');
+    await tm.waitForSelector('.tour-card');
+    await tm.click('[data-tour="next"]'); await tm.waitForTimeout(600);
+    await shot(tm, 'mobile-tour');
+    const off = await tm.evaluate(() => { const r = document.querySelector('.tour-card').getBoundingClientRect(); return r.left < 0 || r.right > innerWidth + 1 || r.bottom > innerHeight + 1; });
+    expect(!off, 'mobile: tour card stays within the screen');
+    await tm.context().close();
+  }
+
   // ---------- Mobile ----------
   const m = await newPage({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true });
   await shot(m, 'mobile-login');
@@ -402,6 +465,7 @@ function log(msg) { console.log('  ✔ ' + msg); }
   if (errors.length) { console.error('\nBrowser errors:\n' + errors.join('\n')); process.exit(1); }
   console.log('\nAll E2E checks passed. Screenshots: ' + results.screenshots.length + ' in ' + OUT);
 })().catch(async e => {
+  try { const pages = browser_ && browser_.contexts().flatMap(c => c.pages()); if (pages && pages.length) await pages[pages.length - 1].screenshot({ path: path.join(OUT, 'FAILURE.png') }); } catch (x) { /* ignore */ }
   console.error('\nE2E FAILED: ' + e.message);
   if (errors.length) console.error('Browser errors:\n' + errors.join('\n'));
   process.exit(1);
