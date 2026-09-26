@@ -2194,7 +2194,7 @@ Object.assign(I18N.ar, {
   wf_do_nurse: 'رفع الطلبات الشهرية والطارئة|متابعة حالة كل طلب لحظياً|الاستلام والتوقيع وتسجيل أي نقص|الإبلاغ عن أي مشكلة',
   wf_do_procurement: 'تجهيز الطلبات وتعديل الكميات|إدارة مسار المندوب عند الحاجة|الإرسال للمراجعة ثم للفرع (كامل أو جزئي)|متابعة البلاغات وإغلاقها',
   wf_do_doctor: 'مراجعة طلبات العيادة|إضافة ملاحظات على الأصناف|الاعتماد أو الرفض مع ذكر السبب',
-  wf_do_quality: 'متابعة زمن التنفيذ ومؤشرات الأداء|مراجعة البلاغات وإغلاقها بعد الحل|تحليل نقص الاستلام والأصناف الأكثر طلباً|إرسال تنبيهات للإدارات',
+  wf_do_quality: 'متابعة زمن التنفيذ ومؤشرات الأداء|مراجعة البلاغات وإغلاقها بعد الحل|تحليل نقص الاستلام والأصناف الأكثر طلباً|إرسال تنبيهات للإدارات|إدارة المستخدمين والأدوار والصلاحيات',
   wf_do_exec: 'نظرة شاملة على أداء كل العيادات|إدارة المستخدمين والأدوار والصلاحيات|متابعة البلاغات والتصعيد عند الحاجة|توجيه الإدارات بالتنبيهات',
   wf_notif_title: 'الإشعارات التلقائية بالبريد', wf_event: 'الحدث', wf_to: 'يصل إلى',
   wf_n1: 'طلب جديد (والطارئ بعنوان مميز)|التموين', wf_n2: 'إرسال الطلب للمراجعة|الطبيب', wf_n3: 'اعتماد أو رفض الطبيب|التموين (+ الممرضة عند الرفض)',
@@ -2252,7 +2252,7 @@ Object.assign(I18N.en, {
   wf_do_nurse: 'Submit monthly and emergency requests|Track every request live|Receive, sign and record any shortage|Report any issue',
   wf_do_procurement: 'Prepare requests and adjust quantities|Handle the vendor path when needed|Send for review, then dispatch (full or partial)|Follow up and resolve issues',
   wf_do_doctor: 'Review clinic requests|Add notes on items|Approve or reject with a reason',
-  wf_do_quality: 'Monitor fulfilment time and KPIs|Review issues and resolve them|Analyse short receipts and top items|Send department notices',
+  wf_do_quality: 'Monitor fulfilment time and KPIs|Review issues and resolve them|Analyse short receipts and top items|Send department notices|Manage users, roles and permissions',
   wf_do_exec: 'Full view of every clinic’s performance|Manage users, roles and permissions|Follow issues and escalate when needed|Direct departments through notices',
   wf_notif_title: 'Automatic email notifications', wf_event: 'Event', wf_to: 'Sent to',
   wf_n1: 'New request (emergency flagged)|Procurement', wf_n2: 'Sent for review|Doctor', wf_n3: 'Doctor approved / rejected|Procurement (+ nurse on reject)',
@@ -2461,7 +2461,11 @@ const WF_ROLE = {
   quality: { k: 'wf_r_quality', tone: 'var(--t-teal)', ic: 'chart' },
   exec: { k: 'wf_r_exec', tone: 'var(--t-green)', ic: 'shield' }
 };
-function myWfRole() { const s = S.user.screen; return s === 'dashboard' ? 'quality' : s === 'admin' ? 'exec' : s; }
+function myWfRole() {
+  const s = S.user.screen;
+  if (/جود|quality/i.test(S.user.role || '')) return 'quality';
+  return s === 'dashboard' ? 'quality' : s === 'admin' ? 'exec' : s;
+}
 VIEWS.workflow = {
   title: 'nav_workflow', sub: 'sub_workflow',
   render() {

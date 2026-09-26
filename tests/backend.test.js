@@ -437,7 +437,7 @@ test('setupSheets is idempotent and seeds defaults on an empty spreadsheet', () 
   ctx.setupSheets();
   ctx.setupSheets();
   assert.equal(gas.dump('Users').length, 2);
-  assert.equal(gas.dump('Roles').length, 7);
+  assert.equal(gas.dump('Roles').length, 8);
   assert.equal(gas.dump('ItemsCatalog').length, 18);
   const r = ctx.api(null, 'login', ['المدير', '1234']);
   assert.equal(r.user.screen, 'admin');

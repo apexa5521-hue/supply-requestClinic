@@ -52,7 +52,7 @@ const REQUEST_TYPES = ['شهري', 'طارئ'];
 const SCREENS = ['nurse', 'procurement', 'doctor', 'dashboard', 'admin'];
 const DEFAULT_ROLES = [
   ['ممرضة', 'nurse'], ['تموين', 'procurement'], ['طبيب', 'doctor'],
-  ['جودة', 'dashboard'], ['مالية', 'dashboard'], ['تنفيذي', 'admin']
+  ['جودة', 'admin'], ['جوده', 'admin'], ['مالية', 'dashboard'], ['تنفيذي', 'admin']
 ];
 const NOTICE_TARGET_BY_SCREEN = { nurse: 'ممرضة', procurement: 'تموين', doctor: 'طبيب' };
 const COMPLAINT_TYPES = ['تأخير', 'نقص', 'زيادة', 'أخرى'];
