@@ -1,0 +1,9 @@
+{
+  "name": "supplyflow-apexcare",
+  "private": true,
+  "description": "Dev-only: tests for the Apps Script supply request system",
+  "scripts": {
+    "test": "node --test tests/backend.test.js",
+    "test:e2e": "node tests/e2e.js"
+  }
+}
