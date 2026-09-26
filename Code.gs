@@ -128,16 +128,23 @@ function doPost(e) {
  * كل دالة معرّفة بالشاشات المسموح لها؛ '*' = أي مستخدم مسجّل.
  */
 function api(token, fn, args) {
-  resetMemo_();
+  MEMO_ = {};
   args = Array.isArray(args) ? args : [];
-  if (fn === 'login') return sanitize_(login_(args[0], args[1]));
-  if (fn === 'logout') { logout_(token); return true; }
-  if (fn === 'batch') return batch_(token, args[0]);
-  const def = API_[fn];
-  if (!def) throw new Error('ERR_UNKNOWN_FN');
-  const user = session_(token);
-  if (def.screens !== '*' && def.screens.indexOf(user.screen) === -1) throw new Error('ERR_FORBIDDEN');
-  return sanitize_(def.fn.apply(null, [user].concat(args)));
+  fn = String(fn);
+  CACHED_READS_ = fn === 'batch' || fn.indexOf('get') === 0;
+  try {
+    if (fn === 'login') return sanitize_(login_(args[0], args[1]));
+    if (fn === 'logout') { logout_(token); return true; }
+    if (fn === 'batch') return batch_(token, args[0]);
+    const def = API_[fn];
+    if (!def) throw new Error('ERR_UNKNOWN_FN');
+    const user = session_(token);
+    if (def.screens !== '*' && def.screens.indexOf(user.screen) === -1) throw new Error('ERR_FORBIDDEN');
+    return sanitize_(def.fn.apply(null, [user].concat(args)));
+  } finally {
+    flushDirty_();
+    CACHED_READS_ = false;
+  }
 }
 
 /**
@@ -208,16 +215,119 @@ const API_ = {
  * ===================================================================== */
 
 let MEMO_ = {};
-function resetMemo_() { MEMO_ = {}; }
+function resetMemo_() {
+  const dirty = MEMO_.dirty; // التبويبات المعدّلة تبقى معلّمة حتى يُرفع إصدار كاشها
+  MEMO_ = {};
+  if (dirty) MEMO_.dirty = dirty;
+}
 function ss_() { return SpreadsheetApp.getActiveSpreadsheet(); }
+
+/* ---------------------------------------------------------------------
+ *  كاش القراءة: كل تبويب يُحفظ في CacheService (مقسّماً) مع رقم إصدار.
+ *  - استدعاءات القراءة (get… و batch) تقرأ من الكاش: استدعاء واحد بدل 3-4 رحلات للشيت.
+ *  - أي كتابة عبر النظام ترفع إصدار التبويب فوراً، وonEdit يرفعه عند التعديل اليدوي.
+ *  - عمليات الكتابة تقرأ دائماً من الشيت مباشرة (لا تُبنى كتابة على بيانات قديمة).
+ * --------------------------------------------------------------------- */
+const READ_CACHE_TTL = 600;      // ثوانٍ — حد أعلى للتغييرات اليدوية البنيوية (إضافة صفوف/أعمدة)
+const READ_CACHE_CHUNK = 45000;  // حروف لكل جزء (حد CacheService ‏100KB، والعربي بايتان)
+let CACHED_READS_ = false;
+
+function cache_() { return CacheService.getScriptCache(); }
+
+function versions_() {
+  if (!MEMO_.ver) {
+    const keys = Object.keys(SCHEMA).map(function (n) { return 'v:' + n; });
+    let got = {};
+    try { got = cache_().getAll(keys) || {}; } catch (e) { got = {}; }
+    MEMO_.ver = got;
+  }
+  return MEMO_.ver;
+}
+
+/** إبطال كاش تبويب (بعد أي كتابة أو تعديل يدوي) */
+function bumpVersion_(name) {
+  const v = Utilities.getUuid().slice(0, 8);
+  try { cache_().put('v:' + name, v, 21600); } catch (e) { /* الكاش اختياري */ }
+  if (MEMO_.ver) MEMO_.ver['v:' + name] = v;
+}
+
+function markDirty_(name) {
+  invalidate_(name);
+  (MEMO_.dirty = MEMO_.dirty || {})[name] = true;
+}
+
+function flushDirty_() {
+  const names = Object.keys(MEMO_.dirty || {});
+  if (!names.length) return;
+  // نضمن وصول الكتابات للشيت قبل إعلان الإصدار الجديد (وإلا قد يُخزَّن محتوى قديم تحته)
+  try { SpreadsheetApp.flush(); } catch (e) { /* تجاهل */ }
+  names.forEach(bumpVersion_);
+  MEMO_.dirty = {};
+}
+
+function encodeValues_(values) {
+  return JSON.stringify(values.map(function (row) {
+    return row.map(function (v) { return isDate_(v) ? { d: v.getTime() } : v; });
+  }));
+}
+function decodeValues_(json) {
+  return JSON.parse(json).map(function (row) {
+    return row.map(function (v) { return v && typeof v === 'object' && 'd' in v ? new Date(v.d) : v; });
+  });
+}
+
+function cachedValues_(name) {
+  const ver = versions_()['v:' + name];
+  if (!ver) return null;
+  try {
+    const cache = cache_();
+    // استدعاء واحد: عدد الأجزاء + أول 40 جزءاً (المفاتيح غير الموجودة لا تكلف شيئاً)
+    const nKey = 'n:' + name + ':' + ver;
+    const keys = [];
+    for (let i = 0; i < 40; i++) keys.push('c:' + name + ':' + ver + ':' + i);
+    let parts = cache.getAll([nKey].concat(keys)) || {};
+    const n = Number(parts[nKey]);
+    if (!n) return null;
+    if (n > 40) {
+      const more = [];
+      for (let i = 40; i < n; i++) { more.push('c:' + name + ':' + ver + ':' + i); keys.push(more[more.length - 1]); }
+      parts = Object.assign(parts, cache.getAll(more) || {});
+    }
+    let json = '';
+    for (let i = 0; i < n; i++) { const p = parts[keys[i]]; if (p === undefined || p === null) return null; json += p; }
+    return decodeValues_(json);
+  } catch (e) { return null; }
+}
+
+function storeValues_(name, values) {
+  try {
+    let ver = versions_()['v:' + name];
+    if (!ver) { bumpVersion_(name); ver = versions_()['v:' + name]; }
+    const json = encodeValues_(values);
+    const out = {};
+    let n = 0;
+    for (let i = 0; i < json.length; i += READ_CACHE_CHUNK) out['c:' + name + ':' + ver + ':' + (n++)] = json.slice(i, i + READ_CACHE_CHUNK);
+    if (n > 200) return; // تبويب ضخم جداً: يُقرأ مباشرة
+    out['n:' + name + ':' + ver] = String(n || 1);
+    if (!n) out['c:' + name + ':' + ver + ':0'] = '[]';
+    cache_().putAll(out, READ_CACHE_TTL);
+  } catch (e) { /* الكاش اختياري */ }
+}
+
+/** Trigger بسيط: أي تعديل يدوي في الشيت يُبطل كاش ذلك التبويب */
+function onEdit(e) {
+  try { bumpVersion_(e.range.getSheet().getName()); } catch (err) { /* تجاهل */ }
+}
 
 function sheet_(name) {
   const key = 'sh:' + name;
   if (MEMO_[key]) return MEMO_[key];
   const ss = ss_();
   let sh = ss.getSheetByName(name);
-  if (!sh) sh = ss.insertSheet(name);
-  ensureHeaders_(sh, SCHEMA[name] || []);
+  if (!sh) {
+    sh = ss.insertSheet(name);
+    if (SCHEMA[name]) sh.getRange(1, 1, 1, SCHEMA[name].length).setValues([SCHEMA[name]]).setFontWeight('bold');
+  }
   MEMO_[key] = sh;
   return sh;
 }
@@ -228,18 +338,35 @@ function headerRow_(sh) {
   return sh.getRange(1, 1, 1, lastCol).getValues()[0].map(function (h) { return String(h).trim(); });
 }
 
-function ensureHeaders_(sh, required) {
-  const headers = headerRow_(sh);
-  const missing = required.filter(function (h) { return headers.indexOf(h) === -1; });
-  if (!missing.length) return;
+/** يضيف الأعمدة الناقصة لصف العناوين (يعدّل values[0] في مكانه) */
+function ensureHeaders_(sh, values, required) {
+  const headers = (values[0] || []).map(function (h) { return String(h).trim(); });
+  while (headers.length && !headers[headers.length - 1]) headers.pop();
+  const missing = (required || []).filter(function (h) { return headers.indexOf(h) === -1; });
+  if (!missing.length) return false;
   sh.getRange(1, headers.length + 1, 1, missing.length).setValues([missing]).setFontWeight('bold');
+  const width = headers.length + missing.length;
+  values[0] = headers.concat(missing);
+  for (let i = 1; i < values.length; i++) while (values[i].length < width) values[i].push('');
+  return true;
+}
+
+function sheetValues_(name) {
+  const sh = sheet_(name);
+  const values = sh.getDataRange().getValues();
+  if (values.length === 1 && values[0].every(function (v) { return v === '' || v === null; })) values[0] = [];
+  if (ensureHeaders_(sh, values, SCHEMA[name])) markDirty_(name);
+  return values;
 }
 
 function read_(name) {
   const key = 'rd:' + name;
   if (MEMO_[key]) return MEMO_[key];
-  const sh = sheet_(name);
-  const values = sh.getDataRange().getValues();
+  let values = CACHED_READS_ ? cachedValues_(name) : null;
+  if (!values) {
+    values = sheetValues_(name);
+    if (CACHED_READS_) { flushDirty_(); storeValues_(name, values); }
+  }
   const headers = (values[0] || []).map(function (h) { return String(h).trim(); });
   const col = {};
   headers.forEach(function (h, i) { if (h && !(h in col)) col[h] = i; });
@@ -254,25 +381,72 @@ function read_(name) {
     });
     if (!empty) rows.push(o);
   }
-  const t = { name: name, sh: sh, headers: headers, col: col, rows: rows };
+  const t = { name: name, headers: headers, col: col, rows: rows };
+  MEMO_['hd:' + name] = headers;
   MEMO_[key] = t;
   return t;
 }
 
 function invalidate_(name) { delete MEMO_['rd:' + name]; }
 
-function setCells_(t, row, obj) {
-  Object.keys(obj).forEach(function (k) {
-    t.sh.getRange(row._row, t.col[k] + 1).setValue(obj[k]);
-    row[k] = obj[k];
+/** كتابة حقول صف واحد — الأعمدة المتجاورة تُكتب في استدعاء واحد */
+function setCells_(t, row, obj) { setMany_(t, [{ row: row, obj: obj }]); }
+
+/**
+ * كتابة عدة صفوف دفعة واحدة: الصفوف المتتالية التي تعدّل نفس الأعمدة المتجاورة
+ * تُكتب بـ setValues واحد (بدل استدعاء لكل خلية).
+ */
+function setMany_(t, updates) {
+  if (!updates.length) return;
+  const sh = sheet_(t.name);
+  updates.forEach(function (u) { Object.keys(u.obj).forEach(function (k) { u.row[k] = u.obj[k]; }); });
+  const groups = {};
+  updates.forEach(function (u) {
+    const cols = Object.keys(u.obj).map(function (k) {
+      if (!(k in t.col)) throw new Error('ERR_NO_COLUMN:' + k);
+      return t.col[k] + 1;
+    }).sort(function (a, b) { return a - b; });
+    // أعمدة متجاورة فقط
+    let start = 0;
+    for (let i = 1; i <= cols.length; i++) {
+      if (i === cols.length || cols[i] !== cols[i - 1] + 1) {
+        const key = cols[start] + '-' + cols[i - 1];
+        (groups[key] = groups[key] || []).push(u.row);
+        start = i;
+      }
+    }
   });
+  Object.keys(groups).forEach(function (key) {
+    const c0 = Number(key.split('-')[0]), c1 = Number(key.split('-')[1]);
+    const hs = t.headers.slice(c0 - 1, c1);
+    const rows = groups[key].slice().sort(function (a, b) { return a._row - b._row; });
+    let start = 0;
+    for (let i = 1; i <= rows.length; i++) {
+      if (i === rows.length || rows[i]._row !== rows[i - 1]._row + 1) {
+        const block = rows.slice(start, i).map(function (r) { return hs.map(function (h) { return r[h] === undefined ? '' : r[h]; }); });
+        sh.getRange(rows[start]._row, c0, block.length, c1 - c0 + 1).setValues(block);
+        start = i;
+      }
+    }
+  });
+  (MEMO_.dirty = MEMO_.dirty || {})[t.name] = true;
+}
+
+function deleteRow_(t, row) {
+  sheet_(t.name).deleteRow(row._row);
+  markDirty_(t.name);
 }
 
 function append_(name, obj) {
   const sh = sheet_(name);
-  const headers = headerRow_(sh);
+  let headers = MEMO_['hd:' + name];
+  if (!headers) {
+    const vals = [headerRow_(sh)];
+    ensureHeaders_(sh, vals, SCHEMA[name]);
+    headers = MEMO_['hd:' + name] = vals[0];
+  }
   sh.appendRow(headers.map(function (h) { return Object.prototype.hasOwnProperty.call(obj, h) ? obj[h] : ''; }));
-  invalidate_(name);
+  markDirty_(name);
 }
 
 /** نص من المستخدم: تنظيف + منع حقن الصيغ داخل الشيت */
@@ -282,8 +456,13 @@ function clean_(s, max) {
   if (/^[=+\-@]/.test(s)) s = "'" + s;
   return s;
 }
-function str_(v) { return String(v === null || v === undefined ? '' : v).trim(); }
-function isDate_(v) { return Object.prototype.toString.call(v) === '[object Date]'; }
+function str_(v) {
+  if (typeof v === 'string') return v.trim();
+  return v === null || v === undefined ? '' : String(v).trim();
+}
+function isDate_(v) {
+  return v !== null && typeof v === 'object' && (v instanceof Date || Object.prototype.toString.call(v) === '[object Date]');
+}
 function toMs_(v) {
   if (!v) return 0;
   const d = isDate_(v) ? v : new Date(v);
@@ -298,20 +477,33 @@ function round1_(n) { return Math.round(n * 10) / 10; }
 
 /** يحوّل كل التواريخ لنصوص ISO (google.script.run لا يقبل Date كقيمة مرجعة) */
 function sanitize_(v) {
+  if (v === null || typeof v !== 'object') return v;
   if (isDate_(v)) return isNaN(v.getTime()) ? '' : v.toISOString();
-  if (Array.isArray(v)) return v.map(sanitize_);
-  if (v && typeof v === 'object') {
-    const o = {};
-    Object.keys(v).forEach(function (k) { if (k.charAt(0) !== '_') o[k] = sanitize_(v[k]); });
-    return o;
+  if (Array.isArray(v)) {
+    const a = new Array(v.length);
+    for (let i = 0; i < v.length; i++) a[i] = sanitize_(v[i]);
+    return a;
   }
-  return v;
+  const o = {};
+  for (const k in v) {
+    if (Object.prototype.hasOwnProperty.call(v, k) && k.charAt(0) !== '_') o[k] = sanitize_(v[k]);
+  }
+  return o;
+}
+
+/** قراءة من الكاش داخل عملية كتابة (للتحقق المبدئي فقط — لا يُبنى عليها أي كتابة) */
+function cachedRead_(fn) {
+  const was = CACHED_READS_;
+  CACHED_READS_ = true;
+  try { return fn(); } finally { CACHED_READS_ = was; resetMemo_(); }
 }
 
 function withLock_(fn) {
   const lock = LockService.getScriptLock();
   lock.waitLock(20000);
-  try { return fn(); } finally { lock.releaseLock(); }
+  const cached = CACHED_READS_;
+  CACHED_READS_ = false;
+  try { return fn(); } finally { flushDirty_(); CACHED_READS_ = cached; lock.releaseLock(); }
 }
 
 function logAction_(requestId, action, user) {
@@ -388,7 +580,7 @@ function login_(name, password) {
     email: str_(row.Email), screen: screen
   };
   const token = Utilities.getUuid() + Utilities.getUuid().replace(/-/g, '');
-  cache.put('s:' + token, JSON.stringify(user), SESSION_TTL);
+  cache.put('s:' + token, JSON.stringify(Object.assign({ _at: Date.now() }, user)), SESSION_TTL);
   return { success: true, token: token, user: user, config: getConfig_(user) };
 }
 
@@ -401,8 +593,13 @@ function session_(token) {
   const cache = CacheService.getScriptCache();
   const raw = cache.get('s:' + token);
   if (!raw) throw new Error('ERR_SESSION');
-  cache.put('s:' + token, raw, SESSION_TTL); // تمديد الجلسة مع النشاط
-  return JSON.parse(raw);
+  const user = JSON.parse(raw);
+  // تمديد الجلسة مع النشاط — مرة كل 20 دقيقة تكفي (توفّر رحلة كاش في كل طلب)
+  if (!(Date.now() - (user._at || 0) < 20 * 60 * 1000)) {
+    user._at = Date.now();
+    cache.put('s:' + token, JSON.stringify(user), SESSION_TTL);
+  }
+  return user;
 }
 
 function userClinics_(user) {
@@ -596,8 +793,9 @@ function queryRequests_(filters) {
     r.shipmentCount = st.ships.length;
     r.pendingShipments = st.pending;
     r.needsReview = !!reviewers[r.doctor];
+    r._ms = toMs_(r.date);
     return r;
-  }).sort(function (a, b) { return toMs_(b.date) - toMs_(a.date); });
+  }).sort(function (a, b) { return b._ms - a._ms; });
 }
 
 function itemsByRequest_() {
@@ -693,7 +891,7 @@ function createRequest_(user, payload) {
       return riHeaders.map(function (h) { return h in o ? o[h] : ''; });
     });
     ri.getRange(ri.getLastRow() + 1, 1, rows.length, riHeaders.length).setValues(rows);
-    invalidate_('RequestItems');
+    markDirty_('RequestItems');
 
     const known = {};
     getCatalog_(false).forEach(function (c) { known[c.name.toLowerCase()] = true; });
@@ -913,9 +1111,8 @@ function bulkUpdateStatus_(user, requestIds, newStatus) {
         const ri = read_('RequestItems');
         const mine = ri.rows.filter(function (r) { return str_(r.RequestID) === id; });
         const next = batchesOf_(mine).count + 1;
-        mine.forEach(function (r) {
-          if (!r.DispatchedAt) setCells_(ri, r, { DispatchedAt: upd.SentAt, DispatchBatch: next });
-        });
+        setMany_(ri, mine.filter(function (r) { return !r.DispatchedAt; })
+          .map(function (r) { return { row: r, obj: { DispatchedAt: upd.SentAt, DispatchBatch: next } }; }));
       }
       logAction_(id, 'تغيير الحالة: ' + cur + ' ← ' + newStatus, user.name);
       result.updated.push(id);
@@ -951,7 +1148,7 @@ function dispatchItems_(user, requestId, itemNames) {
     const toSend = mine.filter(function (r) { return !r.DispatchedAt && itemNames.indexOf(str_(r.ItemName)) !== -1; });
     if (!toSend.length) throw new Error('ERR_NO_ITEMS');
     const batch = batchesOf_(mine).count + 1;
-    toSend.forEach(function (r) { setCells_(ri, r, { DispatchedAt: now, DispatchBatch: batch }); });
+    setMany_(ri, toSend.map(function (r) { return { row: r, obj: { DispatchedAt: now, DispatchBatch: batch } }; }));
     const sent = mine.filter(function (r) { return !!r.DispatchedAt; }).length;
     const allSent = sent === mine.length;
     const names = toSend.map(function (r) { return str_(r.ItemName); });
@@ -1006,9 +1203,13 @@ function receiveShipment_(user, requestId, batch, receivedItems, receiverName, s
   receiverName = clean_(receiverName, 120);
   if (!receiverName) throw new Error('ERR_REQUIRED');
   batch = Math.floor(Number(batch)) || 0;
-  const g = guardSee_(user, requestId);
-  const pre = shipState_(g.req, itemsOf_(requestId));
-  pendingShip_(g.req, pre, batch);
+  // فحص مبدئي سريع من الكاش؛ التحقق النهائي يتم داخل القفل على بيانات الشيت الحية
+  const pre = cachedRead_(function () {
+    const g = guardSee_(user, requestId);
+    const st = shipState_(g.req, itemsOf_(requestId));
+    pendingShip_(g.req, st, batch);
+    return st;
+  });
   const lastOne = pre.allDispatched && pre.pending === 1;
 
   const tag = requestId + '-S' + batch;
@@ -1038,7 +1239,8 @@ function receiveShipment_(user, requestId, batch, receivedItems, receiverName, s
       const n = str_(it && it.name);
       if (inShip[n]) qty[n] = Math.max(0, Math.floor(Number(it.qty) || 0));
     });
-    rows.forEach(function (r) { const n = str_(r.ItemName); if (n in qty) setCells_(ri, r, { ReceivedQty: qty[n] }); });
+    setMany_(ri, rows.filter(function (r) { return str_(r.ItemName) in qty; })
+      .map(function (r) { return { row: r, obj: { ReceivedQty: qty[str_(r.ItemName)] } }; }));
     logAction_(req.id, 'استلام الشحنة ' + batch + ' وتوقيعها (' + ship.items.length + ' صنف)', receiverName + ' (' + user.name + ')');
 
     const after = shipState_(req, rows);
@@ -1082,14 +1284,24 @@ function getShipmentSignatures_(user, requestId) {
   });
 }
 
+/** مجلد التواقيع — معرّفه محفوظ في الكاش بدل البحث عنه بالاسم في كل حفظ */
+function signaturesFolder_() {
+  const cache = cache_();
+  const id = cache.get('folder:signatures');
+  if (id) { try { return DriveApp.getFolderById(id); } catch (e) { /* حُذف؟ نبحث من جديد */ } }
+  const folderName = 'ApexCare-Signatures';
+  const folders = DriveApp.getFoldersByName(folderName);
+  const folder = folders.hasNext() ? folders.next() : DriveApp.createFolder(folderName);
+  try { cache.put('folder:signatures', folder.getId(), 21600); } catch (e) { /* تجاهل */ }
+  return folder;
+}
+
 /** يحفظ صورة PNG في Drive ويعيد { url, id } */
 function saveImage_(fileName, dataUrl) {
   const m = /^data:image\/png;base64,([A-Za-z0-9+/=]+)$/.exec(String(dataUrl));
   if (!m) throw new Error('ERR_BAD_IMAGE');
   if (m[1].length > 4 * 1024 * 1024) throw new Error('ERR_BAD_IMAGE');
-  const folderName = 'ApexCare-Signatures';
-  const folders = DriveApp.getFoldersByName(folderName);
-  const folder = folders.hasNext() ? folders.next() : DriveApp.createFolder(folderName);
+  const folder = signaturesFolder_();
   const blob = Utilities.newBlob(Utilities.base64Decode(m[1]), 'image/png', fileName + '.png');
   const file = folder.createFile(blob);
   try { file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW); } catch (e) { /* سياسة النطاق قد تمنع */ }
@@ -1114,8 +1326,6 @@ function getRequestDetail_(user, requestId) {
   });
   req.comments = comments_(requestId);
   req.kpi = kpi_(req);
-  req.log = read_('Log').rows.filter(function (r) { return str_(r.RequestID) === req.id; })
-    .map(function (r) { return { time: r.Timestamp, action: str_(r.Action), user: str_(r.User) }; });
   return req;
 }
 
@@ -1462,8 +1672,7 @@ function deleteUser_(user, name) {
   const row = t.rows.filter(function (r) { return str_(r.Name) === name; })[0];
   if (!row) throw new Error('ERR_NOT_FOUND');
   if (roleScreen_(row.Role) === 'admin' && countAdmins_(name) === 0) throw new Error('ERR_LAST_ADMIN');
-  t.sh.deleteRow(row._row);
-  invalidate_('Users');
+  deleteRow_(t, row);
   logAction_('', 'حذف مستخدم: ' + name, user.name);
   return getUsers_();
 }
@@ -1493,7 +1702,6 @@ function deleteRole_(user, name) {
   const t = read_('Roles');
   const row = t.rows.filter(function (r) { return str_(r.RoleName) === name; })[0];
   if (!row) throw new Error('ERR_NOT_FOUND');
-  t.sh.deleteRow(row._row);
-  invalidate_('Roles');
+  deleteRow_(t, row);
   return getRoles_();
 }

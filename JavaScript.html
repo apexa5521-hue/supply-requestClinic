@@ -314,6 +314,20 @@ function postJson(body) {
     try { return JSON.parse(txt); } catch (e) { throw new Error('ERR_BAD_RESPONSE'); }
   }, e => { throw (e && /^ERR_/.test(e.message)) ? e : new Error('ERR_NETWORK'); });
 }
+/* نفس الطابور والتجميع سواء كانت الصفحة من Apps Script (google.script.run) أو GitHub Pages (fetch) */
+function hasGSR() { return !!(window.google && google.script && google.script.run); }
+function transport(body) {
+  if (!hasGSR()) return postJson(body);
+  return new Promise(res => {
+    google.script.run
+      .withSuccessHandler(data => res({ ok: true, data: data }))
+      .withFailureHandler(e => {
+        const msg = String((e && e.message) || e || '');
+        res({ ok: false, error: /ERR_[A-Z_]+/.test(msg) ? msg.match(/ERR_[A-Z_]+(:\S*)?/)[0] : 'ERR_NETWORK' });
+      })
+      .api(body.token, body.fn, body.args);
+  });
+}
 function withRetry(fn, tries) {
   return fn().catch(e => {
     if (tries > 0 && RETRYABLE.indexOf(errCode(e)) !== -1) {
@@ -337,13 +351,13 @@ function sendGroup(group) {
   const token = S.token;
   if (group.length === 1) {
     const c = group[0];
-    const once = () => postJson({ token: token, fn: c.fn, args: c.args }).then(res => {
+    const once = () => transport({ token: token, fn: c.fn, args: c.args }).then(res => {
       if (res.ok) return res.data;
       throw new Error(res.error || 'ERR_NETWORK');
     });
     return (isRead(c.fn) ? withRetry(once, 2) : once()).then(c.resolve, c.reject);
   }
-  const once = () => postJson({ token: token, fn: 'batch', args: [group.map(c => [c.fn, c.args])] }).then(res => {
+  const once = () => transport({ token: token, fn: 'batch', args: [group.map(c => [c.fn, c.args])] }).then(res => {
     if (!res.ok) throw new Error(res.error || 'ERR_NETWORK');
     return res.data;
   });
@@ -362,21 +376,56 @@ function sendGroup(group) {
   });
 }
 
+/* كاش قراءة في المتصفح: عرض فوري لما فُتح مؤخراً + دمج القراءات المتطابقة المتزامنة.
+   أي عملية كتابة ناجحة تمسح الكاش كله حتى لا تُعرض بيانات قديمة بعد تعديل. */
+const RC = new Map(), PENDING = new Map();
+const rkey = (fn, args) => fn + '|' + JSON.stringify(args);
+function peek(fn, args, maxAgeMs) {
+  const e = RC.get(rkey(fn, args || []));
+  return e && (!maxAgeMs || Date.now() - e.at < maxAgeMs) ? e.data : undefined;
+}
 function call(fn) {
   const args = Array.prototype.slice.call(arguments, 1);
-  return new Promise((resolve, reject) => {
-    if (window.google && google.script && google.script.run) {
-      google.script.run.withSuccessHandler(resolve).withFailureHandler(reject).api(S.token, fn, args);
-      return;
-    }
+  const read = isRead(fn), key = read ? rkey(fn, args) : '';
+  if (read && PENDING.has(key)) return PENDING.get(key);
+  const p = new Promise((resolve, reject) => {
     NET.queue.push({ fn: fn, args: args, resolve: resolve, reject: reject });
     clearTimeout(NET.flushTimer);
     NET.flushTimer = setTimeout(pumpQueue, 15); // لحظة قصيرة لتجميع الطلبات المتزامنة
-  }).catch(e => {
+  }).then(data => {
+    if (read) {
+      RC.delete(key); RC.set(key, { data: data, at: Date.now() });
+      if (RC.size > 150) RC.delete(RC.keys().next().value);
+    } else if (fn !== 'login' && fn !== 'logout') RC.clear();
+    return data;
+  }, e => {
     if (errCode(e) === 'ERR_SESSION' && fn !== 'login' && S.user) sessionExpired();
     throw e;
   });
+  if (read) {
+    PENDING.set(key, p);
+    p.then(() => PENDING.delete(key), () => PENDING.delete(key));
+  }
+  return p;
 }
+/* تحميل مسبق عند تمرير المؤشر/اللمس: التفاصيل تكون جاهزة لحظة الضغط */
+function prefetch(act, id) {
+  if (!S.user || !id) return;
+  if (act === 'procToggle') { if (S.proc && !S.proc.items[id]) loadProcItems(id, true); return; }
+  if (act === 'review') { if (peek('getRequestItemsWithCatalog', [id], 60000) === undefined) call('getRequestItemsWithCatalog', id).catch(() => {}); return; }
+  if (peek('getRequestDetail', [id], 45000) === undefined) call('getRequestDetail', id).catch(() => {});
+}
+(function () {
+  let timer = null;
+  const target = e => e.target && e.target.closest && e.target.closest('[data-act="detail"],[data-act="receive"],[data-act="procToggle"],[data-act="review"]');
+  document.addEventListener('pointerover', e => {
+    const el = target(e); if (!el) return;
+    clearTimeout(timer);
+    timer = setTimeout(() => prefetch(el.dataset.act, el.dataset.id), 80);
+  });
+  document.addEventListener('touchstart', e => { const el = target(e); if (el) prefetch(el.dataset.act, el.dataset.id); }, { passive: true });
+  document.addEventListener('focusin', e => { const el = target(e); if (el) prefetch(el.dataset.act, el.dataset.id); });
+})();
 
 /* =====================================================================
    Status model
@@ -694,7 +743,7 @@ function enterApp(cfg) {
   const saved = store.get('view_' + S.user.screen, null);
   const nav = NAV[S.user.screen] || [];
   go(nav.some(n => n.id === saved) ? saved : (nav[0] && nav[0].id));
-  S.lastSync = new Date(); updateSyncTime();
+  S.lastSync = new Date(); S.cfgAt = Date.now(); updateSyncTime();
   loadAlerts();
   if (S.user.screen === 'nurse' && S.view !== 'mine') loadMine(true);
   if (S.user.screen === 'doctor' && S.view !== 'reviews') loadDoc(true);
@@ -797,16 +846,22 @@ function updateSyncTime() { $('#syncTime').textContent = S.lastSync ? fmtTime(S.
 function sync(silent) {
   const btn = $('#syncBtn');
   btn.classList.add('syncing');
-  return call('getConfig').then(cfg => {
-    applyConfig(cfg);
+  // كل القراءات تُطلق معاً فتُجمع في طلب واحد للخادم؛ الإعدادات تتغير نادراً → كل 5 دقائق
+  const cfgDue = !silent || !S.cfgAt || Date.now() - S.cfgAt > 5 * 60 * 1000;
+  const cfg = cfgDue ? call('getConfig').then(c => { applyConfig(c); S.cfgAt = Date.now(); }) : Promise.resolve();
+  const v = VIEWS[S.view];
+  if (v && v.refresh) v.refresh(silent);
+  loadAlerts();
+  return cfg.then(() => {
     S.lastSync = new Date(); updateSyncTime();
-    const v = VIEWS[S.view];
-    if (v && v.refresh) v.refresh(silent);
-    loadAlerts();
     if (!silent) toast(t('done'), 'info', 1600);
   }).catch(e => { if (!silent) toast(errMsg(e), 'error'); })
     .finally(() => btn.classList.remove('syncing'));
 }
+document.addEventListener('visibilitychange', () => {
+  // عند الرجوع للتبويب بعد غياب: مزامنة فورية بدل انتظار الدورة القادمة
+  if (!document.hidden && S.user && Date.now() - (S.lastSync ? S.lastSync.getTime() : 0) > 20000) sync(true);
+});
 ACT.sync = () => sync(false);
 
 /* =====================================================================
@@ -908,9 +963,24 @@ function openDetail(id) {
     title: '<span class="mono">' + esc(id) + '</span>', icon: 'clipboard', size: 'lg',
     body: '<div class="stack">' + skeletonList(2) + '</div>'
   });
-  call('getRequestDetail', id).then(d => {
+  // عرض فوري لآخر نسخة معروفة (من التحميل المسبق أو فتح سابق) ثم تحديث صامت من الخادم
+  let shown = '';
+  const show = d => {
     if (m.closing) return;
+    const sig = JSON.stringify(d);
+    if (sig === shown) return;
+    shown = sig;
+    renderDetail(m, d);
+  };
+  const hit = peek('getRequestDetail', [id]);
+  if (hit) show(hit);
+  call('getRequestDetail', id).then(show).catch(e => { if (!shown) m.el.querySelector('.modal-body').innerHTML = emptyState('alert', errMsg(e)); });
+}
+function renderDetail(m, d) {
+  {
     const body = m.el.querySelector('.modal-body');
+    const draft = $('#dComment', m.el) ? $('#dComment', m.el).value : '';
+    const oldFoot = m.el.querySelector('.modal > .modal-foot'); if (oldFoot) oldFoot.remove();
     const canReceive = S.user.screen === 'nurse' && d.status !== ST.RECEIVED && (d.shipments || []).some(g => !g.received);
     body.innerHTML =
       '<div class="between">' + '<div class="row-wrap">' + badge(d.status) + typeTag(d.type) + '</div>' +
@@ -955,7 +1025,8 @@ function openDetail(id) {
     };
     $('#dSend', m.el).addEventListener('click', send);
     $('#dComment', m.el).addEventListener('keydown', e => { if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) send(); });
-  }).catch(e => { m.el.querySelector('.modal-body').innerHTML = emptyState('alert', errMsg(e)); });
+    if (draft) $('#dComment', m.el).value = draft;
+  }
 }
 ACT.detail = el => openDetail(el.dataset.id);
 
@@ -1360,14 +1431,19 @@ function openReceive(id) {
       '</tbody></table></div>';
     $$('#rShip .chip', m.el).forEach(b => b.addEventListener('click', () => { cur = pend.find(g => g.batch === Number(b.dataset.b)); render(); }));
   };
-  call('getRequestDetail', id).then(det => {
+  const apply = det => {
     if (m.closing) return;
+    const before = d ? JSON.stringify(d.shipments) : '';
     d = det;
-    if (!pending().length) { $('#rShip', m.el).innerHTML = emptyState('checkc', t('ERR_ALREADY_RECEIVED')); return; }
-    cur = pending()[0];
-    render();
+    if (!pending().length) { $('#rShip', m.el).innerHTML = emptyState('checkc', t('ERR_ALREADY_RECEIVED')); $('#rOk', m.el).disabled = true; return; }
+    const keep = cur && pending().find(g => g.batch === cur.batch);
+    cur = keep || pending()[0];
+    if (JSON.stringify(d.shipments) !== before) render(); // لا نعيد الرسم (ونمسح المدخلات) إلا إن تغيّرت الشحنات
     $('#rOk', m.el).disabled = false;
-  }).catch(e => { $('#rShip', m.el).innerHTML = emptyState('alert', errMsg(e)); });
+  };
+  const hit = peek('getRequestDetail', [id], 60000);
+  if (hit) apply(hit);
+  call('getRequestDetail', id).then(apply).catch(e => { if (!d) $('#rShip', m.el).innerHTML = emptyState('alert', errMsg(e)); });
 
   $('#rOk', m.el).addEventListener('click', () => {
     const name = $('#rName', m.el).value.trim();
@@ -1836,7 +1912,9 @@ function openReview(id) {
         ? '<button class="btn btn-danger" id="rvReject">' + icon('x', 'i-sm') + esc(t('reject')) + '</button><button class="btn btn-primary" id="rvApprove">' + icon('check', 'i-sm') + esc(t('approve')) + '</button>'
         : '<button class="btn" data-close>' + esc(t('close')) + '</button>')
   });
-  call('getRequestItemsWithCatalog', id).then(items => {
+  const cachedItems = peek('getRequestItemsWithCatalog', [id], 60000);
+  (cachedItems !== undefined ? Promise.resolve(cachedItems) : call('getRequestItemsWithCatalog', id)).then(items => {
+    if (m.closing) return;
     let total = 0;
     const rows = items.map((it, i) => {
       const q = Number(it.approvedQty !== '' && it.approvedQty !== null ? it.approvedQty : it.requestedQty) || 0;

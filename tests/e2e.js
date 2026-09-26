@@ -62,6 +62,7 @@ const initScript = [
         if (k === 'withFailureHandler') return f => { h.f = f; return p; };
         return function () {
           const a = arguments;
+          (g.__runs = g.__runs || []).push(a[1]);
           setTimeout(() => {
             let r;
             try { r = g.__api.apply(null, a); } catch (e) { if (h.f) h.f(e); return; }
@@ -185,8 +186,13 @@ function log(msg) { console.log('  ✔ ' + msg); }
   await logout(page);
 
   // ---------- Procurement ----------
+  await page.evaluate(() => { __runs = []; });
   await login(page, 'علي', '3333');
   await page.waitForSelector('#procList .req');
+  await page.waitForTimeout(600);
+  const runs = await page.evaluate(() => __runs.slice());
+  const startup = runs.filter(f => f !== 'login' && f !== 'logout' && f !== 'getRequestItemsFull'); // الأخير = تحميل مسبق عند مرور المؤشر
+  expect(startup.length === 1 && startup[0] === 'batch', 'Apps Script mode: all startup reads go out as one batched call (' + runs.join(', ') + ')');
   expect(await page.isVisible('.alert.danger'), 'procurement sees an emergency alert');
   await page.check(`.req[data-rid="${newId}"] .req-main > .check`);
   await page.waitForSelector('#bulkbar.show');
@@ -304,7 +310,10 @@ function log(msg) { console.log('  ✔ ' + msg); }
   const merged = files.find(f => f.name.endsWith('-receipt-all.png'));
   expect(files.length === 5 && merged, 'combined receipt saved with every shipment (5 files)');
   if (merged) fs.writeFileSync(path.join(OUT, 'combined-receipt.png'), Buffer.from(merged.bytes.map(b => b & 0xff)));
+  await page.hover(`.req:has-text("${newId}") [data-act="detail"]`);
+  await page.waitForTimeout(500); // التحميل المسبق عند تمرير المؤشر
   await page.click(`.req:has-text("${newId}") [data-act="detail"]`);
+  expect(await page.isVisible('.modal .stepper'), 'details open instantly after hover-prefetch (no loading skeleton)');
   await page.waitForSelector('.stepper');
   expect(await page.locator('.modal .ship-list .ship').count() === 2, 'nurse sees both shipments in the request detail');
   await page.fill('#dComment', 'تم الاستلام، شكراً');
