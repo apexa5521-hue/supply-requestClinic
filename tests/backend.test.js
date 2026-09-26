@@ -176,25 +176,150 @@ test('full workflow: prep → review → approve → partial dispatch → receiv
 
   // ممرضة أخرى لا تستطيع الاستلام
   const other = login('ريم', '2222');
-  throwsCode(() => api(other, 'receiveRequest', id, [], 'ريم', '', ''), 'ERR_FORBIDDEN');
-  throwsCode(() => api(n, 'receiveRequest', id, [], '', '', ''), 'ERR_REQUIRED');
-  const rec = api(n, 'receiveRequest', id, [{ name: 'PROPHY PASTE', qty: 4 }, { name: 'DENTAL FLOSS', qty: 6 }], 'سارة', PNG, PNG);
+  throwsCode(() => api(other, 'receiveShipment', id, 1, [], 'ريم', '', ''), 'ERR_FORBIDDEN');
+  throwsCode(() => api(n, 'receiveShipment', id, 1, [], '', '', ''), 'ERR_REQUIRED');
+  throwsCode(() => api(n, 'receiveShipment', id, 9, [], 'سارة', '', ''), 'ERR_NOT_FOUND');
+  assert.equal(api(n, 'getMyRequests')[0].pendingShipments, 2);
+
+  // الشحنة 1: توقيع مستقل، والطلب لم يكتمل بعد (الأصناف خارج الشحنة تُتجاهل)
+  let rec = api(n, 'receiveShipment', id, 1, [{ name: 'PROPHY PASTE', qty: 4 }, { name: 'DENTAL FLOSS', qty: 99 }], 'سارة', PNG, PNG, PNG);
+  assert.deepEqual([rec.complete, rec.pendingShipments, rec.mergedReceiptUrl], [false, 1, '']);
   assert.ok(rec.signatureUrl && rec.receiptUrl);
-  assert.equal(gas.files.length, 2);
-  throwsCode(() => api(n, 'receiveRequest', id, [], 'سارة', '', ''), 'ERR_BAD_TRANSITION');
+  assert.equal(gas.files.length, 2, 'merged receipt is not saved before the last shipment');
+  assert.equal(api(n, 'getRequestDetail', id).status, 'تم الإرسال');
+  assert.equal(api(n, 'getRequestDetail', id).items.find(i => i.item === 'DENTAL FLOSS').receivedQty, '');
+  throwsCode(() => api(n, 'receiveShipment', id, 1, [], 'سارة', '', ''), 'ERR_ALREADY_RECEIVED');
+  const sigs = api(n, 'getShipmentSignatures', id);
+  assert.equal(sigs.length, 1);
+  assert.ok(sigs[0].dataUrl.startsWith('data:image/png;base64,'), 'stored signature can be read back for the merged receipt');
+
+  // الشحنة 2 (الأخيرة): يكتمل الطلب ويُحفظ الإيصال الموحّد
+  rec = api(n, 'receiveShipment', id, 2, [{ name: 'DENTAL FLOSS', qty: 6 }], 'منيرة', PNG, PNG, PNG);
+  assert.deepEqual([rec.complete, rec.pendingShipments], [true, 0]);
+  assert.equal(gas.files.length, 5);
+  assert.ok(gas.files[4].name.endsWith('-receipt-all.png'));
+  assert.equal(rec.mergedReceiptUrl, 'https://drive.example/file5');
+  throwsCode(() => api(n, 'receiveShipment', id, 2, [], 'سارة', '', ''), 'ERR_BAD_TRANSITION');
 
   const det = api(n, 'getRequestDetail', id);
   assert.equal(det.status, 'تم الاستلام');
+  assert.equal(det.receiver, 'سارة، منيرة', 'all receivers are kept on the completed request');
+  assert.equal(det.receiptUrl, rec.mergedReceiptUrl);
+  assert.deepEqual(det.shipments.map(g => [g.batch, g.received, g.receiver]), [[1, true, 'سارة'], [2, true, 'منيرة']]);
+  assert.ok(det.shipments[0].receiptUrl && det.shipments[0].signatureUrl);
   assert.equal(typeof det.submittedAt, 'string', 'dates are serialized');
   assert.equal(det.items.find(i => i.item === 'DENTAL FLOSS').receivedQty, 6);
   assert.equal(det.items.find(i => i.item === 'DENTAL FLOSS').notes[0].note, 'نوع شمعي');
   assert.equal(det.comments[0].message, 'تمام');
   assert.equal(det.kpi.unit, 'days');
-  assert.ok(det.log.length >= 6);
+  assert.equal(det.log, undefined, 'the audit log is not sent with every detail (it is heavy)');
+  assert.ok(rows(gas, 'Log').filter(r => r.RequestID === id).length >= 6);
 
   const stats = api(login('منى', '5555'), 'getExecutiveStats', '');
   assert.equal(stats.total, 1);
   assert.equal(stats.shortages, 1, 'DENTAL FLOSS received 6 of approved 8');
+});
+
+test('items can be dispatched in numbered shipments with a sent/remaining tracker', () => {
+  const { api, login, gas, ctx } = boot();
+  const n = login('سارة', '1111'), p = login('علي', '3333'), d = login('د. خالد', '4444');
+  const names = ['MICRO BRUSH FINE', 'PROPHY PASTE', 'DENTAL FLOSS', 'Etchant Blue Tip', 'Ivoclar Tetric-N A2'];
+  const id = api(n, 'createRequest', { clinic: 'عيادة الأسنان 1', doctor: 'د. خالد', type: 'شهري', items: names.map(x => ({ name: x, qty: 2 })) }).id;
+  api(p, 'bulkUpdateStatus', [id], 'قيد التجهيز');
+  throwsCode(() => api(p, 'dispatchItems', id, [names[0]]), 'ERR_NEEDS_APPROVAL');
+  api(p, 'bulkUpdateStatus', [id], 'مراجعة الطبيب');
+  api(d, 'doctorReview', id, 'اعتمد', '', []);
+
+  // الشحنة 1: صنفان
+  let ds = api(p, 'dispatchItems', id, [names[0], names[1]]);
+  assert.deepEqual([ds.batch, ds.count, ds.sent, ds.remaining, ds.total, ds.allSent], [1, 2, 2, 3, 5, false]);
+  const mail = gas.mails.find(m => m.to === 'sara@example.com' && /شحنة جزئية/.test(m.subject));
+  assert.ok(mail && /المتبقي 3/.test(mail.body) && mail.body.includes('PROPHY PASTE'), 'nurse is told what was sent and what remains');
+
+  // الطلب يبقى «معتمد» والتتبع ظاهر للممرضة والتموين
+  let mine = api(n, 'getMyRequests').find(r => r.id === id);
+  assert.deepEqual([mine.status, mine.itemCount, mine.dispatchedCount, mine.shipmentCount], ['معتمد من الطبيب', 5, 2, 1]);
+
+  // لا يمكن إعادة إرسال صنف أُرسل، ولا أصناف غير موجودة
+  throwsCode(() => api(p, 'dispatchItems', id, [names[0]]), 'ERR_NO_ITEMS');
+  throwsCode(() => api(p, 'dispatchItems', id, ['NOT IN REQUEST']), 'ERR_NO_ITEMS');
+
+  // الممرضة تستلم الشحنة 1 والطلب ما زال مفتوحاً
+  assert.equal(api(n, 'receiveShipment', id, 1, [{ name: names[0], qty: 2 }, { name: names[1], qty: 1 }], 'سارة', '', '').complete, false);
+  mine = api(n, 'getMyRequests').find(r => r.id === id);
+  assert.deepEqual([mine.status, mine.pendingShipments], ['معتمد من الطبيب', 0]);
+
+  // الشحنة 2: صنف واحد
+  ds = api(p, 'dispatchItems', id, [names[2], names[0]]);
+  assert.deepEqual([ds.batch, ds.count, ds.remaining], [2, 1, 2], 'already-sent items in the selection are ignored');
+
+  // إرسال الباقي دفعة واحدة من الإجراء الجماعي = شحنة 3
+  assert.deepEqual(api(p, 'bulkUpdateStatus', [id], 'تم الإرسال').updated, [id]);
+  const det = api(n, 'getRequestDetail', id);
+  assert.equal(det.status, 'تم الإرسال');
+  assert.deepEqual(det.items.map(i => i.batch), [1, 1, 2, 3, 3]);
+  mine = api(n, 'getMyRequests').find(r => r.id === id);
+  assert.deepEqual([mine.dispatchedCount, mine.shipmentCount], [5, 3]);
+  assert.deepEqual(api(p, 'getRequestItems', id).map(i => i.batch), [1, 1, 2, 3, 3]);
+
+  // استلام بترتيب مختلف: 3 ثم 2 — الأخيرة تُكمل الطلب
+  assert.equal(api(n, 'receiveShipment', id, 3, [], 'سارة', '', '').complete, false);
+  assert.equal(api(n, 'receiveShipment', id, 2, [], 'سارة', '', '').complete, true);
+  assert.equal(api(p, 'getRequestItemsFull', id).shipments.every(g => g.received), true);
+  assert.equal(api(n, 'getRequestItems', id).find(i => i.item === names[1]).receivedQty, 1);
+
+  // صفوف قديمة بدون رقم شحنة تُرقَّم حسب وقت الإرسال
+  const t = gas.ss.getSheetByName('RequestItems');
+  const col = t._data[0].indexOf('DispatchBatch'), at = t._data[0].indexOf('DispatchedAt');
+  const rows = t._data.slice(1).filter(r => r[0] === id);
+  rows.forEach((r, i) => { r[col] = ''; r[at] = new Date(Date.UTC(2025, 0, i < 3 ? 1 : 2)); });
+  ctx.onEdit({ range: { getSheet: () => t } }); // تعديل يدوي في الشيت يُبطل الكاش
+  assert.deepEqual(api(p, 'getRequestItems', id).map(i => i.batch), [1, 1, 1, 2, 2]);
+});
+
+test('read cache: every write is visible immediately, cached reads equal fresh sheet reads', () => {
+  const { api, login, gas, ctx } = boot();
+  const n = login('سارة', '1111'), p = login('علي', '3333'), d = login('د. خالد', '4444'), q = login('منى', '5555');
+  // يمسح كاش البيانات فقط (الجلسات تبقى) لقراءة الشيت مباشرة
+  const dropCache = () => Object.keys(gas.cache).forEach(k => { if (/^[cnv]:/.test(k)) delete gas.cache[k]; });
+  const views = id => [
+    [p, 'getRequests', {}], [n, 'getMyRequests'], [n, 'getAlerts'], [p, 'getAlerts'], [d, 'getDoctorRequests'],
+    [q, 'getExecutiveStats', ''], [p, 'getComplaints', false], [n, 'getConfig']
+  ].concat(id ? [[n, 'getRequestDetail', id], [p, 'getRequestItemsFull', id], [d, 'getRequestItemsWithCatalog', id]] : []);
+  const snap = id => views(id).map(([tk, fn, ...a]) => JSON.stringify(api(tk, fn, ...a), (k, v) => (k === 'serverTime' ? undefined : v)));
+  const check = (label, id) => {
+    snap(id);                         // تسخين الكاش
+    const cached = snap(id);          // من الكاش
+    dropCache();
+    const fresh = snap(id);           // من الشيت مباشرة
+    cached.forEach((c, i) => assert.equal(c, fresh[i], label + ': ' + views(id)[i][1] + ' served stale data'));
+  };
+  const step = (label, fn, id) => { check('before ' + label, id); fn(); check('after ' + label, id); };
+
+  let id;
+  step('createRequest', () => { id = api(n, 'createRequest', { clinic: 'عيادة الأسنان 1', doctor: 'د. خالد', type: 'طارئ', items: [{ name: 'PROPHY PASTE', qty: 2 }, { name: 'صنف جديد تماماً', qty: 1 }, { name: 'DENTAL FLOSS', qty: 3 }] }).id; });
+  assert.equal(api(p, 'getRequests', {}).find(r => r.id === id).itemCount, 3, 'new request items visible right away');
+  step('prep', () => api(p, 'bulkUpdateStatus', [id], 'قيد التجهيز'), id);
+  step('approval qty', () => api(p, 'updateItemApproval', id, 'DENTAL FLOSS', 2), id);
+  step('comment', () => api(n, 'addComment', id, 'تعليق'), id);
+  step('complaint', () => api(n, 'addComplaint', id, 'تأخير', 'تفاصيل'), id);
+  step('review', () => api(p, 'bulkUpdateStatus', [id], 'مراجعة الطبيب'), id);
+  step('approve', () => api(d, 'doctorReview', id, 'اعتمد', '', [{ item: 'PROPHY PASTE', note: 'ملاحظة' }]), id);
+  step('dispatch 1', () => api(p, 'dispatchItems', id, ['PROPHY PASTE']), id);
+  step('receive 1', () => api(n, 'receiveShipment', id, 1, [{ name: 'PROPHY PASTE', qty: 2 }], 'سارة', '', ''), id);
+  step('dispatch rest', () => api(p, 'bulkUpdateStatus', [id], 'تم الإرسال'), id);
+  step('receive 2', () => api(n, 'receiveShipment', id, 2, [], 'سارة', '', ''), id);
+  step('manual sheet edit + onEdit', () => {
+    const t = gas.ss.getSheetByName('Requests');
+    t._data[1][t._data[0].indexOf('Clinic')] = 'عيادة الجلدية 1';
+    ctx.onEdit({ range: { getSheet: () => t } });
+  }, id);
+
+  // القراءات المتكررة لا تلمس الشيت
+  api(p, 'getRequests', {});
+  const before = gas.ops.byKind.read || 0;
+  api(p, 'getRequests', {}); api(n, 'getRequestDetail', id); api(n, 'getMyRequests');
+  assert.equal((gas.ops.byKind.read || 0) - before, 0, 'warm reads are served from the cache');
 });
 
 test('doctor rejection returns to procurement and can be re-prepared', () => {
@@ -424,7 +549,8 @@ test('works with a legacy sheet (old column set, existing data) without losing a
   const header = gas.dump('Requests')[0];
   assert.deepEqual(header.slice(0, 12), ['RequestID', 'Date', 'Clinic', 'Doctor', 'Nurse', 'Type', 'Status', 'SubmittedAt', 'SentAt', 'ReceivedAt', 'ReceiverName', 'SignatureURL']);
   assert.ok(header.indexOf('RejectionReason') > 11, 'new columns appended at the end');
-  api(n, 'receiveRequest', 'REQ-250101-5', [{ name: 'DENTAL FLOSS', qty: 3 }], 'سارة', '', '');
+  assert.equal(mine[0].pendingShipments, 1, 'old sent request without dispatch dates = one shipment to receive');
+  assert.equal(api(n, 'receiveShipment', 'REQ-250101-5', 1, [{ name: 'DENTAL FLOSS', qty: 3 }], 'سارة', '', '').complete, true);
   assert.equal(api(n, 'getMyRequests')[0].status, 'تم الاستلام');
   assert.equal(api(login('المدير', '1234'), 'getQualityReport', '2025-01').rows[0].hours, 24);
   assert.equal(api(login('علي', '3333'), 'getConfig').catalog[0].price, 0);

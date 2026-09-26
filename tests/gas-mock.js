@@ -11,12 +11,16 @@
     const mails = [];
     const files = [];
     const forcedText = [];
+    // عدّاد استدعاءات خدمة Sheets (كل استدعاء = رحلة للخادم في Apps Script الحقيقي) + الخلايا المقروءة
+    const ops = { calls: 0, cells: 0, byKind: {} };
+    const op = (kind, cells) => { ops.calls++; ops.byKind[kind] = (ops.byKind[kind] || 0) + 1; ops.cells += cells || 0; };
     let uuidSeq = 0;
 
     function Range(sh, row, col, nr, nc) {
       nr = nr || 1; nc = nc || 1;
       return {
         getValues() {
+          op('read', nr * nc);
           const out = [];
           for (let r = 0; r < nr; r++) {
             const line = [];
@@ -30,10 +34,11 @@
         },
         getValue() { return this.getValues()[0][0]; },
         setValues(vals) {
+          op('write', nr * nc);
           for (let r = 0; r < nr; r++) for (let c = 0; c < nc; c++) sh._set(row + r, col + c, vals[r][c]);
           return this;
         },
-        setValue(v) { sh._set(row, col, v); return this; },
+        setValue(v) { op('write', 1); sh._set(row, col, v); return this; },
         setFontWeight() { return this; }
       };
     }
@@ -51,14 +56,16 @@
           line[c - 1] = v;
         },
         getName() { return name; },
-        getLastRow() {
+        _lr() {
           for (let i = this._data.length; i > 0; i--) if (this._data[i - 1].some(x => x !== '' && x !== null && x !== undefined)) return i;
           return 0;
         },
-        getLastColumn() { return this._data.reduce((m, l) => { let n = l.length; while (n && (l[n - 1] === '' || l[n - 1] === undefined)) n--; return Math.max(m, n); }, 0); },
+        _lc() { return this._data.reduce((m, l) => { let n = l.length; while (n && (l[n - 1] === '' || l[n - 1] === undefined)) n--; return Math.max(m, n); }, 0); },
+        getLastRow() { op('meta'); return this._lr(); },
+        getLastColumn() { op('meta'); return this._lc(); },
         getRange(r, c, nr, nc) { return Range(this, r, c, nr, nc); },
-        getDataRange() { return Range(this, 1, 1, Math.max(this.getLastRow(), 1), Math.max(this.getLastColumn(), 1)); },
-        appendRow(vals) { const r = this.getLastRow() + 1; vals.forEach((v, i) => this._set(r, i + 1, v)); return this; },
+        getDataRange() { return Range(this, 1, 1, Math.max(this._lr(), 1), Math.max(this._lc(), 1)); },
+        appendRow(vals) { op('append', vals.length); const r = this._lr() + 1; vals.forEach((v, i) => this._set(r, i + 1, v)); return this; },
         deleteRow(r) { this._data.splice(r - 1, 1); },
         setFrozenRows() { return this; },
         autoResizeColumns() { return this; }
@@ -67,7 +74,7 @@
     }
 
     const ss = {
-      getSheetByName(n) { return sheets[n] || null; },
+      getSheetByName(n) { op('meta'); return sheets[n] || null; },
       insertSheet(n) { sheets[n] = Sheet(n); order.push(n); return sheets[n]; },
       getSheets() { return order.map(n => sheets[n]); },
       deleteSheet(sh) { delete sheets[sh._name]; order.splice(order.indexOf(sh._name), 1); }
@@ -76,9 +83,11 @@
     const cacheStore = {};
     const now = () => (opts.now ? opts.now() : Date.now());
     const cache = {
-      get(k) { const e = cacheStore[k]; if (!e) return null; if (e.exp < now()) { delete cacheStore[k]; return null; } return e.v; },
-      put(k, v, ttl) { cacheStore[k] = { v: String(v), exp: now() + (ttl || 600) * 1000 }; },
-      remove(k) { delete cacheStore[k]; }
+      get(k) { op('cache'); const e = cacheStore[k]; if (!e) return null; if (e.exp < now()) { delete cacheStore[k]; return null; } return e.v; },
+      put(k, v, ttl) { op('cache'); cacheStore[k] = { v: String(v), exp: now() + (ttl || 600) * 1000 }; },
+      remove(k) { op('cache'); delete cacheStore[k]; },
+      getAll(keys) { op('cache'); const o = {}; keys.forEach(k => { const e = cacheStore[k]; if (e && e.exp >= now()) o[k] = e.v; }); return o; },
+      putAll(obj, ttl) { op('cache'); Object.keys(obj).forEach(k => { cacheStore[k] = { v: String(obj[k]), exp: now() + (ttl || 600) * 1000 }; }); }
     };
 
     function digestBytes(str, len) {
@@ -115,21 +124,32 @@
     const globals = {
       SpreadsheetApp: {
         getActiveSpreadsheet() { return ss; },
+        flush() { op('flush'); },
         getUi() { return { alert() {} }; }
       },
       CacheService: { getScriptCache() { return cache; } },
-      LockService: { getScriptLock() { return { waitLock() {}, releaseLock() {} }; } },
-      MailApp: { sendEmail(to, subject, body) { mails.push({ to, subject, body }); } },
+      LockService: { getScriptLock() { return { waitLock() { op('lock'); }, releaseLock() {} }; } },
+      MailApp: { sendEmail(to, subject, body) { op('mail'); mails.push({ to, subject, body }); } },
       DriveApp: {
         Access: { ANYONE_WITH_LINK: 'ANYONE_WITH_LINK' },
         Permission: { VIEW: 'VIEW' },
-        getFoldersByName() { return { hasNext() { return false; } }; },
+        getFoldersByName() { op('drive'); return { hasNext() { return false; } }; },
+        getFileById(id) {
+          op('drive');
+          const f = files.find(x => x.id === id);
+          if (!f) throw new Error('No item with the given ID could be found');
+          return { getBlob() { return { getBytes() { return f.bytes.slice(); } }; } };
+        },
+        getFolderById(id) { op('drive'); if (id !== 'folder1') throw new Error('not found'); return globals.DriveApp.createFolder._folder; },
         createFolder(name) {
-          return {
+          if (globals.DriveApp.createFolder._folder) return globals.DriveApp.createFolder._folder;
+          return globals.DriveApp.createFolder._folder = {
+            getId() { return 'folder1'; },
             createFile(blob) {
+              op('drive');
               const id = 'file' + (files.length + 1);
-              files.push({ id, name: blob.name, size: blob.bytes.length });
-              return { setSharing() {}, getUrl() { return 'https://drive.example/' + id; } };
+              files.push({ id, name: blob.name, size: blob.bytes.length, bytes: blob.bytes });
+              return { setSharing() {}, getUrl() { return 'https://drive.example/' + id; }, getId() { return id; } };
             }
           };
         }
@@ -168,7 +188,7 @@
     }
     function dump(name) { return sheets[name] ? sheets[name]._data.map(r => r.slice()) : null; }
 
-    return { globals, seed, dump, mails, files, forcedText, cache: cacheStore, ss };
+    return { globals, seed, dump, mails, files, forcedText, cache: cacheStore, ss, ops };
   }
 
   if (typeof module !== 'undefined' && module.exports) module.exports = { createGas };

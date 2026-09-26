@@ -62,6 +62,7 @@ const initScript = [
         if (k === 'withFailureHandler') return f => { h.f = f; return p; };
         return function () {
           const a = arguments;
+          (g.__runs = g.__runs || []).push(a[1]);
           setTimeout(() => {
             let r;
             try { r = g.__api.apply(null, a); } catch (e) { if (h.f) h.f(e); return; }
@@ -185,8 +186,13 @@ function log(msg) { console.log('  ✔ ' + msg); }
   await logout(page);
 
   // ---------- Procurement ----------
+  await page.evaluate(() => { __runs = []; });
   await login(page, 'علي', '3333');
   await page.waitForSelector('#procList .req');
+  await page.waitForTimeout(600);
+  const runs = await page.evaluate(() => __runs.slice());
+  const startup = runs.filter(f => f !== 'login' && f !== 'logout' && f !== 'getRequestItemsFull'); // الأخير = تحميل مسبق عند مرور المؤشر
+  expect(startup.length === 1 && startup[0] === 'batch', 'Apps Script mode: all startup reads go out as one batched call (' + runs.join(', ') + ')');
   expect(await page.isVisible('.alert.danger'), 'procurement sees an emergency alert');
   await page.check(`.req[data-rid="${newId}"] .req-main > .check`);
   await page.waitForSelector('#bulkbar.show');
@@ -242,14 +248,25 @@ function log(msg) { console.log('  ✔ ' + msg); }
   const exp = await page.$(`#exp-${newId}`);
   if (!exp) await page.click(`.req[data-rid="${newId}"] .req-actions [data-act="procToggle"]`);
   await page.waitForSelector(`#exp-${newId} .dsp`);
+  const totalItems = await page.locator(`#exp-${newId} .dsp`).count();
+  expect(totalItems >= 2 && await page.isDisabled(`#exp-${newId} [data-act="dispatch"]`), 'dispatch button stays disabled until items are selected');
   await page.check(`#exp-${newId} .dsp >> nth=0`);
+  expect(await page.textContent(`#exp-${newId} .dsp-btn .count-pill`) === '1', 'dispatch button shows the selected count');
   await page.click(`#exp-${newId} [data-act="dispatch"]`);
-  expect(await toastHas(page, 'الباقي بالانتظار'), 'partial dispatch');
-  await page.waitForTimeout(500);
+  expect(await toastHas(page, 'أُرسلت الشحنة #1'), 'first item sent as shipment #1');
+  await page.waitForSelector(`.req[data-rid="${newId}"] .ship-track`);
+  const track = await page.textContent(`.req[data-rid="${newId}"] .ship-track`);
+  expect(track.includes('أُرسل 1 من ' + totalItems) && track.includes('متبقي ' + (totalItems - 1)), 'card tracker shows sent/remaining: ' + track.trim());
+  await page.waitForSelector(`#exp-${newId} .ship-sum .ship`);
+  expect(await page.locator(`#exp-${newId} .ship-stats .is-left b`).textContent() === String(totalItems - 1), 'items panel shows remaining count');
+  expect(await page.locator(`#exp-${newId} .badge:has-text("شحنة #1")`).count() === 1, 'sent item is tagged with its shipment number');
+  await page.click('.chip[data-g="partial"]');
+  expect(await page.locator(`#procList .req[data-rid="${newId}"]`).count() === 1, '"partially sent" filter lists the request');
+  await shot(page, 'proc-partial-dispatch');
   await page.click('.chip[data-g="all"]');
   await page.waitForSelector(`#exp-${newId} .dsp`);
-  const boxes = await page.$$(`#exp-${newId} .dsp`);
-  for (const b of boxes) await b.check();
+  await page.check(`#exp-${newId} [data-change="dspAll"]`);
+  expect(await page.locator(`#exp-${newId} .dsp:checked`).count() === totalItems - 1, '"select all remaining" checks every unsent item');
   await page.click(`#exp-${newId} [data-act="dispatch"]`);
   expect(await toastHas(page, 'اكتمل'), 'all items dispatched → request sent');
   await logout(page);
@@ -258,23 +275,47 @@ function log(msg) { console.log('  ✔ ' + msg); }
   await login(page, 'سارة', '1111');
   expect(await page.isVisible('.alert.info'), 'nurse is alerted about a request to receive');
   await page.click('.sidebar [data-view="mine"]');
+  expect(await page.textContent(`.req:has-text("${newId}") [data-act="receive"] .count-pill`) === '2', 'receive button shows 2 shipments waiting');
+  const sign = async (dx) => {
+    const pad = await page.$('#sigPad');
+    const bb = await pad.boundingBox();
+    await page.mouse.move(bb.x + 40, bb.y + 110);
+    await page.mouse.down();
+    for (let i = 0; i <= 24; i++) await page.mouse.move(bb.x + 40 + i * 12, bb.y + 90 + Math.sin(i / 2.5 + dx) * 36);
+    await page.mouse.up();
+  };
+  // الشحنة 1
   await page.click(`.req:has-text("${newId}") [data-act="receive"]`);
   await page.waitForSelector('.rq');
+  expect(await page.locator('#rShip .chip').count() === 2, 'nurse picks which shipment arrived');
+  expect(await page.locator('.rcv-note:not(.last)').count() === 1 && await page.locator('.rq').count() === 1, 'first shipment: only its item, marked as partial receipt');
   await page.fill('.rq >> nth=0', '1');
-  const pad = await page.$('#sigPad');
-  const bb = await pad.boundingBox();
-  await page.mouse.move(bb.x + 40, bb.y + 110);
-  await page.mouse.down();
-  for (let i = 0; i <= 24; i++) await page.mouse.move(bb.x + 40 + i * 12, bb.y + 90 + Math.sin(i / 2.5) * 36);
-  await page.mouse.up();
+  await sign(0);
   expect(await page.isVisible('#sigWrap.inked'), 'signature pad captures ink');
-  await shot(page, 'nurse-receive-sign');
+  await shot(page, 'nurse-receive-shipment-1');
   await page.click('#rOk');
-  expect(await toastHas(page, 'تم تأكيد استلام'), 'receipt confirmed');
-  const g = await page.evaluate(() => __gas.files.length);
-  expect(g === 2, 'signature and receipt images uploaded to Drive');
+  expect(await toastHas(page, 'تم استلام الشحنة #1'), 'shipment #1 received and signed');
+  expect(await page.evaluate(() => __gas.files.length) === 2, 'shipment #1 signature and receipt uploaded');
+  // الشحنة 2 (الأخيرة) → إيصال موحّد
+  await page.waitForSelector(`.req:has-text("${newId}") [data-act="receive"]:not(:has(.count-pill))`);
+  await page.click(`.req:has-text("${newId}") [data-act="receive"]`);
+  await page.waitForSelector('.rcv-note.last');
+  expect(await page.locator('#rShip .chip').count() === 0, 'last shipment: no picker');
+  await page.fill('#rName', 'منيرة');
+  await sign(1.5);
+  await shot(page, 'nurse-receive-last-shipment');
+  await page.click('#rOk');
+  expect(await toastHas(page, 'اكتمل استلام الطلب'), 'last shipment completes the request');
+  const files = await page.evaluate(() => __gas.files.map(f => ({ name: f.name, bytes: f.bytes })));
+  const merged = files.find(f => f.name.endsWith('-receipt-all.png'));
+  expect(files.length === 5 && merged, 'combined receipt saved with every shipment (5 files)');
+  if (merged) fs.writeFileSync(path.join(OUT, 'combined-receipt.png'), Buffer.from(merged.bytes.map(b => b & 0xff)));
+  await page.hover(`.req:has-text("${newId}") [data-act="detail"]`);
+  await page.waitForTimeout(500); // التحميل المسبق عند تمرير المؤشر
   await page.click(`.req:has-text("${newId}") [data-act="detail"]`);
+  expect(await page.isVisible('.modal .stepper'), 'details open instantly after hover-prefetch (no loading skeleton)');
   await page.waitForSelector('.stepper');
+  expect(await page.locator('.modal .ship-list .ship').count() === 2, 'nurse sees both shipments in the request detail');
   await page.fill('#dComment', 'تم الاستلام، شكراً');
   await page.click('#dSend');
   await page.waitForSelector('.msg.mine');
