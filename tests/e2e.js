@@ -186,13 +186,10 @@ function log(msg) { console.log('  ✔ ' + msg); }
   expect(await page.isVisible('.alert.danger'), 'procurement sees an emergency alert');
   await page.check(`.req[data-rid="${newId}"] .req-main > .check`);
   await page.waitForSelector('#bulkbar.show');
-  await page.click('#bulkbar [data-s="تم الإرسال"]');
-  await page.waitForSelector('.modal-layer:has-text("لم تُحدَّث")');
-  expect(await page.isVisible('text=يتطلب اعتماد الطبيب أولاً'), 'dispatch before approval is blocked with a clear reason');
-  await shot(page, 'proc-bulk-skipped');
-  await page.keyboard.press('Escape');
-  await page.waitForTimeout(300);
-  await page.check(`.req[data-rid="${newId}"] .req-main > .check`);
+  const bulkState = async () => page.$$eval('#bulkbar [data-act="bulk"]', bs => bs.map(b => b.dataset.s + ':' + (b.disabled ? 'off' : 'on')).join(','));
+  expect(await bulkState() === 'قيد التجهيز:on,بانتظار المندوب:off,استلم المندوب:off,مراجعة الطبيب:off,تم الإرسال:off',
+    'new request: only "in progress" is enabled (dispatch before approval is disabled)');
+  await shot(page, 'proc-bulk-new');
   await page.click('#bulkbar [data-s="قيد التجهيز"]');
   expect(await toastHas(page, 'تم تحديث 1'), 'moved to "in progress"');
   await page.waitForTimeout(300);
@@ -202,6 +199,8 @@ function log(msg) { console.log('  ✔ ' + msg); }
   await page.dispatchEvent(`#exp-${newId} input[data-item="DENTAL FLOSS"]`, 'change');
   expect(await toastHas(page, 'تم الحفظ'), 'approved quantity saved');
   await page.check(`.req[data-rid="${newId}"] .req-main > .check`);
+  expect(await bulkState() === 'قيد التجهيز:off,بانتظار المندوب:on,استلم المندوب:off,مراجعة الطبيب:on,تم الإرسال:off',
+    'in progress: vendor wait and doctor review are enabled');
   await shot(page, 'procurement-board');
   await page.click('#bulkbar [data-s="مراجعة الطبيب"]');
   expect(await toastHas(page, 'تم تحديث'), 'sent to doctor review');
@@ -229,6 +228,12 @@ function log(msg) { console.log('  ✔ ' + msg); }
   expect(await page.isVisible('#pageTitle:has-text("البلاغات")'), 'app remembers the last visited screen');
   await page.click('.sidebar [data-view="requests"]');
   await page.click('.chip[data-g="approved"]');
+  await page.check(`.req[data-rid="${newId}"] .req-main > .check`);
+  await page.waitForSelector('#bulkbar.show');
+  expect(await bulkState() === 'قيد التجهيز:off,بانتظار المندوب:off,استلم المندوب:off,مراجعة الطبيب:off,تم الإرسال:on',
+    'doctor-approved: only "dispatch" is enabled');
+  await shot(page, 'proc-bulk-approved');
+  await page.click('[data-act="clearSel"]');
   await page.waitForSelector(`.req[data-rid="${newId}"]`);
   const exp = await page.$(`#exp-${newId}`);
   if (!exp) await page.click(`.req[data-rid="${newId}"] .req-actions [data-act="procToggle"]`);

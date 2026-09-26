@@ -57,7 +57,7 @@ const I18N = {
     view_items: 'الأصناف والاعتماد', requested: 'المطلوب', approved: 'المعتمد', received: 'المستلم', dispatch_status: 'الإرسال',
     dispatched: 'أُرسل', waiting: 'بالانتظار', dispatch_selected: 'إرسال المحدد فقط', select_item: 'اختر صنفاً واحداً على الأقل',
     dispatch_all_done: 'اكتمل إرسال كل الأصناف — تم إرسال الطلب', dispatch_partial: 'تم إرسال {n} صنف — الباقي بالانتظار',
-    approval_locked: 'الكميات مقفلة بعد إرسال الطلب للمراجعة', saved: 'تم الحفظ', item_notes: 'ملاحظات الصنف', request_notes: 'ملاحظات الطلب',
+    approval_locked: 'الكميات مقفلة بعد إرسال الطلب للمراجعة', bulk_not_applicable: 'لا ينطبق على حالة الطلبات المحددة', saved: 'تم الحفظ', item_notes: 'ملاحظات الصنف', request_notes: 'ملاحظات الطلب',
     workflow_hint: 'المسار: قيد التجهيز ← (المندوب اختياري) ← مراجعة الطبيب ← إرسال للفرع بعد الاعتماد',
     pending_review: 'بانتظار مراجعتك', approved_by_you: 'اعتمدتها', sent_to_branch: 'أُرسلت للفرع', received_k: 'تم استلامها', rejected_k: 'مرفوضة',
     review_title: 'مراجعة الطلب', commercial: 'الاسم التجاري', category: 'الفئة', price: 'السعر', item_note_ph: 'ملاحظة اختيارية…',
@@ -147,7 +147,7 @@ const I18N = {
     view_items: 'Items & approval', requested: 'Requested', approved: 'Approved', received: 'Received', dispatch_status: 'Dispatch',
     dispatched: 'Sent', waiting: 'Waiting', dispatch_selected: 'Dispatch selected', select_item: 'Select at least one item',
     dispatch_all_done: 'All items dispatched — request sent', dispatch_partial: '{n} item(s) dispatched — rest pending',
-    approval_locked: 'Quantities are locked after sending to review', saved: 'Saved', item_notes: 'Item notes', request_notes: 'Request notes',
+    approval_locked: 'Quantities are locked after sending to review', bulk_not_applicable: 'Not applicable to the selected requests’ status', saved: 'Saved', item_notes: 'Item notes', request_notes: 'Request notes',
     workflow_hint: 'Flow: In progress → (vendor optional) → Doctor review → Dispatch after approval',
     pending_review: 'Awaiting your review', approved_by_you: 'Approved', sent_to_branch: 'Sent to branch', received_k: 'Received', rejected_k: 'Rejected',
     review_title: 'Review request', commercial: 'Brand', category: 'Category', price: 'Price', item_note_ph: 'Optional note…',
@@ -1527,19 +1527,34 @@ ACT.procSelAll = el => {
   $$('#procList .req').forEach(c => { const cb = c.querySelector('.req-main > .check'); cb.checked = el.checked; c.classList.toggle('selected', el.checked); });
   renderBulkbar();
 };
+/* نفس قواعد الانتقال في الخادم (TRANSITIONS في Code.gs) — لتعطيل الأزرار غير المنطقية مسبقاً */
+const CAN_MOVE = {};
+CAN_MOVE[ST.PREP]        = r => [ST.NEW, ST.REJECTED].indexOf(r.status) !== -1;
+CAN_MOVE[ST.VENDOR_WAIT] = r => r.status === ST.PREP;
+CAN_MOVE[ST.VENDOR_RECV] = r => r.status === ST.VENDOR_WAIT;
+CAN_MOVE[ST.REVIEW]      = r => [ST.PREP, ST.VENDOR_RECV].indexOf(r.status) !== -1;
+CAN_MOVE[ST.SENT]        = r => r.status === ST.APPROVED || (!r.needsReview && [ST.PREP, ST.VENDOR_RECV].indexOf(r.status) !== -1);
+function selectedRequests() { return S.proc.list.filter(r => S.proc.selected.has(r.id)); }
+function eligibleFor(status) { const f = CAN_MOVE[status]; return selectedRequests().filter(r => !f || f(r)); }
+
 function renderBulkbar() {
   const bar = $('#bulkbar'); if (!bar) return;
   const n = S.proc.selected.size;
   if (n) {
     bar.innerHTML = '<span class="sel-count"><span class="count-pill">' + n + '</span>' + esc(t('selected')) + '</span><span class="sep"></span>' +
-      BULK.map(b => '<button class="btn btn-tone btn-sm" style="--tone:' + b.tone + '" data-act="bulk" data-s="' + esc(b.s) + '">' + icon(b.ic, 'i-sm') + esc(t(b.k)) + '</button>').join('') +
+      BULK.map(b => {
+        const ok = eligibleFor(b.s).length;
+        return '<button class="btn btn-tone btn-sm" style="--tone:' + b.tone + '" data-act="bulk" data-s="' + esc(b.s) + '"' +
+          (ok ? '' : ' disabled title="' + esc(t('bulk_not_applicable')) + '"') + '>' + icon(b.ic, 'i-sm') + esc(t(b.k)) +
+          (ok && ok < n ? '<span class="count-pill">' + ok + '</span>' : '') + '</button>';
+      }).join('') +
       '<span class="grow"></span><button class="btn btn-ghost btn-sm" data-act="clearSel">' + icon('x', 'i-sm') + esc(t('clear_selection')) + '</button>';
   }
   bar.classList.toggle('show', n > 0);
 }
 ACT.clearSel = () => { S.proc.selected.clear(); renderProcList(false); };
 ACT.bulk = el => {
-  const ids = Array.from(S.proc.selected);
+  const ids = eligibleFor(el.dataset.s).map(r => r.id);
   if (!ids.length) return;
   $$('#bulkbar .btn').forEach(b => { b.disabled = true; });
   busy(el, true);
