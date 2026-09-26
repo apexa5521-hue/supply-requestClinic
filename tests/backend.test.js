@@ -56,9 +56,23 @@ test('login: legacy password is accepted, upgraded to a hash, and wrong password
   assert.equal(JSON.stringify(r).indexOf('1111'), -1, 'no password leaks in login response');
 });
 
-test('login: locks out after 5 failed attempts', () => {
+test('login tolerates case, spaces, invisible chars and Arabic digits', () => {
+  const { api, gas } = boot();
+  assert.equal(api(null, 'login', '  DR. خالد '.replace('DR', 'د'), '٤٤٤٤').success, true, 'Arabic-Indic digits + extra spaces');
+  const ahmedRow = gas.dump('Users').findIndex(r => r[0] === 'علي');
+  gas.dump('Users');
+  assert.equal(api(null, 'login', 'علي\u200f', ' 3333 ').success, true, 'RTL mark + padded password');
+  assert.equal(api(null, 'login', 'علي', '3333').success, true, 'still works after upgrade to hash');
+  assert.ok(ahmedRow > 0);
+  const g2 = boot(x => x.seed('Users', ['Name', 'Password', 'Role', 'Clinic', 'Email'], [['ahmed', 1234, 'تموين', '', ''], ['المدير', '1234', 'تنفيذي', '', '']]));
+  assert.equal(g2.api(null, 'login', 'Ahmed', '1234').success, true, 'mobile auto-capitalised name + numeric password cell');
+  assert.equal(g2.api(null, 'login', 'AHMED', '۱۲۳۴').success, true, 'Persian digits after hashing');
+  assert.equal(g2.api(null, 'login', 'ahmed', '12345').success, false);
+});
+
+test('login: locks out after 8 failed attempts', () => {
   const { api } = boot();
-  for (let i = 0; i < 5; i++) assert.equal(api(null, 'login', 'علي', 'bad').success, false);
+  for (let i = 0; i < 8; i++) assert.equal(api(null, 'login', 'علي', 'bad').success, false);
   throwsCode(() => api(null, 'login', 'علي', '3333'), 'ERR_LOGIN_LOCKED');
 });
 

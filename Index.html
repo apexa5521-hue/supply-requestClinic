@@ -751,7 +751,7 @@ button.kpi[aria-pressed="true"] { border-color: var(--tone); box-shadow: 0 0 0 3
         <div class="field">
           <label for="loginName" data-i18n="login_name_label"></label>
           <div class="input-icon"><svg class="i"><use href="#i-user"/></svg>
-            <input class="input" id="loginName" autocomplete="username" data-i18n-ph="login_name_ph" required></div>
+            <input class="input" id="loginName" autocomplete="username" autocapitalize="none" autocorrect="off" spellcheck="false" data-i18n-ph="login_name_ph" required></div>
         </div>
         <div class="field">
           <label for="loginPass" data-i18n="login_pass_label"></label>
@@ -762,6 +762,7 @@ button.kpi[aria-pressed="true"] { border-color: var(--tone); box-shadow: 0 0 0 3
         </div>
         <div id="loginError" class="field-error hidden" role="alert"><svg class="i i-sm"><use href="#i-alert"/></svg><span></span></div>
         <button class="btn btn-primary btn-lg btn-block" id="loginBtn" type="submit"><span data-i18n="login_btn"></span></button>
+        <div class="hint hidden" id="loginSlow" style="text-align:center"><span data-i18n="login_slow"></span></div>
       </div>
     </form>
   </div>

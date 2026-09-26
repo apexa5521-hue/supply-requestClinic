@@ -11,8 +11,8 @@
 
 const TZ = 'Asia/Riyadh';
 const SESSION_TTL = 6 * 60 * 60;        // أقصى مدة يسمح بها CacheService
-const LOGIN_MAX_FAILS = 5;
-const LOGIN_LOCK_SECONDS = 5 * 60;
+const LOGIN_MAX_FAILS = 8;
+const LOGIN_LOCK_SECONDS = 3 * 60;
 const DUP_WINDOW_SECONDS = 120;
 
 const SCHEMA = {
@@ -333,7 +333,7 @@ function verifyPassword_(stored, pw) {
     const salt = stored.split('$')[1];
     return hashPassword_(pw, salt) === stored;
   }
-  return stored !== '' && stored === String(pw); // كلمات سر قديمة نصية
+  return stored !== '' && latinDigits_(stored).trim() === latinDigits_(pw).trim(); // كلمات سر قديمة نصية
 }
 
 function roleScreen_(roleName) {
@@ -344,24 +344,40 @@ function roleScreen_(roleName) {
   return d ? d[1] : '';
 }
 
+/** أرقام عربية/فارسية → لاتينية (لوحة المفاتيح العربية تكتب ١٢٣٤ بدل 1234) */
+function latinDigits_(s) {
+  return String(s).replace(/[\u0660-\u0669]/g, function (d) { return String(d.charCodeAt(0) - 0x0660); })
+    .replace(/[\u06F0-\u06F9]/g, function (d) { return String(d.charCodeAt(0) - 0x06F0); });
+}
+/** مفتاح مقارنة اسم الدخول: بدون فرق حروف كبيرة/صغيرة أو مسافات زائدة أو أحرف خفية */
+function loginKey_(s) {
+  return latinDigits_(String(s || '')).replace(/[\u200B-\u200F\u202A-\u202E\u2066-\u2069\uFEFF]/g, '')
+    .replace(/\s+/g, ' ').trim().toLowerCase();
+}
+
 function login_(name, password) {
   name = str_(name);
   password = String(password || '');
   if (!name || !password) throw new Error('ERR_LOGIN_EMPTY');
+  const key = loginKey_(name);
   const cache = CacheService.getScriptCache();
-  const failKey = 'lf:' + name.toLowerCase();
+  const failKey = 'lf:' + key;
   const fails = Number(cache.get(failKey) || 0);
   if (fails >= LOGIN_MAX_FAILS) throw new Error('ERR_LOGIN_LOCKED');
 
   const t = read_('Users');
-  const row = t.rows.filter(function (r) { return str_(r.Name) === name; })[0];
-  if (!row || !verifyPassword_(row.Password, password)) {
+  const rows = t.rows.filter(function (r) { return str_(r.Name) && loginKey_(r.Name) === key; });
+  const row = rows.filter(function (r) { return str_(r.Name) === name; })[0] || rows[0];
+  // نجرب الرقم كما كُتب، ثم بعد تحويل الأرقام العربية وحذف المسافات الطرفية
+  const candidates = [password, latinDigits_(password).trim()].filter(function (p, i, a) { return p && a.indexOf(p) === i; });
+  const matched = row && candidates.filter(function (p) { return verifyPassword_(row.Password, p); })[0];
+  if (!matched) {
     cache.put(failKey, String(fails + 1), LOGIN_LOCK_SECONDS);
     return { success: false };
   }
   cache.remove(failKey);
   // ترقية كلمة السر النصية القديمة إلى مشفّرة
-  if (String(row.Password).indexOf('h1$') !== 0) setCells_(t, row, { Password: hashPassword_(password) });
+  if (String(row.Password).indexOf('h1$') !== 0) setCells_(t, row, { Password: hashPassword_(latinDigits_(matched).trim()) });
 
   const screen = roleScreen_(row.Role);
   if (!screen) throw new Error('ERR_ROLE_UNMAPPED');
@@ -1261,8 +1277,8 @@ function createUser_(user, u) {
   if (password.length < 4) throw new Error('ERR_WEAK_PASSWORD');
   const fields = { role: str_(u.role), clinic: clean_(u.clinic, 500), email: str_(u.email) };
   validateUserFields_(fields);
-  if (getUsers_().some(function (x) { return x.name === name; })) throw new Error('ERR_USER_EXISTS');
-  append_('Users', { Name: name, Password: hashPassword_(password), Role: fields.role, Clinic: fields.clinic, Email: fields.email });
+  if (getUsers_().some(function (x) { return loginKey_(x.name) === loginKey_(name); })) throw new Error('ERR_USER_EXISTS');
+  append_('Users', { Name: name, Password: hashPassword_(latinDigits_(password).trim()), Role: fields.role, Clinic: fields.clinic, Email: fields.email });
   logAction_('', 'إنشاء مستخدم: ' + name, user.name);
   return getUsers_();
 }
@@ -1284,7 +1300,7 @@ function updateUser_(user, name, u) {
   const upd = { Role: fields.role, Clinic: fields.clinic, Email: fields.email };
   if (u.password) {
     if (String(u.password).length < 4) throw new Error('ERR_WEAK_PASSWORD');
-    upd.Password = hashPassword_(String(u.password));
+    upd.Password = hashPassword_(latinDigits_(String(u.password)).trim());
   }
   setCells_(t, row, upd);
   logAction_('', 'تعديل مستخدم: ' + name, user.name);

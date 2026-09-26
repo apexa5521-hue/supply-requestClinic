@@ -92,7 +92,7 @@ const I18N = {
     alert_open_complaints: '<b>{n}</b> بلاغ مفتوح', view: 'عرض',
     just_now: 'الآن', loading: 'جاري التحميل…', saving: 'جاري الحفظ…', sending: 'جاري الإرسال…', done: 'تم بنجاح', error_generic: 'حدث خطأ غير متوقع',
     ERR_SESSION: 'انتهت الجلسة — سجّل الدخول مجدداً', ERR_FORBIDDEN: 'ليست لديك صلاحية لهذا الإجراء', ERR_NOT_FOUND: 'العنصر غير موجود (ربما حُذف)',
-    ERR_LOGIN_LOCKED: 'محاولات كثيرة خاطئة — انتظر 5 دقائق', ERR_LOGIN_EMPTY: 'اكتب الاسم والرقم السري', ERR_ROLE_UNMAPPED: 'الدور غير مربوط بشاشة — راجع تبويب Roles',
+    ERR_LOGIN_LOCKED: 'محاولات خاطئة كثيرة لهذا الاسم — انتظر 3 دقائق ثم حاول مجدداً', login_slow: 'الخادم يستيقظ… أول دخول قد يستغرق حتى 30 ثانية', ERR_LOGIN_EMPTY: 'اكتب الاسم والرقم السري', ERR_ROLE_UNMAPPED: 'الدور غير مربوط بشاشة — راجع تبويب Roles',
     ERR_REQUIRED: 'يرجى تعبئة الحقول المطلوبة', ERR_BAD_TYPE: 'نوع طلب غير صالح', ERR_BAD_CLINIC: 'العيادة غير موجودة', ERR_BAD_DOCTOR: 'الطبيب غير مرتبط بهذه العيادة',
     ERR_BAD_QTY: 'كمية غير صالحة', ERR_NO_ITEMS: 'أضف صنفاً واحداً على الأقل', ERR_TOO_MANY_ITEMS: 'عدد الأصناف كبير جداً',
     ERR_LOCKED: 'لا يمكن التعديل في هذه المرحلة', ERR_BAD_STATUS: 'حالة غير صالحة', ERR_BAD_TRANSITION: 'لا يمكن الانتقال لهذه الحالة من الحالة الحالية',
@@ -182,7 +182,7 @@ const I18N = {
     alert_open_complaints: '<b>{n}</b> open issue(s)', view: 'View',
     just_now: 'just now', loading: 'Loading…', saving: 'Saving…', sending: 'Sending…', done: 'Done', error_generic: 'Something went wrong',
     ERR_SESSION: 'Session expired — please sign in again', ERR_FORBIDDEN: "You don't have permission for this", ERR_NOT_FOUND: 'Not found (maybe deleted)',
-    ERR_LOGIN_LOCKED: 'Too many failed attempts — wait 5 minutes', ERR_LOGIN_EMPTY: 'Enter your name and password', ERR_ROLE_UNMAPPED: 'Role is not mapped to a screen — check the Roles sheet',
+    ERR_LOGIN_LOCKED: 'Too many failed attempts for this name — wait 3 minutes and try again', login_slow: 'Waking up the server… the first sign-in can take up to 30 seconds', ERR_LOGIN_EMPTY: 'Enter your name and password', ERR_ROLE_UNMAPPED: 'Role is not mapped to a screen — check the Roles sheet',
     ERR_REQUIRED: 'Please fill the required fields', ERR_BAD_TYPE: 'Invalid request type', ERR_BAD_CLINIC: 'Clinic not found', ERR_BAD_DOCTOR: 'Doctor is not linked to this clinic',
     ERR_BAD_QTY: 'Invalid quantity', ERR_NO_ITEMS: 'Add at least one item', ERR_TOO_MANY_ITEMS: 'Too many items',
     ERR_LOCKED: 'Cannot edit at this stage', ERR_BAD_STATUS: 'Invalid status', ERR_BAD_TRANSITION: 'Cannot move to this status from the current one',
@@ -579,14 +579,17 @@ $('#loginForm').addEventListener('submit', e => {
   if (!name || !pass) { loginError(t('login_empty')); return; }
   const btn = $('#loginBtn');
   busy(btn, true);
-  call('login', name, pass).then(res => {
-    busy(btn, false);
+  const slow = setTimeout(() => $('#loginSlow').classList.remove('hidden'), 4000);
+  const done = () => { clearTimeout(slow); $('#loginSlow').classList.add('hidden'); busy(btn, false); };
+  // الدخول آمن للإعادة: عند انقطاع الشبكة أو استيقاظ الخادم نعيد المحاولة تلقائياً
+  withRetry(() => call('login', name, pass), 2).then(res => {
+    done();
     if (!res || !res.success) { loginError(t('login_error')); $('#loginPass').select(); return; }
     S.token = res.token;
     session.set({ token: res.token });
     $('#loginPass').value = '';
     enterApp(res.config);
-  }).catch(err => { busy(btn, false); loginError(errMsg(err)); });
+  }).catch(err => { done(); loginError(errMsg(err)); });
 });
 function sessionExpired() {
   if (!S.user) return;
