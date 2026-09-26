@@ -59,6 +59,11 @@ const I18N = {
     dispatch_all_done: 'اكتمل إرسال كل الأصناف — تم إرسال الطلب', dispatch_partial: 'أُرسلت الشحنة #{b} ({n} صنف) — متبقي {r} صنف',
     ship_sent_of: 'أُرسل {a} من {b}', ship_left: 'متبقي {n}', ship_total: 'إجمالي الأصناف', ship_remaining: 'متبقي', shipment_n: 'شحنة #{n}',
     shipments: 'الشحنات', ship_title: 'تتبع الإرسال', select_remaining: 'تحديد كل المتبقي', grp_partial: 'إرسال جزئي', ship_all_done: 'اكتمل الإرسال',
+    ship_received: 'استُلمت', ship_pending_rcv: 'بانتظار الاستلام', ship_wait_rcv: 'بانتظار استلام {n} شحنة', ship_rcv_of: 'استُلم {a} من {b} شحنة',
+    rcv_pick: 'اختر الشحنة التي وصلت', rcv_final_note: 'الشحنة #{n} هي الأخيرة — بعد توقيعها يكتمل الطلب ويُنشأ إيصال موحّد يضم كل الشحنات وتواقيعها',
+    rcv_partial_note: 'استلام الشحنة #{n} فقط — يبقى الطلب مفتوحاً حتى استلام كل الشحنات', shipment_received_ok: 'تم استلام الشحنة #{n} وتوقيعها',
+    request_complete_ok: 'اكتمل استلام الطلب {id} — دُمجت التواقيع في إيصال موحّد', merged_receipt: 'الإيصال الموحّد', ship_receipt: 'إيصال الشحنة',
+    ERR_ALREADY_RECEIVED: 'هذه الشحنة استُلمت مسبقاً',
     approval_locked: 'الكميات مقفلة بعد إرسال الطلب للمراجعة', bulk_not_applicable: 'لا ينطبق على حالة الطلبات المحددة', saved: 'تم الحفظ', item_notes: 'ملاحظات الصنف', request_notes: 'ملاحظات الطلب',
     workflow_hint: 'المسار: قيد التجهيز ← (المندوب اختياري) ← مراجعة الطبيب ← إرسال للفرع بعد الاعتماد',
     pending_review: 'بانتظار مراجعتك', approved_by_you: 'اعتمدتها', sent_to_branch: 'أُرسلت للفرع', received_k: 'تم استلامها', rejected_k: 'مرفوضة',
@@ -88,7 +93,7 @@ const I18N = {
     confirm_delete_user: 'حذف المستخدم «{n}» نهائياً؟', user_saved: 'تم حفظ المستخدم', user_deleted: 'تم حذف المستخدم', edit_user: 'تعديل مستخدم',
     roles_title: 'الأدوار والشاشات', roles_sub: 'كل دور مرتبط بشاشة تحدد ما يراه المستخدم بعد الدخول', add_role: 'دور جديد', role_name: 'اسم الدور',
     confirm_delete_role: 'حذف الدور «{n}»؟', role_saved: 'تم حفظ الدور',
-    alert_to_receive: 'لديك <b>{n}</b> طلب مُرسل بانتظار تأكيد الاستلام', alert_rejected: '<b>{n}</b> من طلباتك رُفض من الطبيب',
+    alert_to_receive: 'لديك <b>{n}</b> طلب فيه شحنات بانتظار تأكيد الاستلام', alert_rejected: '<b>{n}</b> من طلباتك رُفض من الطبيب',
     alert_urgent_new: '<b>{n}</b> طلب طارئ جديد بانتظار التجهيز', alert_new: '<b>{n}</b> طلب جديد بانتظار التجهيز', alert_approved_ready: '<b>{n}</b> طلب معتمد جاهز للإرسال للفرع',
     alert_rejected_proc: '<b>{n}</b> طلب مرفوض من الطبيب يحتاج مراجعة', alert_stale: '<b>{n}</b> طلب متأخر أكثر من 72 ساعة', alert_pending_review: '<b>{n}</b> طلب بانتظار مراجعتك',
     alert_open_complaints: '<b>{n}</b> بلاغ مفتوح', view: 'عرض',
@@ -151,6 +156,11 @@ const I18N = {
     dispatch_all_done: 'All items dispatched — request sent', dispatch_partial: 'Shipment #{b} sent ({n} items) — {r} remaining',
     ship_sent_of: '{a} of {b} sent', ship_left: '{n} remaining', ship_total: 'Total items', ship_remaining: 'Remaining', shipment_n: 'Shipment #{n}',
     shipments: 'Shipments', ship_title: 'Dispatch tracking', select_remaining: 'Select all remaining', grp_partial: 'Partially sent', ship_all_done: 'Fully dispatched',
+    ship_received: 'Received', ship_pending_rcv: 'Awaiting receipt', ship_wait_rcv: '{n} shipment(s) awaiting receipt', ship_rcv_of: '{a} of {b} shipments received',
+    rcv_pick: 'Choose the shipment that arrived', rcv_final_note: 'Shipment #{n} is the last one — once signed, the request is complete and a combined receipt with all shipments and signatures is created',
+    rcv_partial_note: 'Receiving shipment #{n} only — the request stays open until every shipment is received', shipment_received_ok: 'Shipment #{n} received and signed',
+    request_complete_ok: 'Request {id} fully received — signatures merged into one combined receipt', merged_receipt: 'Combined receipt', ship_receipt: 'Shipment receipt',
+    ERR_ALREADY_RECEIVED: 'This shipment was already received',
     approval_locked: 'Quantities are locked after sending to review', bulk_not_applicable: 'Not applicable to the selected requests’ status', saved: 'Saved', item_notes: 'Item notes', request_notes: 'Request notes',
     workflow_hint: 'Flow: In progress → (vendor optional) → Doctor review → Dispatch after approval',
     pending_review: 'Awaiting your review', approved_by_you: 'Approved', sent_to_branch: 'Sent to branch', received_k: 'Received', rejected_k: 'Rejected',
@@ -180,7 +190,7 @@ const I18N = {
     confirm_delete_user: 'Delete user “{n}” permanently?', user_saved: 'User saved', user_deleted: 'User deleted', edit_user: 'Edit user',
     roles_title: 'Roles & screens', roles_sub: 'Each role maps to the screen a user sees after sign-in', add_role: 'New role', role_name: 'Role name',
     confirm_delete_role: 'Delete role “{n}”?', role_saved: 'Role saved',
-    alert_to_receive: 'You have <b>{n}</b> sent request(s) awaiting receipt', alert_rejected: '<b>{n}</b> of your requests were rejected by the doctor',
+    alert_to_receive: 'You have <b>{n}</b> request(s) with shipments awaiting receipt', alert_rejected: '<b>{n}</b> of your requests were rejected by the doctor',
     alert_urgent_new: '<b>{n}</b> new emergency request(s) to prepare', alert_new: '<b>{n}</b> new request(s) to prepare', alert_approved_ready: '<b>{n}</b> approved request(s) ready to dispatch',
     alert_rejected_proc: '<b>{n}</b> request(s) rejected by doctor need attention', alert_stale: '<b>{n}</b> request(s) older than 72h', alert_pending_review: '<b>{n}</b> request(s) awaiting your review',
     alert_open_complaints: '<b>{n}</b> open issue(s)', view: 'View',
@@ -404,18 +414,22 @@ function progressBar(s) {
 /* تتبع الإرسال الجزئي: سطر مختصر في بطاقة الطلب */
 function shipTrack(r) {
   const n = r.itemCount || 0, d = r.dispatchedCount || 0;
-  if (!n || !d || d >= n) return '';
-  return '<div class="ship-track">' + icon('truck', 'i-sm') + '<span><b>' + esc(t('ship_sent_of', { a: d, b: n })) + '</b> · ' + esc(t('ship_left', { n: n - d })) + '</span>' +
-    '<div class="progress"><i data-w="' + Math.max(6, Math.round(d / n * 100)) + '%"></i></div></div>';
+  const partial = n && d && d < n;
+  const waitRcv = r.pendingShipments > 0 && (partial || r.shipmentCount > 1);
+  if (!partial && !waitRcv) return '';
+  const parts = [];
+  if (partial) parts.push('<b>' + esc(t('ship_sent_of', { a: d, b: n })) + '</b>', esc(t('ship_left', { n: n - d })));
+  else parts.push('<b>' + esc(t('ship_rcv_of', { a: r.shipmentCount - r.pendingShipments, b: r.shipmentCount })) + '</b>');
+  if (waitRcv && partial) parts.push(esc(t('ship_wait_rcv', { n: r.pendingShipments })));
+  const pct = partial ? d / n : (r.shipmentCount - r.pendingShipments) / r.shipmentCount;
+  return '<div class="ship-track">' + icon('truck', 'i-sm') + '<span>' + parts.join(' · ') + '</span>' +
+    '<div class="progress"><i data-w="' + Math.max(6, Math.round(pct * 100)) + '%"></i></div></div>';
 }
-/* ملخص الشحنات: الإجمالي / المرسل / المتبقي + قائمة الشحنات بأصنافها */
-function shipSummary(items) {
-  items = items || [];
-  const n = items.length, sent = items.filter(i => i.dispatchedAt), d = sent.length;
+/* ملخص الشحنات: الإجمالي / المرسل / المتبقي + كل شحنة بأصنافها وحالة استلامها وتوقيعها */
+function shipSummary(items, ships) {
+  items = items || []; ships = ships || [];
+  const n = items.length, d = ships.reduce((a, g) => a + g.items.length, 0);
   if (!n || !d) return '';
-  const byB = {};
-  sent.forEach(i => { (byB[i.batch || 1] = byB[i.batch || 1] || []).push(i); });
-  const nums = Object.keys(byB).map(Number).sort((a, b) => a - b);
   return '<div class="ship-sum">' +
     '<div class="between"><div class="section-title" style="margin:0">' + icon('truck', 'i-sm') + esc(t('ship_title')) + '</div>' +
       (d === n ? '<span class="badge" style="--tone:var(--t-green)"><i class="dot"></i>' + esc(t('ship_all_done')) + '</span>' : '') + '</div>' +
@@ -423,10 +437,16 @@ function shipSummary(items) {
       '<div class="is-sent"><b>' + d + '</b><span>' + esc(t('dispatched')) + '</span></div>' +
       '<div class="' + (n - d ? 'is-left' : 'is-sent') + '"><b>' + (n - d) + '</b><span>' + esc(t('ship_remaining')) + '</span></div></div>' +
     '<div class="progress wide"><i data-w="' + Math.max(6, Math.round(d / n * 100)) + '%"></i></div>' +
-    '<div class="ship-list">' + nums.map(b =>
-      '<div class="ship"><span class="ship-no">' + icon('truck', 'i-sm') + esc(t('shipment_n', { n: b })) + '</span>' +
-      '<span class="muted">' + esc(fmtDateTime(byB[b][0].dispatchedAt)) + ' · ' + esc(t('items_count', { n: byB[b].length })) + '</span>' +
-      '<span class="ship-items">' + byB[b].map(i => esc(i.item)).join(' · ') + '</span></div>').join('') + '</div>' +
+    '<div class="ship-list">' + ships.map(g =>
+      '<div class="ship"><span class="ship-no">' + icon('truck', 'i-sm') + esc(t('shipment_n', { n: g.batch })) + '</span>' +
+      '<span class="muted">' + esc(fmtDateTime(g.sentAt)) + ' · ' + esc(t('items_count', { n: g.items.length })) + '</span>' +
+      '<span class="ship-items">' + g.items.map(i => esc(i.item)).join(' · ') + '</span>' +
+      '<span class="ship-rcv">' + (g.received
+        ? '<span class="badge" style="--tone:var(--t-green)"><i class="dot"></i>' + esc(t('ship_received')) + '</span>' +
+          '<span class="muted">' + esc([g.receiver, g.receivedAt ? fmtDateTime(g.receivedAt) : ''].filter(Boolean).join(' · ')) + '</span>' +
+          (g.receiptUrl ? '<a class="btn btn-ghost btn-icon btn-sm" href="' + esc(g.receiptUrl) + '" target="_blank" rel="noopener" title="' + esc(t('ship_receipt')) + '" aria-label="' + esc(t('ship_receipt')) + '">' + icon('image', 'i-sm') + '</a>' : '') +
+          (g.signatureUrl ? '<a class="btn btn-ghost btn-icon btn-sm" href="' + esc(g.signatureUrl) + '" target="_blank" rel="noopener" title="' + esc(t('view_signature')) + '" aria-label="' + esc(t('view_signature')) + '">' + icon('pen', 'i-sm') + '</a>' : '')
+        : '<span class="badge" style="--tone:var(--t-amber)"><i class="dot"></i>' + esc(t('ship_pending_rcv')) + '</span>') + '</span></div>').join('') + '</div>' +
   '</div>';
 }
 function shipBadge(it) {
@@ -891,7 +911,7 @@ function openDetail(id) {
   call('getRequestDetail', id).then(d => {
     if (m.closing) return;
     const body = m.el.querySelector('.modal-body');
-    const canReceive = S.user.screen === 'nurse' && d.status === ST.SENT;
+    const canReceive = S.user.screen === 'nurse' && d.status !== ST.RECEIVED && (d.shipments || []).some(g => !g.received);
     body.innerHTML =
       '<div class="between">' + '<div class="row-wrap">' + badge(d.status) + typeTag(d.type) + '</div>' +
         '<span class="muted" style="font-size:13px">' + esc(fmtDateTime(d.submittedAt || d.date)) + '</span></div>' +
@@ -903,7 +923,7 @@ function openDetail(id) {
         '<div><dt>' + esc(t('nurse')) + '</dt><dd>' + esc(d.nurse) + '</dd></div>' +
         (d.receiver ? '<div><dt>' + esc(t('receiver')) + '</dt><dd>' + esc(d.receiver) + '</dd></div>' : '') +
       '</dl>' +
-      kpiStepsHtml(d.kpi) + shipSummary(d.items) +
+      kpiStepsHtml(d.kpi) + shipSummary(d.items, d.shipments) +
       '<div><div class="section-title">' + icon('package', 'i-sm') + esc(t('items')) + ' · ' + d.items.length + '</div>' +
         '<div class="table-wrap"><table class="table"><thead><tr><th>' + esc(t('items')) + '</th><th class="num">' + esc(t('requested')) + '</th><th class="num">' + esc(t('approved')) + '</th><th>' + esc(t('dispatch_status')) + '</th><th class="num">' + esc(t('received')) + '</th></tr></thead><tbody>' +
         d.items.map(it => {
@@ -920,7 +940,7 @@ function openDetail(id) {
     foot.className = 'modal-foot';
     foot.innerHTML =
       '<button class="btn btn-danger-soft btn-sm" data-act="complaint" data-id="' + esc(d.id) + '">' + icon('alert', 'i-sm') + esc(t('report')) + '</button>' +
-      (d.receiptUrl ? '<a class="btn btn-sm" href="' + esc(d.receiptUrl) + '" target="_blank" rel="noopener">' + icon('image', 'i-sm') + esc(t('view_receipt')) + '</a>' : '') +
+      (d.receiptUrl ? '<a class="btn btn-sm" href="' + esc(d.receiptUrl) + '" target="_blank" rel="noopener">' + icon('image', 'i-sm') + esc((d.shipments || []).length > 1 ? t('merged_receipt') : t('view_receipt')) + '</a>' : '') +
       (d.signature ? '<a class="btn btn-sm btn-ghost" href="' + esc(d.signature) + '" target="_blank" rel="noopener">' + icon('pen', 'i-sm') + esc(t('view_signature')) + '</a>' : '') +
       '<span class="spacer"></span>' +
       (canReceive ? '<button class="btn btn-primary" data-act="receive" data-id="' + esc(d.id) + '">' + icon('pen', 'i-sm') + esc(t('receive_btn')) + '</button>' : '<button class="btn" data-close>' + esc(t('close')) + '</button>');
@@ -1255,7 +1275,7 @@ ACT.submitRequest = el => {
 const NURSE_GROUPS = [
   { id: 'all', k: 'grp_all' },
   { id: 'active', k: 'grp_active', statuses: [ST.NEW, ST.PREP, ST.VENDOR_WAIT, ST.VENDOR_RECV, ST.REVIEW, ST.APPROVED], tone: 'var(--t-amber)' },
-  { id: 'to_receive', k: 'grp_to_receive', statuses: [ST.SENT], tone: 'var(--t-indigo)' },
+  { id: 'to_receive', k: 'grp_to_receive', test: r => r.pendingShipments > 0, tone: 'var(--t-indigo)' },
   { id: 'received', k: 'st_received', statuses: [ST.RECEIVED], tone: 'var(--t-green)' },
   { id: 'rejected', k: 'st_rejected', statuses: [ST.REJECTED], tone: 'var(--t-red)' }
 ];
@@ -1296,7 +1316,7 @@ function renderMineList(animate) {
         '<div class="req-side">' + badge(r.status) + progressBar(r.status) + '</div>' +
       '</div>' +
       '<div class="req-actions">' +
-        (r.status === ST.SENT ? '<button class="btn btn-primary btn-sm" data-act="receive" data-id="' + esc(r.id) + '">' + icon('pen', 'i-sm') + esc(t('receive_btn')) + '</button>' : '') +
+        (r.pendingShipments > 0 ? '<button class="btn btn-primary btn-sm" data-act="receive" data-id="' + esc(r.id) + '">' + icon('pen', 'i-sm') + esc(t('receive_btn')) + (r.pendingShipments > 1 ? '<span class="count-pill">' + r.pendingShipments + '</span>' : '') + '</button>' : '') +
         '<button class="btn btn-sm" data-act="detail" data-id="' + esc(r.id) + '">' + icon('eye', 'i-sm') + esc(t('details')) + '</button>' +
         '<button class="btn btn-sm btn-ghost" data-act="complaint" data-id="' + esc(r.id) + '">' + icon('alert', 'i-sm') + esc(t('report')) + '</button>' +
       '</div>' +
@@ -1309,10 +1329,15 @@ ACT.receive = el => {
   const top = topModal(); if (top) closeModal(top);
   openReceive(el.dataset.id);
 };
+const sentQty = it => (it.approvedQty !== '' && it.approvedQty !== null && it.approvedQty !== undefined ? it.approvedQty : it.requestedQty);
+function loadImage(src) {
+  return new Promise(res => { if (!src) { res(null); return; } const im = new Image(); im.onload = () => res(im); im.onerror = () => res(null); im.src = src; });
+}
+/* استلام شحنة واحدة وتوقيعها؛ آخر شحنة تُنشئ إيصالاً موحّداً بكل الشحنات وتواقيعها */
 function openReceive(id) {
   const m = openModal({
     title: esc(t('receive_title')) + ' · <span class="mono">' + esc(id) + '</span>', sub: esc(t('receive_sub')), icon: 'pen', size: 'lg',
-    body: '<div id="rItems">' + skeletonList(1) + '</div>' +
+    body: '<div id="rShip">' + skeletonList(1) + '</div>' +
       '<div class="field"><label for="rName">' + esc(t('receiver_name')) + '</label><input class="input" id="rName" maxlength="120" value="' + esc(S.user.name) + '"></div>' +
       '<div class="field"><div class="between"><span class="label">' + esc(t('signature')) + '</span><button type="button" class="btn btn-ghost btn-sm" id="sigClear">' + icon('refresh', 'i-sm') + esc(t('clear_sig')) + '</button></div>' +
         '<div class="sig-wrap" id="sigWrap"><canvas id="sigPad"></canvas><div class="sig-line"></div><div class="sig-hint">' + icon('pen') + '<span>' + esc(t('signature_hint')) + '</span></div></div></div>' +
@@ -1321,29 +1346,55 @@ function openReceive(id) {
   });
   const sig = signaturePad($('#sigPad', m.el), $('#sigWrap', m.el));
   $('#sigClear', m.el).addEventListener('click', () => sig.clear());
-  let items = [];
-  call('getRequestItems', id).then(list => {
-    items = list || [];
-    $('#rItems', m.el).innerHTML = '<div class="table-wrap"><table class="table"><thead><tr><th>' + esc(t('items')) + '</th><th class="num">' + esc(t('sent_qty')) + '</th><th class="num">' + esc(t('received_qty')) + '</th></tr></thead><tbody>' +
-      items.map((it, i) => {
-        const sent = it.approvedQty !== '' && it.approvedQty !== null ? it.approvedQty : it.requestedQty;
-        return '<tr><td style="font-weight:600">' + esc(it.item) + '</td><td class="num">' + esc(sent) + '</td><td class="num"><input class="input rq" type="number" min="0" inputmode="numeric" data-i="' + i + '" value="' + esc(sent) + '"></td></tr>';
-      }).join('') + '</tbody></table></div>';
+  let d = null, cur = null;
+  const pending = () => d.shipments.filter(g => !g.received);
+  const isLast = () => d.items.every(i => i.batch) && pending().length === 1;
+  const render = () => {
+    const pend = pending();
+    $('#rShip', m.el).innerHTML =
+      (pend.length > 1 ? '<div class="field"><span class="label">' + esc(t('rcv_pick')) + '</span><div class="chips" role="toolbar">' + pend.map(g =>
+        '<button type="button" class="chip" data-b="' + g.batch + '" aria-pressed="' + (g.batch === cur.batch) + '">' + icon('truck', 'i-sm') + esc(t('shipment_n', { n: g.batch })) + '<span class="count-pill">' + g.items.length + '</span></button>').join('') + '</div></div>' : '') +
+      '<div class="rcv-note' + (isLast() ? ' last' : '') + '">' + icon(isLast() ? 'checkc' : 'truck', 'i-sm') + '<span>' + esc(t(isLast() ? 'rcv_final_note' : 'rcv_partial_note', { n: cur.batch })) + '</span></div>' +
+      '<div class="table-wrap"><table class="table"><thead><tr><th>' + esc(t('items')) + '</th><th class="num">' + esc(t('sent_qty')) + '</th><th class="num">' + esc(t('received_qty')) + '</th></tr></thead><tbody>' +
+      cur.items.map((it, i) => '<tr><td style="font-weight:600">' + esc(it.item) + '</td><td class="num">' + esc(sentQty(it)) + '</td><td class="num"><input class="input rq" type="number" min="0" inputmode="numeric" data-i="' + i + '" value="' + esc(sentQty(it)) + '"></td></tr>').join('') +
+      '</tbody></table></div>';
+    $$('#rShip .chip', m.el).forEach(b => b.addEventListener('click', () => { cur = pend.find(g => g.batch === Number(b.dataset.b)); render(); }));
+  };
+  call('getRequestDetail', id).then(det => {
+    if (m.closing) return;
+    d = det;
+    if (!pending().length) { $('#rShip', m.el).innerHTML = emptyState('checkc', t('ERR_ALREADY_RECEIVED')); return; }
+    cur = pending()[0];
+    render();
     $('#rOk', m.el).disabled = false;
-  }).catch(e => { $('#rItems', m.el).innerHTML = emptyState('alert', errMsg(e)); });
+  }).catch(e => { $('#rShip', m.el).innerHTML = emptyState('alert', errMsg(e)); });
 
   $('#rOk', m.el).addEventListener('click', () => {
     const name = $('#rName', m.el).value.trim();
     const err = $('#rErr', m.el);
     if (!name) { err.querySelector('span').textContent = t('receiver_required'); err.classList.remove('hidden'); $('#rName', m.el).focus(); return; }
     err.classList.add('hidden');
-    const rec = $$('.rq', m.el).map(inp => ({ name: items[Number(inp.dataset.i)].item, qty: Math.max(0, Math.floor(Number(inp.value) || 0)) }));
+    const ship = cur, last = isLast();
+    const got = $$('.rq', m.el).map(inp => Math.max(0, Math.floor(Number(inp.value) || 0)));
+    const rec = ship.items.map((it, i) => ({ name: it.item, qty: got[i] }));
     const sigData = sig.hasInk() ? sig.toDataURL() : '';
-    const receipt = receiptImage(id, items, rec, name, sig);
+    const section = { batch: ship.batch, items: ship.items.map((it, i) => ({ item: it.item, sent: sentQty(it), got: got[i] })), receiver: name, at: new Date(), sig: sig.hasInk() ? sig.canvas : null };
+    const receipt = drawReceipt(id, [section], false);
     const b = $('#rOk', m.el); busy(b, true, t('sending'));
-    call('receiveRequest', id, rec, name, sigData, receipt).then(() => {
+    const merged = !last ? Promise.resolve('') : call('getShipmentSignatures', id)
+      .then(list => Promise.all(d.shipments.map(g => {
+        if (g.batch === ship.batch) return section;
+        const s = (list || []).find(x => x.batch === g.batch);
+        return loadImage(s && s.dataUrl).then(img => ({
+          batch: g.batch, items: g.items.map(it => ({ item: it.item, sent: sentQty(it), got: it.receivedQty === '' || it.receivedQty === null ? '' : it.receivedQty })),
+          receiver: g.receiver, at: g.receivedAt, sig: img
+        }));
+      })))
+      .then(sections => drawReceipt(id, sections, true))
+      .catch(() => '');
+    merged.then(mr => call('receiveShipment', id, ship.batch, rec, name, sigData, receipt, mr)).then(res => {
       closeModal(m);
-      toast(t('received_ok', { id: id }));
+      toast(res.complete ? t('request_complete_ok', { id: id }) : t('shipment_received_ok', { n: ship.batch }));
       loadMine(true); loadAlerts();
     }).catch(e => { busy(b, false); err.querySelector('span').textContent = errMsg(e); err.classList.remove('hidden'); });
   });
@@ -1376,46 +1427,56 @@ function signaturePad(canvas, wrap) {
   requestAnimationFrame(setup);
   return { clear: setup, hasInk: () => ink, toDataURL: () => canvas.toDataURL('image/png'), canvas: canvas };
 }
-function receiptImage(id, items, rec, receiver, sig) {
+/* صورة إيصال: قسم لكل شحنة (أصنافها + المستلم + التوقيع). combined = الإيصال الموحّد للطلب المكتمل */
+function drawReceipt(id, sections, combined) {
   try {
-    const rowH = 30, W = 680;
-    const H = 150 + items.length * rowH + 150;
+    const rowH = 28, W = 680, sigH = 90;
+    const secH = s => 34 + rowH + s.items.length * rowH + 30 + sigH + 40;
+    const H = 96 + sections.reduce((h, s) => h + secH(s), 0) + 16;
     const c = document.createElement('canvas'); c.width = W; c.height = H;
     const x = c.getContext('2d');
+    const when = v => { const d = toDate(v) || new Date(); return d.toLocaleString('en-GB', { timeZone: 'Asia/Riyadh' }); };
     x.fillStyle = '#fff'; x.fillRect(0, 0, W, H);
     x.fillStyle = '#0f7a5f'; x.fillRect(0, 0, W, 10);
     x.textAlign = 'center'; x.fillStyle = '#0f7a5f'; x.font = 'bold 21px Arial, sans-serif';
-    x.fillText('SupplyFlow — ApexCare · Receipt', W / 2, 44);
+    x.fillText('SupplyFlow — ApexCare · ' + (combined ? 'Combined receipt' : 'Receipt'), W / 2, 44);
     x.fillStyle = '#555'; x.font = '13px Arial, sans-serif';
-    x.fillText(id + '   |   ' + new Date().toLocaleString('en-GB', { timeZone: 'Asia/Riyadh' }), W / 2, 68);
+    x.fillText(id + '   |   ' + when() + (combined ? '   |   ' + sections.length + ' shipment(s)' : ''), W / 2, 68);
     let y = 92;
-    x.fillStyle = '#e8f4f0'; x.fillRect(20, y, W - 40, rowH);
-    x.fillStyle = '#0f7a5f'; x.font = 'bold 13px Arial, sans-serif';
-    x.textAlign = 'left'; x.fillText('Item', 30, y + 20);
-    x.textAlign = 'center'; x.fillText('Sent', W - 170, y + 20); x.fillText('Received', W - 70, y + 20);
-    y += rowH;
-    items.forEach((it, i) => {
-      x.fillStyle = i % 2 ? '#fff' : '#fafafa'; x.fillRect(20, y, W - 40, rowH);
-      x.strokeStyle = '#e5e9e7'; x.strokeRect(20, y, W - 40, rowH);
-      const sent = it.approvedQty !== '' && it.approvedQty !== null ? it.approvedQty : it.requestedQty;
-      const got = rec[i] ? rec[i].qty : '';
-      x.fillStyle = '#222'; x.font = '13px Arial, sans-serif';
-      x.textAlign = 'left'; x.direction = /[؀-ۿ]/.test(it.item) ? 'rtl' : 'ltr';
-      if (x.direction === 'rtl') { x.textAlign = 'right'; x.fillText(String(it.item), W - 230, y + 20, 400); } else x.fillText(String(it.item), 30, y + 20, 440);
-      x.direction = 'ltr'; x.textAlign = 'center';
-      x.fillText(String(sent), W - 170, y + 20);
-      x.fillStyle = Number(got) < Number(sent) ? '#c93a3a' : '#222';
-      x.fillText(String(got), W - 70, y + 20);
+    sections.forEach(s => {
+      x.fillStyle = '#0f7a5f'; x.font = 'bold 15px Arial, sans-serif'; x.textAlign = 'left';
+      x.fillText('Shipment #' + s.batch, 20, y + 20);
+      x.fillStyle = '#777'; x.font = '12px Arial, sans-serif'; x.textAlign = 'right';
+      x.fillText('Received ' + when(s.at), W - 20, y + 20);
+      y += 34;
+      x.fillStyle = '#e8f4f0'; x.fillRect(20, y, W - 40, rowH);
+      x.fillStyle = '#0f7a5f'; x.font = 'bold 13px Arial, sans-serif';
+      x.textAlign = 'left'; x.fillText('Item', 30, y + 19);
+      x.textAlign = 'center'; x.fillText('Sent', W - 170, y + 19); x.fillText('Received', W - 70, y + 19);
       y += rowH;
+      s.items.forEach((it, i) => {
+        x.fillStyle = i % 2 ? '#fff' : '#fafafa'; x.fillRect(20, y, W - 40, rowH);
+        x.strokeStyle = '#e5e9e7'; x.strokeRect(20, y, W - 40, rowH);
+        x.fillStyle = '#222'; x.font = '13px Arial, sans-serif';
+        x.textAlign = 'left'; x.direction = /[؀-ۿ]/.test(it.item) ? 'rtl' : 'ltr';
+        if (x.direction === 'rtl') { x.textAlign = 'right'; x.fillText(String(it.item), W - 230, y + 19, 400); } else x.fillText(String(it.item), 30, y + 19, 440);
+        x.direction = 'ltr'; x.textAlign = 'center';
+        x.fillText(String(it.sent), W - 170, y + 19);
+        x.fillStyle = it.got !== '' && Number(it.got) < Number(it.sent) ? '#c93a3a' : '#222';
+        x.fillText(String(it.got === '' ? '—' : it.got), W - 70, y + 19);
+        y += rowH;
+      });
+      y += 22;
+      x.fillStyle = '#333'; x.font = 'bold 13px Arial, sans-serif'; x.textAlign = 'left';
+      x.fillText('Receiver: ', 30, y);
+      x.font = '13px Arial, sans-serif'; x.fillText(String(s.receiver || '—'), 100, y);
+      y += 8;
+      x.strokeStyle = '#d8dfdb'; x.strokeRect(30, y, 240, sigH);
+      if (s.sig) x.drawImage(s.sig, 30, y, 240, sigH);
+      x.fillStyle = '#888'; x.font = '11px Arial, sans-serif'; x.fillText(s.sig ? 'Signature' : 'No signature', 30, y + sigH + 16);
+      y += sigH + 32;
+      if (combined) { x.strokeStyle = '#e5e9e7'; x.beginPath(); x.moveTo(20, y - 8); x.lineTo(W - 20, y - 8); x.stroke(); }
     });
-    y += 24;
-    x.fillStyle = '#333'; x.font = 'bold 13px Arial, sans-serif'; x.textAlign = 'left';
-    x.fillText('Receiver: ', 30, y);
-    x.font = '13px Arial, sans-serif'; x.fillText(receiver, 100, y);
-    y += 14;
-    x.strokeStyle = '#d8dfdb'; x.strokeRect(30, y, 240, 90);
-    if (sig && sig.hasInk()) x.drawImage(sig.canvas, 30, y, 240, 90);
-    x.fillStyle = '#888'; x.font = '11px Arial, sans-serif'; x.fillText(sig && sig.hasInk() ? 'Signature' : 'No signature', 30, y + 106);
     x.fillStyle = '#0f7a5f'; x.fillRect(0, H - 8, W, 8);
     return c.toDataURL('image/png');
   } catch (e) { console.error(e); return ''; }
@@ -1535,7 +1596,7 @@ function procItemsHtml(r) {
   const ds = data.dispatchStatus || {};
   const nc = data.noteCounts || {};
   const pending = data.items.filter(it => !ds[it.item]).length;
-  return shipSummary(data.items) +
+  return shipSummary(data.items, data.shipments) +
     '<div class="table-wrap"><table class="table"><thead><tr>' + (canDispatch ? '<th style="width:36px">' + (pending ? '<input type="checkbox" class="check" data-change="dspAll" data-id="' + esc(r.id) + '" title="' + esc(t('select_remaining')) + '" aria-label="' + esc(t('select_remaining')) + '">' : '') + '</th>' : '') + '<th>' + esc(t('items')) + '</th><th class="num">' + esc(t('requested')) + '</th><th class="num">' + esc(t('approved')) + '</th><th>' + esc(t('dispatch_status')) + '</th><th style="width:44px"></th></tr></thead><tbody>' +
     data.items.map(it => {
       const sent = !!ds[it.item];
@@ -2236,13 +2297,13 @@ Object.assign(I18N.ar, {
   wf_s3_t: 'إرسال للمراجعة', wf_s3_d: 'يُحال الطلب لطبيب العيادة وتُقفل الكميات. يصل بريد للطبيب.',
   wf_s4_t: 'اعتماد الطبيب', wf_s4_d: 'يراجع الأصناف والكميات ويضيف ملاحظاته، ثم يعتمد أو يرفض مع السبب.',
   wf_s5_t: 'الإرسال للفرع', wf_s5_d: 'إرسال الطلب كاملاً أو أصناف محددة على دفعات. يصل بريد للممرضة.',
-  wf_s6_t: 'الاستلام والتوقيع', wf_s6_d: 'تسجيل الكميات المستلمة فعلياً والتوقيع، وتُحفظ صورة الاستلام تلقائياً.',
+  wf_s6_t: 'الاستلام والتوقيع', wf_s6_d: 'توقيع كل شحنة عند وصولها مع الكميات المستلمة فعلياً، وبعد آخر شحنة يُنشأ إيصال موحّد بكل التواقيع.',
   wf_b_any_t: 'في أي مرحلة', wf_b_any_d: 'ملاحظات على الطلب وعلى كل صنف، وبلاغات (تأخير / نقص / زيادة) تصل للتموين والإدارة فوراً.',
   wf_b_vendor_t: 'مسار المندوب (اختياري)', wf_b_vendor_d: 'إذا احتاج صنف توريداً خارجياً، ثم يكمل الطلب إلى المراجعة.',
   wf_b_reject_t: 'عند الرفض', wf_b_reject_d: 'يعود الطلب للتموين مع السبب، فيُعاد تجهيزه وإرساله للمراجعة.',
   wf_b_nodoc_t: 'طبيب بدون حساب', wf_b_nodoc_d: 'إن لم يكن للطبيب حساب في النظام يمكن الإرسال للفرع مباشرة بعد التجهيز.',
   wf_roles_title: 'من يفعل ماذا',
-  wf_do_nurse: 'رفع الطلبات الشهرية والطارئة|متابعة حالة كل طلب لحظياً|الاستلام والتوقيع وتسجيل أي نقص|الإبلاغ عن أي مشكلة',
+  wf_do_nurse: 'رفع الطلبات الشهرية والطارئة|متابعة حالة كل طلب لحظياً|استلام كل شحنة وتوقيعها وتسجيل أي نقص|الإبلاغ عن أي مشكلة',
   wf_do_procurement: 'تجهيز الطلبات وتعديل الكميات|إدارة مسار المندوب عند الحاجة|الإرسال للمراجعة ثم للفرع (كامل أو جزئي)|متابعة البلاغات وإغلاقها',
   wf_do_doctor: 'مراجعة طلبات العيادة|إضافة ملاحظات على الأصناف|الاعتماد أو الرفض مع ذكر السبب',
   wf_do_quality: 'متابعة زمن التنفيذ ومؤشرات الأداء|مراجعة البلاغات وإغلاقها بعد الحل|تحليل نقص الاستلام والأصناف الأكثر طلباً|إرسال تنبيهات للإدارات|إدارة المستخدمين والأدوار والصلاحيات',
@@ -2294,13 +2355,13 @@ Object.assign(I18N.en, {
   wf_s3_t: 'Send for review', wf_s3_d: 'Goes to the clinic doctor and quantities lock. The doctor is emailed.',
   wf_s4_t: 'Doctor approval', wf_s4_d: 'Reviews items and quantities, adds notes, then approves or rejects with a reason.',
   wf_s5_t: 'Dispatch', wf_s5_d: 'Send the whole request or selected items in batches. The nurse is emailed.',
-  wf_s6_t: 'Receive & sign', wf_s6_d: 'Record actually received quantities and sign; a receipt image is saved automatically.',
+  wf_s6_t: 'Receive & sign', wf_s6_d: 'Sign for each shipment as it arrives with the actual quantities; after the last one a combined receipt with all signatures is created.',
   wf_b_any_t: 'At any stage', wf_b_any_d: 'Notes on the request and on each item, and issue reports (delay / shortage / excess) reach procurement and management instantly.',
   wf_b_vendor_t: 'Vendor path (optional)', wf_b_vendor_d: 'When an item needs outside supply; the request then continues to review.',
   wf_b_reject_t: 'If rejected', wf_b_reject_d: 'Returns to procurement with the reason, then is re-prepared and sent for review again.',
   wf_b_nodoc_t: 'Doctor without an account', wf_b_nodoc_d: 'If the doctor has no account, procurement can dispatch right after preparation.',
   wf_roles_title: 'Who does what',
-  wf_do_nurse: 'Submit monthly and emergency requests|Track every request live|Receive, sign and record any shortage|Report any issue',
+  wf_do_nurse: 'Submit monthly and emergency requests|Track every request live|Receive and sign each shipment, recording any shortage|Report any issue',
   wf_do_procurement: 'Prepare requests and adjust quantities|Handle the vendor path when needed|Send for review, then dispatch (full or partial)|Follow up and resolve issues',
   wf_do_doctor: 'Review clinic requests|Add notes on items|Approve or reject with a reason',
   wf_do_quality: 'Monitor fulfilment time and KPIs|Review issues and resolve them|Analyse short receipts and top items|Send department notices|Manage users, roles and permissions',

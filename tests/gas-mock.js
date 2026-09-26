@@ -124,12 +124,17 @@
         Access: { ANYONE_WITH_LINK: 'ANYONE_WITH_LINK' },
         Permission: { VIEW: 'VIEW' },
         getFoldersByName() { return { hasNext() { return false; } }; },
+        getFileById(id) {
+          const f = files.find(x => x.id === id);
+          if (!f) throw new Error('No item with the given ID could be found');
+          return { getBlob() { return { getBytes() { return f.bytes.slice(); } }; } };
+        },
         createFolder(name) {
           return {
             createFile(blob) {
               const id = 'file' + (files.length + 1);
-              files.push({ id, name: blob.name, size: blob.bytes.length });
-              return { setSharing() {}, getUrl() { return 'https://drive.example/' + id; } };
+              files.push({ id, name: blob.name, size: blob.bytes.length, bytes: blob.bytes });
+              return { setSharing() {}, getUrl() { return 'https://drive.example/' + id; }, getId() { return id; } };
             }
           };
         }

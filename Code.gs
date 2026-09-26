@@ -26,6 +26,7 @@ const SCHEMA = {
                  'PrepAt', 'VendorWaitAt', 'VendorReceivedAt', 'ReviewAt', 'ReviewedAt',
                  'RejectionReason', 'ReceiptURL'],
   RequestItems: ['RequestID', 'ItemName', 'RequestedQty', 'ApprovedQty', 'ReceivedQty', 'DispatchedAt', 'DispatchBatch'],
+  Shipments:    ['RequestID', 'Batch', 'ReceivedAt', 'ReceiverName', 'ReceivedBy', 'SignatureURL', 'SignatureFileID', 'ReceiptURL'],
   ItemNotes:    ['Timestamp', 'RequestID', 'ItemName', 'Author', 'Role', 'Note'],
   Log:          ['Timestamp', 'RequestID', 'Action', 'User'],
   Comments:     ['Timestamp', 'RequestID', 'Author', 'Role', 'Message'],
@@ -170,7 +171,8 @@ const API_ = {
   getDoctorProfile:          { screens: ['nurse'], fn: getDoctorProfile_ },
   createRequest:             { screens: ['nurse'], fn: createRequest_ },
   getMyRequests:             { screens: ['nurse'], fn: getMyRequests_ },
-  receiveRequest:            { screens: ['nurse'], fn: receiveRequest_ },
+  receiveShipment:           { screens: ['nurse'], fn: receiveShipment_ },
+  getShipmentSignatures:     { screens: ['nurse'], fn: getShipmentSignatures_ },
   getRequests:               { screens: ['procurement'].concat(MGMT), fn: getRequestsApi_ },
   getRequestItemsFull:       { screens: ['procurement'].concat(MGMT), fn: getRequestItemsFull_ },
   updateItemApproval:        { screens: ['procurement'], fn: updateItemApproval_ },
@@ -578,7 +580,7 @@ function canSee_(user, req) {
 
 function queryRequests_(filters) {
   filters = filters || {};
-  const counts = itemCounts_();
+  const byReq = itemsByRequest_();
   const reviewers = doctorAccounts_();
   return requestRows_().map(mapRequest_).filter(function (r) {
     if (filters.status && r.status !== filters.status) return false;
@@ -588,26 +590,19 @@ function queryRequests_(filters) {
     if (filters.month && monthOf_(r.date) !== filters.month) return false;
     return true;
   }).map(function (r) {
-    const c = counts[r.id] || { items: 0, dispatched: 0, batches: 0 };
-    r.itemCount = c.items;
-    r.dispatchedCount = c.dispatched;
-    r.shipmentCount = c.batches;
+    const st = shipState_(r, byReq[r.id] || []);
+    r.itemCount = st.total;
+    r.dispatchedCount = st.dispatched;
+    r.shipmentCount = st.ships.length;
+    r.pendingShipments = st.pending;
     r.needsReview = !!reviewers[r.doctor];
     return r;
   }).sort(function (a, b) { return toMs_(b.date) - toMs_(a.date); });
 }
 
-function itemCounts_() {
+function itemsByRequest_() {
   const out = {};
-  const rowsBy = {};
-  read_('RequestItems').rows.forEach(function (r) {
-    const id = str_(r.RequestID);
-    out[id] = out[id] || { items: 0, dispatched: 0, batches: 0 };
-    out[id].items++;
-    if (r.DispatchedAt) out[id].dispatched++;
-    (rowsBy[id] = rowsBy[id] || []).push(r);
-  });
-  Object.keys(rowsBy).forEach(function (id) { out[id].batches = batchesOf_(rowsBy[id]).count; });
+  read_('RequestItems').rows.forEach(function (r) { (out[str_(r.RequestID)] = out[str_(r.RequestID)] || []).push(r); });
   return out;
 }
 
@@ -731,6 +726,51 @@ function mapItem_(r, batches) {
   };
 }
 
+/** استلامات الشحنات: { requestId: { batch: row } } */
+function receiptsIndex_() {
+  if (MEMO_.rcpt) return MEMO_.rcpt;
+  const out = {};
+  read_('Shipments').rows.forEach(function (r) {
+    const id = str_(r.RequestID), b = Number(r.Batch) || 0;
+    if (id && b) (out[id] = out[id] || {})[b] = r;
+  });
+  MEMO_.rcpt = out;
+  return out;
+}
+
+/**
+ * حالة شحنات الطلب: الأصناف مجمّعة حسب رقم الشحنة + حالة استلام وتوقيع كل شحنة.
+ * طلب قديم «مرسل/مستلم» بأصناف بلا تاريخ إرسال يُعامل كشحنة واحدة، والمستلم قديماً يُعد كل شحناته مستلمة.
+ */
+function shipState_(req, rows) {
+  const b = batchesOf_(rows);
+  const whole = req.status === ST.SENT || req.status === ST.RECEIVED;
+  const rec = receiptsIndex_()[req.id] || {};
+  const groups = {};
+  let extra = 0;
+  const items = rows.map(function (r) {
+    const it = mapItem_(r, b);
+    if (!it.batch && whole) { it.batch = extra || (extra = b.count + 1); it.dispatchedAt = req.sentAt; }
+    if (it.batch) (groups[it.batch] = groups[it.batch] || { batch: it.batch, sentAt: it.dispatchedAt, items: [] }).items.push(it);
+    return it;
+  });
+  const ships = Object.keys(groups).map(Number).sort(function (x, y) { return x - y; }).map(function (n) {
+    const g = groups[n], x = rec[n], legacy = !x && req.status === ST.RECEIVED;
+    g.received = !!x || legacy;
+    g.receivedAt = x ? x.ReceivedAt : (legacy ? req.receivedAt : '');
+    g.receiver = x ? str_(x.ReceiverName) : (legacy ? req.receiver : '');
+    g.signatureUrl = x ? str_(x.SignatureURL) : (legacy ? req.signature : '');
+    g.receiptUrl = x ? str_(x.ReceiptURL) : (legacy ? req.receiptUrl : '');
+    return g;
+  });
+  const dispatched = ships.reduce(function (n, g) { return n + g.items.length; }, 0);
+  return {
+    items: items, ships: ships, total: rows.length, dispatched: dispatched,
+    pending: ships.filter(function (g) { return !g.received; }).length,
+    allDispatched: rows.length > 0 && dispatched === rows.length
+  };
+}
+
 /** أصناف الطلب مع رقم الشحنة لكل صنف */
 function mappedItems_(requestId) {
   const rows = itemsOf_(requestId);
@@ -751,12 +791,13 @@ function getRequestItemsApi_(user, requestId) {
 }
 
 function getRequestItemsFull_(user, requestId) {
-  const items = mappedItems_(requestId);
+  const req = mapRequest_(findRequest_(requestId).row);
+  const st = shipState_(req, itemsOf_(requestId));
   const dispatchStatus = {};
-  items.forEach(function (it) { if (it.dispatchedAt) dispatchStatus[it.item] = true; });
+  st.items.forEach(function (it) { if (it.batch) dispatchStatus[it.item] = true; });
   const notes = {};
   itemNotes_(requestId).forEach(function (n) { notes[n.item] = (notes[n.item] || 0) + 1; });
-  return { items: items, dispatchStatus: dispatchStatus, noteCounts: notes, request: mapRequest_(findRequest_(requestId).row) };
+  return { items: st.items, shipments: st.ships, dispatchStatus: dispatchStatus, noteCounts: notes, request: req };
 }
 
 function getRequestItemsWithCatalog_(user, requestId) {
@@ -957,35 +998,91 @@ function doctorReview_(user, requestId, decision, reason, itemNotes) {
   return true;
 }
 
-function receiveRequest_(user, requestId, receivedItems, receiverName, signatureDataUrl, receiptDataUrl) {
+/**
+ * استلام شحنة واحدة وتوقيعها. عند استلام آخر شحنة (وكل الأصناف مُرسلة) يكتمل الطلب
+ * ويُحفظ إيصال موحّد يجمع كل الشحنات وتواقيعها (يرسمه المتصفح بـ mergedReceiptDataUrl).
+ */
+function receiveShipment_(user, requestId, batch, receivedItems, receiverName, signatureDataUrl, receiptDataUrl, mergedReceiptDataUrl) {
   receiverName = clean_(receiverName, 120);
   if (!receiverName) throw new Error('ERR_REQUIRED');
+  batch = Math.floor(Number(batch)) || 0;
   const g = guardSee_(user, requestId);
-  if (g.req.status !== ST.SENT) throw new Error('ERR_BAD_TRANSITION');
+  const pre = shipState_(g.req, itemsOf_(requestId));
+  pendingShip_(g.req, pre, batch);
+  const lastOne = pre.allDispatched && pre.pending === 1;
 
-  let signatureUrl = '', receiptUrl = '';
-  try { if (signatureDataUrl) signatureUrl = saveImage_(requestId + '-signature', signatureDataUrl); } catch (e) { console.error(e); }
-  try { if (receiptDataUrl) receiptUrl = saveImage_(requestId + '-receipt', receiptDataUrl); } catch (e) { console.error(e); }
+  const tag = requestId + '-S' + batch;
+  let sig = { url: '', id: '' }, receiptUrl = '', mergedUrl = '';
+  try { if (signatureDataUrl) sig = saveImage_(tag + '-signature', signatureDataUrl); } catch (e) { console.error(e); }
+  try { if (receiptDataUrl) receiptUrl = saveImage_(tag + '-receipt', receiptDataUrl).url; } catch (e) { console.error(e); }
+  try { if (lastOne && mergedReceiptDataUrl) mergedUrl = saveImage_(requestId + '-receipt-all', mergedReceiptDataUrl).url; } catch (e) { console.error(e); }
 
+  let res;
   withLock_(function () {
     resetMemo_();
     const f = findRequest_(requestId);
-    if (str_(f.row.Status) !== ST.SENT) throw new Error('ERR_BAD_TRANSITION');
-    setCells_(f.t, f.row, {
-      Status: ST.RECEIVED, ReceivedAt: new Date(), ReceiverName: receiverName,
-      SignatureURL: signatureUrl, ReceiptURL: receiptUrl
-    });
+    const req = mapRequest_(f.row);
     const ri = read_('RequestItems');
-    (receivedItems || []).forEach(function (it) {
-      const qty = Math.max(0, Math.floor(Number(it && it.qty) || 0));
-      const row = ri.rows.filter(function (r) { return str_(r.RequestID) === str_(requestId) && str_(r.ItemName) === str_(it && it.name); })[0];
-      if (row) setCells_(ri, row, { ReceivedQty: qty });
+    const rows = ri.rows.filter(function (r) { return str_(r.RequestID) === req.id; });
+    const ship = pendingShip_(req, shipState_(req, rows), batch);
+    const now = new Date();
+    append_('Shipments', {
+      RequestID: req.id, Batch: batch, ReceivedAt: now, ReceiverName: receiverName, ReceivedBy: user.name,
+      SignatureURL: sig.url, SignatureFileID: sig.id, ReceiptURL: receiptUrl
     });
-    logAction_(requestId, 'استلام وتوقيع', receiverName + ' (' + user.name + ')');
+    delete MEMO_.rcpt;
+    const inShip = {};
+    ship.items.forEach(function (it) { inShip[it.item] = true; });
+    const qty = {};
+    (receivedItems || []).forEach(function (it) {
+      const n = str_(it && it.name);
+      if (inShip[n]) qty[n] = Math.max(0, Math.floor(Number(it.qty) || 0));
+    });
+    rows.forEach(function (r) { const n = str_(r.ItemName); if (n in qty) setCells_(ri, r, { ReceivedQty: qty[n] }); });
+    logAction_(req.id, 'استلام الشحنة ' + batch + ' وتوقيعها (' + ship.items.length + ' صنف)', receiverName + ' (' + user.name + ')');
+
+    const after = shipState_(req, rows);
+    const complete = after.allDispatched && after.pending === 0;
+    if (complete) {
+      const names = [];
+      after.ships.forEach(function (s) { if (s.receiver && names.indexOf(s.receiver) === -1) names.push(s.receiver); });
+      setCells_(f.t, f.row, {
+        Status: ST.RECEIVED, ReceivedAt: now, ReceiverName: names.join('، '),
+        SignatureURL: sig.url, ReceiptURL: mergedUrl || receiptUrl
+      });
+      logAction_(req.id, 'اكتمل استلام الطلب (' + after.ships.length + ' شحنة)' + (mergedUrl ? ' — إيصال موحّد بكل التواقيع' : ''), user.name);
+    }
+    res = {
+      complete: complete, batch: batch, pendingShipments: after.pending, notDispatched: after.total - after.dispatched,
+      receiptUrl: receiptUrl, signatureUrl: sig.url, mergedReceiptUrl: complete ? (mergedUrl || receiptUrl) : ''
+    };
   });
-  return { signatureUrl: signatureUrl, receiptUrl: receiptUrl };
+  return res;
 }
 
+function pendingShip_(req, st, batch) {
+  if (req.status === ST.RECEIVED) throw new Error('ERR_BAD_TRANSITION');
+  const ship = st.ships.filter(function (s) { return s.batch === batch; })[0];
+  if (!ship) throw new Error('ERR_NOT_FOUND');
+  if (ship.received) throw new Error('ERR_ALREADY_RECEIVED');
+  return ship;
+}
+
+/** تواقيع الشحنات المستلمة (data URL) لرسم الإيصال الموحّد في المتصفح */
+function getShipmentSignatures_(user, requestId) {
+  const g = guardSee_(user, requestId);
+  const rec = receiptsIndex_()[g.req.id] || {};
+  return Object.keys(rec).map(Number).sort(function (a, b) { return a - b; }).map(function (b) {
+    const id = str_(rec[b].SignatureFileID);
+    let data = '';
+    if (id) {
+      try { data = 'data:image/png;base64,' + Utilities.base64Encode(DriveApp.getFileById(id).getBlob().getBytes()); } catch (e) { console.error(e); }
+    }
+    return { batch: b, dataUrl: data };
+  });
+}
+
+/** يحفظ صورة PNG في Drive ويعيد { url, id } */
 function saveImage_(fileName, dataUrl) {
   const m = /^data:image\/png;base64,([A-Za-z0-9+/=]+)$/.exec(String(dataUrl));
   if (!m) throw new Error('ERR_BAD_IMAGE');
@@ -996,7 +1093,7 @@ function saveImage_(fileName, dataUrl) {
   const blob = Utilities.newBlob(Utilities.base64Decode(m[1]), 'image/png', fileName + '.png');
   const file = folder.createFile(blob);
   try { file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW); } catch (e) { /* سياسة النطاق قد تمنع */ }
-  return file.getUrl();
+  return { url: file.getUrl(), id: file.getId() };
 }
 
 /* =====================================================================
@@ -1008,7 +1105,9 @@ function getRequestDetail_(user, requestId) {
   const req = g.req;
   const noteMap = {};
   itemNotes_(requestId).forEach(function (n) { (noteMap[n.item] = noteMap[n.item] || []).push(n); });
-  req.items = mappedItems_(requestId).map(function (it) {
+  const st = shipState_(req, itemsOf_(requestId));
+  req.shipments = st.ships;
+  req.items = st.items.map(function (it) {
     it.notes = noteMap[it.item] || [];
     it.note = it.notes.map(function (n) { return n.note; }).join(' · ');
     return it;
@@ -1149,8 +1248,8 @@ function getAlerts_(user) {
   const reqs = requestRows_().map(mapRequest_);
   function hoursSince(v) { return (now - toMs_(v)) / 36e5; }
   if (user.screen === 'nurse') {
-    const mine = reqs.filter(function (r) { return r.nurse === user.name; });
-    const toReceive = mine.filter(function (r) { return r.status === ST.SENT; }).length;
+    const mine = queryRequests_({ nurse: user.name });
+    const toReceive = mine.filter(function (r) { return r.pendingShipments > 0; }).length;
     const rejected = mine.filter(function (r) { return r.status === ST.REJECTED; }).length;
     if (toReceive) alerts.push({ type: 'info', code: 'alert_to_receive', n: toReceive });
     if (rejected) alerts.push({ type: 'danger', code: 'alert_rejected', n: rejected });
@@ -1206,7 +1305,7 @@ function notifyNursePartial_(req, r) {
   notifyUser_(req.nurse, 'شحنة جزئية من طلبك - ' + req.id + ' (' + r.sent + '/' + r.total + ')',
     'تم إرسال الشحنة رقم ' + r.batch + ' من طلبك ' + req.id + ' الخاص بعيادة ' + req.clinic + ':\n- ' +
     r.items.join('\n- ') + '\n\nأُرسل ' + r.sent + ' من ' + r.total + ' صنف، والمتبقي ' + r.remaining +
-    ' صنف سيُرسل لاحقاً.\nتأكيد الاستلام والتوقيع يكون من داخل النظام بعد وصول كامل الطلب.');
+    ' صنف سيُرسل لاحقاً.\nيرجى تأكيد استلام هذه الشحنة والتوقيع عليها من داخل النظام عند وصولها.');
 }
 
 function notifyNurseSent_(req) {

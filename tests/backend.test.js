@@ -176,15 +176,37 @@ test('full workflow: prep → review → approve → partial dispatch → receiv
 
   // ممرضة أخرى لا تستطيع الاستلام
   const other = login('ريم', '2222');
-  throwsCode(() => api(other, 'receiveRequest', id, [], 'ريم', '', ''), 'ERR_FORBIDDEN');
-  throwsCode(() => api(n, 'receiveRequest', id, [], '', '', ''), 'ERR_REQUIRED');
-  const rec = api(n, 'receiveRequest', id, [{ name: 'PROPHY PASTE', qty: 4 }, { name: 'DENTAL FLOSS', qty: 6 }], 'سارة', PNG, PNG);
+  throwsCode(() => api(other, 'receiveShipment', id, 1, [], 'ريم', '', ''), 'ERR_FORBIDDEN');
+  throwsCode(() => api(n, 'receiveShipment', id, 1, [], '', '', ''), 'ERR_REQUIRED');
+  throwsCode(() => api(n, 'receiveShipment', id, 9, [], 'سارة', '', ''), 'ERR_NOT_FOUND');
+  assert.equal(api(n, 'getMyRequests')[0].pendingShipments, 2);
+
+  // الشحنة 1: توقيع مستقل، والطلب لم يكتمل بعد (الأصناف خارج الشحنة تُتجاهل)
+  let rec = api(n, 'receiveShipment', id, 1, [{ name: 'PROPHY PASTE', qty: 4 }, { name: 'DENTAL FLOSS', qty: 99 }], 'سارة', PNG, PNG, PNG);
+  assert.deepEqual([rec.complete, rec.pendingShipments, rec.mergedReceiptUrl], [false, 1, '']);
   assert.ok(rec.signatureUrl && rec.receiptUrl);
-  assert.equal(gas.files.length, 2);
-  throwsCode(() => api(n, 'receiveRequest', id, [], 'سارة', '', ''), 'ERR_BAD_TRANSITION');
+  assert.equal(gas.files.length, 2, 'merged receipt is not saved before the last shipment');
+  assert.equal(api(n, 'getRequestDetail', id).status, 'تم الإرسال');
+  assert.equal(api(n, 'getRequestDetail', id).items.find(i => i.item === 'DENTAL FLOSS').receivedQty, '');
+  throwsCode(() => api(n, 'receiveShipment', id, 1, [], 'سارة', '', ''), 'ERR_ALREADY_RECEIVED');
+  const sigs = api(n, 'getShipmentSignatures', id);
+  assert.equal(sigs.length, 1);
+  assert.ok(sigs[0].dataUrl.startsWith('data:image/png;base64,'), 'stored signature can be read back for the merged receipt');
+
+  // الشحنة 2 (الأخيرة): يكتمل الطلب ويُحفظ الإيصال الموحّد
+  rec = api(n, 'receiveShipment', id, 2, [{ name: 'DENTAL FLOSS', qty: 6 }], 'منيرة', PNG, PNG, PNG);
+  assert.deepEqual([rec.complete, rec.pendingShipments], [true, 0]);
+  assert.equal(gas.files.length, 5);
+  assert.ok(gas.files[4].name.endsWith('-receipt-all.png'));
+  assert.equal(rec.mergedReceiptUrl, 'https://drive.example/file5');
+  throwsCode(() => api(n, 'receiveShipment', id, 2, [], 'سارة', '', ''), 'ERR_BAD_TRANSITION');
 
   const det = api(n, 'getRequestDetail', id);
   assert.equal(det.status, 'تم الاستلام');
+  assert.equal(det.receiver, 'سارة، منيرة', 'all receivers are kept on the completed request');
+  assert.equal(det.receiptUrl, rec.mergedReceiptUrl);
+  assert.deepEqual(det.shipments.map(g => [g.batch, g.received, g.receiver]), [[1, true, 'سارة'], [2, true, 'منيرة']]);
+  assert.ok(det.shipments[0].receiptUrl && det.shipments[0].signatureUrl);
   assert.equal(typeof det.submittedAt, 'string', 'dates are serialized');
   assert.equal(det.items.find(i => i.item === 'DENTAL FLOSS').receivedQty, 6);
   assert.equal(det.items.find(i => i.item === 'DENTAL FLOSS').notes[0].note, 'نوع شمعي');
@@ -221,6 +243,11 @@ test('items can be dispatched in numbered shipments with a sent/remaining tracke
   throwsCode(() => api(p, 'dispatchItems', id, [names[0]]), 'ERR_NO_ITEMS');
   throwsCode(() => api(p, 'dispatchItems', id, ['NOT IN REQUEST']), 'ERR_NO_ITEMS');
 
+  // الممرضة تستلم الشحنة 1 والطلب ما زال مفتوحاً
+  assert.equal(api(n, 'receiveShipment', id, 1, [{ name: names[0], qty: 2 }, { name: names[1], qty: 1 }], 'سارة', '', '').complete, false);
+  mine = api(n, 'getMyRequests').find(r => r.id === id);
+  assert.deepEqual([mine.status, mine.pendingShipments], ['معتمد من الطبيب', 0]);
+
   // الشحنة 2: صنف واحد
   ds = api(p, 'dispatchItems', id, [names[2], names[0]]);
   assert.deepEqual([ds.batch, ds.count, ds.remaining], [2, 1, 2], 'already-sent items in the selection are ignored');
@@ -233,6 +260,12 @@ test('items can be dispatched in numbered shipments with a sent/remaining tracke
   mine = api(n, 'getMyRequests').find(r => r.id === id);
   assert.deepEqual([mine.dispatchedCount, mine.shipmentCount], [5, 3]);
   assert.deepEqual(api(p, 'getRequestItems', id).map(i => i.batch), [1, 1, 2, 3, 3]);
+
+  // استلام بترتيب مختلف: 3 ثم 2 — الأخيرة تُكمل الطلب
+  assert.equal(api(n, 'receiveShipment', id, 3, [], 'سارة', '', '').complete, false);
+  assert.equal(api(n, 'receiveShipment', id, 2, [], 'سارة', '', '').complete, true);
+  assert.equal(api(p, 'getRequestItemsFull', id).shipments.every(g => g.received), true);
+  assert.equal(api(n, 'getRequestItems', id).find(i => i.item === names[1]).receivedQty, 1);
 
   // صفوف قديمة بدون رقم شحنة تُرقَّم حسب وقت الإرسال
   const t = gas.ss.getSheetByName('RequestItems');
@@ -469,7 +502,8 @@ test('works with a legacy sheet (old column set, existing data) without losing a
   const header = gas.dump('Requests')[0];
   assert.deepEqual(header.slice(0, 12), ['RequestID', 'Date', 'Clinic', 'Doctor', 'Nurse', 'Type', 'Status', 'SubmittedAt', 'SentAt', 'ReceivedAt', 'ReceiverName', 'SignatureURL']);
   assert.ok(header.indexOf('RejectionReason') > 11, 'new columns appended at the end');
-  api(n, 'receiveRequest', 'REQ-250101-5', [{ name: 'DENTAL FLOSS', qty: 3 }], 'سارة', '', '');
+  assert.equal(mine[0].pendingShipments, 1, 'old sent request without dispatch dates = one shipment to receive');
+  assert.equal(api(n, 'receiveShipment', 'REQ-250101-5', 1, [{ name: 'DENTAL FLOSS', qty: 3 }], 'سارة', '', '').complete, true);
   assert.equal(api(n, 'getMyRequests')[0].status, 'تم الاستلام');
   assert.equal(api(login('المدير', '1234'), 'getQualityReport', '2025-01').rows[0].hours, 24);
   assert.equal(api(login('علي', '3333'), 'getConfig').catalog[0].price, 0);
