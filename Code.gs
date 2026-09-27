@@ -26,6 +26,8 @@ const SCHEMA = {
                  'PrepAt', 'VendorWaitAt', 'VendorReceivedAt', 'ReviewAt', 'ReviewedAt',
                  'RejectionReason', 'ReceiptURL', 'Branch', 'ApprovedAt'],
   RequestItems: ['RequestID', 'ItemName', 'RequestedQty', 'ApprovedQty', 'ReceivedQty', 'DispatchedAt', 'DispatchBatch'],
+  // كل سطر = كمية صنف واحد داخل شحنة واحدة (يسمح بإرسال جزء من كمية الصنف)
+  ShipmentItems: ['RequestID', 'Batch', 'ItemName', 'Qty', 'DispatchedAt', 'DispatchedBy', 'ReceivedQty'],
   Shipments:    ['RequestID', 'Batch', 'ReceivedAt', 'ReceiverName', 'ReceivedBy', 'SignatureURL', 'SignatureFileID', 'ReceiptURL'],
   ItemNotes:    ['Timestamp', 'RequestID', 'ItemName', 'Author', 'Role', 'Note'],
   Log:          ['Timestamp', 'RequestID', 'Action', 'User'],
@@ -878,6 +880,11 @@ function queryRequests_(filters) {
     const st = shipState_(r, byReq[r.id] || []);
     r.itemCount = st.total;
     r.dispatchedCount = st.dispatched;
+    r.partialItems = st.partialItems;
+    r.totalQty = st.totalQty;
+    r.sentQty = st.sentQty;
+    r.remainingQty = st.remainingQty;
+    r.remainingItems = st.sentQty > 0 && st.remainingQty > 0 ? st.remaining : [];
     r.shipmentCount = st.ships.length;
     r.pendingShipments = st.pending;
     r.needsReview = !!reviewers[r.doctor];
@@ -1042,16 +1049,75 @@ function receiptsIndex_() {
  * حالة شحنات الطلب: الأصناف مجمّعة حسب رقم الشحنة + حالة استلام وتوقيع كل شحنة.
  * طلب قديم «مرسل/مستلم» بأصناف بلا تاريخ إرسال يُعامل كشحنة واحدة، والمستلم قديماً يُعد كل شحناته مستلمة.
  */
+/** الكمية المستهدفة للصنف = المعتمدة إن حُددت وإلا المطلوبة */
+function targetQty_(r) {
+  const a = r.ApprovedQty;
+  return Math.max(0, Number(a !== '' && a !== null && a !== undefined ? a : r.RequestedQty) || 0);
+}
+
+/** أسطر الشحنات لكل الطلبات: { requestId: [rows] } */
+function shipItemsIndex_() {
+  if (MEMO_.sitems) return MEMO_.sitems;
+  const out = {};
+  read_('ShipmentItems').rows.forEach(function (r) {
+    const id = str_(r.RequestID);
+    if (id && Number(r.Batch) > 0) (out[id] = out[id] || []).push(r);
+  });
+  MEMO_.sitems = out;
+  return out;
+}
+
+/**
+ * حالة إرسال الطلب على مستوى الكمية:
+ *  - لكل صنف: المستهدف، المُرسل حتى الآن، المتبقي، وأجزاؤه في كل شحنة.
+ *  - لكل شحنة: أصنافها بكمياتها، وحالة استلامها وتوقيعها.
+ * الأصناف القديمة (قبل تبويب ShipmentItems) تُعد مُرسلة بكامل كميتها في شحنتها،
+ * والطلب القديم «مرسل/مستلم» بلا بيانات إرسال يُعامل كشحنة واحدة.
+ */
 function shipState_(req, rows) {
   const b = batchesOf_(rows);
+  const si = shipItemsIndex_()[req.id] || [];
   const whole = req.status === ST.SENT || req.status === ST.RECEIVED;
   const rec = receiptsIndex_()[req.id] || {};
-  const groups = {};
+  const byItem = {};
+  si.forEach(function (r) { (byItem[str_(r.ItemName)] = byItem[str_(r.ItemName)] || []).push(r); });
+  let maxBatch = b.count;
+  si.forEach(function (r) { maxBatch = Math.max(maxBatch, Number(r.Batch) || 0); });
   let extra = 0;
+  const groups = {};
   const items = rows.map(function (r) {
     const it = mapItem_(r, b);
-    if (!it.batch && whole) { it.batch = extra || (extra = b.count + 1); it.dispatchedAt = req.sentAt; }
-    if (it.batch) (groups[it.batch] = groups[it.batch] || { batch: it.batch, sentAt: it.dispatchedAt, items: [] }).items.push(it);
+    const target = targetQty_(r);
+    const parts = [];
+    const mine = byItem[it.item] || [];
+    if (mine.length) {
+      mine.forEach(function (x) {
+        parts.push({ batch: Number(x.Batch), qty: Number(x.Qty) || 0, at: x.DispatchedAt, receivedQty: x.ReceivedQty });
+      });
+    } else {
+      let n = it.batch, at = it.dispatchedAt;
+      if (!n && whole) { n = extra || (extra = maxBatch + 1); at = req.sentAt; }
+      if (n) parts.push({ batch: n, qty: target, at: at, receivedQty: r.ReceivedQty, legacy: true });
+    }
+    parts.sort(function (x, y) { return x.batch - y.batch; });
+    let sent = 0;
+    parts.forEach(function (p) {
+      sent += p.qty;
+      const g = groups[p.batch] || (groups[p.batch] = { batch: p.batch, sentAt: p.at, items: [] });
+      if (!g.sentAt || (p.at && toMs_(p.at) < toMs_(g.sentAt))) g.sentAt = p.at;
+      g.items.push({
+        item: it.item, qty: p.qty, target: target, requestedQty: it.requestedQty, approvedQty: it.approvedQty,
+        receivedQty: p.receivedQty === undefined || p.receivedQty === null ? '' : p.receivedQty
+      });
+    });
+    it.target = target;
+    it.sentQty = sent;
+    it.remainingQty = Math.max(0, target - sent);
+    it.done = it.remainingQty === 0;
+    it.partial = sent > 0 && it.remainingQty > 0;
+    it.parts = parts.map(function (p) { return { batch: p.batch, qty: p.qty }; });
+    it.batch = parts.length ? parts[parts.length - 1].batch : 0;
+    it.dispatchedAt = parts.length ? parts[parts.length - 1].at : '';
     return it;
   });
   const ships = Object.keys(groups).map(Number).sort(function (x, y) { return x - y; }).map(function (n) {
@@ -1061,14 +1127,51 @@ function shipState_(req, rows) {
     g.receiver = x ? str_(x.ReceiverName) : (legacy ? req.receiver : '');
     g.signatureUrl = x ? str_(x.SignatureURL) : (legacy ? req.signature : '');
     g.receiptUrl = x ? str_(x.ReceiptURL) : (legacy ? req.receiptUrl : '');
+    g.units = g.items.reduce(function (a, i) { return a + i.qty; }, 0);
     return g;
   });
-  const dispatched = ships.reduce(function (n, g) { return n + g.items.length; }, 0);
+  const sum = function (f) { return items.reduce(function (a, i) { return a + f(i); }, 0); };
   return {
-    items: items, ships: ships, total: rows.length, dispatched: dispatched,
+    items: items, ships: ships, total: rows.length,
+    dispatched: items.filter(function (i) { return i.done && i.sentQty > 0; }).length,
+    partialItems: items.filter(function (i) { return i.partial; }).length,
+    totalQty: sum(function (i) { return i.target; }),
+    sentQty: sum(function (i) { return Math.min(i.sentQty, i.target); }),
+    remainingQty: sum(function (i) { return i.remainingQty; }),
+    remaining: items.filter(function (i) { return i.remainingQty > 0; })
+      .map(function (i) { return { item: i.item, qty: i.remainingQty, sent: i.sentQty, target: i.target }; }),
+    maxBatch: Math.max(maxBatch, ships.length ? ships[ships.length - 1].batch : 0),
     pending: ships.filter(function (g) { return !g.received; }).length,
-    allDispatched: rows.length > 0 && dispatched === rows.length
+    allDispatched: rows.length > 0 && items.every(function (i) { return i.done; }) && ships.length > 0
   };
+}
+
+/**
+ * يسجّل شحنة جديدة: lines = [{ name, qty }] (الكمية لا تتجاوز المتبقي).
+ * يُحدّث تاريخ اكتمال الصنف في RequestItems عند إرسال كامل كميته.
+ */
+function writeShipment_(req, rows, st, lines, user, now) {
+  const batch = st.maxBatch + 1;
+  const sh = sheet_('ShipmentItems');
+  const vals = [headerRow_(sh)];
+  ensureHeaders_(sh, vals, SCHEMA.ShipmentItems);
+  const headers = vals[0];
+  const block = lines.map(function (l) {
+    const o = { RequestID: req.id, Batch: batch, ItemName: l.name, Qty: l.qty, DispatchedAt: now, DispatchedBy: user.name };
+    return headers.map(function (h) { return h in o ? o[h] : ''; });
+  });
+  if (block.length) sh.getRange(sh.getLastRow() + 1, 1, block.length, headers.length).setValues(block);
+  markDirty_('ShipmentItems');
+  delete MEMO_.sitems;
+  const byName = {};
+  st.items.forEach(function (i) { byName[i.item] = i; });
+  const ri = read_('RequestItems');
+  setMany_(ri, rows.filter(function (r) {
+    const i = byName[str_(r.ItemName)];
+    const l = lines.filter(function (x) { return x.name === str_(r.ItemName); })[0];
+    return i && l && l.qty >= i.remainingQty;
+  }).map(function (r) { return { row: r, obj: { DispatchedAt: now, DispatchBatch: batch } }; }));
+  return batch;
 }
 
 /** أصناف الطلب مع رقم الشحنة لكل صنف */
@@ -1094,7 +1197,7 @@ function getRequestItemsFull_(user, requestId) {
   const req = mapRequest_(findRequest_(requestId).row);
   const st = shipState_(req, itemsOf_(requestId));
   const dispatchStatus = {};
-  st.items.forEach(function (it) { if (it.batch) dispatchStatus[it.item] = true; });
+  st.items.forEach(function (it) { if (it.done && it.sentQty > 0) dispatchStatus[it.item] = true; });
   const notes = {};
   itemNotes_(requestId).forEach(function (n) { notes[n.item] = (notes[n.item] || 0) + 1; });
   return { items: st.items, shipments: st.ships, dispatchStatus: dispatchStatus, noteCounts: notes, request: req };
@@ -1224,11 +1327,13 @@ function bulkUpdateStatus_(user, requestIds, newStatus) {
       if (newStatus === ST.REVIEW) { upd.RejectionReason = ''; upd.ApprovedAt = ''; }
       setCells_(t, row, upd);
       if (newStatus === ST.SENT) {
-        const ri = read_('RequestItems');
-        const mine = ri.rows.filter(function (r) { return str_(r.RequestID) === id; });
-        const next = batchesOf_(mine).count + 1;
-        setMany_(ri, mine.filter(function (r) { return !r.DispatchedAt; })
-          .map(function (r) { return { row: r, obj: { DispatchedAt: upd.SentAt, DispatchBatch: next } }; }));
+        // إرسال كل المتبقي (بالكمية) كشحنة واحدة
+        const req = mapRequest_(row);
+        req.status = cur; // المتبقي يُحسب على الحالة قبل التغيير (وإلا عُدّ كل شيء مُرسلاً)
+        const mine = read_('RequestItems').rows.filter(function (r) { return str_(r.RequestID) === id; });
+        const st = shipState_(req, mine);
+        const lines = st.items.filter(function (i) { return i.remainingQty > 0; }).map(function (i) { return { name: i.item, qty: i.remainingQty }; });
+        if (lines.length) writeShipment_(req, mine, st, lines, user, upd.SentAt);
       }
       logAction_(id, 'تغيير الحالة: ' + cur + ' ← ' + newStatus, user.name);
       result.updated.push(id);
@@ -1244,36 +1349,53 @@ function bulkUpdateStatus_(user, requestIds, newStatus) {
 }
 
 /**
- * إرسال أصناف محددة كشحنة مستقلة ضمن نفس الطلب (رقم شحنة متسلسل).
- * يبقى الطلب «معتمد» حتى تُرسل كل أصنافه، ثم يصبح «تم الإرسال» تلقائياً.
+ * إرسال شحنة: lines = [{ name, qty }] — qty اختيارية (الافتراضي كل المتبقي من الصنف)،
+ * ويُقبل أيضاً ['اسم صنف', ...] للتوافق. يبقى الطلب مفتوحاً حتى تُرسل كل الكميات.
  */
-function dispatchItems_(user, requestId, itemNames) {
-  itemNames = (itemNames || []).map(str_).filter(String);
-  if (!itemNames.length) throw new Error('ERR_NO_ITEMS');
+function dispatchItems_(user, requestId, lines) {
+  lines = (lines || []).map(function (l) {
+    if (l && typeof l === 'object') return { name: str_(l.name), qty: l.qty === '' || l.qty === null || l.qty === undefined ? null : Number(l.qty) };
+    return { name: str_(l), qty: null };
+  }).filter(function (l) { return l.name; });
+  if (!lines.length) throw new Error('ERR_NO_ITEMS');
   let res;
   withLock_(function () {
     resetMemo_();
     const f = findRequest_(requestId);
     const cur = str_(f.row.Status);
     if (DISPATCHABLE.indexOf(cur) === -1 || !cleared_(f.row)) throw new Error('ERR_NEEDS_APPROVAL');
-    const ri = read_('RequestItems');
+    const req = mapRequest_(f.row);
+    const rows = read_('RequestItems').rows.filter(function (r) { return str_(r.RequestID) === req.id; });
+    const st = shipState_(req, rows);
+    const byName = {};
+    st.items.forEach(function (i) { byName[i.item] = i; });
+    const out = [];
+    lines.forEach(function (l) {
+      const it = byName[l.name];
+      if (!it || it.remainingQty <= 0 || out.some(function (o) { return o.name === l.name; })) return;
+      const q = l.qty === null ? it.remainingQty : Math.floor(l.qty);
+      if (!(q >= 1)) throw new Error('ERR_BAD_QTY');
+      if (q > it.remainingQty) throw new Error('ERR_QTY_EXCEEDS');
+      out.push({ name: l.name, qty: q, remainingAfter: it.remainingQty - q, target: it.target });
+    });
+    if (!out.length) throw new Error('ERR_NO_ITEMS');
     const now = new Date();
-    const mine = ri.rows.filter(function (r) { return str_(r.RequestID) === str_(requestId); });
-    const toSend = mine.filter(function (r) { return !r.DispatchedAt && itemNames.indexOf(str_(r.ItemName)) !== -1; });
-    if (!toSend.length) throw new Error('ERR_NO_ITEMS');
-    const batch = batchesOf_(mine).count + 1;
-    setMany_(ri, toSend.map(function (r) { return { row: r, obj: { DispatchedAt: now, DispatchBatch: batch } }; }));
-    const sent = mine.filter(function (r) { return !!r.DispatchedAt; }).length;
-    const allSent = sent === mine.length;
-    const names = toSend.map(function (r) { return str_(r.ItemName); });
-    logAction_(requestId, 'إرسال الشحنة ' + batch + ' (' + names.length + ' صنف): ' + names.join('، ') +
-      ' — المتبقي ' + (mine.length - sent), user.name);
-    if (allSent) {
+    const batch = writeShipment_(req, rows, st, out, user, now);
+    const after = shipState_(req, read_('RequestItems').rows.filter(function (r) { return str_(r.RequestID) === req.id; }));
+    const units = out.reduce(function (a, l) { return a + l.qty; }, 0);
+    logAction_(req.id, 'إرسال الشحنة ' + batch + ': ' + out.map(function (l) {
+      return l.name + ' ×' + l.qty + (l.remainingAfter ? ' (باقي ' + l.remainingAfter + ')' : '');
+    }).join('، ') + ' — المتبقي من الطلب ' + after.remainingQty + ' قطعة', user.name);
+    if (after.allDispatched) {
       setCells_(f.t, f.row, { Status: ST.SENT, SentAt: now });
-      logAction_(requestId, 'تغيير الحالة: ' + cur + ' ← ' + ST.SENT, user.name);
+      logAction_(req.id, 'تغيير الحالة: ' + cur + ' ← ' + ST.SENT, user.name);
     }
-    res = { allSent: allSent, batch: batch, count: names.length, items: names, sent: sent, total: mine.length,
-      remaining: mine.length - sent, req: mapRequest_(f.row) };
+    res = {
+      allSent: after.allDispatched, batch: batch, count: out.length, units: units,
+      items: out.map(function (l) { return { item: l.name, qty: l.qty, remaining: l.remainingAfter }; }),
+      sent: after.dispatched, total: after.total, remaining: after.total - after.dispatched,
+      remainingQty: after.remainingQty, remainingItems: after.remaining, req: mapRequest_(f.row)
+    };
   });
   if (res.allSent) notifyNurseSent_(res.req);
   else notifyNursePartial_(res.req, res);
@@ -1378,8 +1500,21 @@ function receiveShipment_(user, requestId, batch, receivedItems, receiverName, s
       const n = str_(it && it.name);
       if (inShip[n]) qty[n] = Math.max(0, Math.floor(Number(it.qty) || 0));
     });
-    setMany_(ri, rows.filter(function (r) { return str_(r.ItemName) in qty; })
-      .map(function (r) { return { row: r, obj: { ReceivedQty: qty[str_(r.ItemName)] } }; }));
+    // المستلم فعلياً لكل صنف داخل هذه الشحنة، ثم مجموعه على الصنف في RequestItems
+    const si = read_('ShipmentItems');
+    const siRows = si.rows.filter(function (r) { return str_(r.RequestID) === req.id && Number(r.Batch) === batch && str_(r.ItemName) in qty; });
+    setMany_(si, siRows.map(function (r) { return { row: r, obj: { ReceivedQty: qty[str_(r.ItemName)] } }; }));
+    delete MEMO_.sitems;
+    const withSi = {};
+    siRows.forEach(function (r) { withSi[str_(r.ItemName)] = true; });
+    const allSi = si.rows.filter(function (r) { return str_(r.RequestID) === req.id; });
+    setMany_(ri, rows.filter(function (r) { return str_(r.ItemName) in qty; }).map(function (r) {
+      const n = str_(r.ItemName);
+      if (!withSi[n]) return { row: r, obj: { ReceivedQty: qty[n] } }; // صنف قديم أُرسل كاملاً
+      const total = allSi.filter(function (x) { return str_(x.ItemName) === n && x.ReceivedQty !== '' && x.ReceivedQty !== null; })
+        .reduce(function (a, x) { return a + (Number(x.ReceivedQty) || 0); }, 0);
+      return { row: r, obj: { ReceivedQty: total } };
+    }));
     logAction_(req.id, 'استلام الشحنة ' + batch + ' وتوقيعها (' + ship.items.length + ' صنف)', receiverName + ' (' + user.name + ')');
 
     const after = shipState_(req, rows);
@@ -1394,7 +1529,7 @@ function receiveShipment_(user, requestId, batch, receivedItems, receiverName, s
       logAction_(req.id, 'اكتمل استلام الطلب (' + after.ships.length + ' شحنة)' + (mergedUrl ? ' — إيصال موحّد بكل التواقيع' : ''), user.name);
     }
     res = {
-      complete: complete, batch: batch, pendingShipments: after.pending, notDispatched: after.total - after.dispatched,
+      complete: complete, batch: batch, pendingShipments: after.pending, notDispatched: after.total - after.dispatched, remainingQty: after.remainingQty,
       receiptUrl: receiptUrl, signatureUrl: sig.url, mergedReceiptUrl: complete ? (mergedUrl || receiptUrl) : ''
     };
   });
@@ -1613,6 +1748,9 @@ function getAlerts_(user) {
     if (urgent) alerts.push({ type: 'danger', code: 'alert_urgent_new', n: urgent });
     if (ready.length - urgent) alerts.push({ type: 'info', code: 'alert_new', n: ready.length - urgent });
     if (toSend) alerts.push({ type: 'success', code: 'alert_approved_ready', n: toSend });
+    // طلبات أُرسل جزء منها وما زالت لها كميات/أصناف متبقية
+    const partial = all.filter(function (r) { return r.sentQty > 0 && r.remainingQty > 0; }).length;
+    if (partial) alerts.push({ type: 'warning', code: 'alert_partial', n: partial });
     if (urgentReview) alerts.push({ type: 'warning', code: 'alert_urgent_review', n: urgentReview });
     if (stale) alerts.push({ type: 'warning', code: 'alert_stale', n: stale });
   } else if (user.screen === 'doctor') {
@@ -1651,10 +1789,12 @@ function notifyUser_(name, subject, body) {
 }
 
 function notifyNursePartial_(req, r) {
-  notifyUser_(req.nurse, 'شحنة جزئية من طلبك - ' + req.id + ' (' + r.sent + '/' + r.total + ')',
+  notifyUser_(req.nurse, 'شحنة جزئية من طلبك - ' + req.id + ' (الشحنة ' + r.batch + ')',
     'تم إرسال الشحنة رقم ' + r.batch + ' من طلبك ' + req.id + ' الخاص بعيادة ' + req.clinic + (req.branch ? ' (فرع ' + req.branch + ')' : '') + ':\n- ' +
-    r.items.join('\n- ') + '\n\nأُرسل ' + r.sent + ' من ' + r.total + ' صنف، والمتبقي ' + r.remaining +
-    ' صنف سيُرسل لاحقاً.\nيرجى تأكيد استلام هذه الشحنة والتوقيع عليها من داخل النظام عند وصولها.');
+    r.items.map(function (i) { return i.item + ' ×' + i.qty + (i.remaining ? ' (باقي ' + i.remaining + ')' : ''); }).join('\n- ') +
+    '\n\nالمتبقي من الطلب (' + r.remainingQty + ' قطعة) سيُرسل لاحقاً:\n- ' +
+    r.remainingItems.map(function (i) { return i.item + ': باقي ' + i.qty + ' من ' + i.target; }).join('\n- ') +
+    '\n\nيرجى تأكيد استلام هذه الشحنة والتوقيع عليها من داخل النظام عند وصولها.');
 }
 
 function notifyNurseSent_(req) {

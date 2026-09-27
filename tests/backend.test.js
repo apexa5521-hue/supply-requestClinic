@@ -245,7 +245,7 @@ test('items can be dispatched in numbered shipments with a sent/remaining tracke
   let ds = api(p, 'dispatchItems', id, [names[0], names[1]]);
   assert.deepEqual([ds.batch, ds.count, ds.sent, ds.remaining, ds.total, ds.allSent], [1, 2, 2, 3, 5, false]);
   const mail = gas.mails.find(m => m.to === 'sara@example.com' && /شحنة جزئية/.test(m.subject));
-  assert.ok(mail && /المتبقي 3/.test(mail.body) && mail.body.includes('PROPHY PASTE'), 'nurse is told what was sent and what remains');
+  assert.ok(mail && /PROPHY PASTE ×2/.test(mail.body) && /المتبقي من الطلب \(6 قطعة\)/.test(mail.body) && /DENTAL FLOSS: باقي 2 من 2/.test(mail.body), 'nurse is told what was sent and what remains');
 
   // الطلب يبقى «معتمد» والتتبع ظاهر للممرضة والتموين
   let mine = api(n, 'getMyRequests').find(r => r.id === id);
@@ -286,6 +286,60 @@ test('items can be dispatched in numbered shipments with a sent/remaining tracke
   rows.forEach((r, i) => { r[col] = ''; r[at] = new Date(Date.UTC(2025, 0, i < 3 ? 1 : 2)); });
   ctx.onEdit({ range: { getSheet: () => t } }); // تعديل يدوي في الشيت يُبطل الكاش
   assert.deepEqual(api(p, 'getRequestItems', id).map(i => i.batch), [1, 1, 1, 2, 2]);
+});
+
+test('partial quantity of the same item: send 5 of 10 gloves, the rest stays tracked until sent', () => {
+  const { api, login, gas } = boot();
+  const n = login('سارة', '1111'), p = login('علي', '3333'), d = login('د. خالد', '4444');
+  const id = api(n, 'createRequest', { clinic: 'عيادة الأسنان 1', doctor: 'د. خالد', type: 'شهري', items: [{ name: 'قفازات طبية M', qty: 10 }, { name: 'DENTAL FLOSS', qty: 4 }] }).id;
+  api(d, 'doctorReview', id, 'اعتمد', '', []);
+  api(p, 'bulkUpdateStatus', [id], 'قيد التجهيز');
+
+  // التحقق من الكميات
+  throwsCode(() => api(p, 'dispatchItems', id, [{ name: 'قفازات طبية M', qty: 11 }]), 'ERR_QTY_EXCEEDS');
+  throwsCode(() => api(p, 'dispatchItems', id, [{ name: 'قفازات طبية M', qty: 0 }]), 'ERR_BAD_QTY');
+
+  // الشحنة 1: 5 قفازات فقط
+  let ds = api(p, 'dispatchItems', id, [{ name: 'قفازات طبية M', qty: 5 }]);
+  assert.deepEqual([ds.batch, ds.units, ds.remainingQty, ds.allSent], [1, 5, 9, false]);
+  assert.deepEqual(ds.items, [{ item: 'قفازات طبية M', qty: 5, remaining: 5 }]);
+  let r = api(p, 'getRequests', {}).find(x => x.id === id);
+  assert.deepEqual([r.status, r.totalQty, r.sentQty, r.remainingQty, r.partialItems, r.dispatchedCount], ['قيد التجهيز', 14, 5, 9, 1, 0]);
+  assert.deepEqual(r.remainingItems, [{ item: 'قفازات طبية M', qty: 5, sent: 5, target: 10 }, { item: 'DENTAL FLOSS', qty: 4, sent: 0, target: 4 }]);
+  assert.ok(api(p, 'getAlerts').some(a => a.code === 'alert_partial' && a.n === 1), 'procurement is alerted about partially-sent requests');
+  let full = api(p, 'getRequestItemsFull', id);
+  const g = full.items.find(i => i.item === 'قفازات طبية M');
+  assert.deepEqual([g.target, g.sentQty, g.remainingQty, g.partial, g.done], [10, 5, 5, true, false]);
+  assert.equal(full.dispatchStatus['قفازات طبية M'], undefined, 'not complete yet');
+  assert.deepEqual(full.shipments[0].items.map(i => [i.item, i.qty]), [['قفازات طبية M', 5]]);
+
+  // الممرضة تستلم الشحنة 1 (وصل 4 من 5)
+  api(n, 'receiveShipment', id, 1, [{ name: 'قفازات طبية M', qty: 4 }], 'سارة', '', '');
+  // الشحنة 2: باقي القفازات (5) + الخيط كاملاً (بدون تحديد كمية = كل المتبقي)
+  throwsCode(() => api(p, 'dispatchItems', id, [{ name: 'قفازات طبية M', qty: 6 }]), 'ERR_QTY_EXCEEDS');
+  ds = api(p, 'dispatchItems', id, [{ name: 'قفازات طبية M', qty: 5 }, 'DENTAL FLOSS']);
+  assert.deepEqual([ds.batch, ds.units, ds.remainingQty, ds.allSent], [2, 9, 0, true]);
+  assert.equal(api(n, 'getMyRequests')[0].status, 'تم الإرسال');
+  full = api(p, 'getRequestItemsFull', id);
+  assert.deepEqual(full.items.find(i => i.item === 'قفازات طبية M').parts, [{ batch: 1, qty: 5 }, { batch: 2, qty: 5 }]);
+  assert.equal(full.dispatchStatus['قفازات طبية M'], true);
+
+  // استلام الشحنة 2 → المستلم الكلي للصنف = مجموع الشحنتين
+  const rec = api(n, 'receiveShipment', id, 2, [{ name: 'قفازات طبية M', qty: 5 }, { name: 'DENTAL FLOSS', qty: 4 }], 'سارة', '', '');
+  assert.equal(rec.complete, true);
+  const det = api(n, 'getRequestDetail', id);
+  assert.equal(det.items.find(i => i.item === 'قفازات طبية M').receivedQty, 9);
+  assert.deepEqual(det.shipments.map(s => s.items.map(i => [i.item, i.qty, i.receivedQty])),
+    [[['قفازات طبية M', 5, 4]], [['قفازات طبية M', 5, 5], ['DENTAL FLOSS', 4, 4]]]);
+  assert.ok(rows(gas, 'ShipmentItems').length === 3);
+  // الإرسال الجماعي يرسل كل الكميات المتبقية
+  const id2 = api(n, 'createRequest', { clinic: 'عيادة الأسنان 1', doctor: 'د. خالد', type: 'شهري', items: [{ name: 'PROPHY PASTE', qty: 6 }] }).id;
+  api(d, 'doctorReview', id2, 'اعتمد', '', []);
+  api(p, 'dispatchItems', id2, [{ name: 'PROPHY PASTE', qty: 2 }]);
+  api(p, 'bulkUpdateStatus', [id2], 'تم الإرسال');
+  const st2 = api(p, 'getRequestItemsFull', id2);
+  assert.deepEqual(st2.items[0].parts, [{ batch: 1, qty: 2 }, { batch: 2, qty: 4 }]);
+  assert.equal(st2.items[0].remainingQty, 0);
 });
 
 test('read cache: every write is visible immediately, cached reads equal fresh sheet reads', () => {

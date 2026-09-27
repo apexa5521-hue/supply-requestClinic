@@ -56,9 +56,9 @@ const I18N = {
     bulk_done: 'تم تحديث {n} طلب', bulk_skipped_title: 'بعض الطلبات لم تُحدَّث', bulk_skipped_sub: 'تم تحديث {a} وتخطي {b} للأسباب التالية:',
     view_items: 'الأصناف والاعتماد', requested: 'المطلوب', approved: 'المعتمد', received: 'المستلم', dispatch_status: 'الإرسال',
     dispatched: 'أُرسل', waiting: 'بالانتظار', dispatch_selected: 'إرسال المحدد كشحنة', select_item: 'اختر صنفاً واحداً على الأقل',
-    dispatch_all_done: 'اكتمل إرسال كل الأصناف — تم إرسال الطلب', save_failed: 'لم يُحفظ الإجراء على {id}', dispatch_partial: 'أُرسلت الشحنة #{b} ({n} صنف) — متبقي {r} صنف',
+    dispatch_all_done: 'اكتمل إرسال كل الأصناف — تم إرسال الطلب', save_failed: 'لم يُحفظ الإجراء على {id}', dispatch_partial: 'أُرسلت الشحنة #{b} ({n} صنف · {u} قطعة) — متبقي {r} قطعة',
     ship_sent_of: 'أُرسل {a} من {b}', ship_left: 'متبقي {n}', ship_total: 'إجمالي الأصناف', ship_remaining: 'متبقي', shipment_n: 'شحنة #{n}',
-    shipments: 'الشحنات', ship_title: 'تتبع الإرسال', select_remaining: 'تحديد كل المتبقي', grp_partial: 'إرسال جزئي', ship_all_done: 'اكتمل الإرسال',
+    shipments: 'الشحنات', ship_title: 'تتبع الإرسال', select_remaining: 'تحديد كل المتبقي', grp_partial: 'مرسلة جزئياً', ship_all_done: 'اكتمل الإرسال',
     ship_received: 'استُلمت', ship_pending_rcv: 'بانتظار الاستلام', ship_wait_rcv: 'بانتظار استلام {n} شحنة', ship_rcv_of: 'استُلم {a} من {b} شحنة',
     rcv_pick: 'اختر الشحنة التي وصلت', rcv_final_note: 'الشحنة #{n} هي الأخيرة — بعد توقيعها يكتمل الطلب ويُنشأ إيصال موحّد يضم كل الشحنات وتواقيعها',
     rcv_partial_note: 'استلام الشحنة #{n} فقط — يبقى الطلب مفتوحاً حتى استلام كل الشحنات', shipment_received_ok: 'تم استلام الشحنة #{n} وتوقيعها',
@@ -95,7 +95,7 @@ const I18N = {
     confirm_delete_role: 'حذف الدور «{n}»؟', role_saved: 'تم حفظ الدور',
     alert_to_receive: 'لديك <b>{n}</b> طلب فيه شحنات بانتظار تأكيد الاستلام', alert_rejected: '<b>{n}</b> من طلباتك رُفض من الطبيب — راجع السبب وأعد الإرسال',
     alert_urgent_new: '<b>{n}</b> طلب طارئ معتمد بانتظار التجهيز', alert_new: '<b>{n}</b> طلب جاهز للتجهيز', alert_approved_ready: '<b>{n}</b> طلب مجهّز جاهز للإرسال للفرع',
-    alert_rejected_proc: '<b>{n}</b> طلب مرفوض من الطبيب يحتاج مراجعة', alert_stale: '<b>{n}</b> طلب متأخر أكثر من 72 ساعة', alert_pending_review: '<b>{n}</b> طلب بانتظار مراجعتك', alert_urgent_review: '<b>{n}</b> طلب طارئ ما زال لدى الطبيب للاعتماد', grp_wait_doctor: 'لدى الطبيب', grp_ready_prep: 'جاهز للتجهيز', resubmit: 'إعادة الإرسال للطبيب', rep_btn: 'تقرير الطلبات', rep_btn_doc: 'تقرير طبيب', rep_title: 'تقرير طلبات الطبيب', rep_mode_month: 'شهر محدد', rep_mode_cum: 'تراكمي حتى تاريخ', rep_month: 'الشهر', rep_to: 'حتى تاريخ', rep_doctor: 'الطبيب', rep_generate: 'إصدار التقرير', rep_period: 'الفترة', rep_all_until: 'كل الطلبات حتى {d}', rep_generated: 'أُصدر في', rep_requests: 'عدد الطلبات', rep_lines: 'بنود الأصناف', rep_qty: 'إجمالي الكمية', rep_total: 'الإجمالي', rep_price: 'سعر الوحدة', rep_line_total: 'الإجمالي', rep_subtotal: 'إجمالي الطلب', rep_top: 'الأصناف الأعلى قيمة', rep_unpriced: '{n} بند بدون سعر في الكتالوج (محسوب بصفر)', rep_empty: 'لا توجد طلبات في هذه الفترة', rep_print: 'طباعة / PDF', rep_csv: 'تصدير Excel', rep_note: 'الكمية = المعتمدة (أو المطلوبة إن لم تُعدَّل) · السعر من الكتالوج · الطلبات المرفوضة غير محسوبة', ERR_BAD_RANGE: 'نطاق التاريخ غير صحيح', t_doc_report_t: 'تقرير طلباتك', t_doc_report_b: 'أصدر تقريراً مرتباً بطلباتك مع السعر والإجمالي لشهر محدد أو تراكمياً حتى تاريخ، واطبعه أو صدّره.', resubmit_title: 'إعادة إرسال الطلب للطبيب', resubmit_note: 'ملاحظة للطبيب (اختياري) — ماذا عدّلتِ؟', resubmitted_ok: 'أُعيد الطلب {id} للطبيب', ERR_NO_DOCTOR_ACCOUNT: 'الطبيب ليس له حساب في النظام — لا يحتاج مراجعة', close_mgmt_only: 'إغلاق البلاغات من الجودة والإدارة التنفيذية',
+    alert_rejected_proc: '<b>{n}</b> طلب مرفوض من الطبيب يحتاج مراجعة', alert_stale: '<b>{n}</b> طلب متأخر أكثر من 72 ساعة', alert_pending_review: '<b>{n}</b> طلب بانتظار مراجعتك', alert_urgent_review: '<b>{n}</b> طلب طارئ ما زال لدى الطبيب للاعتماد', grp_wait_doctor: 'لدى الطبيب', grp_ready_prep: 'جاهز للتجهيز', resubmit: 'إعادة الإرسال للطبيب', this_shipment: 'كمية هذه الشحنة', total_units: 'إجمالي الكمية', sent_progress: 'الإرسال', sent_of: 'أُرسل {a} من {b}', left_n: 'باقي {n}', item_done: 'مكتمل', item_zero: 'لا يُرسل (الكمية 0)', partial_badge: 'جزئي {a}/{b}', ships_n: '{n} شحنات', units_sent_of: 'أُرسل {a} من {b} قطعة', remaining_list: 'المتبقي', ship_units: '{n} قطعة', items_done_of: 'أصناف مكتملة {a} من {b}', partial_items: '{n} صنف أُرسل جزئياً', alert_partial: '<b>{n}</b> طلب مُرسل جزئياً ما زال له أصناف أو كميات متبقية', ERR_QTY_EXCEEDS: 'الكمية أكبر من المتبقي لهذا الصنف', qty_hint: 'اكتب الكمية المتوفرة الآن — الباقي يبقى مفتوحاً للشحنة القادمة', rep_btn: 'تقرير الطلبات', rep_btn_doc: 'تقرير طبيب', rep_title: 'تقرير طلبات الطبيب', rep_mode_month: 'شهر محدد', rep_mode_cum: 'تراكمي حتى تاريخ', rep_month: 'الشهر', rep_to: 'حتى تاريخ', rep_doctor: 'الطبيب', rep_generate: 'إصدار التقرير', rep_period: 'الفترة', rep_all_until: 'كل الطلبات حتى {d}', rep_generated: 'أُصدر في', rep_requests: 'عدد الطلبات', rep_lines: 'بنود الأصناف', rep_qty: 'إجمالي الكمية', rep_total: 'الإجمالي', rep_price: 'سعر الوحدة', rep_line_total: 'الإجمالي', rep_subtotal: 'إجمالي الطلب', rep_top: 'الأصناف الأعلى قيمة', rep_unpriced: '{n} بند بدون سعر في الكتالوج (محسوب بصفر)', rep_empty: 'لا توجد طلبات في هذه الفترة', rep_print: 'طباعة / PDF', rep_csv: 'تصدير Excel', rep_note: 'الكمية = المعتمدة (أو المطلوبة إن لم تُعدَّل) · السعر من الكتالوج · الطلبات المرفوضة غير محسوبة', ERR_BAD_RANGE: 'نطاق التاريخ غير صحيح', t_doc_report_t: 'تقرير طلباتك', t_doc_report_b: 'أصدر تقريراً مرتباً بطلباتك مع السعر والإجمالي لشهر محدد أو تراكمياً حتى تاريخ، واطبعه أو صدّره.', resubmit_title: 'إعادة إرسال الطلب للطبيب', resubmit_note: 'ملاحظة للطبيب (اختياري) — ماذا عدّلتِ؟', resubmitted_ok: 'أُعيد الطلب {id} للطبيب', ERR_NO_DOCTOR_ACCOUNT: 'الطبيب ليس له حساب في النظام — لا يحتاج مراجعة', close_mgmt_only: 'إغلاق البلاغات من الجودة والإدارة التنفيذية',
     alert_open_complaints: '<b>{n}</b> بلاغ مفتوح', view: 'عرض',
     just_now: 'الآن', loading: 'جاري التحميل…', saving: 'جاري الحفظ…', sending: 'جاري الإرسال…', done: 'تم بنجاح', error_generic: 'حدث خطأ غير متوقع',
     ERR_SESSION: 'انتهت الجلسة — سجّل الدخول مجدداً', ERR_FORBIDDEN: 'ليست لديك صلاحية لهذا الإجراء', ERR_NOT_FOUND: 'العنصر غير موجود (ربما حُذف)',
@@ -152,8 +152,8 @@ const I18N = {
     act_prep: 'In progress', act_vendor_wait: 'Awaiting vendor', act_vendor_recv: 'Vendor received', act_review: 'Back to doctor review', act_send: 'Dispatch',
     bulk_done: '{n} request(s) updated', bulk_skipped_title: 'Some requests were not updated', bulk_skipped_sub: '{a} updated, {b} skipped:',
     view_items: 'Items & approval', requested: 'Requested', approved: 'Approved', received: 'Received', dispatch_status: 'Dispatch',
-    dispatched: 'Sent', waiting: 'Waiting', dispatch_selected: 'Dispatch selected as a shipment', select_item: 'Select at least one item',
-    dispatch_all_done: 'All items dispatched — request sent', save_failed: 'Action on {id} was not saved', dispatch_partial: 'Shipment #{b} sent ({n} items) — {r} remaining',
+    dispatched: 'Sent', waiting: 'Waiting', dispatch_selected: 'Send checked as a shipment', select_item: 'Select at least one item',
+    dispatch_all_done: 'All items dispatched — request sent', save_failed: 'Action on {id} was not saved', dispatch_partial: 'Shipment #{b} sent ({n} items · {u} units) — {r} units remaining',
     ship_sent_of: '{a} of {b} sent', ship_left: '{n} remaining', ship_total: 'Total items', ship_remaining: 'Remaining', shipment_n: 'Shipment #{n}',
     shipments: 'Shipments', ship_title: 'Dispatch tracking', select_remaining: 'Select all remaining', grp_partial: 'Partially sent', ship_all_done: 'Fully dispatched',
     ship_received: 'Received', ship_pending_rcv: 'Awaiting receipt', ship_wait_rcv: '{n} shipment(s) awaiting receipt', ship_rcv_of: '{a} of {b} shipments received',
@@ -192,7 +192,7 @@ const I18N = {
     confirm_delete_role: 'Delete role “{n}”?', role_saved: 'Role saved',
     alert_to_receive: 'You have <b>{n}</b> request(s) with shipments awaiting receipt', alert_rejected: '<b>{n}</b> of your requests were rejected — check the reason and resubmit',
     alert_urgent_new: '<b>{n}</b> approved emergency request(s) to prepare', alert_new: '<b>{n}</b> request(s) ready to prepare', alert_approved_ready: '<b>{n}</b> prepared request(s) ready to dispatch',
-    alert_rejected_proc: '<b>{n}</b> request(s) rejected by doctor need attention', alert_stale: '<b>{n}</b> request(s) older than 72h', alert_pending_review: '<b>{n}</b> request(s) awaiting your review', alert_urgent_review: '<b>{n}</b> emergency request(s) still awaiting doctor approval', grp_wait_doctor: 'With doctor', grp_ready_prep: 'Ready to prepare', resubmit: 'Resubmit to doctor', rep_btn: 'Requests report', rep_btn_doc: 'Doctor report', rep_title: 'Doctor requests report', rep_mode_month: 'A month', rep_mode_cum: 'Cumulative up to a date', rep_month: 'Month', rep_to: 'Up to', rep_doctor: 'Doctor', rep_generate: 'Generate report', rep_period: 'Period', rep_all_until: 'All requests up to {d}', rep_generated: 'Generated', rep_requests: 'Requests', rep_lines: 'Item lines', rep_qty: 'Total quantity', rep_total: 'Grand total', rep_price: 'Unit price', rep_line_total: 'Total', rep_subtotal: 'Request total', rep_top: 'Top items by value', rep_unpriced: '{n} line(s) have no catalog price (counted as 0)', rep_empty: 'No requests in this period', rep_print: 'Print / PDF', rep_csv: 'Export Excel', rep_note: 'Qty = approved (or requested if unchanged) · price from catalog · rejected requests excluded', ERR_BAD_RANGE: 'Invalid date range', t_doc_report_t: 'Your requests report', t_doc_report_b: 'Generate a tidy report of your requests with prices and totals for a month or cumulatively up to a date, then print or export it.', resubmit_title: 'Resubmit to the doctor', resubmit_note: 'Note to the doctor (optional) — what changed?', resubmitted_ok: 'Request {id} resubmitted to the doctor', ERR_NO_DOCTOR_ACCOUNT: 'The doctor has no account — no review needed', close_mgmt_only: 'Issues are closed by Quality and executive management',
+    alert_rejected_proc: '<b>{n}</b> request(s) rejected by doctor need attention', alert_stale: '<b>{n}</b> request(s) older than 72h', alert_pending_review: '<b>{n}</b> request(s) awaiting your review', alert_urgent_review: '<b>{n}</b> emergency request(s) still awaiting doctor approval', grp_wait_doctor: 'With doctor', grp_ready_prep: 'Ready to prepare', resubmit: 'Resubmit to doctor', this_shipment: 'Qty this shipment', total_units: 'Total units', sent_progress: 'Dispatch', sent_of: '{a} of {b} sent', left_n: '{n} left', item_done: 'Complete', item_zero: 'Not sent (qty 0)', partial_badge: 'Partial {a}/{b}', ships_n: '{n} shipments', units_sent_of: '{a} of {b} units sent', remaining_list: 'Remaining', ship_units: '{n} units', items_done_of: '{a} of {b} items complete', partial_items: '{n} item(s) partially sent', alert_partial: '<b>{n}</b> partially-sent request(s) still have items or quantities left', ERR_QTY_EXCEEDS: 'Quantity exceeds what is left for this item', qty_hint: 'Enter what is available now — the rest stays open for the next shipment', rep_btn: 'Requests report', rep_btn_doc: 'Doctor report', rep_title: 'Doctor requests report', rep_mode_month: 'A month', rep_mode_cum: 'Cumulative up to a date', rep_month: 'Month', rep_to: 'Up to', rep_doctor: 'Doctor', rep_generate: 'Generate report', rep_period: 'Period', rep_all_until: 'All requests up to {d}', rep_generated: 'Generated', rep_requests: 'Requests', rep_lines: 'Item lines', rep_qty: 'Total quantity', rep_total: 'Grand total', rep_price: 'Unit price', rep_line_total: 'Total', rep_subtotal: 'Request total', rep_top: 'Top items by value', rep_unpriced: '{n} line(s) have no catalog price (counted as 0)', rep_empty: 'No requests in this period', rep_print: 'Print / PDF', rep_csv: 'Export Excel', rep_note: 'Qty = approved (or requested if unchanged) · price from catalog · rejected requests excluded', ERR_BAD_RANGE: 'Invalid date range', t_doc_report_t: 'Your requests report', t_doc_report_b: 'Generate a tidy report of your requests with prices and totals for a month or cumulatively up to a date, then print or export it.', resubmit_title: 'Resubmit to the doctor', resubmit_note: 'Note to the doctor (optional) — what changed?', resubmitted_ok: 'Request {id} resubmitted to the doctor', ERR_NO_DOCTOR_ACCOUNT: 'The doctor has no account — no review needed', close_mgmt_only: 'Issues are closed by Quality and executive management',
     alert_open_complaints: '<b>{n}</b> open issue(s)', view: 'View',
     just_now: 'just now', loading: 'Loading…', saving: 'Saving…', sending: 'Sending…', done: 'Done', error_generic: 'Something went wrong',
     ERR_SESSION: 'Session expired — please sign in again', ERR_FORBIDDEN: "You don't have permission for this", ERR_NOT_FOUND: 'Not found (maybe deleted)',
@@ -496,36 +496,45 @@ function progressBar(s) {
   const pct = s === ST.REJECTED ? 40 : Math.round((m.step / 5) * 100);
   return '<div class="progress" style="--tone:' + m.tone + '"><i data-w="' + Math.max(pct, 6) + '%"></i></div>';
 }
-/* تتبع الإرسال الجزئي: سطر مختصر في بطاقة الطلب */
+/* تتبع الإرسال الجزئي بالكميات: سطر مختصر في بطاقة الطلب + ما تبقى من كل صنف */
 function shipTrack(r) {
-  const n = r.itemCount || 0, d = r.dispatchedCount || 0;
-  const partial = n && d && d < n;
+  const tot = r.totalQty || 0, sent = r.sentQty || 0, left = r.remainingQty || 0;
+  const partial = sent > 0 && left > 0;
   const waitRcv = r.pendingShipments > 0 && (partial || r.shipmentCount > 1);
   if (!partial && !waitRcv) return '';
   const parts = [];
-  if (partial) parts.push('<b>' + esc(t('ship_sent_of', { a: d, b: n })) + '</b>', esc(t('ship_left', { n: n - d })));
+  if (partial) parts.push('<b>' + esc(t('units_sent_of', { a: fmtNum(sent, 0), b: fmtNum(tot, 0) })) + '</b>', esc(t('left_n', { n: fmtNum(left, 0) })));
   else parts.push('<b>' + esc(t('ship_rcv_of', { a: r.shipmentCount - r.pendingShipments, b: r.shipmentCount })) + '</b>');
   if (waitRcv && partial) parts.push(esc(t('ship_wait_rcv', { n: r.pendingShipments })));
-  const pct = partial ? d / n : (r.shipmentCount - r.pendingShipments) / r.shipmentCount;
+  const pct = partial ? sent / tot : (r.shipmentCount - r.pendingShipments) / r.shipmentCount;
+  const rem = partial && r.remainingItems && r.remainingItems.length
+    ? '<div class="ship-left">' + icon('clock', 'i-sm') + '<b>' + esc(t('remaining_list')) + ':</b> ' +
+      r.remainingItems.slice(0, 4).map(i => '<span>' + esc(i.item) + ' <b>×' + fmtNum(i.qty, 0) + '</b>' + (i.sent ? ' <small>(' + esc(t('sent_of', { a: i.sent, b: i.target })) + ')</small>' : '') + '</span>').join('') +
+      (r.remainingItems.length > 4 ? '<span>+' + (r.remainingItems.length - 4) + '</span>' : '') + '</div>'
+    : '';
   return '<div class="ship-track">' + icon('truck', 'i-sm') + '<span>' + parts.join(' · ') + '</span>' +
-    '<div class="progress"><i data-w="' + Math.max(6, Math.round(pct * 100)) + '%"></i></div></div>';
+    '<div class="progress"><i data-w="' + Math.max(6, Math.round(pct * 100)) + '%"></i></div></div>' + rem;
 }
-/* ملخص الشحنات: الإجمالي / المرسل / المتبقي + كل شحنة بأصنافها وحالة استلامها وتوقيعها */
+/* ملخص الشحنات بالكميات + كل شحنة بأصنافها وكمياتها وحالة استلامها وتوقيعها */
 function shipSummary(items, ships) {
   items = items || []; ships = ships || [];
-  const n = items.length, d = ships.reduce((a, g) => a + g.items.length, 0);
-  if (!n || !d) return '';
+  const tot = items.reduce((a, i) => a + (i.target || 0), 0);
+  const sent = items.reduce((a, i) => a + Math.min(i.sentQty || 0, i.target || 0), 0);
+  if (!items.length || !ships.length) return '';
+  const left = Math.max(0, tot - sent);
+  const done = items.filter(i => i.done && i.sentQty > 0).length, partialN = items.filter(i => i.partial).length;
   return '<div class="ship-sum">' +
     '<div class="between"><div class="section-title" style="margin:0">' + icon('truck', 'i-sm') + esc(t('ship_title')) + '</div>' +
-      (d === n ? '<span class="badge" style="--tone:var(--t-green)"><i class="dot"></i>' + esc(t('ship_all_done')) + '</span>' : '') + '</div>' +
-    '<div class="ship-stats"><div><b>' + n + '</b><span>' + esc(t('ship_total')) + '</span></div>' +
-      '<div class="is-sent"><b>' + d + '</b><span>' + esc(t('dispatched')) + '</span></div>' +
-      '<div class="' + (n - d ? 'is-left' : 'is-sent') + '"><b>' + (n - d) + '</b><span>' + esc(t('ship_remaining')) + '</span></div></div>' +
-    '<div class="progress wide"><i data-w="' + Math.max(6, Math.round(d / n * 100)) + '%"></i></div>' +
+      (!left ? '<span class="badge" style="--tone:var(--t-green)"><i class="dot"></i>' + esc(t('ship_all_done')) + '</span>'
+        : '<span class="hint">' + esc(t('items_done_of', { a: done, b: items.length })) + (partialN ? ' · ' + esc(t('partial_items', { n: partialN })) : '') + '</span>') + '</div>' +
+    '<div class="ship-stats"><div><b>' + fmtNum(tot, 0) + '</b><span>' + esc(t('total_units')) + '</span></div>' +
+      '<div class="is-sent"><b>' + fmtNum(sent, 0) + '</b><span>' + esc(t('dispatched')) + '</span></div>' +
+      '<div class="' + (left ? 'is-left' : 'is-sent') + '"><b>' + fmtNum(left, 0) + '</b><span>' + esc(t('ship_remaining')) + '</span></div></div>' +
+    '<div class="progress wide"><i data-w="' + Math.max(6, Math.round(tot ? sent / tot * 100 : 100)) + '%"></i></div>' +
     '<div class="ship-list">' + ships.map(g =>
       '<div class="ship"><span class="ship-no">' + icon('truck', 'i-sm') + esc(t('shipment_n', { n: g.batch })) + '</span>' +
-      '<span class="muted">' + esc(fmtDateTime(g.sentAt)) + ' · ' + esc(t('items_count', { n: g.items.length })) + '</span>' +
-      '<span class="ship-items">' + g.items.map(i => esc(i.item)).join(' · ') + '</span>' +
+      '<span class="muted">' + esc(fmtDateTime(g.sentAt)) + ' · ' + esc(t('ship_units', { n: fmtNum(g.units || g.items.reduce((a, i) => a + (i.qty || 0), 0), 0) })) + '</span>' +
+      '<span class="ship-items">' + g.items.map(i => esc(i.item) + ' <b>×' + fmtNum(i.qty, 0) + '</b>').join(' · ') + '</span>' +
       '<span class="ship-rcv">' + (g.received
         ? '<span class="badge" style="--tone:var(--t-green)"><i class="dot"></i>' + esc(t('ship_received')) + '</span>' +
           '<span class="muted">' + esc([g.receiver, g.receivedAt ? fmtDateTime(g.receivedAt) : ''].filter(Boolean).join(' · ')) + '</span>' +
@@ -535,9 +544,13 @@ function shipSummary(items, ships) {
   '</div>';
 }
 function shipBadge(it) {
-  return it.dispatchedAt
-    ? '<span class="badge" style="--tone:var(--t-indigo)"><i class="dot"></i>' + esc(it.batch ? t('shipment_n', { n: it.batch }) : t('dispatched')) + '</span>'
-    : '<span class="muted" style="font-size:12.5px">' + esc(t('waiting')) + '</span>';
+  if (it.partial) return '<span class="badge" style="--tone:var(--t-orange)"><i class="dot"></i>' + esc(t('partial_badge', { a: it.sentQty, b: it.target })) + '</span>';
+  if (it.sentQty > 0 || it.dispatchedAt) {
+    const n = (it.parts || []).length;
+    return '<span class="badge" style="--tone:var(--t-indigo)"><i class="dot"></i>' + esc(n > 1 ? t('ships_n', { n: n }) : (it.batch ? t('shipment_n', { n: it.batch }) : t('dispatched'))) + '</span>';
+  }
+  if (it.done) return '<span class="muted" style="font-size:12.5px">' + esc(t('item_zero')) + '</span>';
+  return '<span class="muted" style="font-size:12.5px">' + esc(t('waiting')) + '</span>';
 }
 function animateBars(root) {
   requestAnimationFrame(() => requestAnimationFrame(() => {
@@ -858,7 +871,7 @@ window.addEventListener('scroll', () => { $('#topbar').classList.toggle('scrolle
 const ALERT_ICON = { info: 'info', success: 'checkc', warning: 'clock', danger: 'alert' };
 const ALERT_TARGET = {
   alert_to_receive: ['mine', 'to_receive'], alert_rejected: ['mine', 'rejected'],
-  alert_urgent_new: ['requests', 'ready'], alert_new: ['requests', 'ready'], alert_approved_ready: ['requests', 'prep'], alert_urgent_review: ['requests', 'review'],
+  alert_partial: ['requests', 'partial'], alert_urgent_new: ['requests', 'ready'], alert_new: ['requests', 'ready'], alert_approved_ready: ['requests', 'prep'], alert_urgent_review: ['requests', 'review'],
   alert_pending_review: ['reviews', 'review'], alert_open_complaints: ['complaints', 'open']
 };
 function loadAlerts() {
@@ -1493,7 +1506,8 @@ ACT.receive = el => {
   const top = topModal(); if (top) closeModal(top);
   openReceive(el.dataset.id);
 };
-const sentQty = it => (it.approvedQty !== '' && it.approvedQty !== null && it.approvedQty !== undefined ? it.approvedQty : it.requestedQty);
+// كمية الصنف داخل الشحنة (qty)، وإلا الكمية المعتمدة/المطلوبة
+const sentQty = it => (it.qty !== undefined && it.qty !== null ? it.qty : (it.approvedQty !== '' && it.approvedQty !== null && it.approvedQty !== undefined ? it.approvedQty : it.requestedQty));
 function loadImage(src) {
   return new Promise(res => { if (!src) { res(null); return; } const im = new Image(); im.onload = () => res(im); im.onerror = () => res(null); im.src = src; });
 }
@@ -1548,7 +1562,7 @@ function openReceive(id) {
     const rec = ship.items.map((it, i) => ({ name: it.item, qty: got[i] }));
     const sigData = sig.hasInk() ? sig.toDataURL() : '';
     const section = { batch: ship.batch, items: ship.items.map((it, i) => ({ item: it.item, sent: sentQty(it), got: got[i] })), receiver: name, at: new Date(), sig: sig.hasInk() ? sig.canvas : null };
-    const rid = id + (d.branch ? ' · ' + d.branch : '');
+    const rid = id + (d.branch ? ' · \u2068' + d.branch + '\u2069' : ''); // عزل اتجاه النص العربي داخل سطر لاتيني
     const receipt = drawReceipt(rid, [section], false);
     const b = $('#rOk', m.el); busy(b, true, t('sending'));
     const merged = !last ? Promise.resolve('') : call('getShipmentSignatures', id)
@@ -1660,7 +1674,7 @@ const PROC_GROUPS = [
   { id: 'review', k: 'grp_wait_doctor', statuses: [ST.REVIEW], tone: 'var(--t-violet)' },
   { id: 'ready', k: 'grp_ready_prep', test: r => r.cleared && (r.status === ST.APPROVED || r.status === ST.NEW), tone: 'var(--t-teal)' },
   { id: 'prep', k: 'grp_prep', statuses: [ST.PREP, ST.VENDOR_WAIT, ST.VENDOR_RECV], tone: 'var(--t-amber)' },
-  { id: 'partial', k: 'grp_partial', test: r => r.dispatchedCount > 0 && r.dispatchedCount < r.itemCount, tone: 'var(--t-indigo)' },
+  { id: 'partial', k: 'grp_partial', test: r => r.sentQty > 0 && r.remainingQty > 0, tone: 'var(--t-orange)' },
   { id: 'sent', k: 'st_sent', statuses: [ST.SENT], tone: 'var(--t-indigo)' },
   { id: 'received', k: 'st_received', statuses: [ST.RECEIVED], tone: 'var(--t-green)' },
   { id: 'rejected', k: 'st_rejected', statuses: [ST.REJECTED], tone: 'var(--t-red)' }
@@ -1765,23 +1779,35 @@ function procItemsHtml(r) {
   if (!data) return '<div class="skel" style="height:90px"></div>';
   const editable = APPROVAL_EDITABLE.indexOf(r.status) !== -1;
   const canDispatch = r.cleared && DISPATCHABLE.indexOf(r.status) !== -1;
-  const ds = data.dispatchStatus || {};
   const nc = data.noteCounts || {};
-  const pending = data.items.filter(it => !ds[it.item]).length;
+  const open = data.items.filter(it => it.remainingQty > 0);
+  const rid = esc(r.id);
   return shipSummary(data.items, data.shipments) +
-    '<div class="table-wrap"><table class="table"><thead><tr>' + (canDispatch ? '<th style="width:36px">' + (pending ? '<input type="checkbox" class="check" data-change="dspAll" data-id="' + esc(r.id) + '" title="' + esc(t('select_remaining')) + '" aria-label="' + esc(t('select_remaining')) + '">' : '') + '</th>' : '') + '<th>' + esc(t('items')) + '</th><th class="num">' + esc(t('requested')) + '</th><th class="num">' + esc(t('approved')) + '</th><th>' + esc(t('dispatch_status')) + '</th><th style="width:44px"></th></tr></thead><tbody>' +
+    '<div class="table-wrap"><table class="table dsp-table"><thead><tr>' +
+      (canDispatch ? '<th style="width:36px">' + (open.length ? '<input type="checkbox" class="check" data-change="dspAll" data-id="' + rid + '" title="' + esc(t('select_remaining')) + '" aria-label="' + esc(t('select_remaining')) + '">' : '') + '</th>' : '') +
+      '<th>' + esc(t('items')) + '</th><th class="num">' + esc(t('requested')) + '</th><th class="num">' + esc(t('approved')) + '</th><th>' + esc(t('sent_progress')) + '</th>' +
+      (canDispatch ? '<th class="num">' + esc(t('this_shipment')) + '</th>' : '') + '<th style="width:44px"></th></tr></thead><tbody>' +
     data.items.map(it => {
-      const sent = !!ds[it.item];
       const appr = it.approvedQty === '' || it.approvedQty === null ? it.requestedQty : it.approvedQty;
-      return '<tr>' + (canDispatch ? '<td>' + (sent ? icon('checkc', 'i-sm') : '<input type="checkbox" class="check dsp" data-change="dspSel" data-id="' + esc(r.id) + '" data-item="' + esc(it.item) + '">') + '</td>' : '') +
-        '<td style="font-weight:600">' + esc(it.item) + '</td><td class="num">' + esc(it.requestedQty) + '</td>' +
-        '<td class="num">' + (editable ? '<input class="input" type="number" min="0" inputmode="numeric" value="' + esc(appr) + '" data-change="approveQty" data-id="' + esc(r.id) + '" data-item="' + esc(it.item) + '">' : esc(appr)) + '</td>' +
-        '<td>' + shipBadge(it) + '</td>' +
-        '<td><button class="btn btn-ghost btn-icon btn-sm" data-act="itemNotes" data-id="' + esc(r.id) + '" data-item="' + esc(it.item) + '" title="' + esc(t('item_notes')) + '" style="position:relative">' + icon('msg', 'i-sm') +
+      const left = it.remainingQty || 0, sent = it.sentQty || 0, tgt = it.target || 0;
+      const state = it.done ? (sent ? 'done' : 'none') : (sent ? 'partial' : 'wait');
+      const pct = tgt ? Math.min(100, Math.round(sent / tgt * 100)) : 100;
+      const iname = esc(it.item);
+      return '<tr class="dsp-row ' + state + '">' +
+        (canDispatch ? '<td>' + (left > 0 ? '<input type="checkbox" class="check dsp" data-change="dspSel" data-id="' + rid + '" data-item="' + iname + '" aria-label="' + iname + '">' : icon('checkc', 'i-sm dsp-ok')) + '</td>' : '') +
+        '<td style="font-weight:600">' + iname + '</td><td class="num">' + esc(it.requestedQty) + '</td>' +
+        '<td class="num">' + (editable ? '<input class="input" type="number" min="0" inputmode="numeric" value="' + esc(appr) + '" data-change="approveQty" data-id="' + rid + '" data-item="' + iname + '">' : esc(appr)) + '</td>' +
+        '<td><div class="qty-prog ' + state + '"><div class="qp-line"><b>' + esc(t('sent_of', { a: fmtNum(sent, 0), b: fmtNum(tgt, 0) })) + '</b>' +
+          (left > 0 ? '<span class="qp-left">' + esc(t('left_n', { n: fmtNum(left, 0) })) + '</span>' : '<span class="qp-ok">' + esc(t(sent ? 'item_done' : 'item_zero')) + '</span>') + '</div>' +
+          '<div class="progress"><i data-w="' + (sent ? Math.max(6, pct) : 0) + '%"></i></div>' +
+          (it.parts && it.parts.length ? '<div class="qp-parts">' + it.parts.map(p => esc(t('shipment_n', { n: p.batch })) + ' ×' + fmtNum(p.qty, 0)).join(' · ') + '</div>' : '') + '</div></td>' +
+        (canDispatch ? '<td class="num">' + (left > 0 ? '<input class="input dsp-qty" type="number" min="1" max="' + left + '" step="1" inputmode="numeric" value="' + left + '" data-input="dspQty" data-id="' + rid + '" data-item="' + iname + '" aria-label="' + esc(t('this_shipment')) + ' — ' + iname + '">' : '—') + '</td>' : '') +
+        '<td><button class="btn btn-ghost btn-icon btn-sm" data-act="itemNotes" data-id="' + rid + '" data-item="' + iname + '" title="' + esc(t('item_notes')) + '" style="position:relative">' + icon('msg', 'i-sm') +
           (nc[it.item] ? '<span class="count-pill" style="position:absolute;top:-4px;inset-inline-end:-4px;height:16px;min-width:16px;font-size:10px;background:var(--primary);color:var(--on-primary)">' + nc[it.item] + '</span>' : '') + '</button></td></tr>';
     }).join('') + '</tbody></table></div>' +
     '<div class="row-wrap" style="margin-top:12px">' +
-      (canDispatch && pending ? '<button class="btn btn-tone btn-sm dsp-btn" style="--tone:var(--t-indigo)" data-act="dispatch" data-id="' + esc(r.id) + '" disabled>' + icon('truck', 'i-sm') + esc(t('dispatch_selected')) + '<span class="count-pill hidden"></span></button>' : '') +
+      (canDispatch && open.length ? '<button class="btn btn-tone btn-sm dsp-btn" style="--tone:var(--t-indigo)" data-act="dispatch" data-id="' + rid + '" disabled>' + icon('truck', 'i-sm') + esc(t('dispatch_selected')) + '<span class="count-pill hidden"></span></button>' +
+        '<span class="hint">' + icon('info', 'i-sm') + ' ' + esc(t('qty_hint')) + '</span>' : '') +
       (!editable ? '<span class="hint">' + icon('lock', 'i-sm') + ' ' + esc(t('approval_locked')) + '</span>' : '') +
     '</div>';
 }
@@ -1877,12 +1903,22 @@ ACT.approveQty = el => {
   call('updateItemApproval', el.dataset.id, el.dataset.item, v).then(() => {
     el.disabled = false; toast(t('saved'), 'success', 1400);
     const d = S.proc.items[el.dataset.id]; if (d) { const it = d.items.find(x => x.item === el.dataset.item); if (it) it.approvedQty = v; }
+    loadProcItems(el.dataset.id, true); // المستهدف والمتبقي وكمية الشحنة تتبع الكمية المعتمدة الجديدة
   }).catch(e => { el.disabled = false; toast(errMsg(e), 'error'); });
 };
 function syncDispatchBtn(exp) {
-  const n = $$('.dsp:checked', exp).length, all = $$('.dsp', exp).length;
-  const b = $('.dsp-btn', exp); if (b) { b.disabled = !n; const p = b.querySelector('.count-pill'); p.textContent = n; p.classList.toggle('hidden', !n); }
+  const rows = $$('.dsp:checked', exp).map(c => c.closest('tr'));
+  const n = rows.length, all = $$('.dsp', exp).length;
+  const units = rows.reduce((a, tr) => a + (Math.floor(Number($('.dsp-qty', tr) && $('.dsp-qty', tr).value)) || 0), 0);
+  const b = $('.dsp-btn', exp);
+  if (b) {
+    b.disabled = !n;
+    const p = b.querySelector('.count-pill');
+    p.textContent = n ? n + ' · ' + t('ship_units', { n: fmtNum(units, 0) }) : '';
+    p.classList.toggle('hidden', !n);
+  }
   const h = $('[data-change="dspAll"]', exp); if (h) { h.checked = n > 0 && n === all; h.indeterminate = n > 0 && n < all; }
+  $$('.dsp-row', exp).forEach(tr => { const c = $('.dsp', tr); tr.classList.toggle('picked', !!(c && c.checked)); });
 }
 ACT.dspSel = el => syncDispatchBtn(document.getElementById('exp-' + el.dataset.id));
 ACT.dspAll = el => {
@@ -1890,15 +1926,30 @@ ACT.dspAll = el => {
   $$('.dsp', exp).forEach(c => { c.checked = el.checked; });
   syncDispatchBtn(exp);
 };
+// كتابة كمية = اختيار الصنف تلقائياً (وصفر يلغي الاختيار)
+ACT.dspQty = el => {
+  const tr = el.closest('tr'), c = $('.dsp', tr);
+  const v = Math.floor(Number(el.value));
+  if (c) c.checked = v > 0;
+  el.classList.toggle('invalid', !(v >= 1 && v <= Number(el.max)) && el.value !== '');
+  syncDispatchBtn(document.getElementById('exp-' + el.dataset.id));
+};
 ACT.dispatch = el => {
   const id = el.dataset.id;
   const exp = document.getElementById('exp-' + id);
-  const names = $$('.dsp:checked', exp).map(c => c.dataset.item);
-  if (!names.length) { toast(t('select_item'), 'warning'); return; }
+  const lines = [];
+  for (const c of $$('.dsp:checked', exp)) {
+    const inp = $('.dsp-qty', c.closest('tr'));
+    const q = Math.floor(Number(inp.value));
+    if (!(q >= 1)) { toast(t('ERR_BAD_QTY'), 'warning'); inp.focus(); return; }
+    if (q > Number(inp.max)) { toast(t('ERR_QTY_EXCEEDS') + ' (' + c.dataset.item + ': ' + inp.max + ')', 'warning'); inp.focus(); inp.select(); return; }
+    lines.push({ name: c.dataset.item, qty: q });
+  }
+  if (!lines.length) { toast(t('select_item'), 'warning'); return; }
   busy(el, true, t('sending'));
-  call('dispatchItems', id, names).then(res => {
-    toast(res.allSent ? t('dispatch_all_done') : t('dispatch_partial', { n: res.count, r: res.remaining, b: res.batch }));
-    loadProcItems(id, true); loadProc(true);
+  call('dispatchItems', id, lines).then(res => {
+    toast(res.allSent ? t('dispatch_all_done') : t('dispatch_partial', { n: res.count, u: fmtNum(res.units, 0), r: fmtNum(res.remainingQty, 0), b: res.batch }));
+    loadProcItems(id, true); loadProc(true); loadAlerts();
   }).catch(e => { busy(el, false); toast(errMsg(e), 'error'); });
 };
 
@@ -2621,7 +2672,7 @@ Object.assign(I18N.ar, {
   wf_s2_t: 'مراجعة الطبيب', wf_s2_d: 'يراجع الأصناف والكميات والأسعار ويضيف ملاحظاته على أي صنف.',
   wf_s3_t: 'اعتماد الطبيب', wf_s3_d: 'يعتمد الطلب فيصل للتموين، أو يرفضه مع السبب فيعود للممرضة.',
   wf_s4_t: 'التجهيز', wf_s4_d: 'التموين يجهّز الطلب المعتمد ويعدّل الكميات حسب المتوفر.',
-  wf_s5_t: 'الإرسال للفرع', wf_s5_d: 'إرسال الطلب كاملاً أو أصناف محددة على شحنات مرقّمة. يصل بريد للممرضة مع كل شحنة.',
+  wf_s5_t: 'الإرسال للفرع', wf_s5_d: 'إرسال الطلب كاملاً أو جزءاً منه على شحنات مرقّمة — أصناف محددة أو كمية جزئية من الصنف نفسه، والمتبقي يبقى ظاهراً للتموين. يصل بريد للممرضة مع كل شحنة.',
   wf_s6_t: 'الاستلام والتوقيع', wf_s6_d: 'توقيع كل شحنة عند وصولها مع الكميات المستلمة فعلياً، وبعد آخر شحنة يُنشأ إيصال موحّد بكل التواقيع.',
   wf_b_any_t: 'في أي مرحلة', wf_b_any_d: 'ملاحظات على الطلب وعلى كل صنف، وبلاغات (تأخير / نقص / زيادة) تصل للتموين والإدارة فوراً.',
   wf_b_vendor_t: 'مسار المندوب (اختياري)', wf_b_vendor_d: 'إذا احتاج صنف توريداً خارجياً أثناء التجهيز، ثم يُرسل الطلب للفرع.',
@@ -2679,7 +2730,7 @@ Object.assign(I18N.en, {
   wf_s2_t: 'Doctor review', wf_s2_d: 'Reviews items, quantities and prices, and adds notes on any item.',
   wf_s3_t: 'Doctor approval', wf_s3_d: 'Approves it (it goes to procurement) or rejects it with a reason (it returns to the nurse).',
   wf_s4_t: 'Prepare', wf_s4_d: 'Procurement prepares the approved request and adjusts quantities to what’s available.',
-  wf_s5_t: 'Dispatch', wf_s5_d: 'Send the whole request or selected items in numbered shipments. The nurse is emailed for each one.',
+  wf_s5_t: 'Dispatch', wf_s5_d: 'Send the whole request or part of it in numbered shipments — selected items or a partial quantity of the same item; what is left stays visible to procurement. The nurse is emailed for each one.',
   wf_s6_t: 'Receive & sign', wf_s6_d: 'Sign for each shipment as it arrives with the actual quantities; after the last one a combined receipt with all signatures is created.',
   wf_b_any_t: 'At any stage', wf_b_any_d: 'Notes on the request and on each item, and issue reports (delay / shortage / excess) reach procurement and management instantly.',
   wf_b_vendor_t: 'Vendor path (optional)', wf_b_vendor_d: 'When an item needs outside supply during preparation; then the request is dispatched.',
