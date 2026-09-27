@@ -176,6 +176,16 @@ function log(msg) { console.log('  ✔ ' + msg); }
   await page.click('.pkg-chip >> nth=0');
   expect(await page.locator('.item-line').count() >= 3, 'items added via search, new-item option and doctor package');
   expect((await page.inputValue('.item-line:nth-child(1) input')) === '3', 'qty stepper increments');
+  // الكمية صفر: خطأ واضح ويُمنع الإرسال
+  await page.fill('.item-line:nth-child(1) input', '0');
+  await page.dispatchEvent('.item-line:nth-child(1) input', 'input');
+  expect(await page.isVisible('.item-line:nth-child(1) .qty-err') && (await page.textContent('.item-line:nth-child(1) .qty-err')).includes('أقل كمية 1'), 'zero quantity shows "minimum is 1"');
+  await page.click('#submitBtn');
+  expect((await page.textContent('#submitErr')).includes('لا يمكن طلب صفر'), 'submit is blocked while a quantity is zero');
+  await shot(page, 'nurse-qty-zero');
+  await page.fill('.item-line:nth-child(1) input', '3');
+  await page.dispatchEvent('.item-line:nth-child(1) input', 'input');
+  expect(!(await page.isVisible('.item-line:nth-child(1) .qty-err')), 'error clears once the quantity is valid');
   await shot(page, 'nurse-new-request', true);
   await page.click('#submitBtn');
   let tt = await toastText(page);
@@ -262,6 +272,26 @@ function log(msg) { console.log('  ✔ ' + msg); }
   await page.emulateMedia({ media: 'screen' });
   await page.waitForTimeout(1600);
   await page.keyboard.press('Escape');
+  // الطبيب يغيّر رقمه السري بنفسه
+  await page.click('#pwBtn');
+  await page.waitForSelector('#pwCur');
+  await page.fill('#pwCur', '0000'); await page.fill('#pwNew', 'dr-khaled-7'); await page.fill('#pwNew2', 'dr-khaled-7');
+  await page.click('#pwOk');
+  await page.waitForSelector('#pwErr:not(.hidden)');
+  expect((await page.textContent('#pwErr')).includes('غير صحيح'), 'wrong current password is rejected');
+  await page.fill('#pwCur', '4444'); await page.fill('#pwNew2', 'mismatch');
+  await page.click('#pwOk');
+  expect((await page.textContent('#pwErr')).includes('لا يطابق'), 'confirmation mismatch is caught');
+  await page.fill('#pwNew2', 'dr-khaled-7');
+  await shot(page, 'change-password');
+  await page.click('#pwOk');
+  expect(await toastHas(page, 'تم تغيير الرقم السري'), 'doctor changed his own password');
+  await logout(page);
+  await page.fill('#loginName', 'د. خالد'); await page.fill('#loginPass', '4444'); await page.click('#loginBtn');
+  await page.waitForSelector('#loginError:not(.hidden)');
+  expect(true, 'old doctor password no longer signs in');
+  await login(page, 'د. خالد', 'dr-khaled-7');
+  expect(await page.isVisible('#docList'), 'new doctor password signs in');
   await logout(page);
 
   // ---------- Procurement: prepare & dispatch after approval ----------
@@ -465,6 +495,7 @@ function log(msg) { console.log('  ✔ ' + msg); }
       if (JSON.parse(body).fn === 'batch') net.batches++;
       if (net.rejectBatch && JSON.parse(body).fn === 'batch') return r.fulfill({ contentType: 'application/json', headers: { 'Access-Control-Allow-Origin': '*' }, body: JSON.stringify({ ok: false, error: 'ERR_UNKNOWN_FN' }) });
       if (net.failNext > 0) { net.failNext--; return r.fulfill({ status: 500, body: '<html>Google error</html>' }); }
+      if (net.busyWrites > 0 && !/^(get|batch|login)/.test(JSON.parse(body).fn)) { net.busyWrites--; net.busyServed = (net.busyServed || 0) + 1; return r.fulfill({ contentType: 'application/json', headers: { 'Access-Control-Allow-Origin': '*' }, body: JSON.stringify({ ok: false, error: 'ERR_BUSY' }) }); }
       const out = sctx.doPost({ postData: { contents: body } }).getContent();
       const send = () => r.fulfill({ contentType: 'application/json', headers: { 'Access-Control-Allow-Origin': '*' }, body: out }).catch(() => {});
       if (net.delay) setTimeout(send, net.delay); else send();
@@ -492,6 +523,10 @@ function log(msg) { console.log('  ✔ ' + msg); }
     expect(await toastHas(gp, 'تم بنجاح'), 'Pages mode: falls back to single calls when the server has no batch support');
     expect(!(await gp.isVisible('.toast.error')), 'Pages mode: fallback shows no error');
     net.rejectBatch = false;
+    // ضغط كتابة: الخادم يرد «مشغول» مرتين ثم ينجح — الواجهة تعيد المحاولة تلقائياً بلا خطأ
+    net.busyWrites = 2;
+    const saved = await gp.evaluate(() => call('changePassword', '3333', 'busy-test-1').then(r => r, e => 'ERR ' + e.message));
+    expect(saved === true && net.busyServed === 2, 'Pages mode: writes retry automatically when the server is busy (' + saved + ')');
     // إعادة تحميل الصفحة مع خادم بطيء (ثانيتان): الواجهة تفتح فوراً بآخر بيانات معروفة
     net.delay = 2000;
     await gp.waitForTimeout(1000);

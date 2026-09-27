@@ -11,8 +11,9 @@ const { seedFixtures } = require('./fixtures');
 
 const CODE = fs.readFileSync(path.join(__dirname, '..', 'Code.gs'), 'utf8');
 
-function boot(extraSeed) {
+function boot(extraSeed, gasOpts) {
   const gas = createGas({
+    lockBusy: gasOpts && gasOpts.lockBusy,
     digest: (str, len) => Array.from(crypto.createHash(len === 16 ? 'md5' : 'sha256').update(str, 'utf8').digest()).map(b => (b > 127 ? b - 256 : b))
   });
   seedFixtures(gas);
@@ -70,6 +71,81 @@ test('login tolerates case, spaces, invisible chars and Arabic digits', () => {
   assert.equal(g2.api(null, 'login', 'ahmed', '12345').success, false);
 });
 
+test('every user changes their own password: doctors, nurses and the rest', () => {
+  const { api, gas } = boot();
+  const users = [['د. خالد', '4444', 'doctor'], ['سارة', '1111', 'nurse'], ['علي', '3333', 'procurement'], ['منى', '5555', 'dashboard']];
+  const tokens = {};
+  for (const [name, pw] of users) tokens[name] = api(null, 'login', name, pw).token;
+  users.forEach(([name, pw], i) => {
+    const np = 'Pw-' + name.length + '-' + (i + 1) * 1111;
+    assert.equal(api(tokens[name], 'changePassword', pw, np), true, name + ' changed their password');
+    assert.equal(api(null, 'login', name, pw).success, false, name + ': old password no longer works');
+    assert.equal(api(null, 'login', name, np).success, true, name + ': new password works');
+    const stored = rows(gas, 'Users').find(u => u.Name === name);
+    assert.match(stored.Password, /^h1\$/, 'stored hashed');
+    assert.ok(!stored.Password.includes(np), 'plain password never stored');
+    assert.ok(stored.PasswordChangedAt, 'change time recorded');
+    assert.equal(api(tokens[name], 'getAlerts').constructor.name.length > 0, true, 'session stays valid after the change');
+  });
+  // المستخدمون الآخرون لم يتأثروا
+  assert.equal(api(null, 'login', 'ريم', '2222').success, true);
+  assert.equal(api(null, 'login', 'المدير', '1234').success, true);
+  // نفس الرقم لمستخدمين مختلفين = تشفير مختلف (salt)
+  const t1 = api(null, 'login', 'ريم', '2222').token;
+  api(t1, 'changePassword', '2222', 'same-pass');
+  const t2 = api(null, 'login', 'المدير', '1234').token;
+  api(t2, 'changePassword', '1234', 'same-pass');
+  const [h1, h2] = ['ريم', 'المدير'].map(n => rows(gas, 'Users').find(u => u.Name === n).Password);
+  assert.notEqual(h1, h2);
+});
+
+test('password change: validation, lockout, Arabic digits, and no way to change someone else', () => {
+  const { api } = boot();
+  const d = api(null, 'login', 'د. خالد', '4444').token;
+  throwsCode(() => api(null, 'changePassword', '4444', 'abcd'), 'ERR_SESSION');
+  throwsCode(() => api(d, 'changePassword', '', 'abcd'), 'ERR_REQUIRED');
+  throwsCode(() => api(d, 'changePassword', '4444', ''), 'ERR_REQUIRED');
+  throwsCode(() => api(d, 'changePassword', '4444', '12'), 'ERR_WEAK_PASSWORD');
+  throwsCode(() => api(d, 'changePassword', '4444', '   12   '), 'ERR_WEAK_PASSWORD');
+  throwsCode(() => api(d, 'changePassword', '4444', 'x'.repeat(65)), 'ERR_PASSWORD_TOO_LONG');
+  throwsCode(() => api(d, 'changePassword', '4444', '٤٤٤٤'), 'ERR_SAME_PASSWORD');
+  // الرقم الحالي بالأرقام العربية مقبول، والجديد يُوحَّد
+  api(d, 'changePassword', '٤٤٤٤', '٩٨٧٦');
+  assert.equal(api(null, 'login', 'د. خالد', '9876').success, true, 'new password typed with Arabic digits works with Latin digits');
+  assert.equal(api(null, 'login', 'د. خالد', '٩٨٧٦').success, true);
+  // محاولة تغيير رقم مستخدم آخر: الوسائط الإضافية تُتجاهل، والتغيير يخص صاحب الجلسة فقط
+  const n = api(null, 'login', 'سارة', '1111').token;
+  api(n, 'changePassword', '1111', 'nurse-pass', 'د. خالد');
+  assert.equal(api(null, 'login', 'د. خالد', '9876').success, true, 'doctor password untouched');
+  assert.equal(api(null, 'login', 'سارة', 'nurse-pass').success, true);
+  // رقم حالي خاطئ 5 مرات → قفل مؤقت (حتى بالرقم الصحيح)
+  for (let i = 0; i < 5; i++) throwsCode(() => api(d, 'changePassword', 'wrong' + i, 'abcd1'), 'ERR_WRONG_PASSWORD');
+  throwsCode(() => api(d, 'changePassword', '9876', 'abcd1'), 'ERR_LOGIN_LOCKED');
+  assert.equal(api(null, 'login', 'د. خالد', '9876').success, true, 'failed change attempts do not alter the password');
+  // المدير يستطيع إعادة تعيين الرقم لمن نسيه
+  const a = api(null, 'login', 'المدير', '1234').token;
+  api(a, 'updateUser', 'د. خالد', { password: 'reset-1', role: 'طبيب', clinic: '', email: 'khaled@example.com' });
+  assert.equal(api(null, 'login', 'د. خالد', 'reset-1').success, true);
+});
+
+test('login: wrong name/password, empty fields, per-user lockout, case/space tolerant names', () => {
+  const { api } = boot();
+  assert.equal(api(null, 'login', 'سارة', '9999').success, false);
+  assert.equal(api(null, 'login', 'غير موجود', '1111').success, false, 'unknown user');
+  throwsCode(() => api(null, 'login', '', '1111'), 'ERR_LOGIN_EMPTY');
+  throwsCode(() => api(null, 'login', 'سارة', ''), 'ERR_LOGIN_EMPTY');
+  assert.equal(api(null, 'login', '  سارة  ', '1111').success, true, 'extra spaces are ignored');
+  assert.equal(api(null, 'login', 'سارة', ' 1111 ').success, true, 'spaces around the password are ignored');
+  assert.equal(api(null, 'login', 'سارة', '١١١١').success, true, 'Arabic digits accepted');
+  for (let i = 0; i < 8; i++) api(null, 'login', 'علي', 'bad' + i);
+  throwsCode(() => api(null, 'login', 'علي', '3333'), 'ERR_LOGIN_LOCKED');
+  assert.equal(api(null, 'login', 'سارة', '1111').success, true, 'lockout is per user');
+  const r = api(null, 'login', 'سارة', '1111');
+  assert.equal(r.user.screen, 'nurse');
+  assert.equal(r.user.password, undefined, 'login response never contains the password');
+  assert.equal(JSON.stringify(r).includes('h1$'), false, 'nor its hash');
+});
+
 test('login: locks out after 8 failed attempts', () => {
   const { api } = boot();
   for (let i = 0; i < 8; i++) assert.equal(api(null, 'login', 'علي', 'bad').success, false);
@@ -103,15 +179,20 @@ test('config: nurse sees only her clinics and no prices', () => {
 });
 
 test('createRequest: validation', () => {
-  const { api, login } = boot();
+  const { api, login, gas } = boot();
   const n = login('سارة', '1111');
   const base = { clinic: 'عيادة الأسنان 1', doctor: 'د. خالد', type: 'شهري', items: [{ name: 'PROPHY PASTE', qty: 2 }] };
   throwsCode(() => api(n, 'createRequest', Object.assign({}, base, { clinic: 'عيادة الأسنان 2' })), 'ERR_FORBIDDEN');
   throwsCode(() => api(n, 'createRequest', Object.assign({}, base, { doctor: 'د. فهد' })), 'ERR_BAD_DOCTOR');
   throwsCode(() => api(n, 'createRequest', Object.assign({}, base, { type: 'x' })), 'ERR_BAD_TYPE');
   throwsCode(() => api(n, 'createRequest', Object.assign({}, base, { items: [] })), 'ERR_NO_ITEMS');
-  throwsCode(() => api(n, 'createRequest', Object.assign({}, base, { items: [{ name: 'A', qty: 0 }] })), 'ERR_BAD_QTY');
-  throwsCode(() => api(n, 'createRequest', Object.assign({}, base, { items: [{ name: 'A', qty: -3 }] })), 'ERR_BAD_QTY');
+  // لا يمكن طلب صفر (ولا سالب ولا فارغ) — أقل كمية 1
+  for (const q of [0, -3, '', null, '0', 0.4]) {
+    throwsCode(() => api(n, 'createRequest', Object.assign({}, base, { items: [{ name: 'A', qty: q }] })), 'ERR_QTY_MIN1');
+  }
+  throwsCode(() => api(n, 'createRequest', Object.assign({}, base, { items: [{ name: 'A', qty: 1 }, { name: 'B', qty: 0 }] })), 'ERR_QTY_MIN1');
+  throwsCode(() => api(n, 'createRequest', Object.assign({}, base, { items: [{ name: 'A', qty: 100001 }] })), 'ERR_BAD_QTY');
+  assert.ok((gas.dump('Requests') || [[]]).length <= 1, 'nothing is saved when a quantity is zero');
 });
 
 test('createRequest: success, merge duplicates, new catalog item, email, double-submit guard', () => {
@@ -439,6 +520,45 @@ test('login preloads the first screen data in the same call (reads only)', () =>
   assert.equal(api(null, 'login', 'سارة', '0000', plan).preload, undefined);
 });
 
+test('approval comes right after the nurse submits, and only her request\'s own doctor can give it', () => {
+  const { api, login } = boot();
+  const n = login('سارة', '1111'), r2 = login('ريم', '2222'), p = login('علي', '3333'), d = login('د. خالد', '4444'), q = login('منى', '5555');
+  const admin = login('المدير', '1234');
+  api(admin, 'createUser', { name: 'د. سعد', password: '6666', role: 'طبيب', clinic: '' });
+  const d2 = login('د. سعد', '6666');
+  // تسخين الكاش عند الطبيب والتموين قبل رفع الطلب
+  assert.equal(api(d, 'getDoctorRequests').length, 0);
+  api(p, 'getRequests', {});
+  const id = api(n, 'createRequest', { clinic: 'عيادة الأسنان 1', doctor: 'د. خالد', type: 'شهري', items: [{ name: 'PROPHY PASTE', qty: 3 }] }).id;
+  // يظهر فوراً عند طبيبه، مع تنبيه، ولا يظهر عند طبيب آخر
+  const mine = api(d, 'getDoctorRequests');
+  assert.deepEqual(mine.map(r => [r.id, r.status, r.nurse]), [[id, 'مراجعة الطبيب', 'سارة']]);
+  assert.ok(api(d, 'getAlerts').some(a => a.code === 'alert_pending_review' && a.n === 1));
+  assert.equal(api(d2, 'getDoctorRequests').length, 0, 'another doctor does not see it');
+  throwsCode(() => api(d2, 'getRequestDetail', id), 'ERR_FORBIDDEN');
+  // لا أحد غير طبيبه يعتمد
+  throwsCode(() => api(n, 'doctorReview', id, 'اعتمد', '', []), 'ERR_FORBIDDEN');
+  throwsCode(() => api(p, 'doctorReview', id, 'اعتمد', '', []), 'ERR_FORBIDDEN');
+  throwsCode(() => api(q, 'doctorReview', id, 'اعتمد', '', []), 'ERR_FORBIDDEN');
+  throwsCode(() => api(d2, 'doctorReview', id, 'اعتمد', '', []), 'ERR_FORBIDDEN');
+  throwsCode(() => api(d, 'doctorReview', id, 'ربما', '', []), 'ERR_BAD_DECISION');
+  // التموين لا يتصرف قبل الاعتماد
+  assert.equal(api(p, 'getRequests', {}).find(r => r.id === id).cleared, false);
+  assert.equal(api(p, 'bulkUpdateStatus', [id], 'قيد التجهيز').skipped.length, 1);
+  throwsCode(() => api(p, 'dispatchItems', id, ['PROPHY PASTE']), 'ERR_NEEDS_APPROVAL');
+  // ممرضة أخرى لا ترى الطلب
+  throwsCode(() => api(r2, 'getRequestDetail', id), 'ERR_FORBIDDEN');
+  // الاعتماد → يظهر للتموين جاهزاً للتجهيز، والممرضة ترى «معتمد»
+  api(d, 'doctorReview', id, 'اعتمد', '', []);
+  throwsCode(() => api(d, 'doctorReview', id, 'رفض', 'متأخر', []), 'ERR_BAD_TRANSITION');
+  assert.equal(api(n, 'getMyRequests')[0].status, 'معتمد من الطبيب');
+  const pr = api(p, 'getRequests', {}).find(r => r.id === id);
+  assert.deepEqual([pr.status, pr.cleared], ['معتمد من الطبيب', true]);
+  const det = api(n, 'getRequestDetail', id);
+  assert.ok(det.reviewAt && det.approvedAt && new Date(det.approvedAt) >= new Date(det.submittedAt), 'approval is stamped after submission');
+  assert.equal(det.prepAt, '', 'not prepared before approval');
+});
+
 test('doctor rejection returns to the nurse, who can resubmit it to the doctor', () => {
   const { api, login, gas } = boot();
   const n = login('سارة', '1111'), p = login('علي', '3333'), d = login('د. خالد', '4444');
@@ -517,6 +637,43 @@ test('doctor report: priced items and totals for a month or a cumulative period'
   assert.equal(api(q, 'getDoctorReport', { doctor: 'د. خالد' }).summary.total, 445);
   throwsCode(() => api(n, 'getDoctorReport', {}), 'ERR_FORBIDDEN');
   throwsCode(() => api(p, 'getDoctorReport', { doctor: 'د. خالد' }), 'ERR_FORBIDDEN');
+});
+
+test('lists hide completed requests older than 60 days unless the archive is asked for', () => {
+  const D = 864e5;
+  const { api, login } = boot(g => {
+    const old = new Date(Date.now() - 120 * D), recent = new Date(Date.now() - 10 * D);
+    g.seed('Requests', ['RequestID', 'Date', 'Clinic', 'Doctor', 'Nurse', 'Type', 'Status', 'SubmittedAt', 'SentAt', 'ReceivedAt', 'ApprovedAt'], [
+      ['OLD-RECV', old, 'عيادة الأسنان 1', 'د. خالد', 'سارة', 'شهري', 'تم الاستلام', old, old, old, old],
+      ['OLD-REJ', old, 'عيادة الأسنان 1', 'د. خالد', 'سارة', 'شهري', 'مرفوض', old, '', '', ''],
+      ['OLD-OPEN', old, 'عيادة الأسنان 1', 'د. خالد', 'سارة', 'شهري', 'قيد التجهيز', old, '', '', old],
+      ['NEW-RECV', recent, 'عيادة الأسنان 1', 'د. خالد', 'سارة', 'شهري', 'تم الاستلام', recent, recent, recent, recent]
+    ]);
+    g.seed('RequestItems', ['RequestID', 'ItemName', 'RequestedQty'], [['OLD-RECV', 'A', 1], ['OLD-REJ', 'A', 1], ['OLD-OPEN', 'A', 1], ['NEW-RECV', 'A', 1]]);
+  });
+  const n = login('سارة', '1111'), p = login('علي', '3333'), d = login('د. خالد', '4444');
+  const ids = l => l.map(r => r.id).sort();
+  assert.deepEqual(ids(api(p, 'getRequests', {})), ['NEW-RECV', 'OLD-OPEN'], 'old completed hidden, old but still open kept');
+  assert.deepEqual(ids(api(p, 'getRequests', { archive: true })), ['NEW-RECV', 'OLD-OPEN', 'OLD-RECV', 'OLD-REJ']);
+  assert.deepEqual(ids(api(n, 'getMyRequests')), ['NEW-RECV', 'OLD-OPEN']);
+  assert.equal(api(n, 'getMyRequests', { archive: true }).length, 4);
+  assert.deepEqual(ids(api(d, 'getDoctorRequests')), ['NEW-RECV', 'OLD-OPEN']);
+  assert.equal(api(d, 'getDoctorRequests', { archive: true }).length, 4, 'the doctor archive includes old received and rejected requests');
+});
+
+test('under write contention the server answers ERR_BUSY without writing anything', () => {
+  let busy = false;
+  const { api, login, gas } = boot(null, { lockBusy: () => busy });
+  const n = login('سارة', '1111');
+  const payload = { clinic: 'عيادة الأسنان 1', doctor: 'د. خالد', type: 'شهري', items: [{ name: 'PROPHY PASTE', qty: 2 }] };
+  busy = true;
+  throwsCode(() => api(n, 'createRequest', payload), 'ERR_BUSY');
+  assert.ok((gas.dump('Requests') || [[]]).length <= 1, 'nothing saved while busy');
+  assert.ok(Array.isArray(api(n, 'getMyRequests')), 'reads keep working while writes are queued');
+  busy = false;
+  const r = api(n, 'createRequest', payload);   // إعادة المحاولة تنجح
+  assert.equal(r.duplicate, false);
+  assert.equal(api(n, 'createRequest', payload).duplicate, true, 'a double retry is caught by the duplicate guard');
 });
 
 test('doctor without an account: request can be dispatched without review', () => {

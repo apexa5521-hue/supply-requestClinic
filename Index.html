@@ -476,6 +476,9 @@ button.kpi[aria-pressed="true"] { border-color: var(--tone); box-shadow: 0 0 0 3
 .items-list { display: flex; flex-direction: column; }
 .item-line { display: flex; align-items: center; gap: 12px; padding: 10px 4px; border-bottom: 1px solid var(--border); animation: rowIn .32s var(--ease-out); }
 .item-line:last-child { border-bottom: 0; }
+.qty-err { display: flex; align-items: center; gap: 5px; margin-top: 4px; font-size: 12.5px; font-weight: 600; color: var(--t-red); }
+.item-line.qty-bad .qty { border-color: var(--t-red); box-shadow: 0 0 0 3px color-mix(in srgb, var(--t-red) 16%, transparent); }
+.item-line.qty-bad .qty input { color: var(--t-red); }
 .item-line.leaving { animation: rowOut .22s var(--ease) forwards; }
 .item-line.bump { animation: bump .4s var(--ease); }
 @keyframes rowIn { from { opacity: 0; transform: translateY(-6px); } }
@@ -618,7 +621,11 @@ button.kpi[aria-pressed="true"] { border-color: var(--tone); box-shadow: 0 0 0 3
 .view-enter > *:nth-child(4) { animation-delay: .12s; }
 .view-enter > *:nth-child(5) { animation-delay: .16s; }
 .view-enter > *:nth-child(n+6) { animation-delay: .2s; }
-.stagger > * { animation: rise .38s var(--ease-out) both; animation-delay: calc(min(var(--i, 0), 12) * 35ms); }
+.stagger > *:nth-child(-n+14) { animation: rise .38s var(--ease-out) both; animation-delay: calc(min(var(--i, 0), 12) * 35ms); }
+.more-row { display: flex; justify-content: center; padding: 6px 0 2px; }
+.more-row.archive { padding-top: 0; }
+/* البطاقات خارج الشاشة لا تُرسم حتى تقترب (أداء القوائم الطويلة) */
+.list > .req { content-visibility: auto; contain-intrinsic-size: auto 150px; }
 .login-card { animation: rise .5s var(--ease-out) both; }
 .shake { animation: shake .42s var(--ease); }
 @keyframes shake { 20%, 60% { transform: translateX(-6px); } 40%, 80% { transform: translateX(6px); } }
@@ -873,6 +880,7 @@ button.kpi[aria-pressed="true"] { border-color: var(--tone); box-shadow: 0 0 0 3
     <nav class="nav" id="sideNav"></nav>
     <div class="sidebar-foot">
       <div class="user-card"><div class="avatar" id="userAvatar"></div><div class="who grow"><b id="userName"></b><span id="userRole"></span></div>
+        <button class="btn btn-ghost btn-icon btn-sm" id="pwBtn" data-act="changePassword" data-i18n-title="change_pw"><svg class="i i-sm"><use href="#i-lock"/></svg></button>
         <button class="btn btn-ghost btn-icon btn-sm" data-act="logout" data-i18n-title="logout"><svg class="i i-sm flip"><use href="#i-logout"/></svg></button>
       </div>
     </div>
@@ -886,6 +894,7 @@ button.kpi[aria-pressed="true"] { border-color: var(--tone); box-shadow: 0 0 0 3
         <button class="btn btn-ghost btn-sm sync-btn" id="syncBtn" data-act="sync" data-i18n-title="sync"><svg class="i i-sm"><use href="#i-refresh"/></svg><span class="sync-time" id="syncTime"></span></button>
         <button class="btn btn-ghost btn-sm" data-act="toggleLang" data-i18n-title="lang_switch"><svg class="i i-sm"><use href="#i-globe"/></svg><span class="desktop-only" data-i18n="lang_switch"></span></button>
         <button class="btn btn-ghost btn-icon btn-sm" data-act="toggleTheme" data-i18n-title="theme_toggle"><svg class="i i-sm theme-ic"><use href="#i-moon"/></svg></button>
+        <button class="btn btn-ghost btn-icon btn-sm mobile-only" data-act="changePassword" data-i18n-title="change_pw"><svg class="i i-sm"><use href="#i-lock"/></svg></button>
         <button class="btn btn-ghost btn-icon btn-sm mobile-only" data-act="logout" data-i18n-title="logout"><svg class="i i-sm flip"><use href="#i-logout"/></svg></button>
       </div>
     </header>

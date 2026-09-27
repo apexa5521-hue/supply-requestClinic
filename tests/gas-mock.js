@@ -128,7 +128,10 @@
         getUi() { return { alert() {} }; }
       },
       CacheService: { getScriptCache() { return cache; } },
-      LockService: { getScriptLock() { return { waitLock() { op('lock'); }, releaseLock() {} }; } },
+      LockService: { getScriptLock() { return {
+        waitLock() { op('lock'); },
+        tryLock() { op('lock'); if (opts.lockBusy && opts.lockBusy() ) return false; return true; },
+        releaseLock() {} }; } },
       MailApp: { sendEmail(to, subject, body) { op('mail'); mails.push({ to, subject, body }); } },
       DriveApp: {
         Access: { ANYONE_WITH_LINK: 'ANYONE_WITH_LINK' },

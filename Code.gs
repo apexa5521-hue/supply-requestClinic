@@ -16,7 +16,7 @@ const LOGIN_LOCK_SECONDS = 3 * 60;
 const DUP_WINDOW_SECONDS = 120;
 
 const SCHEMA = {
-  Users:        ['Name', 'Password', 'Role', 'Clinic', 'Email'],
+  Users:        ['Name', 'Password', 'Role', 'Clinic', 'Email', 'PasswordChangedAt'],
   Roles:        ['RoleName', 'Screen'],
   Clinics:      ['ClinicName', 'Branch', 'Type'],
   Doctors:      ['DoctorName', 'Clinic', 'NurseName', 'Subspecialty'],
@@ -186,6 +186,7 @@ const ALL = '*';
 const MGMT = ['dashboard', 'admin'];
 const API_ = {
   getConfig:                 { screens: ALL, fn: getConfig_ },
+  changePassword:            { screens: ALL, fn: changePassword_ },
   getAlerts:                 { screens: ALL, fn: getAlerts_ },
   getNotices:                { screens: ALL, fn: getNotices_ },
   getDoctors:                { screens: ['nurse'], fn: getDoctors_ },
@@ -557,7 +558,8 @@ function cachedRead_(fn) {
 
 function withLock_(fn) {
   const lock = LockService.getScriptLock();
-  lock.waitLock(20000);
+  // ضغط كتابة عالٍ: إن لم يتوفر القفل خلال 28 ثانية نرجع «مشغول» بدون أي كتابة (الواجهة تعيد المحاولة تلقائياً)
+  if (!lock.tryLock(28000)) throw new Error('ERR_BUSY');
   const cached = CACHED_READS_;
   CACHED_READS_ = false;
   dropCachedTables_();
@@ -875,6 +877,8 @@ function queryRequests_(filters) {
     if (filters.nurse && r.nurse !== filters.nurse) return false;
     if (filters.doctorUser && !isMyDoctor_(filters.doctorUser, r.doctor)) return false;
     if (filters.month && monthOf_(r.date) !== filters.month) return false;
+    if (filters.recent && (r.status === ST.RECEIVED || r.status === ST.REJECTED) &&
+        (Date.now() - toMs_(r.receivedAt || r.reviewedAt || r.date)) > ARCHIVE_DAYS * 864e5) return false;
     return true;
   }).map(function (r) {
     const st = shipState_(r, byReq[r.id] || []);
@@ -921,9 +925,22 @@ function batchesOf_(rows) {
   };
 }
 
-function getRequestsApi_(user, filters) { return queryRequests_(filters); }
-function getMyRequests_(user) { return queryRequests_({ nurse: user.name }); }
-function getDoctorRequests_(user) { return queryRequests_({ doctorUser: user }); }
+/*
+ * قوائم الشاشات: كل الطلبات المفتوحة + المكتملة (مستلمة/مرفوضة) خلال آخر 60 يوماً.
+ * الأقدم تُجلب عند الطلب فقط ({ archive: true }) — حتى لا يكبر الرد والصفحة مع آلاف الطلبات.
+ */
+const ARCHIVE_DAYS = 60;
+function withArchive_(filters, opts) {
+  filters = filters || {};
+  if (!(opts && opts.archive === true)) filters.recent = true;
+  return filters;
+}
+function getRequestsApi_(user, filters) {
+  filters = filters || {};
+  return queryRequests_(withArchive_({ status: filters.status, clinic: filters.clinic, branch: filters.branch, nurse: filters.nurse, month: filters.month }, filters));
+}
+function getMyRequests_(user, opts) { return queryRequests_(withArchive_({ nurse: user.name }, opts)); }
+function getDoctorRequests_(user, opts) { return queryRequests_(withArchive_({ doctorUser: user }, opts)); }
 
 function nextRequestId_() {
   const prefix = 'REQ-' + Utilities.formatDate(new Date(), TZ, 'yyMMdd') + '-';
@@ -932,7 +949,9 @@ function nextRequestId_() {
     const id = str_(r.RequestID);
     if (id.indexOf(prefix) === 0) max = Math.max(max, Number(id.slice(prefix.length)) || 0);
   });
-  return prefix + ('00' + (max + 1)).slice(-3);
+  // 3 خانات على الأقل (001…999)، ثم 1000 فما فوق بدون قص — القص كان يكرر الأرقام بعد 999 طلباً في اليوم
+  const next = String(max + 1);
+  return prefix + (next.length < 3 ? ('00' + next).slice(-3) : next);
 }
 
 function createRequest_(user, payload) {
@@ -960,7 +979,8 @@ function createRequest_(user, payload) {
     const name = clean_(it && it.name, 200);
     const qty = Math.floor(Number(it && it.qty));
     if (!name) return;
-    if (!(qty >= 1 && qty <= 100000)) throw new Error('ERR_BAD_QTY');
+    if (!(qty >= 1)) throw new Error('ERR_QTY_MIN1'); // لا يُقبل طلب صفر (أقل كمية 1)
+    if (!(qty <= 100000)) throw new Error('ERR_BAD_QTY');
     const key = name.toLowerCase();
     if (!merged[key]) { merged[key] = { name: name, qty: 0 }; order.push(key); }
     merged[key].qty += qty;
@@ -1971,6 +1991,44 @@ function getUsers_() {
 function validateUserFields_(u) {
   if (u.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(u.email)) throw new Error('ERR_BAD_EMAIL');
   if (!roleScreen_(u.role)) throw new Error('ERR_ROLE_UNMAPPED');
+}
+
+const PW_MIN = 4, PW_MAX = 64;
+const PW_CHANGE_MAX_FAILS = 5;
+
+/**
+ * كل مستخدم (طبيب، ممرضة، تموين، إدارة) يغيّر رقمه السري بنفسه:
+ * يُتحقق من الرقم الحالي، ثم يُحفظ الجديد مشفّراً (بعد توحيد الأرقام العربية والمسافات كما في الدخول).
+ * محاولات خاطئة متكررة للرقم الحالي تقفل التغيير مؤقتاً.
+ */
+function changePassword_(user, current, next) {
+  current = String(current === null || current === undefined ? '' : current);
+  next = String(next === null || next === undefined ? '' : next);
+  if (!current || !next) throw new Error('ERR_REQUIRED');
+  const norm = latinDigits_(next).trim();
+  if (norm.length < PW_MIN) throw new Error('ERR_WEAK_PASSWORD');
+  if (norm.length > PW_MAX) throw new Error('ERR_PASSWORD_TOO_LONG');
+  const cache = CacheService.getScriptCache();
+  const failKey = 'cp:' + loginKey_(user.name);
+  const fails = Number(cache.get(failKey) || 0);
+  if (fails >= PW_CHANGE_MAX_FAILS) throw new Error('ERR_LOGIN_LOCKED');
+  withLock_(function () {
+    resetMemo_();
+    invalidate_('Users');
+    const t = freshTable_('Users');
+    const row = t.rows.filter(function (r) { return str_(r.Name) === user.name; })[0];
+    if (!row) throw new Error('ERR_SESSION');
+    const candidates = [current, latinDigits_(current).trim()].filter(function (p, i, a) { return p && a.indexOf(p) === i; });
+    if (!candidates.some(function (p) { return verifyPassword_(row.Password, p); })) {
+      cache.put(failKey, String(fails + 1), LOGIN_LOCK_SECONDS);
+      throw new Error('ERR_WRONG_PASSWORD');
+    }
+    if (verifyPassword_(row.Password, norm)) throw new Error('ERR_SAME_PASSWORD');
+    setCells_(t, row, { Password: hashPassword_(norm), PasswordChangedAt: new Date() });
+  });
+  cache.remove(failKey);
+  logAction_('', 'تغيير الرقم السري', user.name);
+  return true;
 }
 
 function createUser_(user, u) {
