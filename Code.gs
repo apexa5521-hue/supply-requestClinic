@@ -24,7 +24,7 @@ const SCHEMA = {
   Requests:     ['RequestID', 'Date', 'Clinic', 'Doctor', 'Nurse', 'Type', 'Status',
                  'SubmittedAt', 'SentAt', 'ReceivedAt', 'ReceiverName', 'SignatureURL',
                  'PrepAt', 'VendorWaitAt', 'VendorReceivedAt', 'ReviewAt', 'ReviewedAt',
-                 'RejectionReason', 'ReceiptURL', 'Branch'],
+                 'RejectionReason', 'ReceiptURL', 'Branch', 'ApprovedAt'],
   RequestItems: ['RequestID', 'ItemName', 'RequestedQty', 'ApprovedQty', 'ReceivedQty', 'DispatchedAt', 'DispatchBatch'],
   Shipments:    ['RequestID', 'Batch', 'ReceivedAt', 'ReceiverName', 'ReceivedBy', 'SignatureURL', 'SignatureFileID', 'ReceiptURL'],
   ItemNotes:    ['Timestamp', 'RequestID', 'ItemName', 'Author', 'Role', 'Note'],
@@ -41,13 +41,20 @@ const ST = {
   SENT: 'تم الإرسال', RECEIVED: 'تم الاستلام'
 };
 
-// الانتقالات المسموحة بين الحالات + عمود الختم الزمني لكل انتقال
+/*
+ * التسلسل: رفع الطلب ← مراجعة الطبيب واعتماده ← التجهيز (← المندوب اختياري) ← الإرسال للفرع ← الاستلام بالتوقيع.
+ * طبيب بدون حساب في النظام: يذهب الطلب للتموين مباشرة بحالة «جديد».
+ * الرفض يعيد الطلب للممرضة مع السبب لتعيد إرساله للطبيب.
+ */
 const TRANSITIONS = {};
-TRANSITIONS[ST.PREP]        = { from: [ST.NEW, ST.REJECTED], stamp: 'PrepAt' };
+// إرسال (أو إعادة إرسال) للطبيب: طلب جديد/مرفوض، أو طلب قديم جُهّز قبل اعتماده (المسار السابق)
+TRANSITIONS[ST.REVIEW]      = { from: [ST.NEW, ST.REJECTED, ST.PREP, ST.VENDOR_WAIT, ST.VENDOR_RECV], stamp: 'ReviewAt' };
+TRANSITIONS[ST.PREP]        = { from: [ST.APPROVED, ST.NEW], stamp: 'PrepAt' };
 TRANSITIONS[ST.VENDOR_WAIT] = { from: [ST.PREP], stamp: 'VendorWaitAt' };
 TRANSITIONS[ST.VENDOR_RECV] = { from: [ST.VENDOR_WAIT], stamp: 'VendorReceivedAt' };
-TRANSITIONS[ST.REVIEW]      = { from: [ST.PREP, ST.VENDOR_RECV], stamp: 'ReviewAt' };
-TRANSITIONS[ST.SENT]        = { from: [ST.APPROVED], stamp: 'SentAt' };
+TRANSITIONS[ST.SENT]        = { from: [ST.APPROVED, ST.PREP, ST.VENDOR_RECV], stamp: 'SentAt' };
+// حالات يمكن فيها إرسال أصناف (بعد الاعتماد)
+const DISPATCHABLE = [ST.APPROVED, ST.PREP, ST.VENDOR_WAIT, ST.VENDOR_RECV];
 
 const REQUEST_TYPES = ['شهري', 'طارئ'];
 const SCREENS = ['nurse', 'procurement', 'doctor', 'dashboard', 'admin'];
@@ -184,6 +191,7 @@ const API_ = {
   createRequest:             { screens: ['nurse'], fn: createRequest_ },
   getMyRequests:             { screens: ['nurse'], fn: getMyRequests_ },
   receiveShipment:           { screens: ['nurse'], fn: receiveShipment_ },
+  resubmitRequest:           { screens: ['nurse'], fn: resubmitRequest_ },
   getShipmentSignatures:     { screens: ['nurse'], fn: getShipmentSignatures_ },
   getRequests:               { screens: ['procurement'].concat(MGMT), fn: getRequestsApi_ },
   getRequestItemsFull:       { screens: ['procurement'].concat(MGMT), fn: getRequestItemsFull_ },
@@ -201,7 +209,10 @@ const API_ = {
   addItemNote:               { screens: ALL, fn: addItemNote_ },
   addComplaint:              { screens: ALL, fn: addComplaint_ },
   getComplaints:             { screens: ['procurement'].concat(MGMT), fn: getComplaints_ },
-  resolveComplaint:          { screens: ['procurement'].concat(MGMT), fn: resolveComplaint_ },
+  // إغلاق البلاغات للجودة والإدارة التنفيذية فقط (التموين يطّلع ويعلّق)
+  resolveComplaint:          { screens: MGMT, fn: resolveComplaint_ },
+  getDoctorReport:           { screens: ['doctor'].concat(MGMT), fn: getDoctorReport_ },
+  getReportDoctors:          { screens: MGMT, fn: getReportDoctors_ },
   addNotice:                 { screens: MGMT, fn: addNotice_ },
   getExecutiveStats:         { screens: MGMT, fn: getExecutiveStats_ },
   getQualityReport:          { screens: MGMT, fn: function (u, m) { return getQualityReport_(m); } },
@@ -517,6 +528,7 @@ function monthOf_(v) {
   return ms ? Utilities.formatDate(new Date(ms), TZ, 'yyyy-MM') : '';
 }
 function round1_(n) { return Math.round(n * 10) / 10; }
+function round2_(n) { return Math.round(n * 100) / 100; }
 
 /** يحوّل كل التواريخ لنصوص ISO (google.script.run لا يقبل Date كقيمة مرجعة) */
 function sanitize_(v) {
@@ -837,7 +849,7 @@ function mapRequest_(r) {
     nurse: str_(r.Nurse), type: str_(r.Type), status: str_(r.Status) || ST.NEW,
     submittedAt: r.SubmittedAt, prepAt: r.PrepAt, vendorWaitAt: r.VendorWaitAt,
     vendorReceivedAt: r.VendorReceivedAt, reviewAt: r.ReviewAt, reviewedAt: r.ReviewedAt,
-    sentAt: r.SentAt, receivedAt: r.ReceivedAt, receiver: str_(r.ReceiverName),
+    sentAt: r.SentAt, receivedAt: r.ReceivedAt, receiver: str_(r.ReceiverName), approvedAt: r.ApprovedAt,
     signature: str_(r.SignatureURL), receiptUrl: str_(r.ReceiptURL),
     rejectionReason: str_(r.RejectionReason)
   };
@@ -869,6 +881,7 @@ function queryRequests_(filters) {
     r.shipmentCount = st.ships.length;
     r.pendingShipments = st.pending;
     r.needsReview = !!reviewers[r.doctor];
+    r.cleared = !r.needsReview || r.status === ST.APPROVED || !!r.approvedAt;
     r._ms = toMs_(r.date);
     return r;
   }).sort(function (a, b) { return b._ms - a._ms; });
@@ -954,6 +967,8 @@ function createRequest_(user, payload) {
   const dupKey = 'dup:' + Utilities.base64Encode(Utilities.computeDigest(Utilities.DigestAlgorithm.MD5, sig, Utilities.Charset.UTF_8));
   const cache = CacheService.getScriptCache();
 
+  // الطبيب الذي له حساب يراجع الطلب أولاً؛ غير ذلك يذهب للتموين مباشرة
+  const needsReview = doctorHasAccount_(doctor);
   const id = withLock_(function () {
     const prev = cache.get(dupKey);
     if (prev) return { duplicate: true, id: prev };
@@ -962,7 +977,7 @@ function createRequest_(user, payload) {
     const now = new Date();
     append_('Requests', {
       RequestID: newId, Date: now, Clinic: clinic, Branch: branch, Doctor: doctor, Nurse: user.name,
-      Type: type, Status: ST.NEW, SubmittedAt: now
+      Type: type, Status: needsReview ? ST.REVIEW : ST.NEW, SubmittedAt: now, ReviewAt: needsReview ? now : ''
     });
     const ri = sheet_('RequestItems');
     const riHeaders = headerRow_(ri);
@@ -984,10 +999,17 @@ function createRequest_(user, payload) {
   });
   if (id && id.duplicate) return id;
 
-  notifyRole_('procurement',
-    (type === 'طارئ' ? '🚨 طلب طارئ - ' : 'طلب مستلزمات جديد - ') + id,
-    'تم رفع طلب جديد.\nرقم الطلب: ' + id + '\nالفرع: ' + (branch || '—') + '\nالعيادة: ' + clinic + '\nالطبيب: ' + doctor +
-    '\nالممرضة: ' + user.name + '\nنوع الطلب: ' + type + '\nعدد الأصناف: ' + items.length);
+  const details = '\nرقم الطلب: ' + id + '\nالفرع: ' + (branch || '—') + '\nالعيادة: ' + clinic + '\nالطبيب: ' + doctor +
+    '\nالممرضة: ' + user.name + '\nنوع الطلب: ' + type + '\nعدد الأصناف: ' + items.length;
+  if (needsReview) {
+    notifyUser_(doctorAccounts_()[doctor], (type === 'طارئ' ? '🚨 طلب طارئ بانتظار مراجعتك - ' : 'طلب جديد بانتظار مراجعتك - ') + id,
+      'رُفع طلب جديد لعيادتك بانتظار مراجعتك واعتمادك من داخل النظام.' + details);
+    // الطارئ: التموين يعلم مبكراً (للاستعداد) رغم انتظار الاعتماد
+    if (type === 'طارئ') notifyRole_('procurement', '🚨 طلب طارئ (بانتظار اعتماد الطبيب) - ' + id, 'رُفع طلب طارئ وهو الآن لدى الطبيب للاعتماد.' + details);
+  } else {
+    notifyRole_('procurement', (type === 'طارئ' ? '🚨 طلب طارئ - ' : 'طلب مستلزمات جديد - ') + id,
+      'تم رفع طلب جديد (الطبيب ليس له حساب — لا يحتاج اعتماداً في النظام).' + details);
+  }
   return { id: id, duplicate: false };
 }
 
@@ -1094,7 +1116,8 @@ function getRequestItemsWithCatalog_(user, requestId) {
   });
 }
 
-const EDITABLE_APPROVAL = [ST.NEW, ST.PREP, ST.VENDOR_WAIT, ST.VENDOR_RECV, ST.REJECTED];
+// الكميات تُعدَّل قبل المراجعة أو بعد الاعتماد (حسب المتوفر) — وتُقفل أثناء مراجعة الطبيب وبعد الإرسال
+const EDITABLE_APPROVAL = [ST.NEW, ST.APPROVED, ST.PREP, ST.VENDOR_WAIT, ST.VENDOR_RECV, ST.REJECTED];
 
 function updateItemApproval_(user, requestId, itemName, approvedQty) {
   const req = mapRequest_(findRequest_(requestId).row);
@@ -1162,6 +1185,25 @@ function isMyDoctor_(user, doctorName) { return doctorAccounts_()[str_(doctorNam
 /** هل للطبيب حساب يستطيع المراجعة به؟ (إن لم يوجد، يُسمح بالإرسال بدون مراجعة) */
 function doctorHasAccount_(doctorName) { return !!doctorAccounts_()[str_(doctorName)]; }
 
+/** هل الطلب مسموح له بالتجهيز/الإرسال؟ (اعتمده الطبيب، أو لا يوجد حساب للطبيب) */
+function cleared_(row) {
+  const st = str_(row.Status);
+  return !doctorHasAccount_(str_(row.Doctor)) || st === ST.APPROVED || !!row.ApprovedAt;
+}
+
+/** سبب منع الانتقال (أو '' إن كان مسموحاً) */
+function transitionError_(row, newStatus) {
+  const cur = str_(row.Status) || ST.NEW;
+  const tr = TRANSITIONS[newStatus];
+  if (!tr || tr.from.indexOf(cur) === -1) return 'ERR_BAD_TRANSITION';
+  if (newStatus === ST.REVIEW) {
+    if (!doctorHasAccount_(str_(row.Doctor))) return 'ERR_NO_DOCTOR_ACCOUNT';
+    if ([ST.PREP, ST.VENDOR_WAIT, ST.VENDOR_RECV].indexOf(cur) !== -1 && cleared_(row)) return 'ERR_BAD_TRANSITION';
+  }
+  if ((newStatus === ST.PREP || newStatus === ST.SENT) && !cleared_(row)) return 'ERR_NEEDS_APPROVAL';
+  return '';
+}
+
 function bulkUpdateStatus_(user, requestIds, newStatus) {
   const tr = TRANSITIONS[newStatus];
   if (!tr) throw new Error('ERR_BAD_STATUS');
@@ -1175,17 +1217,11 @@ function bulkUpdateStatus_(user, requestIds, newStatus) {
       const row = t.rows.filter(function (r) { return str_(r.RequestID) === id; })[0];
       if (!row) { result.skipped.push({ id: id, reason: 'ERR_NOT_FOUND' }); return; }
       const cur = str_(row.Status) || ST.NEW;
-      let allowed = tr.from.indexOf(cur) !== -1;
-      if (!allowed && newStatus === ST.SENT && (cur === ST.PREP || cur === ST.VENDOR_RECV) && !doctorHasAccount_(str_(row.Doctor))) {
-        allowed = true; // لا يوجد حساب طبيب للمراجعة
-      }
-      if (!allowed) {
-        result.skipped.push({ id: id, from: cur, reason: newStatus === ST.SENT ? 'ERR_NEEDS_APPROVAL' : 'ERR_BAD_TRANSITION' });
-        return;
-      }
+      const why = transitionError_(row, newStatus);
+      if (why) { result.skipped.push({ id: id, from: cur, reason: why }); return; }
       const upd = { Status: newStatus };
       upd[tr.stamp] = new Date();
-      if (newStatus === ST.PREP) upd.RejectionReason = '';
+      if (newStatus === ST.REVIEW) { upd.RejectionReason = ''; upd.ApprovedAt = ''; }
       setCells_(t, row, upd);
       if (newStatus === ST.SENT) {
         const ri = read_('RequestItems');
@@ -1219,9 +1255,7 @@ function dispatchItems_(user, requestId, itemNames) {
     resetMemo_();
     const f = findRequest_(requestId);
     const cur = str_(f.row.Status);
-    const ok = cur === ST.APPROVED ||
-      ((cur === ST.PREP || cur === ST.VENDOR_RECV) && !doctorHasAccount_(str_(f.row.Doctor)));
-    if (!ok) throw new Error('ERR_NEEDS_APPROVAL');
+    if (DISPATCHABLE.indexOf(cur) === -1 || !cleared_(f.row)) throw new Error('ERR_NEEDS_APPROVAL');
     const ri = read_('RequestItems');
     const now = new Date();
     const mine = ri.rows.filter(function (r) { return str_(r.RequestID) === str_(requestId); });
@@ -1259,7 +1293,8 @@ function doctorReview_(user, requestId, decision, reason, itemNotes) {
     if (!isMyDoctor_(user, req.doctor)) throw new Error('ERR_FORBIDDEN');
     if (req.status !== ST.REVIEW) throw new Error('ERR_BAD_TRANSITION');
     const status = decision === 'اعتمد' ? ST.APPROVED : ST.REJECTED;
-    setCells_(f.t, f.row, { Status: status, ReviewedAt: new Date(), RejectionReason: decision === 'رفض' ? reason : '' });
+    const now = new Date();
+    setCells_(f.t, f.row, { Status: status, ReviewedAt: now, ApprovedAt: decision === 'اعتمد' ? now : '', RejectionReason: decision === 'رفض' ? reason : '' });
     req.status = status;
     logAction_(requestId, (decision === 'اعتمد' ? 'اعتماد الطبيب' : 'رفض الطبيب: ' + reason), user.name);
   });
@@ -1267,11 +1302,35 @@ function doctorReview_(user, requestId, decision, reason, itemNotes) {
     if (n && str_(n.note)) addItemNote_(user, requestId, n.item, n.note);
   });
   if (reason && decision === 'اعتمد') addComment_(user, requestId, reason);
-  const subject = (decision === 'اعتمد' ? 'اعتماد الطبيب للطلب - ' : 'رفض الطبيب للطلب - ') + requestId;
-  const body = 'الطبيب ' + user.name + (decision === 'اعتمد' ? ' اعتمد ' : ' رفض ') + 'الطلب ' + requestId +
-    (reason ? '\nالملاحظة/السبب: ' + reason : '');
-  notifyRole_('procurement', subject, body);
-  if (decision === 'رفض') notifyUser_(req.nurse, subject, body);
+  const where = ' (عيادة ' + req.clinic + (req.branch ? ' · فرع ' + req.branch : '') + ')';
+  if (decision === 'اعتمد') {
+    notifyRole_('procurement', (req.type === 'طارئ' ? '🚨 طلب طارئ معتمد - ' : 'طلب معتمد جاهز للتجهيز - ') + requestId,
+      'اعتمد الطبيب ' + user.name + ' الطلب ' + requestId + where + ' وهو جاهز للتجهيز.' + (reason ? '\nملاحظة الطبيب: ' + reason : ''));
+  } else {
+    notifyUser_(req.nurse, 'رفض الطبيب للطلب - ' + requestId,
+      'رفض الطبيب ' + user.name + ' الطلب ' + requestId + where + '.\nالسبب: ' + reason +
+      '\nيمكنك مراجعة الطلب وإعادة إرساله للطبيب من شاشة «طلباتي».');
+  }
+  return true;
+}
+
+/** الممرضة تعيد إرسال طلب مرفوض للطبيب (مع ملاحظة اختيارية) */
+function resubmitRequest_(user, requestId, note) {
+  note = clean_(note, 1000);
+  guardSee_(user, requestId);
+  let req;
+  withLock_(function () {
+    resetMemo_();
+    const f = findRequest_(requestId);
+    const why = transitionError_(f.row, ST.REVIEW);
+    if (why || str_(f.row.Status) !== ST.REJECTED) throw new Error(why || 'ERR_BAD_TRANSITION');
+    setCells_(f.t, f.row, { Status: ST.REVIEW, ReviewAt: new Date(), RejectionReason: '', ApprovedAt: '' });
+    req = mapRequest_(f.row);
+    logAction_(requestId, 'إعادة إرسال للطبيب بعد الرفض', user.name);
+  });
+  if (note) addComment_(user, requestId, note);
+  notifyUser_(doctorAccounts_()[req.doctor] || req.doctor, 'طلب مُعاد لمراجعتك - ' + requestId,
+    'أعادت الممرضة ' + user.name + ' إرسال الطلب ' + requestId + ' (عيادة ' + req.clinic + ') لمراجعتك بعد الرفض.' + (note ? '\nملاحظتها: ' + note : ''));
   return true;
 }
 
@@ -1417,14 +1476,13 @@ function kpi_(req) {
     const x = toMs_(a), y = toMs_(b);
     return x && y && y >= x ? round1_((y - x) / div) : null;
   }
-  const beforeReview = req.vendorReceivedAt || req.prepAt;
+  const approved = req.approvedAt || (req.status !== ST.REJECTED ? req.reviewedAt : '');
   return {
     unit: hours ? 'hours' : 'days',
-    submitToPrep: span(req.submittedAt, req.prepAt),
+    reviewTime: span(req.reviewAt || req.submittedAt, req.reviewedAt),
+    approvalToPrep: span(approved || req.submittedAt, req.prepAt),
     vendorWait: span(req.vendorWaitAt, req.vendorReceivedAt),
-    prepToReview: span(beforeReview, req.reviewAt),
-    reviewTime: span(req.reviewAt, req.reviewedAt),
-    approvalToSent: span(req.reviewedAt || beforeReview, req.sentAt),
+    prepToSent: span(req.vendorReceivedAt || req.prepAt || approved, req.sentAt),
     sentToReceived: span(req.sentAt, req.receivedAt),
     totalCycle: span(req.submittedAt, req.receivedAt || req.sentAt)
   };
@@ -1544,17 +1602,18 @@ function getAlerts_(user) {
     if (toReceive) alerts.push({ type: 'info', code: 'alert_to_receive', n: toReceive });
     if (rejected) alerts.push({ type: 'danger', code: 'alert_rejected', n: rejected });
   } else if (user.screen === 'procurement') {
-    const fresh = reqs.filter(function (r) { return r.status === ST.NEW; });
-    const urgent = fresh.filter(function (r) { return r.type === 'طارئ'; }).length;
-    const stale = reqs.filter(function (r) {
-      return [ST.NEW, ST.PREP, ST.APPROVED].indexOf(r.status) !== -1 && hoursSince(r.submittedAt) > 72;
+    const all = queryRequests_({});
+    const ready = all.filter(function (r) { return r.cleared && (r.status === ST.APPROVED || r.status === ST.NEW); });
+    const urgent = ready.filter(function (r) { return r.type === 'طارئ'; }).length;
+    const toSend = all.filter(function (r) { return r.cleared && (r.status === ST.PREP || r.status === ST.VENDOR_RECV); }).length;
+    const urgentReview = all.filter(function (r) { return r.status === ST.REVIEW && r.type === 'طارئ'; }).length;
+    const stale = all.filter(function (r) {
+      return [ST.NEW, ST.APPROVED, ST.PREP, ST.VENDOR_WAIT, ST.VENDOR_RECV].indexOf(r.status) !== -1 && hoursSince(r.submittedAt) > 72;
     }).length;
-    const approved = reqs.filter(function (r) { return r.status === ST.APPROVED; }).length;
-    const rejected = reqs.filter(function (r) { return r.status === ST.REJECTED; }).length;
     if (urgent) alerts.push({ type: 'danger', code: 'alert_urgent_new', n: urgent });
-    if (fresh.length - urgent) alerts.push({ type: 'info', code: 'alert_new', n: fresh.length - urgent });
-    if (approved) alerts.push({ type: 'success', code: 'alert_approved_ready', n: approved });
-    if (rejected) alerts.push({ type: 'warning', code: 'alert_rejected_proc', n: rejected });
+    if (ready.length - urgent) alerts.push({ type: 'info', code: 'alert_new', n: ready.length - urgent });
+    if (toSend) alerts.push({ type: 'success', code: 'alert_approved_ready', n: toSend });
+    if (urgentReview) alerts.push({ type: 'warning', code: 'alert_urgent_review', n: urgentReview });
     if (stale) alerts.push({ type: 'warning', code: 'alert_stale', n: stale });
   } else if (user.screen === 'doctor') {
     const pending = reqs.filter(function (r) { return isMyDoctor_(user, r.doctor) && r.status === ST.REVIEW; }).length;
@@ -1602,6 +1661,73 @@ function notifyNurseSent_(req) {
   notifyUser_(req.nurse, 'تم إرسال طلبك - ' + req.id,
     'تم إرسال طلبك رقم ' + req.id + ' الخاص بعيادة ' + req.clinic + (req.branch ? ' (فرع ' + req.branch + ')' : '') +
     '.\nيرجى تأكيد الاستلام والتوقيع من داخل النظام عند وصول الطلب.');
+}
+
+/* =====================================================================
+ *  تقرير طلبات الطبيب (الأصناف × السعر + الإجمالي) لشهر أو فترة تراكمية
+ * ===================================================================== */
+
+/** 'YYYY-MM-DD' بتوقيت الرياض → Date (بداية اليوم أو نهايته) */
+function parseDay_(v, endOfDay) {
+  v = str_(v);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(v)) return null;
+  const d = new Date(v + (endOfDay ? 'T23:59:59.999+03:00' : 'T00:00:00+03:00'));
+  return isNaN(d.getTime()) ? null : d;
+}
+
+/**
+ * opts = { from: 'YYYY-MM-DD' | '', to: 'YYYY-MM-DD' | '', doctor: (للإدارة فقط) }
+ * الطبيب يرى طلباته فقط. الطلبات المرفوضة لا تدخل في الإجمالي.
+ * الكمية = المعتمدة إن وُجدت وإلا المطلوبة، والسعر من كتالوج الأصناف.
+ */
+function getDoctorReport_(user, opts) {
+  opts = opts || {};
+  const isDoctor = user.screen === 'doctor';
+  const doctor = isDoctor ? '' : str_(opts.doctor);
+  if (!isDoctor && !doctor) throw new Error('ERR_REQUIRED');
+  const from = parseDay_(opts.from), to = parseDay_(opts.to, true);
+  if (from && to && from > to) throw new Error('ERR_BAD_RANGE');
+  const cat = {};
+  getCatalog_(true).forEach(function (c) { cat[c.name.toLowerCase()] = c; });
+  const byReq = itemsByRequest_();
+  const reqs = queryRequests_(isDoctor ? { doctorUser: user } : {}).filter(function (r) {
+    if (r.status === ST.REJECTED) return false;
+    if (doctor && r.doctor !== doctor) return false;
+    const ms = toMs_(r.submittedAt || r.date);
+    return (!from || ms >= from.getTime()) && (!to || ms <= to.getTime());
+  });
+  const top = {};
+  const sum = { requests: 0, lines: 0, qty: 0, total: 0, unpriced: 0 };
+  const rows = reqs.map(function (r) {
+    const items = (byReq[r.id] || []).map(function (it) {
+      const name = str_(it.ItemName);
+      const c = cat[name.toLowerCase()] || {};
+      const qty = Number(it.ApprovedQty !== '' && it.ApprovedQty !== null && it.ApprovedQty !== undefined ? it.ApprovedQty : it.RequestedQty) || 0;
+      const price = Number(c.price) || 0;
+      const total = round2_(qty * price);
+      if (!price) sum.unpriced++;
+      const k = name.toLowerCase();
+      top[k] = top[k] || { item: name, qty: 0, total: 0 };
+      top[k].qty += qty; top[k].total = round2_(top[k].total + total);
+      sum.lines++; sum.qty += qty;
+      return { item: name, commercial: c.commercial || '', category: c.category || '', qty: qty, price: price, total: total };
+    });
+    const total = round2_(items.reduce(function (a, i) { return a + i.total; }, 0));
+    sum.requests++; sum.total = round2_(sum.total + total);
+    return { id: r.id, date: r.submittedAt || r.date, clinic: r.clinic, branch: r.branch, type: r.type, status: r.status, items: items, total: total };
+  }).sort(function (a, b) { return toMs_(a.date) - toMs_(b.date); });
+  return {
+    doctor: isDoctor ? user.name : doctor,
+    from: from, to: to, generatedAt: new Date(), rows: rows, summary: sum,
+    top: Object.keys(top).map(function (k) { return top[k]; }).sort(function (a, b) { return b.total - a.total || b.qty - a.qty; }).slice(0, 8)
+  };
+}
+
+/** أسماء الأطباء الذين لهم طلبات (لاختيار التقرير من شاشة الإدارة) */
+function getReportDoctors_() {
+  const out = [];
+  requestRows_().forEach(function (r) { const d = str_(r.Doctor); if (d && out.indexOf(d) === -1) out.push(d); });
+  return out.sort();
 }
 
 /* =====================================================================

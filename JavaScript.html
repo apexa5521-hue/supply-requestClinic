@@ -15,7 +15,7 @@ const I18N = {
   ar: {
     lang_switch: 'English', theme_toggle: 'الوضع الليلي/النهاري', brand_tag: 'إدارة مستلزمات العيادات',
     login_hero_title: 'دورة طلب المستلزمات كاملة، في مكان واحد',
-    login_hero_sub: 'من رفع الطلب في العيادة إلى التجهيز واعتماد الطبيب والإرسال والاستلام بالتوقيع — مع متابعة لحظية ومؤشرات أداء.',
+    login_hero_sub: 'من رفع الطلب في العيادة إلى اعتماد الطبيب ثم التجهيز والإرسال والاستلام بالتوقيع — مع متابعة لحظية ومؤشرات أداء.',
     flow_1: 'رفع الطلب', flow_2: 'التجهيز', flow_3: 'اعتماد الطبيب', flow_4: 'الإرسال', flow_5: 'الاستلام والتوقيع',
     login_title: 'مرحباً بعودتك', login_sub: 'سجّل الدخول بالاسم والرقم السري المسجّلين لدى الإدارة.',
     login_name_label: 'الاسم', login_name_ph: 'اكتب اسمك كما هو مسجّل', login_pass_label: 'الرقم السري', login_pass_ph: '••••••',
@@ -25,7 +25,7 @@ const I18N = {
     nav_new: 'طلب جديد', nav_mine: 'طلباتي', nav_requests: 'الطلبات', nav_complaints: 'البلاغات', nav_reviews: 'المراجعات',
     nav_overview: 'نظرة عامة', nav_notices: 'التنبيهات', nav_users: 'المستخدمون',
     sub_new: 'اختر العيادة والطبيب ثم أضف الأصناف المطلوبة', sub_mine: 'تابع حالة طلباتك وأكّد الاستلام',
-    sub_requests: 'جهّز الطلبات، أرسلها للمراجعة ثم للفرع', sub_complaints: 'بلاغات التأخير والنقص والزيادة',
+    sub_requests: 'جهّز الطلبات المعتمدة ثم أرسلها للفرع', sub_complaints: 'بلاغات التأخير والنقص والزيادة',
     sub_reviews: 'راجع الطلبات واعتمدها أو ارفضها', sub_overview: 'مؤشرات الأداء وزمن التنفيذ', sub_notices: 'أرسل تنبيهات للإدارات',
     sub_users: 'إدارة الحسابات والأدوار والصلاحيات',
     st_new: 'جديد', st_prep: 'قيد التجهيز', st_vendor_wait: 'بانتظار المندوب', st_vendor_recv: 'استلم المندوب',
@@ -38,9 +38,9 @@ const I18N = {
     req_details: 'بيانات الطلب', no_doctors: 'لا يوجد أطباء لهذه العيادة', no_clinics: 'لا توجد عيادات مرتبطة بحسابك',
     pkg_title: 'البكج المعتاد للطبيب', pkg_hint: 'اضغط على صنف لإضافته', pkg_add_all: 'إضافة الكل', pkg_times: 'طُلب {n} مرة',
     items: 'الأصناف', item_search_ph: 'ابحث عن صنف بالاسم أو الاسم التجاري…', add_new_item: 'إضافة «{q}» كصنف جديد',
-    new_item_hint: 'سيُضاف للكتالوج تلقائياً', no_items_match: 'لا توجد نتائج', catalog_empty: 'الكتالوج فارغ — أضف أصنافاً في تبويب ItemsCatalog',
+    new_item_hint: 'سيُضاف للكتالوج تلقائياً', no_items_match: 'لا توجد نتائج', items_all: 'كل الأصناف · {n} صنف — اكتب للتصفية', items_found: '{n} من {total} صنف', catalog_empty: 'الكتالوج فارغ — أضف أصنافاً في تبويب ItemsCatalog',
     items_empty_title: 'لم تُضف أصنافاً بعد', items_empty_sub: 'ابحث في الكتالوج أو اختر من البكج المعتاد للطبيب.',
-    summary: 'ملخص الطلب', sum_items: 'عدد الأصناف', sum_units: 'إجمالي القطع', submit_request: 'إرسال الطلب للتموين',
+    summary: 'ملخص الطلب', sum_items: 'عدد الأصناف', sum_units: 'إجمالي القطع', submit_request: 'إرسال الطلب',
     clear_items: 'مسح الأصناف', draft_restored: 'تمت استعادة المسودة غير المرسلة', err_fill_all: 'اختر العيادة والطبيب وأضف صنفاً واحداً على الأقل',
     request_sent: 'تم إرسال الطلب {id}', duplicate_request: 'هذا الطلب أُرسل للتو برقم {id}',
     emergency_note: 'الطلبات الطارئة تُنبَّه لها إدارة التموين فوراً', remove: 'حذف', qty: 'الكمية',
@@ -52,7 +52,7 @@ const I18N = {
     confirm_receive: 'تأكيد الاستلام', received_ok: 'تم تأكيد استلام {id}', receiver_required: 'اسم المستلم إلزامي',
     cancel: 'إلغاء', close: 'إغلاق', save: 'حفظ', delete: 'حذف', edit: 'تعديل', send: 'إرسال', confirm: 'تأكيد', back: 'رجوع',
     select_all: 'تحديد الكل', selected: 'محدد', clear_selection: 'إلغاء التحديد',
-    act_prep: 'قيد التجهيز', act_vendor_wait: 'بانتظار المندوب', act_vendor_recv: 'استلم المندوب', act_review: 'إرسال لمراجعة الطبيب', act_send: 'إرسال للفرع',
+    act_prep: 'قيد التجهيز', act_vendor_wait: 'بانتظار المندوب', act_vendor_recv: 'استلم المندوب', act_review: 'إعادة لمراجعة الطبيب', act_send: 'إرسال للفرع',
     bulk_done: 'تم تحديث {n} طلب', bulk_skipped_title: 'بعض الطلبات لم تُحدَّث', bulk_skipped_sub: 'تم تحديث {a} وتخطي {b} للأسباب التالية:',
     view_items: 'الأصناف والاعتماد', requested: 'المطلوب', approved: 'المعتمد', received: 'المستلم', dispatch_status: 'الإرسال',
     dispatched: 'أُرسل', waiting: 'بالانتظار', dispatch_selected: 'إرسال المحدد كشحنة', select_item: 'اختر صنفاً واحداً على الأقل',
@@ -64,15 +64,15 @@ const I18N = {
     rcv_partial_note: 'استلام الشحنة #{n} فقط — يبقى الطلب مفتوحاً حتى استلام كل الشحنات', shipment_received_ok: 'تم استلام الشحنة #{n} وتوقيعها',
     request_complete_ok: 'اكتمل استلام الطلب {id} — دُمجت التواقيع في إيصال موحّد', merged_receipt: 'الإيصال الموحّد', ship_receipt: 'إيصال الشحنة',
     ERR_ALREADY_RECEIVED: 'هذه الشحنة استُلمت مسبقاً', branch: 'الفرع', branch_hint: 'الفرع الذي ستُرسل له الطلبية', all_branches: 'كل الفروع', ERR_CONFLICT: 'تغيّرت البيانات للتو من مستخدم آخر — حدّثنا الصفحة، أعد المحاولة', ERR_BAD_BRANCH: 'الفرع غير معروف', ERR_BRANCH_REQUIRED: 'اختر الفرع',
-    approval_locked: 'الكميات مقفلة بعد إرسال الطلب للمراجعة', bulk_not_applicable: 'لا ينطبق على حالة الطلبات المحددة', saved: 'تم الحفظ', item_notes: 'ملاحظات الصنف', request_notes: 'ملاحظات الطلب',
-    workflow_hint: 'المسار: قيد التجهيز ← (المندوب اختياري) ← مراجعة الطبيب ← إرسال للفرع بعد الاعتماد',
+    approval_locked: 'الكميات مقفلة أثناء مراجعة الطبيب وبعد الإرسال', bulk_not_applicable: 'لا ينطبق على حالة الطلبات المحددة', saved: 'تم الحفظ', item_notes: 'ملاحظات الصنف', request_notes: 'ملاحظات الطلب',
+    workflow_hint: 'المسار: اعتماد الطبيب ← قيد التجهيز ← (المندوب اختياري) ← الإرسال للفرع',
     pending_review: 'بانتظار مراجعتك', approved_by_you: 'اعتمدتها', sent_to_branch: 'أُرسلت للفرع', received_k: 'تم استلامها', rejected_k: 'مرفوضة',
     review_title: 'مراجعة الطلب', commercial: 'الاسم التجاري', category: 'الفئة', price: 'السعر', item_note_ph: 'ملاحظة اختيارية…',
     est_total: 'الإجمالي التقديري', currency: 'ر.س', review_reason: 'ملاحظة عامة / سبب الرفض', review_reason_ph: 'اختيارية عند الاعتماد، إلزامية عند الرفض',
     approve: 'اعتماد الطلب', reject: 'رفض الطلب', reason_required: 'سبب الرفض إلزامي', approved_ok: 'تم اعتماد الطلب', rejected_ok: 'تم رفض الطلب',
     confirm_reject: 'تأكيد رفض الطلب {id}؟ سيُعاد للتموين مع السبب.', review_readonly: 'هذا الطلب ليس بانتظار مراجعتك حالياً.',
     step_submitted: 'رفع الطلب', step_prep: 'التجهيز', step_review: 'مراجعة الطبيب', step_approved: 'الاعتماد', step_sent: 'الإرسال', step_received: 'الاستلام',
-    kpi_title: 'زمن كل مرحلة', unit_h: 'س', unit_d: 'ي', k_submit_prep: 'رفع ← تجهيز', k_vendor: 'انتظار المندوب', k_prep_review: 'تجهيز ← مراجعة',
+    kpi_title: 'زمن كل مرحلة', unit_h: 'س', unit_d: 'ي', k_submit_prep: 'مراجعة الطبيب', k_vendor: 'انتظار المندوب', k_prep_review: 'اعتماد ← تجهيز', k_prep_sent: 'تجهيز ← إرسال', k_review: 'مراجعة الطبيب',
     k_review: 'مدة المراجعة', k_approval_sent: 'اعتماد ← إرسال', k_sent_recv: 'إرسال ← استلام', k_total: 'الإجمالي',
     rejection_reason: 'سبب الرفض', view_receipt: 'عرض صورة الاستلام', view_signature: 'عرض التوقيع', receiver: 'المستلم',
     no_comments: 'لا توجد ملاحظات بعد', comment_ph: 'اكتب ملاحظة… مثلاً: ناقص صنف، الكمية غير مطابقة', activity: 'سجل النشاط',
@@ -93,9 +93,9 @@ const I18N = {
     confirm_delete_user: 'حذف المستخدم «{n}» نهائياً؟', user_saved: 'تم حفظ المستخدم', user_deleted: 'تم حذف المستخدم', edit_user: 'تعديل مستخدم',
     roles_title: 'الأدوار والشاشات', roles_sub: 'كل دور مرتبط بشاشة تحدد ما يراه المستخدم بعد الدخول', add_role: 'دور جديد', role_name: 'اسم الدور',
     confirm_delete_role: 'حذف الدور «{n}»؟', role_saved: 'تم حفظ الدور',
-    alert_to_receive: 'لديك <b>{n}</b> طلب فيه شحنات بانتظار تأكيد الاستلام', alert_rejected: '<b>{n}</b> من طلباتك رُفض من الطبيب',
-    alert_urgent_new: '<b>{n}</b> طلب طارئ جديد بانتظار التجهيز', alert_new: '<b>{n}</b> طلب جديد بانتظار التجهيز', alert_approved_ready: '<b>{n}</b> طلب معتمد جاهز للإرسال للفرع',
-    alert_rejected_proc: '<b>{n}</b> طلب مرفوض من الطبيب يحتاج مراجعة', alert_stale: '<b>{n}</b> طلب متأخر أكثر من 72 ساعة', alert_pending_review: '<b>{n}</b> طلب بانتظار مراجعتك',
+    alert_to_receive: 'لديك <b>{n}</b> طلب فيه شحنات بانتظار تأكيد الاستلام', alert_rejected: '<b>{n}</b> من طلباتك رُفض من الطبيب — راجع السبب وأعد الإرسال',
+    alert_urgent_new: '<b>{n}</b> طلب طارئ معتمد بانتظار التجهيز', alert_new: '<b>{n}</b> طلب جاهز للتجهيز', alert_approved_ready: '<b>{n}</b> طلب مجهّز جاهز للإرسال للفرع',
+    alert_rejected_proc: '<b>{n}</b> طلب مرفوض من الطبيب يحتاج مراجعة', alert_stale: '<b>{n}</b> طلب متأخر أكثر من 72 ساعة', alert_pending_review: '<b>{n}</b> طلب بانتظار مراجعتك', alert_urgent_review: '<b>{n}</b> طلب طارئ ما زال لدى الطبيب للاعتماد', grp_wait_doctor: 'لدى الطبيب', grp_ready_prep: 'جاهز للتجهيز', resubmit: 'إعادة الإرسال للطبيب', rep_btn: 'تقرير الطلبات', rep_btn_doc: 'تقرير طبيب', rep_title: 'تقرير طلبات الطبيب', rep_mode_month: 'شهر محدد', rep_mode_cum: 'تراكمي حتى تاريخ', rep_month: 'الشهر', rep_to: 'حتى تاريخ', rep_doctor: 'الطبيب', rep_generate: 'إصدار التقرير', rep_period: 'الفترة', rep_all_until: 'كل الطلبات حتى {d}', rep_generated: 'أُصدر في', rep_requests: 'عدد الطلبات', rep_lines: 'بنود الأصناف', rep_qty: 'إجمالي الكمية', rep_total: 'الإجمالي', rep_price: 'سعر الوحدة', rep_line_total: 'الإجمالي', rep_subtotal: 'إجمالي الطلب', rep_top: 'الأصناف الأعلى قيمة', rep_unpriced: '{n} بند بدون سعر في الكتالوج (محسوب بصفر)', rep_empty: 'لا توجد طلبات في هذه الفترة', rep_print: 'طباعة / PDF', rep_csv: 'تصدير Excel', rep_note: 'الكمية = المعتمدة (أو المطلوبة إن لم تُعدَّل) · السعر من الكتالوج · الطلبات المرفوضة غير محسوبة', ERR_BAD_RANGE: 'نطاق التاريخ غير صحيح', t_doc_report_t: 'تقرير طلباتك', t_doc_report_b: 'أصدر تقريراً مرتباً بطلباتك مع السعر والإجمالي لشهر محدد أو تراكمياً حتى تاريخ، واطبعه أو صدّره.', resubmit_title: 'إعادة إرسال الطلب للطبيب', resubmit_note: 'ملاحظة للطبيب (اختياري) — ماذا عدّلتِ؟', resubmitted_ok: 'أُعيد الطلب {id} للطبيب', ERR_NO_DOCTOR_ACCOUNT: 'الطبيب ليس له حساب في النظام — لا يحتاج مراجعة', close_mgmt_only: 'إغلاق البلاغات من الجودة والإدارة التنفيذية',
     alert_open_complaints: '<b>{n}</b> بلاغ مفتوح', view: 'عرض',
     just_now: 'الآن', loading: 'جاري التحميل…', saving: 'جاري الحفظ…', sending: 'جاري الإرسال…', done: 'تم بنجاح', error_generic: 'حدث خطأ غير متوقع',
     ERR_SESSION: 'انتهت الجلسة — سجّل الدخول مجدداً', ERR_FORBIDDEN: 'ليست لديك صلاحية لهذا الإجراء', ERR_NOT_FOUND: 'العنصر غير موجود (ربما حُذف)',
@@ -112,7 +112,7 @@ const I18N = {
   en: {
     lang_switch: 'عربي', theme_toggle: 'Toggle dark mode', brand_tag: 'Clinic supply management',
     login_hero_title: 'The whole supply request cycle, in one place',
-    login_hero_sub: 'From clinic request to preparation, doctor approval, dispatch and signed receipt — with live tracking and KPIs.',
+    login_hero_sub: 'From the clinic request to doctor approval, preparation, dispatch and signed receipt — with live tracking and KPIs.',
     flow_1: 'Request', flow_2: 'Prepare', flow_3: 'Doctor approval', flow_4: 'Dispatch', flow_5: 'Receive & sign',
     login_title: 'Welcome back', login_sub: 'Sign in with the name and password registered by your admin.',
     login_name_label: 'Name', login_name_ph: 'Your registered name', login_pass_label: 'Password', login_pass_ph: '••••••',
@@ -122,7 +122,7 @@ const I18N = {
     nav_new: 'New request', nav_mine: 'My requests', nav_requests: 'Requests', nav_complaints: 'Issues', nav_reviews: 'Reviews',
     nav_overview: 'Overview', nav_notices: 'Notices', nav_users: 'Users',
     sub_new: 'Pick clinic and doctor, then add the items you need', sub_mine: 'Track your requests and confirm receipt',
-    sub_requests: 'Prepare requests, send for review, then dispatch', sub_complaints: 'Delay, shortage and excess reports',
+    sub_requests: 'Prepare approved requests, then dispatch them', sub_complaints: 'Delay, shortage and excess reports',
     sub_reviews: 'Review, approve or reject requests', sub_overview: 'Performance and fulfilment time', sub_notices: 'Send notices to departments',
     sub_users: 'Manage accounts, roles and access',
     st_new: 'New', st_prep: 'In progress', st_vendor_wait: 'Awaiting vendor', st_vendor_recv: 'Vendor received',
@@ -135,9 +135,9 @@ const I18N = {
     req_details: 'Request details', no_doctors: 'No doctors for this clinic', no_clinics: 'No clinics linked to your account',
     pkg_title: "Doctor's usual package", pkg_hint: 'Tap an item to add it', pkg_add_all: 'Add all', pkg_times: 'Requested {n}×',
     items: 'Items', item_search_ph: 'Search items by name or brand…', add_new_item: 'Add “{q}” as a new item',
-    new_item_hint: 'Will be added to the catalog', no_items_match: 'No results', catalog_empty: 'Catalog is empty — add items to the ItemsCatalog sheet',
+    new_item_hint: 'Will be added to the catalog', no_items_match: 'No results', items_all: 'All items · {n} — type to filter', items_found: '{n} of {total} items', catalog_empty: 'Catalog is empty — add items to the ItemsCatalog sheet',
     items_empty_title: 'No items yet', items_empty_sub: "Search the catalog or pick from the doctor's usual package.",
-    summary: 'Summary', sum_items: 'Items', sum_units: 'Total units', submit_request: 'Send to procurement',
+    summary: 'Summary', sum_items: 'Items', sum_units: 'Total units', submit_request: 'Submit request',
     clear_items: 'Clear items', draft_restored: 'Unsent draft restored', err_fill_all: 'Pick clinic and doctor and add at least one item',
     request_sent: 'Request {id} sent', duplicate_request: 'This request was just sent as {id}',
     emergency_note: 'Procurement is alerted immediately for emergency requests', remove: 'Remove', qty: 'Qty',
@@ -149,7 +149,7 @@ const I18N = {
     confirm_receive: 'Confirm receipt', received_ok: 'Receipt of {id} confirmed', receiver_required: 'Receiver name is required',
     cancel: 'Cancel', close: 'Close', save: 'Save', delete: 'Delete', edit: 'Edit', send: 'Send', confirm: 'Confirm', back: 'Back',
     select_all: 'Select all', selected: 'selected', clear_selection: 'Clear',
-    act_prep: 'In progress', act_vendor_wait: 'Awaiting vendor', act_vendor_recv: 'Vendor received', act_review: 'Send to doctor review', act_send: 'Dispatch',
+    act_prep: 'In progress', act_vendor_wait: 'Awaiting vendor', act_vendor_recv: 'Vendor received', act_review: 'Back to doctor review', act_send: 'Dispatch',
     bulk_done: '{n} request(s) updated', bulk_skipped_title: 'Some requests were not updated', bulk_skipped_sub: '{a} updated, {b} skipped:',
     view_items: 'Items & approval', requested: 'Requested', approved: 'Approved', received: 'Received', dispatch_status: 'Dispatch',
     dispatched: 'Sent', waiting: 'Waiting', dispatch_selected: 'Dispatch selected as a shipment', select_item: 'Select at least one item',
@@ -161,15 +161,15 @@ const I18N = {
     rcv_partial_note: 'Receiving shipment #{n} only — the request stays open until every shipment is received', shipment_received_ok: 'Shipment #{n} received and signed',
     request_complete_ok: 'Request {id} fully received — signatures merged into one combined receipt', merged_receipt: 'Combined receipt', ship_receipt: 'Shipment receipt',
     ERR_ALREADY_RECEIVED: 'This shipment was already received', branch: 'Branch', branch_hint: 'The branch this order is delivered to', all_branches: 'All branches', ERR_CONFLICT: 'The data just changed by another user — refreshed, please try again', ERR_BAD_BRANCH: 'Unknown branch', ERR_BRANCH_REQUIRED: 'Choose the branch',
-    approval_locked: 'Quantities are locked after sending to review', bulk_not_applicable: 'Not applicable to the selected requests’ status', saved: 'Saved', item_notes: 'Item notes', request_notes: 'Request notes',
-    workflow_hint: 'Flow: In progress → (vendor optional) → Doctor review → Dispatch after approval',
+    approval_locked: 'Quantities are locked during doctor review and after dispatch', bulk_not_applicable: 'Not applicable to the selected requests’ status', saved: 'Saved', item_notes: 'Item notes', request_notes: 'Request notes',
+    workflow_hint: 'Flow: Doctor approval → In progress → (vendor optional) → Dispatch',
     pending_review: 'Awaiting your review', approved_by_you: 'Approved', sent_to_branch: 'Sent to branch', received_k: 'Received', rejected_k: 'Rejected',
     review_title: 'Review request', commercial: 'Brand', category: 'Category', price: 'Price', item_note_ph: 'Optional note…',
     est_total: 'Estimated total', currency: 'SAR', review_reason: 'General note / rejection reason', review_reason_ph: 'Optional when approving, required when rejecting',
     approve: 'Approve', reject: 'Reject', reason_required: 'Rejection reason is required', approved_ok: 'Request approved', rejected_ok: 'Request rejected',
     confirm_reject: 'Reject request {id}? It will return to procurement with your reason.', review_readonly: 'This request is not awaiting your review.',
     step_submitted: 'Submitted', step_prep: 'Preparing', step_review: 'Doctor review', step_approved: 'Approved', step_sent: 'Sent', step_received: 'Received',
-    kpi_title: 'Time per stage', unit_h: 'h', unit_d: 'd', k_submit_prep: 'Submit → Prep', k_vendor: 'Vendor wait', k_prep_review: 'Prep → Review',
+    kpi_title: 'Time per stage', unit_h: 'h', unit_d: 'd', k_submit_prep: 'Doctor review', k_vendor: 'Vendor wait', k_prep_review: 'Approval → Prep', k_prep_sent: 'Prep → Dispatch', k_review: 'Doctor review',
     k_review: 'Review time', k_approval_sent: 'Approval → Sent', k_sent_recv: 'Sent → Received', k_total: 'Total',
     rejection_reason: 'Rejection reason', view_receipt: 'View receipt image', view_signature: 'View signature', receiver: 'Receiver',
     no_comments: 'No notes yet', comment_ph: 'Write a note… e.g. item missing, quantity mismatch', activity: 'Activity log',
@@ -190,9 +190,9 @@ const I18N = {
     confirm_delete_user: 'Delete user “{n}” permanently?', user_saved: 'User saved', user_deleted: 'User deleted', edit_user: 'Edit user',
     roles_title: 'Roles & screens', roles_sub: 'Each role maps to the screen a user sees after sign-in', add_role: 'New role', role_name: 'Role name',
     confirm_delete_role: 'Delete role “{n}”?', role_saved: 'Role saved',
-    alert_to_receive: 'You have <b>{n}</b> request(s) with shipments awaiting receipt', alert_rejected: '<b>{n}</b> of your requests were rejected by the doctor',
-    alert_urgent_new: '<b>{n}</b> new emergency request(s) to prepare', alert_new: '<b>{n}</b> new request(s) to prepare', alert_approved_ready: '<b>{n}</b> approved request(s) ready to dispatch',
-    alert_rejected_proc: '<b>{n}</b> request(s) rejected by doctor need attention', alert_stale: '<b>{n}</b> request(s) older than 72h', alert_pending_review: '<b>{n}</b> request(s) awaiting your review',
+    alert_to_receive: 'You have <b>{n}</b> request(s) with shipments awaiting receipt', alert_rejected: '<b>{n}</b> of your requests were rejected — check the reason and resubmit',
+    alert_urgent_new: '<b>{n}</b> approved emergency request(s) to prepare', alert_new: '<b>{n}</b> request(s) ready to prepare', alert_approved_ready: '<b>{n}</b> prepared request(s) ready to dispatch',
+    alert_rejected_proc: '<b>{n}</b> request(s) rejected by doctor need attention', alert_stale: '<b>{n}</b> request(s) older than 72h', alert_pending_review: '<b>{n}</b> request(s) awaiting your review', alert_urgent_review: '<b>{n}</b> emergency request(s) still awaiting doctor approval', grp_wait_doctor: 'With doctor', grp_ready_prep: 'Ready to prepare', resubmit: 'Resubmit to doctor', rep_btn: 'Requests report', rep_btn_doc: 'Doctor report', rep_title: 'Doctor requests report', rep_mode_month: 'A month', rep_mode_cum: 'Cumulative up to a date', rep_month: 'Month', rep_to: 'Up to', rep_doctor: 'Doctor', rep_generate: 'Generate report', rep_period: 'Period', rep_all_until: 'All requests up to {d}', rep_generated: 'Generated', rep_requests: 'Requests', rep_lines: 'Item lines', rep_qty: 'Total quantity', rep_total: 'Grand total', rep_price: 'Unit price', rep_line_total: 'Total', rep_subtotal: 'Request total', rep_top: 'Top items by value', rep_unpriced: '{n} line(s) have no catalog price (counted as 0)', rep_empty: 'No requests in this period', rep_print: 'Print / PDF', rep_csv: 'Export Excel', rep_note: 'Qty = approved (or requested if unchanged) · price from catalog · rejected requests excluded', ERR_BAD_RANGE: 'Invalid date range', t_doc_report_t: 'Your requests report', t_doc_report_b: 'Generate a tidy report of your requests with prices and totals for a month or cumulatively up to a date, then print or export it.', resubmit_title: 'Resubmit to the doctor', resubmit_note: 'Note to the doctor (optional) — what changed?', resubmitted_ok: 'Request {id} resubmitted to the doctor', ERR_NO_DOCTOR_ACCOUNT: 'The doctor has no account — no review needed', close_mgmt_only: 'Issues are closed by Quality and executive management',
     alert_open_complaints: '<b>{n}</b> open issue(s)', view: 'View',
     just_now: 'just now', loading: 'Loading…', saving: 'Saving…', sending: 'Sending…', done: 'Done', error_generic: 'Something went wrong',
     ERR_SESSION: 'Session expired — please sign in again', ERR_FORBIDDEN: "You don't have permission for this", ERR_NOT_FOUND: 'Not found (maybe deleted)',
@@ -466,13 +466,14 @@ const ST = {
   REVIEW: 'مراجعة الطبيب', APPROVED: 'معتمد من الطبيب', REJECTED: 'مرفوض', SENT: 'تم الإرسال', RECEIVED: 'تم الاستلام'
 };
 const STATUS = {};
-STATUS[ST.NEW]         = { k: 'st_new', tone: 'var(--t-blue)', step: 0, live: true };
-STATUS[ST.PREP]        = { k: 'st_prep', tone: 'var(--t-amber)', step: 1, live: true };
-STATUS[ST.VENDOR_WAIT] = { k: 'st_vendor_wait', tone: 'var(--t-orange)', step: 1, live: true };
-STATUS[ST.VENDOR_RECV] = { k: 'st_vendor_recv', tone: 'var(--t-orange)', step: 1 };
-STATUS[ST.REVIEW]      = { k: 'st_review', tone: 'var(--t-violet)', step: 2, live: true };
-STATUS[ST.APPROVED]    = { k: 'st_approved', tone: 'var(--t-teal)', step: 3 };
+// الترتيب: رفع ← مراجعة الطبيب ← الاعتماد ← التجهيز (والمندوب) ← الإرسال ← الاستلام
+STATUS[ST.NEW]         = { k: 'st_new', tone: 'var(--t-blue)', step: 1, live: true };
+STATUS[ST.REVIEW]      = { k: 'st_review', tone: 'var(--t-violet)', step: 1, live: true };
 STATUS[ST.REJECTED]    = { k: 'st_rejected', tone: 'var(--t-red)', step: 2 };
+STATUS[ST.APPROVED]    = { k: 'st_approved', tone: 'var(--t-teal)', step: 3 };
+STATUS[ST.PREP]        = { k: 'st_prep', tone: 'var(--t-amber)', step: 3, live: true };
+STATUS[ST.VENDOR_WAIT] = { k: 'st_vendor_wait', tone: 'var(--t-orange)', step: 3, live: true };
+STATUS[ST.VENDOR_RECV] = { k: 'st_vendor_recv', tone: 'var(--t-orange)', step: 3 };
 STATUS[ST.SENT]        = { k: 'st_sent', tone: 'var(--t-indigo)', step: 4, live: true };
 STATUS[ST.RECEIVED]    = { k: 'st_received', tone: 'var(--t-green)', step: 5 };
 function stMeta(s) { return STATUS[s] || { k: s, tone: 'var(--t-gray)', step: 0 }; }
@@ -857,7 +858,7 @@ window.addEventListener('scroll', () => { $('#topbar').classList.toggle('scrolle
 const ALERT_ICON = { info: 'info', success: 'checkc', warning: 'clock', danger: 'alert' };
 const ALERT_TARGET = {
   alert_to_receive: ['mine', 'to_receive'], alert_rejected: ['mine', 'rejected'],
-  alert_urgent_new: ['requests', 'new'], alert_new: ['requests', 'new'], alert_approved_ready: ['requests', 'approved'], alert_rejected_proc: ['requests', 'rejected'],
+  alert_urgent_new: ['requests', 'ready'], alert_new: ['requests', 'ready'], alert_approved_ready: ['requests', 'prep'], alert_urgent_review: ['requests', 'review'],
   alert_pending_review: ['reviews', 'review'], alert_open_complaints: ['complaints', 'open']
 };
 function loadAlerts() {
@@ -979,19 +980,19 @@ function stepperHtml(r) {
   const rejected = r.status === ST.REJECTED;
   const steps = [
     { k: 'step_submitted', ic: 'clipboard', at: r.submittedAt },
-    { k: 'step_prep', ic: 'package', at: r.prepAt },
     { k: 'step_review', ic: 'steth', at: r.reviewAt },
-    { k: 'step_approved', ic: rejected ? 'x' : 'check', at: r.reviewedAt },
+    { k: 'step_approved', ic: rejected ? 'x' : 'check', at: rejected ? r.reviewedAt : (r.approvedAt || (r.status === ST.APPROVED ? r.reviewedAt : '')) },
+    { k: 'step_prep', ic: 'package', at: r.prepAt },
     { k: 'step_sent', ic: 'truck', at: r.sentAt },
     { k: 'step_received', ic: 'pen', at: r.receivedAt }
   ];
   return '<div class="stepper">' + steps.map((s, i) => {
     let cls = 'todo';
-    if (rejected && i === 3) cls = 'failed';
+    if (rejected && i === 2) cls = 'failed';
     else if (i < cur || (i === cur && (r.status === ST.RECEIVED))) cls = 'done';
     else if (i === cur) cls = 'current';
     if (s.at && cls === 'todo') cls = 'done';
-    const lbl = rejected && i === 3 ? t('st_rejected') : t(s.k);
+    const lbl = rejected && i === 2 ? t('st_rejected') : t(s.k);
     return '<div class="step ' + cls + '"><span class="node">' + icon(cls === 'done' ? 'check' : s.ic) + '</span><span class="s-lbl">' + esc(lbl) + '</span><span class="s-time">' + (s.at ? esc(fmtDateTime(s.at)) : '&nbsp;') + '</span></div>';
   }).join('') + '</div>';
 }
@@ -1000,8 +1001,8 @@ function kpiStepsHtml(kpi) {
   const u = kpi.unit === 'hours' ? t('unit_h') : t('unit_d');
   const late = kpi.unit === 'hours' ? 24 : 3;
   const rows = [
-    ['k_submit_prep', kpi.submitToPrep], ['k_vendor', kpi.vendorWait], ['k_prep_review', kpi.prepToReview],
-    ['k_review', kpi.reviewTime], ['k_approval_sent', kpi.approvalToSent], ['k_sent_recv', kpi.sentToReceived], ['k_total', kpi.totalCycle]
+    ['k_review', kpi.reviewTime], ['k_prep_review', kpi.approvalToPrep], ['k_vendor', kpi.vendorWait],
+    ['k_prep_sent', kpi.prepToSent], ['k_sent_recv', kpi.sentToReceived], ['k_total', kpi.totalCycle]
   ].filter(x => x[1] !== null && x[1] !== undefined);
   if (!rows.length) return '';
   return '<div><div class="section-title">' + icon('activity', 'i-sm') + esc(t('kpi_title')) + '</div><div class="kpi-steps">' +
@@ -1068,6 +1069,7 @@ function renderDetail(m, d) {
       (d.receiptUrl ? '<a class="btn btn-sm" href="' + esc(d.receiptUrl) + '" target="_blank" rel="noopener">' + icon('image', 'i-sm') + esc((d.shipments || []).length > 1 ? t('merged_receipt') : t('view_receipt')) + '</a>' : '') +
       (d.signature ? '<a class="btn btn-sm btn-ghost" href="' + esc(d.signature) + '" target="_blank" rel="noopener">' + icon('pen', 'i-sm') + esc(t('view_signature')) + '</a>' : '') +
       '<span class="spacer"></span>' +
+      (S.user.screen === 'nurse' && d.status === ST.REJECTED ? '<button class="btn btn-tone" style="--tone:var(--t-violet)" data-act="resubmit" data-id="' + esc(d.id) + '">' + icon('refresh', 'i-sm') + esc(t('resubmit')) + '</button>' : '') +
       (canReceive ? '<button class="btn btn-primary" data-act="receive" data-id="' + esc(d.id) + '">' + icon('pen', 'i-sm') + esc(t('receive_btn')) + '</button>' : '<button class="btn" data-close>' + esc(t('close')) + '</button>');
     m.el.querySelector('.modal').appendChild(foot);
     animateBars(body);
@@ -1341,8 +1343,8 @@ function setupCombo() {
     const q = inp.value.trim();
     const ql = q.toLowerCase();
     const matches = S.catalog.filter(c => !ql || c.name.toLowerCase().indexOf(ql) !== -1 || (c.commercial || '').toLowerCase().indexOf(ql) !== -1 || (c.category || '').toLowerCase().indexOf(ql) !== -1)
-      .sort((a, b) => (a.name.toLowerCase().indexOf(ql) === 0 ? 0 : 1) - (b.name.toLowerCase().indexOf(ql) === 0 ? 0 : 1) || a.name.localeCompare(b.name))
-      .slice(0, 30);
+      .sort((a, b) => (a.name.toLowerCase().indexOf(ql) === 0 ? 0 : 1) - (b.name.toLowerCase().indexOf(ql) === 0 ? 0 : 1) || a.name.localeCompare(b.name));
+    // كل الأصناف تظهر (بالتمرير)، والبحث يصفّيها — بلا حد أعلى
     const exact = S.catalog.some(c => c.name.toLowerCase() === ql);
     opts = matches.map(c => ({ name: c.name, c: c }));
     if (q && !exact) opts.push({ name: q, isNew: true });
@@ -1350,10 +1352,13 @@ function setupCombo() {
     if (!opts.length) {
       list.innerHTML = '<div class="combo-empty">' + esc(S.catalog.length ? t('no_items_match') : t('catalog_empty')) + '</div>';
     } else {
-      list.innerHTML = opts.map((o, i) => o.isNew
+      const added = {};
+      nurseDraft().items.forEach(it => { added[it.name.toLowerCase()] = it.qty; });
+      list.innerHTML = '<div class="combo-head">' + esc(t(q ? 'items_found' : 'items_all', { n: matches.length, total: S.catalog.length })) + '</div>' + opts.map((o, i) => o.isNew
         ? '<div class="combo-opt new" role="option" data-i="' + i + '" aria-selected="' + (i === active) + '"><span class="ic">' + icon('plus') + '</span><div><div class="nm">' + esc(t('add_new_item', { q: o.name })) + '</div><div class="mt">' + esc(t('new_item_hint')) + '</div></div></div>'
         : '<div class="combo-opt" role="option" data-i="' + i + '" aria-selected="' + (i === active) + '"><span class="ic">' + icon('package') + '</span><div class="grow"><div class="nm">' + hl(o.name, q) + '</div>' +
-          ((o.c.commercial || o.c.category || o.c.price) ? '<div class="mt">' + esc([o.c.commercial, o.c.category].filter(Boolean).join(' · ')) + (o.c.price ? ' · ' + fmtNum(o.c.price, 2) + ' ' + esc(t('currency')) : '') + '</div>' : '') + '</div></div>').join('');
+          ((o.c.commercial || o.c.category || o.c.price) ? '<div class="mt">' + esc([o.c.commercial, o.c.category].filter(Boolean).join(' · ')) + (o.c.price ? ' · ' + fmtNum(o.c.price, 2) + ' ' + esc(t('currency')) : '') + '</div>' : '') + '</div>' +
+          (added[o.name.toLowerCase()] ? '<span class="combo-added">' + icon('check', 'i-sm') + '×' + added[o.name.toLowerCase()] + '</span>' : '') + '</div>').join('');
     }
     list.classList.remove('hidden');
     inp.setAttribute('aria-expanded', 'true');
@@ -1449,17 +1454,39 @@ function renderMineList(animate) {
     '<article class="req' + (r.type === 'طارئ' ? ' urgent' : '') + '">' +
       '<div class="req-main clickable" data-act="detail" data-id="' + esc(r.id) + '">' +
         '<div class="grow"><div class="row-wrap"><span class="req-id">' + esc(r.id) + '</span>' + typeTag(r.type) + branchTag(r.branch) + branchTag(r.branch) + '</div>' +
-          '<div class="req-sub"><span>' + icon('building') + esc(r.clinic) + '</span><span>' + icon('steth') + esc(r.doctor) + '</span><span>' + icon('calendar') + esc(fmtDate(r.date)) + '</span><span>' + icon('package') + esc(t('items_count', { n: r.itemCount || 0 })) + '</span></div>' + shipTrack(r) + '</div>' +
+          '<div class="req-sub"><span>' + icon('building') + esc(r.clinic) + '</span><span>' + icon('steth') + esc(r.doctor) + '</span><span>' + icon('calendar') + esc(fmtDate(r.date)) + '</span><span>' + icon('package') + esc(t('items_count', { n: r.itemCount || 0 })) + '</span></div>' + shipTrack(r) +
+          (r.status === ST.REJECTED && r.rejectionReason ? '<div class="reject-box" style="margin-top:8px">' + icon('xc') + '<div><b>' + esc(t('rejection_reason')) + ':</b> ' + esc(r.rejectionReason) + '</div></div>' : '') + '</div>' +
         '<div class="req-side">' + badge(r.status) + progressBar(r.status) + '</div>' +
       '</div>' +
       '<div class="req-actions">' +
         (r.pendingShipments > 0 ? '<button class="btn btn-primary btn-sm" data-act="receive" data-id="' + esc(r.id) + '">' + icon('pen', 'i-sm') + esc(t('receive_btn')) + (r.pendingShipments > 1 ? '<span class="count-pill">' + r.pendingShipments + '</span>' : '') + '</button>' : '') +
         '<button class="btn btn-sm" data-act="detail" data-id="' + esc(r.id) + '">' + icon('eye', 'i-sm') + esc(t('details')) + '</button>' +
+        (r.status === ST.REJECTED ? '<button class="btn btn-sm btn-tone" style="--tone:var(--t-violet)" data-act="resubmit" data-id="' + esc(r.id) + '">' + icon('refresh', 'i-sm') + esc(t('resubmit')) + '</button>' : '') +
         '<button class="btn btn-sm btn-ghost" data-act="complaint" data-id="' + esc(r.id) + '">' + icon('alert', 'i-sm') + esc(t('report')) + '</button>' +
       '</div>' +
     '</article>', i)).join(''), animate);
   animateBars(box);
 }
+
+/* إعادة إرسال طلب مرفوض للطبيب */
+ACT.resubmit = el => {
+  const id = el.dataset.id;
+  const top = topModal(); if (top) closeModal(top);
+  const r = S.nurse.mine.find(x => x.id === id) || {};
+  const m = openModal({
+    title: esc(t('resubmit_title')) + ' · <span class="mono">' + esc(id) + '</span>', icon: 'refresh', tone: 'violet',
+    body: (r.rejectionReason ? '<div class="reject-box">' + icon('xc') + '<div><b>' + esc(t('rejection_reason')) + ':</b> ' + esc(r.rejectionReason) + '</div></div>' : '') +
+      '<div class="field"><label for="rsNote">' + esc(t('resubmit_note')) + '</label><textarea class="textarea" id="rsNote" maxlength="1000"></textarea></div>',
+    foot: '<span class="spacer"></span><button class="btn" data-close>' + esc(t('cancel')) + '</button><button class="btn btn-primary" id="rsOk">' + icon('send', 'i-sm flip') + esc(t('resubmit')) + '</button>'
+  });
+  $('#rsOk', m.el).addEventListener('click', e => {
+    const b = e.currentTarget; busy(b, true, t('sending'));
+    call('resubmitRequest', id, $('#rsNote', m.el).value.trim()).then(() => {
+      closeModal(m); toast(t('resubmitted_ok', { id: id }));
+      loadMine(true); loadAlerts();
+    }).catch(err => { busy(b, false); toast(errMsg(err), 'error'); });
+  });
+};
 
 /* Receive & sign */
 ACT.receive = el => {
@@ -1630,23 +1657,23 @@ function drawReceipt(id, sections, combined) {
    ===================================================================== */
 const PROC_GROUPS = [
   { id: 'all', k: 'grp_all' },
-  { id: 'new', k: 'st_new', statuses: [ST.NEW], tone: 'var(--t-blue)' },
+  { id: 'review', k: 'grp_wait_doctor', statuses: [ST.REVIEW], tone: 'var(--t-violet)' },
+  { id: 'ready', k: 'grp_ready_prep', test: r => r.cleared && (r.status === ST.APPROVED || r.status === ST.NEW), tone: 'var(--t-teal)' },
   { id: 'prep', k: 'grp_prep', statuses: [ST.PREP, ST.VENDOR_WAIT, ST.VENDOR_RECV], tone: 'var(--t-amber)' },
-  { id: 'review', k: 'st_review', statuses: [ST.REVIEW], tone: 'var(--t-violet)' },
-  { id: 'approved', k: 'st_approved', statuses: [ST.APPROVED], tone: 'var(--t-teal)' },
   { id: 'partial', k: 'grp_partial', test: r => r.dispatchedCount > 0 && r.dispatchedCount < r.itemCount, tone: 'var(--t-indigo)' },
-  { id: 'rejected', k: 'st_rejected', statuses: [ST.REJECTED], tone: 'var(--t-red)' },
   { id: 'sent', k: 'st_sent', statuses: [ST.SENT], tone: 'var(--t-indigo)' },
-  { id: 'received', k: 'st_received', statuses: [ST.RECEIVED], tone: 'var(--t-green)' }
+  { id: 'received', k: 'st_received', statuses: [ST.RECEIVED], tone: 'var(--t-green)' },
+  { id: 'rejected', k: 'st_rejected', statuses: [ST.REJECTED], tone: 'var(--t-red)' }
 ];
 const BULK = [
   { s: ST.PREP, k: 'act_prep', ic: 'package', tone: 'var(--t-amber)' },
   { s: ST.VENDOR_WAIT, k: 'act_vendor_wait', ic: 'clock', tone: 'var(--t-orange)' },
   { s: ST.VENDOR_RECV, k: 'act_vendor_recv', ic: 'inbox', tone: 'var(--t-orange)' },
-  { s: ST.REVIEW, k: 'act_review', ic: 'steth', tone: 'var(--t-violet)' },
-  { s: ST.SENT, k: 'act_send', ic: 'truck', tone: 'var(--t-indigo)' }
+  { s: ST.SENT, k: 'act_send', ic: 'truck', tone: 'var(--t-indigo)' },
+  { s: ST.REVIEW, k: 'act_review', ic: 'steth', tone: 'var(--t-violet)' }
 ];
-const APPROVAL_EDITABLE = [ST.NEW, ST.PREP, ST.VENDOR_WAIT, ST.VENDOR_RECV, ST.REJECTED];
+const APPROVAL_EDITABLE = [ST.NEW, ST.APPROVED, ST.PREP, ST.VENDOR_WAIT, ST.VENDOR_RECV, ST.REJECTED];
+const DISPATCHABLE = [ST.APPROVED, ST.PREP, ST.VENDOR_WAIT, ST.VENDOR_RECV];
 function loadProc(silent) {
   if (!silent && !S.loaded.proc) { const l = $('#procList'); if (l) l.innerHTML = skeletonList(4); }
   return call('getRequests', {}).then(list => {
@@ -1737,7 +1764,7 @@ function procItemsHtml(r) {
   const data = S.proc.items[r.id];
   if (!data) return '<div class="skel" style="height:90px"></div>';
   const editable = APPROVAL_EDITABLE.indexOf(r.status) !== -1;
-  const canDispatch = r.status === ST.APPROVED || (!r.needsReview && (r.status === ST.PREP || r.status === ST.VENDOR_RECV));
+  const canDispatch = r.cleared && DISPATCHABLE.indexOf(r.status) !== -1;
   const ds = data.dispatchStatus || {};
   const nc = data.noteCounts || {};
   const pending = data.items.filter(it => !ds[it.item]).length;
@@ -1789,11 +1816,12 @@ ACT.procSelAll = el => {
 };
 /* نفس قواعد الانتقال في الخادم (TRANSITIONS في Code.gs) — لتعطيل الأزرار غير المنطقية مسبقاً */
 const CAN_MOVE = {};
-CAN_MOVE[ST.PREP]        = r => [ST.NEW, ST.REJECTED].indexOf(r.status) !== -1;
+CAN_MOVE[ST.PREP]        = r => r.cleared && [ST.APPROVED, ST.NEW].indexOf(r.status) !== -1;
 CAN_MOVE[ST.VENDOR_WAIT] = r => r.status === ST.PREP;
 CAN_MOVE[ST.VENDOR_RECV] = r => r.status === ST.VENDOR_WAIT;
-CAN_MOVE[ST.REVIEW]      = r => [ST.PREP, ST.VENDOR_RECV].indexOf(r.status) !== -1;
-CAN_MOVE[ST.SENT]        = r => r.status === ST.APPROVED || (!r.needsReview && [ST.PREP, ST.VENDOR_RECV].indexOf(r.status) !== -1);
+CAN_MOVE[ST.SENT]        = r => r.cleared && [ST.APPROVED, ST.PREP, ST.VENDOR_RECV].indexOf(r.status) !== -1;
+// إعادة للطبيب: طلب لم يُعتمد بعد (جديد/مرفوض، أو قديم جُهّز قبل الاعتماد)
+CAN_MOVE[ST.REVIEW]      = r => r.needsReview && ([ST.NEW, ST.REJECTED].indexOf(r.status) !== -1 || ([ST.PREP, ST.VENDOR_WAIT, ST.VENDOR_RECV].indexOf(r.status) !== -1 && !r.cleared));
 function selectedRequests() { return S.proc.list.filter(r => S.proc.selected.has(r.id)); }
 function eligibleFor(status) { const f = CAN_MOVE[status]; return selectedRequests().filter(r => !f || f(r)); }
 
@@ -1875,6 +1903,131 @@ ACT.dispatch = el => {
 };
 
 /* =====================================================================
+   DOCTOR REPORT — طلبات الطبيب بالأسعار والإجمالي (شهر أو تراكمي حتى تاريخ)
+   ===================================================================== */
+const pad2 = n => String(n).padStart(2, '0');
+function todayStr() { const d = new Date(); return d.getFullYear() + '-' + pad2(d.getMonth() + 1) + '-' + pad2(d.getDate()); }
+function monthRange(m) {
+  const [y, mo] = m.split('-').map(Number);
+  const last = new Date(y, mo, 0).getDate();
+  return { from: m + '-01', to: m + '-' + pad2(last) };
+}
+const REP = { mode: 'month', month: '', to: '', doctor: '', data: null };
+ACT.openReport = () => {
+  const mgmt = S.user.screen !== 'doctor';
+  if (!REP.month) REP.month = todayStr().slice(0, 7);
+  if (!REP.to) REP.to = todayStr();
+  const m = openModal({
+    title: esc(t('rep_title')), icon: 'file', size: 'xl',
+    body: '<div class="rep-form">' +
+        (mgmt ? '<div class="field"><label for="repDoctor">' + esc(t('rep_doctor')) + '</label><select class="select" id="repDoctor"><option>' + esc(t('loading')) + '</option></select></div>' : '') +
+        '<div class="field rep-period"><span class="label">' + esc(t('rep_period')) + '</span>' + segmented('repMode', [{ v: 'month', label: t('rep_mode_month'), icon: 'calendar' }, { v: 'cum', label: t('rep_mode_cum'), icon: 'layers' }], REP.mode) + '</div>' +
+        '<div class="field" id="repMonthF"><label for="repMonth">' + esc(t('rep_month')) + '</label><input class="input" type="month" id="repMonth" value="' + esc(REP.month) + '"></div>' +
+        '<div class="field" id="repToF"><label for="repTo">' + esc(t('rep_to')) + '</label><input class="input" type="date" id="repTo" value="' + esc(REP.to) + '"></div>' +
+        '<button class="btn btn-primary" id="repGo">' + icon('file', 'i-sm') + esc(t('rep_generate')) + '</button>' +
+      '</div><div id="repOut"></div>',
+    foot: '<button class="btn btn-sm" id="repCsv" disabled>' + icon('ext', 'i-sm') + esc(t('rep_csv')) + '</button>' +
+      '<span class="spacer"></span><button class="btn" data-close>' + esc(t('close')) + '</button>' +
+      '<button class="btn btn-primary" id="repPrint" disabled>' + icon('file', 'i-sm') + esc(t('rep_print')) + '</button>'
+  });
+  $$('.segmented', m.el).forEach(placeThumb);
+  const syncMode = () => { $('#repMonthF', m.el).classList.toggle('hidden', REP.mode !== 'month'); $('#repToF', m.el).classList.toggle('hidden', REP.mode !== 'cum'); };
+  SEG_HANDLERS.repMode = v => { REP.mode = v; syncMode(); };
+  syncMode();
+  if (mgmt) {
+    call('getReportDoctors').then(list => {
+      const sel = $('#repDoctor', m.el); if (!sel) return;
+      if (!REP.doctor || list.indexOf(REP.doctor) === -1) REP.doctor = list[0] || '';
+      sel.innerHTML = list.length ? list.map(d => '<option' + (d === REP.doctor ? ' selected' : '') + '>' + esc(d) + '</option>').join('') : '<option value="">' + esc(t('no_data')) + '</option>';
+    }).catch(e => toast(errMsg(e), 'error'));
+  }
+  const go = () => {
+    REP.month = $('#repMonth', m.el).value || REP.month;
+    REP.to = $('#repTo', m.el).value || REP.to;
+    if (mgmt) REP.doctor = $('#repDoctor', m.el).value;
+    const range = REP.mode === 'month' ? monthRange(REP.month) : { from: '', to: REP.to };
+    const b = $('#repGo', m.el); busy(b, true);
+    $('#repOut', m.el).innerHTML = skeletonList(2);
+    call('getDoctorReport', Object.assign({ doctor: REP.doctor }, range)).then(data => {
+      busy(b, false);
+      REP.data = data; REP.range = range;
+      $('#repOut', m.el).innerHTML = reportHtml(data, range);
+      $('#repPrint', m.el).disabled = $('#repCsv', m.el).disabled = !data.rows.length;
+    }).catch(e => { busy(b, false); $('#repOut', m.el).innerHTML = emptyState('alert', errMsg(e)); });
+  };
+  $('#repGo', m.el).addEventListener('click', go);
+  $('#repPrint', m.el).addEventListener('click', () => printReport($('#repOut', m.el).innerHTML));
+  $('#repCsv', m.el).addEventListener('click', () => exportReportCsv(REP.data, REP.range));
+  if (!mgmt) go(); // الطبيب: يظهر تقرير الشهر الحالي مباشرة
+};
+function periodLabel(range) {
+  if (range.from && range.to && range.from.slice(0, 7) === range.to.slice(0, 7) && range.from.slice(8) === '01') {
+    const [y, mo] = range.from.split('-').map(Number);
+    return new Date(y, mo - 1, 1).toLocaleDateString(locale(), { month: 'long', year: 'numeric' });
+  }
+  return t('rep_all_until', { d: fmtDate(range.to + 'T12:00:00') });
+}
+function reportHtml(d, range) {
+  const cur = ' ' + t('currency');
+  const logo = $('#companyLogo') ? '<img class="rep-logo" src="' + $('#companyLogo').src + '" alt="ApexCare">' : '';
+  const head = '<div class="rep-head">' + logo +
+    '<div class="rep-meta"><h2>' + esc(t('rep_title')) + '</h2>' +
+      '<div><b>' + esc(t('rep_doctor')) + ':</b> ' + esc(d.doctor) + '</div>' +
+      '<div><b>' + esc(t('rep_period')) + ':</b> ' + esc(periodLabel(range)) + '</div>' +
+      '<div class="muted">' + esc(t('rep_generated')) + ' ' + esc(fmtDateTime(d.generatedAt)) + '</div></div></div>';
+  if (!d.rows.length) return '<div class="rep">' + head + emptyState('inbox', t('rep_empty')) + '</div>';
+  const sm = d.summary;
+  const tiles = '<div class="rep-tiles">' +
+    [[t('rep_requests'), fmtNum(sm.requests, 0)], [t('rep_lines'), fmtNum(sm.lines, 0)], [t('rep_qty'), fmtNum(sm.qty, 0)], [t('rep_total'), fmtNum(sm.total, 2) + cur]]
+      .map((x, i) => '<div' + (i === 3 ? ' class="grand"' : '') + '><span>' + esc(x[0]) + '</span><b>' + esc(x[1]) + '</b></div>').join('') + '</div>';
+  const reqs = d.rows.map(r =>
+    '<section class="rep-req"><div class="rep-req-head"><span class="mono"><b>' + esc(r.id) + '</b></span>' +
+      '<span>' + esc(fmtDate(r.date)) + '</span>' + (r.branch ? branchTag(r.branch) : '') + '<span class="muted">' + esc(r.clinic) + '</span>' + typeTag(r.type) + badge(r.status) + '</div>' +
+    '<table class="table rep-table"><thead><tr><th>' + esc(t('items')) + '</th><th class="num">' + esc(t('qty')) + '</th><th class="num">' + esc(t('rep_price')) + '</th><th class="num">' + esc(t('rep_line_total')) + '</th></tr></thead><tbody>' +
+      r.items.map(it => '<tr><td><div style="font-weight:600">' + esc(it.item) + '</div>' + (it.commercial || it.category ? '<div class="hint">' + esc([it.commercial, it.category].filter(Boolean).join(' · ')) + '</div>' : '') + '</td>' +
+        '<td class="num">' + fmtNum(it.qty, 0) + '</td><td class="num">' + (it.price ? fmtNum(it.price, 2) : '—') + '</td><td class="num">' + fmtNum(it.total, 2) + '</td></tr>').join('') +
+    '</tbody><tfoot><tr><td colspan="3">' + esc(t('rep_subtotal')) + '</td><td class="num">' + fmtNum(r.total, 2) + cur + '</td></tr></tfoot></table></section>').join('');
+  const top = d.top.length ? '<section class="rep-req"><div class="rep-req-head"><b>' + esc(t('rep_top')) + '</b></div><table class="table rep-table"><tbody>' +
+    d.top.map((x, i) => '<tr><td class="muted" style="width:1%">' + (i + 1) + '</td><td style="font-weight:600">' + esc(x.item) + '</td><td class="num">' + fmtNum(x.qty, 0) + '</td><td class="num">' + fmtNum(x.total, 2) + cur + '</td></tr>').join('') + '</tbody></table></section>' : '';
+  return '<div class="rep">' + head + tiles +
+    (sm.unpriced ? '<div class="hint rep-warn">' + icon('info', 'i-sm') + ' ' + esc(t('rep_unpriced', { n: sm.unpriced })) + '</div>' : '') +
+    reqs +
+    '<div class="rep-grand"><span>' + esc(t('rep_total')) + '</span><b>' + fmtNum(sm.total, 2) + cur + '</b></div>' + top +
+    '<p class="hint rep-note">' + esc(t('rep_note')) + '</p></div>';
+}
+function printReport(html) {
+  let area = document.getElementById('printArea');
+  if (!area) { area = document.createElement('div'); area.id = 'printArea'; document.body.appendChild(area); }
+  area.innerHTML = html;
+  const theme = document.documentElement.dataset.theme;
+  document.documentElement.dataset.theme = 'light'; // الورق أبيض دائماً
+  document.body.classList.add('printing');
+  let finished = false;
+  const done = () => {
+    if (finished) return; finished = true;
+    document.body.classList.remove('printing'); area.innerHTML = '';
+    document.documentElement.dataset.theme = theme;
+    window.removeEventListener('afterprint', done);
+  };
+  window.addEventListener('afterprint', done);
+  setTimeout(() => { try { window.print(); } catch (e) { toast(errMsg(e), 'error'); } setTimeout(done, 1500); }, 60);
+}
+function exportReportCsv(d, range) {
+  if (!d) return;
+  const q = v => '"' + String(v === null || v === undefined ? '' : v).replace(/"/g, '""') + '"';
+  const lines = [[t('rep_title'), d.doctor, periodLabel(range)].map(q).join(','),
+    ['#', t('date'), t('branch'), t('clinic'), t('status'), t('items'), t('qty'), t('rep_price'), t('rep_line_total')].map(q).join(',')];
+  d.rows.forEach(r => r.items.forEach(it => lines.push([r.id, fmtDate(r.date), r.branch, r.clinic, statusLabel(r.status), it.item, it.qty, it.price, it.total].map(q).join(','))));
+  lines.push(['', '', '', '', '', t('rep_total'), d.summary.qty, '', d.summary.total].map(q).join(','));
+  const blob = new Blob(['\ufeff' + lines.join('\r\n')], { type: 'text/csv;charset=utf-8' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'report-' + (d.doctor || 'doctor').replace(/[^\w\u0600-\u06FF-]+/g, '_') + '-' + (range.from || 'all') + '_' + range.to + '.csv';
+  document.body.appendChild(a); a.click();
+  setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 500);
+}
+
+/* =====================================================================
    COMPLAINTS (procurement + management)
    ===================================================================== */
 function loadComplaints(silent) {
@@ -1909,7 +2062,10 @@ function renderComplaints(animate) {
         '<div style="margin-top:4px;white-space:pre-wrap;overflow-wrap:anywhere">' + esc(c.message) + '</div>' +
         '<div class="req-sub"><span>' + icon('user') + esc(c.author) + ' · ' + esc(c.role) + '</span><span>' + icon('clock') + esc(relTime(c.time)) + '</span>' +
           (c.resolved ? '<span>' + icon('checkc') + esc(t('resolved_by', { n: c.resolvedBy })) + '</span>' : '') + '</div></div>' +
-      (!c.resolved ? '<button class="btn btn-soft btn-sm" data-act="resolve" data-id="' + esc(c.id) + '">' + icon('check', 'i-sm') + esc(t('resolve')) + '</button>' : '') +
+      // الإغلاق للجودة والإدارة التنفيذية فقط؛ التموين يرى البلاغ ويعلّق على الطلب
+      (!c.resolved ? (S.user.screen === 'procurement'
+        ? '<span class="hint">' + icon('lock', 'i-sm') + ' ' + esc(t('close_mgmt_only')) + '</span>'
+        : '<button class="btn btn-soft btn-sm" data-act="resolve" data-id="' + esc(c.id) + '">' + icon('check', 'i-sm') + esc(t('resolve')) + '</button>') : '') +
     '</div></article>', i)).join(''), animate);
 }
 ACT.resolve = el => {
@@ -1930,7 +2086,7 @@ ACT.resolve = el => {
    ===================================================================== */
 const DOC_GROUPS = [
   { id: 'review', k: 'pending_review', statuses: [ST.REVIEW], tone: 'var(--t-violet)', ic: 'clock' },
-  { id: 'approved', k: 'approved_by_you', statuses: [ST.APPROVED], tone: 'var(--t-teal)', ic: 'checkc' },
+  { id: 'approved', k: 'approved_by_you', statuses: [ST.APPROVED, ST.PREP, ST.VENDOR_WAIT, ST.VENDOR_RECV], tone: 'var(--t-teal)', ic: 'checkc' },
   { id: 'sent', k: 'sent_to_branch', statuses: [ST.SENT], tone: 'var(--t-indigo)', ic: 'truck' },
   { id: 'received', k: 'received_k', statuses: [ST.RECEIVED], tone: 'var(--t-green)', ic: 'pen' },
   { id: 'rejected', k: 'rejected_k', statuses: [ST.REJECTED], tone: 'var(--t-red)', ic: 'xc' },
@@ -1946,7 +2102,9 @@ function loadDoc(silent) {
 VIEWS.reviews = {
   title: 'nav_reviews', sub: 'sub_reviews',
   render() {
-    return '<div id="dNotices"></div><div class="kpis six" id="docKpis"></div><div class="list stagger" id="docList">' + (S.loaded.doc ? '' : skeletonList(3)) + '</div>';
+    return '<div id="dNotices"></div>' +
+      '<div class="between"><span></span><button class="btn btn-soft" id="docReportBtn" data-act="openReport">' + icon('file') + esc(t('rep_btn')) + '</button></div>' +
+      '<div class="kpis six" id="docKpis"></div><div class="list stagger" id="docList">' + (S.loaded.doc ? '' : skeletonList(3)) + '</div>';
   },
   mount() { loadNotices('dNotices'); if (S.loaded.doc) renderDoc(true); loadDoc(S.loaded.doc); },
   refresh() { loadDoc(true); loadNotices('dNotices'); }
@@ -2061,7 +2219,8 @@ VIEWS.overview = {
   render() {
     return '<div class="between"><div class="row-wrap"><span class="label">' + icon('calendar', 'i-sm') + ' ' + esc(t('month')) + '</span>' +
         '<input class="input" type="month" style="width:auto" data-change="dashMonth" value="' + esc(S.dash.month) + '">' +
-        '<button class="btn btn-sm' + (S.dash.month ? '' : ' btn-soft') + '" data-act="dashAll">' + esc(t('all_months')) + '</button></div></div>' +
+        '<button class="btn btn-sm' + (S.dash.month ? '' : ' btn-soft') + '" data-act="dashAll">' + esc(t('all_months')) + '</button></div>' +
+        '<button class="btn btn-soft btn-sm" id="dashReportBtn" data-act="openReport">' + icon('file', 'i-sm') + esc(t('rep_btn_doc')) + '</button></div>' +
       '<div class="kpis six" id="dashKpis">' + [1, 2, 3, 4, 5, 6].map(() => '<div class="kpi"><div class="skel" style="height:14px;width:60%"></div><div class="skel" style="height:28px;width:40%;margin-top:14px"></div></div>').join('') + '</div>' +
       '<section class="card"><div class="card-head"><h3>' + icon('layers') + esc(t('status_dist')) + '</h3></div><div class="card-body" id="dashDist"><div class="skel" style="height:14px"></div></div></section>' +
       '<div class="grid-2">' +
@@ -2103,7 +2262,7 @@ function renderDash(silent) {
     '<div class="kpi-val" data-count="' + (Number(k.v) || 0) + '" data-dec="' + (k.dec || 0) + '"' + (k.suffix ? ' data-suffix="' + esc(k.suffix) + '"' : '') + '>0</div></' + (k.go ? 'button' : 'div') + '>').join('');
   countUp($('#dashKpis'), silent);
 
-  const order = [ST.NEW, ST.PREP, ST.VENDOR_WAIT, ST.VENDOR_RECV, ST.REVIEW, ST.APPROVED, ST.REJECTED, ST.SENT, ST.RECEIVED];
+  const order = [ST.REVIEW, ST.APPROVED, ST.NEW, ST.PREP, ST.VENDOR_WAIT, ST.VENDOR_RECV, ST.SENT, ST.RECEIVED, ST.REJECTED];
   const present = order.filter(st => sc[st]);
   $('#dashDist').innerHTML = s.total
     ? '<div class="stackbar">' + present.map(st => '<span style="--tone:' + stMeta(st).tone + '" data-w="' + (sc[st] / s.total * 100) + '%" title="' + esc(statusLabel(st)) + ': ' + sc[st] + '"></span>').join('') + '</div>' +
@@ -2435,7 +2594,7 @@ Object.assign(I18N.ar, {
   t_new_details_t: 'بيانات الطلب', t_new_details_b: 'اختر العيادة والطبيب ونوع الطلب. الطلب «الطارئ» يصل للتموين فوراً بتنبيه خاص.',
   t_pkg_t: 'البكج المعتاد للطبيب', t_pkg_b: 'أصناف يطلبها هذا الطبيب عادةً — اضغط أي صنف لإضافته أو «إضافة الكل».',
   t_items_t: 'إضافة الأصناف', t_items_b: 'ابحث بالاسم أو الاسم التجاري واضغط Enter. إن لم تجد الصنف أضفه كصنف جديد، وعدّل الكمية بـ + و −.',
-  t_summary_t: 'المراجعة والإرسال', t_summary_b: 'راجع الملخص ثم أرسل الطلب للتموين. المسودة تُحفظ تلقائياً حتى لو أغلقت الصفحة.',
+  t_summary_t: 'المراجعة والإرسال', t_summary_b: 'راجع الملخص ثم أرسل الطلب — يذهب أولاً للطبيب للمراجعة والاعتماد ثم للتموين. المسودة تُحفظ تلقائياً.',
   t_mine_filters_t: 'متابعة طلباتك', t_mine_filters_b: 'صفِّ طلباتك حسب الحالة: قيد التنفيذ، بانتظار استلامك، مستلمة، مرفوضة.',
   t_mine_card_t: 'بطاقة الطلب', t_mine_card_b: 'تعرض الحالة ومقدار التقدم. عند وصول الطلب اضغط «استلام وتوقيع» لتسجيل الكميات الفعلية والتوقيع، ويمكنك الإبلاغ عن أي مشكلة.',
   t_alerts_t: 'تنبيهات مهمة', t_alerts_b: 'تظهر هنا تلقائياً الأمور التي تحتاج انتباهك، مع زر للانتقال إليها مباشرة.',
@@ -2447,7 +2606,7 @@ Object.assign(I18N.ar, {
   t_proc_filters_t: 'البحث والفلترة', t_proc_filters_b: 'ابحث برقم الطلب أو العيادة أو الطبيب، وصفِّ حسب العيادة والشهر، ورتّب «الطارئ أولاً».',
   t_proc_card_t: 'إدارة الطلب', t_proc_card_b: 'حدّد الطلب لتظهر أزرار الإجراءات أسفل الشاشة — غير المناسب لحالته يظهر مظللاً. افتح «الأصناف والاعتماد» لتعديل الكميات أو إرسال أصناف محددة فقط.',
   t_proc_selall_t: 'إجراء جماعي', t_proc_selall_b: 'حدّد عدة طلبات دفعة واحدة وطبّق عليها نفس الإجراء.',
-  t_complaints_t: 'البلاغات', t_complaints_b: 'بلاغات التأخير أو النقص أو الزيادة — راجعها وأغلقها بعد الحل.',
+  t_complaints_t: 'البلاغات', t_complaints_b: 'بلاغات التأخير أو النقص أو الزيادة — تابعها وعلّق عليها؛ الإغلاق من الجودة والإدارة التنفيذية.',
   t_doc_kpis_t: 'ملخص طلباتك', t_doc_kpis_b: 'اضغط أي مربع لعرض طلباته — ابدأ دائماً بـ«بانتظار مراجعتك».',
   t_doc_list_t: 'مراجعة الطلب', t_doc_list_b: 'افتح الطلب لترى الأصناف والأسعار والإجمالي التقديري، أضف ملاحظة لأي صنف، ثم اعتمد أو ارفض مع ذكر السبب.',
   t_dash_month_t: 'الفترة', t_dash_month_b: 'اختر شهراً محدداً أو «كل الفترات» لتتحدث كل المؤشرات والرسوم.',
@@ -2458,28 +2617,28 @@ Object.assign(I18N.ar, {
   nav_workflow: 'سير العمل', sub_workflow: 'مراحل الطلب من الرفع حتى الاستلام، ومن المسؤول عن كل مرحلة',
   wf_flow_title: 'مسار الطلب', wf_you: 'دورك',
   wf_r_nurse: 'التمريض', wf_r_procurement: 'التموين', wf_r_doctor: 'الطبيب', wf_r_quality: 'الجودة', wf_r_exec: 'الإدارة التنفيذية',
-  wf_s1_t: 'رفع الطلب', wf_s1_d: 'اختيار العيادة والطبيب والأصناف (شهري أو طارئ). يصل بريد للتموين فوراً.',
-  wf_s2_t: 'التجهيز', wf_s2_d: 'مراجعة الطلب وتعديل الكميات المعتمدة حسب المتوفر.',
-  wf_s3_t: 'إرسال للمراجعة', wf_s3_d: 'يُحال الطلب لطبيب العيادة وتُقفل الكميات. يصل بريد للطبيب.',
-  wf_s4_t: 'اعتماد الطبيب', wf_s4_d: 'يراجع الأصناف والكميات ويضيف ملاحظاته، ثم يعتمد أو يرفض مع السبب.',
-  wf_s5_t: 'الإرسال للفرع', wf_s5_d: 'إرسال الطلب كاملاً أو أصناف محددة على دفعات. يصل بريد للممرضة.',
+  wf_s1_t: 'رفع الطلب', wf_s1_d: 'اختيار الفرع والعيادة والطبيب والأصناف (شهري أو طارئ). يصل بريد للطبيب فوراً، وللتموين أيضاً إن كان طارئاً.',
+  wf_s2_t: 'مراجعة الطبيب', wf_s2_d: 'يراجع الأصناف والكميات والأسعار ويضيف ملاحظاته على أي صنف.',
+  wf_s3_t: 'اعتماد الطبيب', wf_s3_d: 'يعتمد الطلب فيصل للتموين، أو يرفضه مع السبب فيعود للممرضة.',
+  wf_s4_t: 'التجهيز', wf_s4_d: 'التموين يجهّز الطلب المعتمد ويعدّل الكميات حسب المتوفر.',
+  wf_s5_t: 'الإرسال للفرع', wf_s5_d: 'إرسال الطلب كاملاً أو أصناف محددة على شحنات مرقّمة. يصل بريد للممرضة مع كل شحنة.',
   wf_s6_t: 'الاستلام والتوقيع', wf_s6_d: 'توقيع كل شحنة عند وصولها مع الكميات المستلمة فعلياً، وبعد آخر شحنة يُنشأ إيصال موحّد بكل التواقيع.',
   wf_b_any_t: 'في أي مرحلة', wf_b_any_d: 'ملاحظات على الطلب وعلى كل صنف، وبلاغات (تأخير / نقص / زيادة) تصل للتموين والإدارة فوراً.',
-  wf_b_vendor_t: 'مسار المندوب (اختياري)', wf_b_vendor_d: 'إذا احتاج صنف توريداً خارجياً، ثم يكمل الطلب إلى المراجعة.',
-  wf_b_reject_t: 'عند الرفض', wf_b_reject_d: 'يعود الطلب للتموين مع السبب، فيُعاد تجهيزه وإرساله للمراجعة.',
-  wf_b_nodoc_t: 'طبيب بدون حساب', wf_b_nodoc_d: 'إن لم يكن للطبيب حساب في النظام يمكن الإرسال للفرع مباشرة بعد التجهيز.',
+  wf_b_vendor_t: 'مسار المندوب (اختياري)', wf_b_vendor_d: 'إذا احتاج صنف توريداً خارجياً أثناء التجهيز، ثم يُرسل الطلب للفرع.',
+  wf_b_reject_t: 'عند الرفض', wf_b_reject_d: 'يعود الطلب للممرضة مع السبب، فتعدّل وتعيد إرساله للطبيب من «طلباتي».',
+  wf_b_nodoc_t: 'طبيب بدون حساب', wf_b_nodoc_d: 'إن لم يكن للطبيب حساب في النظام يذهب الطلب للتموين مباشرة بحالة «جديد».',
   wf_roles_title: 'من يفعل ماذا',
-  wf_do_nurse: 'رفع الطلبات الشهرية والطارئة|متابعة حالة كل طلب لحظياً|استلام كل شحنة وتوقيعها وتسجيل أي نقص|الإبلاغ عن أي مشكلة',
-  wf_do_procurement: 'تجهيز الطلبات وتعديل الكميات|إدارة مسار المندوب عند الحاجة|الإرسال للمراجعة ثم للفرع (كامل أو جزئي)|متابعة البلاغات وإغلاقها',
-  wf_do_doctor: 'مراجعة طلبات العيادة|إضافة ملاحظات على الأصناف|الاعتماد أو الرفض مع ذكر السبب',
-  wf_do_quality: 'متابعة زمن التنفيذ ومؤشرات الأداء|مراجعة البلاغات وإغلاقها بعد الحل|تحليل نقص الاستلام والأصناف الأكثر طلباً|إرسال تنبيهات للإدارات|إدارة المستخدمين والأدوار والصلاحيات',
-  wf_do_exec: 'نظرة شاملة على أداء كل العيادات|إدارة المستخدمين والأدوار والصلاحيات|متابعة البلاغات والتصعيد عند الحاجة|توجيه الإدارات بالتنبيهات',
+  wf_do_nurse: 'رفع الطلبات الشهرية والطارئة واختيار الفرع|متابعة حالة كل طلب لحظياً|إعادة إرسال الطلب المرفوض للطبيب بعد التعديل|استلام كل شحنة وتوقيعها وتسجيل أي نقص|الإبلاغ عن أي مشكلة',
+  wf_do_procurement: 'تجهيز الطلبات المعتمدة وتعديل الكميات|إدارة مسار المندوب عند الحاجة|الإرسال للفرع (كامل أو على شحنات)|متابعة البلاغات والتعليق عليها',
+  wf_do_doctor: 'مراجعة طلبات العيادة فور رفعها|إضافة ملاحظات على الأصناف|الاعتماد أو الرفض مع ذكر السبب|تقرير طلباته بالأسعار والإجمالي لشهر أو فترة',
+  wf_do_quality: 'متابعة زمن التنفيذ ومؤشرات الأداء|مراجعة البلاغات وإغلاقها بعد الحل|تقارير الأطباء بالأسعار والإجمالي|إرسال تنبيهات للإدارات|إدارة المستخدمين والأدوار والصلاحيات',
+  wf_do_exec: 'نظرة شاملة على أداء كل العيادات|إدارة المستخدمين والأدوار والصلاحيات|متابعة البلاغات وإغلاقها والتصعيد عند الحاجة|توجيه الإدارات بالتنبيهات',
   wf_notif_title: 'الإشعارات التلقائية بالبريد', wf_event: 'الحدث', wf_to: 'يصل إلى',
-  wf_n1: 'طلب جديد (والطارئ بعنوان مميز)|التموين', wf_n2: 'إرسال الطلب للمراجعة|الطبيب', wf_n3: 'اعتماد أو رفض الطبيب|التموين (+ الممرضة عند الرفض)',
-  wf_n4: 'إرسال الطلب للفرع|الممرضة', wf_n5: 'بلاغ جديد|التموين والجودة والإدارة',
+  wf_n1: 'رفع طلب جديد|الطبيب (والتموين للطارئ أو إن لم يكن للطبيب حساب)', wf_n2: 'اعتماد الطبيب|التموين', wf_n3: 'رفض الطبيب|الممرضة (مع السبب)',
+  wf_n4: 'إرسال شحنة أو الطلب للفرع|الممرضة', wf_n5: 'بلاغ جديد|التموين والجودة والإدارة',
   wf_status_title: 'دلالة الحالات',
-  wf_st_new: 'رُفع ولم يبدأ تجهيزه', wf_st_prep: 'التموين يجهّزه', wf_st_vendor_wait: 'ينتظر توريداً من مندوب', wf_st_vendor_recv: 'وصل من المندوب',
-  wf_st_review: 'لدى الطبيب للمراجعة', wf_st_approved: 'جاهز للإرسال للفرع', wf_st_rejected: 'رفضه الطبيب — يعود للتموين', wf_st_sent: 'في الطريق للعيادة', wf_st_received: 'اكتمل بالتوقيع'
+  wf_st_new: 'للتموين مباشرة (الطبيب بلا حساب)', wf_st_prep: 'التموين يجهّزه', wf_st_vendor_wait: 'ينتظر توريداً من مندوب', wf_st_vendor_recv: 'وصل من المندوب',
+  wf_st_review: 'لدى الطبيب للمراجعة بعد رفعه', wf_st_approved: 'اعتمده الطبيب — جاهز للتجهيز', wf_st_rejected: 'رفضه الطبيب — يعود للممرضة', wf_st_sent: 'في الطريق للعيادة', wf_st_received: 'اكتمل بالتوقيع'
 });
 Object.assign(I18N.en, {
   tour_replay: 'Guided tour', tour_skip: 'Skip tour', tour_next: 'Next', tour_back: 'Back', tour_done: 'Get started', tour_of: '{a} of {b}',
@@ -2493,7 +2652,7 @@ Object.assign(I18N.en, {
   t_new_details_t: 'Request details', t_new_details_b: 'Pick the clinic, doctor and request type. “Emergency” requests alert procurement immediately.',
   t_pkg_t: 'Doctor’s usual package', t_pkg_b: 'Items this doctor usually orders — tap one to add it, or “Add all”.',
   t_items_t: 'Adding items', t_items_b: 'Search by name or brand and press Enter. Not in the catalog? Add it as a new item, and adjust quantities with + and −.',
-  t_summary_t: 'Review & send', t_summary_b: 'Check the summary, then send to procurement. Your draft is saved automatically even if you close the page.',
+  t_summary_t: 'Review & send', t_summary_b: 'Check the summary, then submit — it goes to the doctor for approval first, then to procurement. Your draft is saved automatically.',
   t_mine_filters_t: 'Track your requests', t_mine_filters_b: 'Filter by status: active, to receive, received, rejected.',
   t_mine_card_t: 'Request card', t_mine_card_b: 'Shows status and progress. When it arrives, tap “Receive & sign” to record actual quantities and sign; you can also report any issue.',
   t_alerts_t: 'Important alerts', t_alerts_b: 'Things that need your attention appear here, with a button to jump straight to them.',
@@ -2505,7 +2664,7 @@ Object.assign(I18N.en, {
   t_proc_filters_t: 'Search & filters', t_proc_filters_b: 'Search by ID, clinic or doctor, filter by clinic and month, and sort “Emergency first”.',
   t_proc_card_t: 'Managing a request', t_proc_card_b: 'Select it and the action bar appears at the bottom — actions that don’t fit its status are greyed out. Open “Items & approval” to adjust quantities or dispatch selected items only.',
   t_proc_selall_t: 'Bulk actions', t_proc_selall_b: 'Select several requests at once and apply the same action.',
-  t_complaints_t: 'Issues', t_complaints_b: 'Delay, shortage or excess reports — review them and resolve when fixed.',
+  t_complaints_t: 'Issues', t_complaints_b: 'Delay, shortage or excess reports — follow up and comment; Quality and executive management close them.',
   t_doc_kpis_t: 'Your requests at a glance', t_doc_kpis_b: 'Tap any tile to list its requests — always start with “Awaiting your review”.',
   t_doc_list_t: 'Reviewing a request', t_doc_list_b: 'Open it to see items, prices and the estimated total, add notes per item, then approve or reject with a reason.',
   t_dash_month_t: 'Period', t_dash_month_b: 'Pick a month or “All time” to refresh every KPI and chart.',
@@ -2516,28 +2675,28 @@ Object.assign(I18N.en, {
   nav_workflow: 'Workflow', sub_workflow: 'Request stages from submission to receipt, and who owns each one',
   wf_flow_title: 'Request flow', wf_you: 'You',
   wf_r_nurse: 'Nursing', wf_r_procurement: 'Procurement', wf_r_doctor: 'Doctor', wf_r_quality: 'Quality', wf_r_exec: 'Executive management',
-  wf_s1_t: 'Submit request', wf_s1_d: 'Pick clinic, doctor and items (monthly or emergency). Procurement is emailed immediately.',
-  wf_s2_t: 'Prepare', wf_s2_d: 'Review the request and adjust approved quantities to what’s available.',
-  wf_s3_t: 'Send for review', wf_s3_d: 'Goes to the clinic doctor and quantities lock. The doctor is emailed.',
-  wf_s4_t: 'Doctor approval', wf_s4_d: 'Reviews items and quantities, adds notes, then approves or rejects with a reason.',
-  wf_s5_t: 'Dispatch', wf_s5_d: 'Send the whole request or selected items in batches. The nurse is emailed.',
+  wf_s1_t: 'Submit request', wf_s1_d: 'Pick branch, clinic, doctor and items (monthly or emergency). The doctor is emailed at once — procurement too for emergencies.',
+  wf_s2_t: 'Doctor review', wf_s2_d: 'Reviews items, quantities and prices, and adds notes on any item.',
+  wf_s3_t: 'Doctor approval', wf_s3_d: 'Approves it (it goes to procurement) or rejects it with a reason (it returns to the nurse).',
+  wf_s4_t: 'Prepare', wf_s4_d: 'Procurement prepares the approved request and adjusts quantities to what’s available.',
+  wf_s5_t: 'Dispatch', wf_s5_d: 'Send the whole request or selected items in numbered shipments. The nurse is emailed for each one.',
   wf_s6_t: 'Receive & sign', wf_s6_d: 'Sign for each shipment as it arrives with the actual quantities; after the last one a combined receipt with all signatures is created.',
   wf_b_any_t: 'At any stage', wf_b_any_d: 'Notes on the request and on each item, and issue reports (delay / shortage / excess) reach procurement and management instantly.',
-  wf_b_vendor_t: 'Vendor path (optional)', wf_b_vendor_d: 'When an item needs outside supply; the request then continues to review.',
-  wf_b_reject_t: 'If rejected', wf_b_reject_d: 'Returns to procurement with the reason, then is re-prepared and sent for review again.',
-  wf_b_nodoc_t: 'Doctor without an account', wf_b_nodoc_d: 'If the doctor has no account, procurement can dispatch right after preparation.',
+  wf_b_vendor_t: 'Vendor path (optional)', wf_b_vendor_d: 'When an item needs outside supply during preparation; then the request is dispatched.',
+  wf_b_reject_t: 'If rejected', wf_b_reject_d: 'Returns to the nurse with the reason; she adjusts and resubmits it to the doctor from “My requests”.',
+  wf_b_nodoc_t: 'Doctor without an account', wf_b_nodoc_d: 'If the doctor has no account, the request goes straight to procurement as “New”.',
   wf_roles_title: 'Who does what',
-  wf_do_nurse: 'Submit monthly and emergency requests|Track every request live|Receive and sign each shipment, recording any shortage|Report any issue',
-  wf_do_procurement: 'Prepare requests and adjust quantities|Handle the vendor path when needed|Send for review, then dispatch (full or partial)|Follow up and resolve issues',
-  wf_do_doctor: 'Review clinic requests|Add notes on items|Approve or reject with a reason',
-  wf_do_quality: 'Monitor fulfilment time and KPIs|Review issues and resolve them|Analyse short receipts and top items|Send department notices|Manage users, roles and permissions',
-  wf_do_exec: 'Full view of every clinic’s performance|Manage users, roles and permissions|Follow issues and escalate when needed|Direct departments through notices',
+  wf_do_nurse: 'Submit monthly and emergency requests and pick the branch|Track every request live|Resubmit a rejected request to the doctor after adjusting it|Receive and sign each shipment, recording any shortage|Report any issue',
+  wf_do_procurement: 'Prepare approved requests and adjust quantities|Handle the vendor path when needed|Dispatch to the branch (full or in shipments)|Follow up and comment on issues',
+  wf_do_doctor: 'Review clinic requests as soon as they’re submitted|Add notes on items|Approve or reject with a reason|Report of their requests with prices and totals for a month or period',
+  wf_do_quality: 'Monitor fulfilment time and KPIs|Review issues and close them when resolved|Doctor reports with prices and totals|Send department notices|Manage users, roles and permissions',
+  wf_do_exec: 'Full view of every clinic’s performance|Manage users, roles and permissions|Follow, close and escalate issues|Direct departments through notices',
   wf_notif_title: 'Automatic email notifications', wf_event: 'Event', wf_to: 'Sent to',
-  wf_n1: 'New request (emergency flagged)|Procurement', wf_n2: 'Sent for review|Doctor', wf_n3: 'Doctor approved / rejected|Procurement (+ nurse on reject)',
-  wf_n4: 'Dispatched to branch|Nurse', wf_n5: 'New issue report|Procurement, quality & management',
+  wf_n1: 'New request submitted|Doctor (plus procurement for emergencies or doctors without an account)', wf_n2: 'Doctor approved|Procurement', wf_n3: 'Doctor rejected|Nurse (with the reason)',
+  wf_n4: 'Shipment or request dispatched|Nurse', wf_n5: 'New issue report|Procurement, quality & management',
   wf_status_title: 'What each status means',
-  wf_st_new: 'Submitted, not started', wf_st_prep: 'Procurement is preparing it', wf_st_vendor_wait: 'Waiting on a vendor', wf_st_vendor_recv: 'Arrived from vendor',
-  wf_st_review: 'With the doctor for review', wf_st_approved: 'Ready to dispatch', wf_st_rejected: 'Rejected — back to procurement', wf_st_sent: 'On its way to the clinic', wf_st_received: 'Completed with signature'
+  wf_st_new: 'Straight to procurement (doctor has no account)', wf_st_prep: 'Procurement is preparing it', wf_st_vendor_wait: 'Waiting on a vendor', wf_st_vendor_recv: 'Arrived from vendor',
+  wf_st_review: 'With the doctor for review after submission', wf_st_approved: 'Approved by the doctor — ready to prepare', wf_st_rejected: 'Rejected — back to the nurse', wf_st_sent: 'On its way to the clinic', wf_st_received: 'Completed with signature'
 });
 
 Object.keys(NAV).forEach(k => NAV[k].push({ id: 'workflow', icon: 'route', k: 'nav_workflow' }));
@@ -2571,7 +2730,8 @@ const TOUR_STEPS = {
   doctor: [
     { sel: NAV_SEL('reviews'), t: 't_nav_t', b: 't_nav_b', icon: 'menu' },
     { view: 'reviews', sel: '#docKpis', t: 't_doc_kpis_t', b: 't_doc_kpis_b', icon: 'chart' },
-    { view: 'reviews', sel: '#docList .req', t: 't_doc_list_t', b: 't_doc_list_b', icon: 'steth', optional: true }
+    { view: 'reviews', sel: '#docList .req', t: 't_doc_list_t', b: 't_doc_list_b', icon: 'steth', optional: true },
+    { view: 'reviews', sel: '#docReportBtn', t: 't_doc_report_t', b: 't_doc_report_b', icon: 'file' }
   ],
   dashboard: [
     { sel: NAV_SEL('overview'), t: 't_nav_t', b: 't_nav_b', icon: 'menu' },
@@ -2749,13 +2909,13 @@ VIEWS.workflow = {
   render() {
     const mine = myWfRole();
     const stages = [
-      { r: 'nurse', k: 's1', st: ST.NEW }, { r: 'procurement', k: 's2', st: ST.PREP }, { r: 'procurement', k: 's3', st: ST.REVIEW },
-      { r: 'doctor', k: 's4', st: ST.APPROVED }, { r: 'procurement', k: 's5', st: ST.SENT }, { r: 'nurse', k: 's6', st: ST.RECEIVED }
+      { r: 'nurse', k: 's1' }, { r: 'doctor', k: 's2', st: ST.REVIEW }, { r: 'doctor', k: 's3', st: ST.APPROVED },
+      { r: 'procurement', k: 's4', st: ST.PREP }, { r: 'procurement', k: 's5', st: ST.SENT }, { r: 'nurse', k: 's6', st: ST.RECEIVED }
     ];
     const roleTag = r => '<span class="wf-role">' + icon(WF_ROLE[r].ic) + esc(t(WF_ROLE[r].k)) + '</span>';
     const branch = (tone, ic, k, badges, col) => '<div class="wf-branch" style="--tone:' + tone + ';grid-column:' + col + '"><b>' + icon(ic) + esc(t('wf_b_' + k + '_t')) + '</b>' +
       esc(t('wf_b_' + k + '_d')) + (badges ? '<div class="row-wrap">' + badges.map(badge).join('') + '</div>' : '') + '</div>';
-    const all = [ST.NEW, ST.PREP, ST.VENDOR_WAIT, ST.VENDOR_RECV, ST.REVIEW, ST.APPROVED, ST.REJECTED, ST.SENT, ST.RECEIVED];
+    const all = [ST.REVIEW, ST.APPROVED, ST.REJECTED, ST.NEW, ST.PREP, ST.VENDOR_WAIT, ST.VENDOR_RECV, ST.SENT, ST.RECEIVED];
     const stKey = { 'st_new': 'wf_st_new', 'st_prep': 'wf_st_prep', 'st_vendor_wait': 'wf_st_vendor_wait', 'st_vendor_recv': 'wf_st_vendor_recv', 'st_review': 'wf_st_review', 'st_approved': 'wf_st_approved', 'st_rejected': 'wf_st_rejected', 'st_sent': 'wf_st_sent', 'st_received': 'wf_st_received' };
     return '<section class="card"><div class="card-head"><h2>' + icon('route') + esc(t('wf_flow_title')) + '</h2>' +
         '<div class="row-wrap">' + Object.keys(WF_ROLE).map(r => '<span class="badge" style="--tone:' + WF_ROLE[r].tone + '"><i class="dot"></i>' + esc(t(WF_ROLE[r].k)) + '</span>').join('') + '</div></div>' +
@@ -2764,12 +2924,12 @@ VIEWS.workflow = {
           '<div class="wf-stage" style="--i:' + i + '"><div class="wf-card' + (s.r === mine ? ' mine' : '') + '" style="--tone:' + WF_ROLE[s.r].tone + '">' +
             (s.r === mine ? '<span class="wf-you">' + esc(t('wf_you')) + '</span>' : '') +
             '<span class="wf-num">' + (i + 1) + '</span>' + roleTag(s.r) +
-            '<h4>' + esc(t('wf_' + s.k + '_t')) + '</h4><p>' + esc(t('wf_' + s.k + '_d')) + '</p>' + badge(s.st) + '</div></div>').join('') + '</div>' +
+            '<h4>' + esc(t('wf_' + s.k + '_t')) + '</h4><p>' + esc(t('wf_' + s.k + '_d')) + '</p>' + (s.st ? badge(s.st) : '') + '</div></div>').join('') + '</div>' +
         '<div class="wf-branches stagger" style="row-gap:12px">' +
           branch('var(--t-gray)', 'msg', 'any', null, '1') +
-          branch('var(--t-orange)', 'truck', 'vendor', [ST.VENDOR_WAIT, ST.VENDOR_RECV], '2 / span 2') +
-          branch('var(--t-red)', 'refresh', 'reject', [ST.REJECTED], '4') +
-          branch('var(--t-indigo)', 'info', 'nodoc', null, '5') +
+          branch('var(--t-red)', 'refresh', 'reject', [ST.REJECTED], '2 / span 2') +
+          branch('var(--t-orange)', 'truck', 'vendor', [ST.VENDOR_WAIT, ST.VENDOR_RECV], '4 / span 2') +
+          branch('var(--t-indigo)', 'info', 'nodoc', [ST.NEW], '6') +
         '</div>' +
       '</div></section>' +
       '<section class="card"><div class="card-head"><h2>' + icon('users') + esc(t('wf_roles_title')) + '</h2></div><div class="card-body"><div class="wf-grid stagger">' +

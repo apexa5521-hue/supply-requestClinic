@@ -127,12 +127,14 @@ test('createRequest: success, merge duplicates, new catalog item, email, double-
   assert.equal(res.duplicate, false);
   const req = rows(gas, 'Requests').find(r => r.RequestID === res.id);
   assert.equal(req.Nurse, 'سارة', 'nurse comes from the session, not the payload');
-  assert.equal(req.Status, 'جديد');
+  assert.equal(req.Status, 'مراجعة الطبيب', 'a doctor with an account reviews the request first');
+  assert.ok(req.ReviewAt);
   const items = rows(gas, 'RequestItems').filter(r => r.RequestID === res.id);
   assert.equal(items.length, 2);
   assert.equal(items.find(i => i.ItemName === 'PROPHY PASTE').RequestedQty, 5);
   assert.ok(rows(gas, 'ItemsCatalog').some(c => c.ItemName === 'صنف جديد تماماً'));
-  assert.ok(gas.mails.some(m => m.to.indexOf('ali@example.com') !== -1 && /طارئ/.test(m.subject)));
+  assert.ok(gas.mails.some(m => m.to === 'khaled@example.com' && /طارئ بانتظار مراجعتك/.test(m.subject)), 'doctor emailed on submit');
+  assert.ok(gas.mails.some(m => m.to.indexOf('ali@example.com') !== -1 && /بانتظار اعتماد الطبيب/.test(m.subject)), 'procurement pre-alerted for emergencies');
   const again = api(n, 'createRequest', payload);
   assert.equal(again.duplicate, true);
   assert.equal(again.id, res.id);
@@ -140,22 +142,20 @@ test('createRequest: success, merge duplicates, new catalog item, email, double-
   assert.match(second.id, /-002$/);
 });
 
-test('full workflow: prep → review → approve → partial dispatch → receive', () => {
+test('full workflow: submit → doctor review → approve → prep → partial dispatch → receive', () => {
   const { api, login, gas } = boot();
   const n = login('سارة', '1111'), p = login('علي', '3333'), d = login('د. خالد', '4444');
   const id = api(n, 'createRequest', { clinic: 'عيادة الأسنان 1', doctor: 'د. خالد', type: 'شهري', items: [{ name: 'PROPHY PASTE', qty: 4 }, { name: 'DENTAL FLOSS', qty: 10 }] }).id;
+  assert.equal(api(n, 'getMyRequests')[0].status, 'مراجعة الطبيب', 'goes to the doctor right after submission');
+  assert.ok(gas.mails.some(m => m.to === 'khaled@example.com' && /بانتظار مراجعتك/.test(m.subject)));
 
-  // لا يمكن الإرسال قبل الاعتماد
-  let r = api(p, 'bulkUpdateStatus', [id], 'تم الإرسال');
-  assert.deepEqual(r.updated, []);
-  assert.equal(r.skipped[0].reason, 'ERR_NEEDS_APPROVAL');
-  r = api(p, 'bulkUpdateStatus', [id], 'مراجعة الطبيب');
-  assert.equal(r.skipped[0].reason, 'ERR_BAD_TRANSITION', 'must prepare before review');
-
-  assert.deepEqual(api(p, 'bulkUpdateStatus', [id, 'REQ-NOPE'], 'قيد التجهيز').updated, [id]);
-  api(p, 'updateItemApproval', id, 'DENTAL FLOSS', 8);
-  assert.deepEqual(api(p, 'bulkUpdateStatus', [id], 'مراجعة الطبيب').updated, [id]);
-  assert.ok(gas.mails.some(m => m.to === 'khaled@example.com'));
+  // التموين لا يجهّز ولا يرسل قبل اعتماد الطبيب، والكميات مقفلة أثناء المراجعة
+  for (const st of ['قيد التجهيز', 'تم الإرسال']) {
+    const r = api(p, 'bulkUpdateStatus', [id], st);
+    assert.deepEqual(r.updated, []);
+    assert.equal(r.skipped[0].reason, st === 'قيد التجهيز' ? 'ERR_BAD_TRANSITION' : 'ERR_BAD_TRANSITION');
+  }
+  throwsCode(() => api(p, 'dispatchItems', id, ['PROPHY PASTE']), 'ERR_NEEDS_APPROVAL');
   throwsCode(() => api(p, 'updateItemApproval', id, 'DENTAL FLOSS', 9), 'ERR_LOCKED');
 
   // الطبيب
@@ -165,6 +165,15 @@ test('full workflow: prep → review → approve → partial dispatch → receiv
   throwsCode(() => api(d, 'doctorReview', id, 'رفض', '', []), 'ERR_REASON_REQUIRED');
   api(d, 'doctorReview', id, 'اعتمد', 'تمام', [{ item: 'DENTAL FLOSS', note: 'نوع شمعي' }]);
   throwsCode(() => api(d, 'doctorReview', id, 'اعتمد', '', []), 'ERR_BAD_TRANSITION');
+  assert.ok(gas.mails.some(m => m.to.indexOf('ali@example.com') !== -1 && /معتمد جاهز للتجهيز/.test(m.subject)), 'procurement emailed after approval');
+  const pa = api(p, 'getAlerts');
+  assert.ok(pa.some(a => a.code === 'alert_new' && a.n === 1), 'approved request shows as ready to prepare');
+
+  // التجهيز بعد الاعتماد + تعديل الكمية حسب المتوفر
+  assert.deepEqual(api(p, 'bulkUpdateStatus', [id, 'REQ-NOPE'], 'قيد التجهيز').updated, [id]);
+  api(p, 'updateItemApproval', id, 'DENTAL FLOSS', 8);
+  assert.deepEqual(api(p, 'bulkUpdateStatus', [id], 'مراجعة الطبيب').skipped[0].reason, 'ERR_BAD_TRANSITION', 'already approved');
+  assert.ok(api(p, 'getAlerts').some(a => a.code === 'alert_approved_ready' && a.n === 1), 'prepared → ready to send');
 
   // إرسال جزئي ثم كامل
   let ds = api(p, 'dispatchItems', id, ['PROPHY PASTE']);
@@ -212,6 +221,8 @@ test('full workflow: prep → review → approve → partial dispatch → receiv
   assert.equal(det.items.find(i => i.item === 'DENTAL FLOSS').notes[0].note, 'نوع شمعي');
   assert.equal(det.comments[0].message, 'تمام');
   assert.equal(det.kpi.unit, 'days');
+  assert.ok(det.kpi.reviewTime !== null && det.kpi.approvalToPrep !== null && det.kpi.prepToSent !== null);
+  assert.ok(det.approvedAt);
   assert.equal(det.log, undefined, 'the audit log is not sent with every detail (it is heavy)');
   assert.ok(rows(gas, 'Log').filter(r => r.RequestID === id).length >= 6);
 
@@ -299,12 +310,13 @@ test('read cache: every write is visible immediately, cached reads equal fresh s
   let id;
   step('createRequest', () => { id = api(n, 'createRequest', { clinic: 'عيادة الأسنان 1', doctor: 'د. خالد', type: 'طارئ', items: [{ name: 'PROPHY PASTE', qty: 2 }, { name: 'صنف جديد تماماً', qty: 1 }, { name: 'DENTAL FLOSS', qty: 3 }] }).id; });
   assert.equal(api(p, 'getRequests', {}).find(r => r.id === id).itemCount, 3, 'new request items visible right away');
-  step('prep', () => api(p, 'bulkUpdateStatus', [id], 'قيد التجهيز'), id);
-  step('approval qty', () => api(p, 'updateItemApproval', id, 'DENTAL FLOSS', 2), id);
+  step('reject', () => api(d, 'doctorReview', id, 'رفض', 'راجعي الكميات', []), id);
+  step('resubmit', () => api(n, 'resubmitRequest', id, 'تم التعديل'), id);
   step('comment', () => api(n, 'addComment', id, 'تعليق'), id);
   step('complaint', () => api(n, 'addComplaint', id, 'تأخير', 'تفاصيل'), id);
-  step('review', () => api(p, 'bulkUpdateStatus', [id], 'مراجعة الطبيب'), id);
   step('approve', () => api(d, 'doctorReview', id, 'اعتمد', '', [{ item: 'PROPHY PASTE', note: 'ملاحظة' }]), id);
+  step('prep', () => api(p, 'bulkUpdateStatus', [id], 'قيد التجهيز'), id);
+  step('approval qty', () => api(p, 'updateItemApproval', id, 'DENTAL FLOSS', 2), id);
   step('dispatch 1', () => api(p, 'dispatchItems', id, ['PROPHY PASTE']), id);
   step('receive 1', () => api(n, 'receiveShipment', id, 1, [{ name: 'PROPHY PASTE', qty: 2 }], 'سارة', '', ''), id);
   step('dispatch rest', () => api(p, 'bulkUpdateStatus', [id], 'تم الإرسال'), id);
@@ -373,22 +385,84 @@ test('login preloads the first screen data in the same call (reads only)', () =>
   assert.equal(api(null, 'login', 'سارة', '0000', plan).preload, undefined);
 });
 
-test('doctor rejection returns to procurement and can be re-prepared', () => {
+test('doctor rejection returns to the nurse, who can resubmit it to the doctor', () => {
   const { api, login, gas } = boot();
   const n = login('سارة', '1111'), p = login('علي', '3333'), d = login('د. خالد', '4444');
+  const other = login('ريم', '2222');
   const id = api(n, 'createRequest', { clinic: 'عيادة الأسنان 1', doctor: 'د. خالد', type: 'شهري', items: [{ name: 'Itero Sleeve', qty: 50 }] }).id;
-  api(p, 'bulkUpdateStatus', [id], 'قيد التجهيز');
-  api(p, 'bulkUpdateStatus', [id], 'مراجعة الطبيب');
+  throwsCode(() => api(n, 'resubmitRequest', id, ''), 'ERR_BAD_TRANSITION');
   api(d, 'doctorReview', id, 'رفض', 'الكمية كبيرة', []);
   let req = api(n, 'getMyRequests')[0];
   assert.equal(req.status, 'مرفوض');
   assert.equal(req.rejectionReason, 'الكمية كبيرة');
-  assert.ok(gas.mails.some(m => m.to === 'sara@example.com' && /رفض/.test(m.subject)));
-  assert.deepEqual(api(p, 'bulkUpdateStatus', [id], 'قيد التجهيز').updated, [id]);
+  assert.ok(gas.mails.some(m => m.to === 'sara@example.com' && /رفض/.test(m.subject) && /إعادة إرساله/.test(m.body)));
+  assert.ok(api(n, 'getAlerts').some(a => a.code === 'alert_rejected'));
+  // التموين لا يجهّز طلباً مرفوضاً
+  assert.equal(api(p, 'bulkUpdateStatus', [id], 'قيد التجهيز').skipped[0].reason, 'ERR_BAD_TRANSITION');
+  throwsCode(() => api(other, 'resubmitRequest', id, ''), 'ERR_FORBIDDEN');
+  api(n, 'resubmitRequest', id, 'خفّضت الكمية');
   req = api(n, 'getMyRequests')[0];
-  assert.equal(req.rejectionReason, '');
-  const alerts = api(n, 'getAlerts');
-  assert.ok(Array.isArray(alerts));
+  assert.deepEqual([req.status, req.rejectionReason], ['مراجعة الطبيب', '']);
+  assert.ok(gas.mails.some(m => m.to === 'khaled@example.com' && /مُعاد لمراجعتك/.test(m.subject)));
+  assert.equal(api(n, 'getRequestDetail', id).comments.slice(-1)[0].message, 'خفّضت الكمية');
+  api(d, 'doctorReview', id, 'اعتمد', '', []);
+  assert.deepEqual(api(p, 'bulkUpdateStatus', [id], 'قيد التجهيز').updated, [id]);
+});
+
+test('requests prepared under the old order (not yet approved) go to review before dispatch', () => {
+  const { api, login, gas } = boot();
+  const n = login('سارة', '1111'), p = login('علي', '3333'), d = login('د. خالد', '4444');
+  const id = api(n, 'createRequest', { clinic: 'عيادة الأسنان 1', doctor: 'د. خالد', type: 'شهري', items: [{ name: 'PROPHY PASTE', qty: 1 }] }).id;
+  // محاكاة طلب قديم: جُهّز قبل الاعتماد
+  const t = gas.ss.getSheetByName('Requests');
+  t._data.find(r => r[0] === id)[t._data[0].indexOf('Status')] = 'قيد التجهيز';
+  gas.globals.CacheService.getScriptCache().remove('v:Requests');
+  assert.equal(api(p, 'getRequests', {})[0].cleared, false);
+  assert.equal(api(p, 'bulkUpdateStatus', [id], 'تم الإرسال').skipped[0].reason, 'ERR_NEEDS_APPROVAL');
+  throwsCode(() => api(p, 'dispatchItems', id, ['PROPHY PASTE']), 'ERR_NEEDS_APPROVAL');
+  assert.deepEqual(api(p, 'bulkUpdateStatus', [id], 'مراجعة الطبيب').updated, [id]);
+  api(d, 'doctorReview', id, 'اعتمد', '', []);
+  assert.deepEqual(api(p, 'bulkUpdateStatus', [id], 'تم الإرسال').updated, [id], 'approved → can be sent directly');
+});
+
+test('doctor report: priced items and totals for a month or a cumulative period', () => {
+  const { api, login, gas } = boot();
+  const n = login('سارة', '1111'), d = login('د. خالد', '4444'), q = login('منى', '5555'), p = login('علي', '3333');
+  const mk = items => api(n, 'createRequest', { clinic: 'عيادة الأسنان 1', doctor: 'د. خالد', type: 'شهري', items }).id;
+  const a = mk([{ name: 'PROPHY PASTE', qty: 2 }, { name: 'DENTAL FLOSS', qty: 4 }]);  // 2×60 + 4×12.5 = 170
+  const b = mk([{ name: 'Itero Sleeve', qty: 1 }, { name: 'صنف بلا سعر', qty: 3 }]);  // 300
+  const c = mk([{ name: 'PROPHY PASTE', qty: 9 }]);                                     // مرفوض → خارج التقرير
+  api(d, 'doctorReview', c, 'رفض', 'لا', []);
+  api(d, 'doctorReview', a, 'اعتمد', '', []);
+  api(p, 'bulkUpdateStatus', [a], 'قيد التجهيز');
+  api(p, 'updateItemApproval', a, 'DENTAL FLOSS', 2); // الكمية المعتمدة تُستخدم: 2×60 + 2×12.5 = 145
+  // طلب b في شهر سابق
+  const t = gas.ss.getSheetByName('Requests');
+  const H = t._data[0];
+  t._data.find(r => r[0] === b)[H.indexOf('SubmittedAt')] = new Date('2025-01-15T09:00:00Z');
+  gas.globals.CacheService.getScriptCache().remove('v:Requests');
+
+  const all = api(d, 'getDoctorReport', { from: '', to: '' });
+  assert.equal(all.doctor, 'د. خالد');
+  assert.deepEqual(all.rows.map(r => r.id), [b, a], 'sorted by date, rejected excluded');
+  assert.deepEqual([all.summary.requests, all.summary.total, all.summary.unpriced], [2, 445, 1]);
+  const ra = all.rows.find(r => r.id === a);
+  assert.deepEqual(ra.items.map(i => [i.item, i.qty, i.price, i.total]), [['PROPHY PASTE', 2, 60, 120], ['DENTAL FLOSS', 2, 12.5, 25]]);
+  assert.equal(ra.total, 145);
+  assert.equal(all.top[0].item, 'Itero Sleeve');
+
+  const jan = api(d, 'getDoctorReport', { from: '2025-01-01', to: '2025-01-31' });
+  assert.deepEqual(jan.rows.map(r => r.id), [b]);
+  const upTo = api(d, 'getDoctorReport', { from: '', to: '2025-06-30' }); // تراكمي حتى تاريخ
+  assert.deepEqual(upTo.rows.map(r => r.id), [b]);
+  throwsCode(() => api(d, 'getDoctorReport', { from: '2025-02-01', to: '2025-01-01' }), 'ERR_BAD_RANGE');
+
+  // الإدارة: لأي طبيب؛ الممرضة والتموين: لا
+  assert.deepEqual(api(q, 'getReportDoctors'), ['د. خالد']);
+  throwsCode(() => api(q, 'getDoctorReport', {}), 'ERR_REQUIRED');
+  assert.equal(api(q, 'getDoctorReport', { doctor: 'د. خالد' }).summary.total, 445);
+  throwsCode(() => api(n, 'getDoctorReport', {}), 'ERR_FORBIDDEN');
+  throwsCode(() => api(p, 'getDoctorReport', { doctor: 'د. خالد' }), 'ERR_FORBIDDEN');
 });
 
 test('doctor without an account: request can be dispatched without review', () => {
@@ -433,9 +507,11 @@ test('comments, item notes, complaints and notices', () => {
   assert.match(c.id, /^CMP-/);
   assert.ok(gas.mails.some(m => m.to.indexOf('mona@example.com') !== -1 && /بلاغ/.test(m.subject)));
   assert.equal(api(q, 'getComplaints', true).length, 1);
-  api(p, 'resolveComplaint', c.id);
+  throwsCode(() => api(p, 'resolveComplaint', c.id), 'ERR_FORBIDDEN'); // التموين لا يغلق البلاغات
+  assert.equal(api(p, 'getComplaints', true).length, 1, 'procurement still sees the issue');
+  api(q, 'resolveComplaint', c.id);
   assert.equal(api(q, 'getComplaints', true).length, 0);
-  assert.equal(api(q, 'getComplaints', false)[0].resolvedBy, 'علي');
+  assert.equal(api(q, 'getComplaints', false)[0].resolvedBy, 'منى');
 
   throwsCode(() => api(n, 'addNotice', 'تموين', 'x'), 'ERR_FORBIDDEN');
   throwsCode(() => api(q, 'addNotice', 'مجهول', 'x'), 'ERR_BAD_TARGET');

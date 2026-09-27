@@ -136,11 +136,16 @@ function log(msg) { console.log('  ✔ ' + msg); }
 
   // ---------- Login ----------
   await shot(page, 'login');
+  await page.click('.login-tools [data-act="toggleTheme"]');
+  await page.waitForTimeout(250);
+  await shot(page, 'login-dark');
+  await page.click('.login-tools [data-act="toggleTheme"]');
   await page.fill('#loginName', 'سارة');
   await page.fill('#loginPass', 'wrong');
   await page.click('#loginBtn');
   await page.waitForSelector('#loginError:not(.hidden)');
   expect((await page.innerText('#loginError')).includes('غير صحيح'), 'wrong password shows an error');
+  expect(await page.evaluate(() => { const i = document.getElementById('companyLogo'); return i && i.complete && i.naturalWidth > 100; }), 'company logo shows on the login screen');
   await shot(page, 'login-error');
 
   // ---------- Nurse: create request ----------
@@ -151,6 +156,11 @@ function log(msg) { console.log('  ✔ ' + msg); }
   await page.selectOption('#fBranch', 'جدة');
   expect((await page.textContent('#sumBox')).includes('جدة'), 'chosen branch shows in the summary');
   await page.click('[data-seg-name="reqType"][data-v="طارئ"]');
+  await page.click('#itemSearch');
+  await page.waitForSelector('#comboList .combo-opt');
+  const catN = await page.evaluate(() => S.catalog.length);
+  expect(catN >= 5 && await page.locator('#comboList .combo-opt').count() === catN, 'item picker lists the whole catalog (' + catN + ') on focus, scrollable');
+  await shot(page, 'item-picker-all');
   await page.fill('#itemSearch', 'floss');
   await page.waitForSelector('.combo-opt');
   await page.keyboard.press('Enter');
@@ -203,29 +213,20 @@ function log(msg) { console.log('  ✔ ' + msg); }
   await page.selectOption('[data-change="procBranch"]', 'جدة');
   expect(await page.locator(`#procList .req[data-rid="${newId}"]`).count() === 1, 'branch filter shows the order');
   await page.selectOption('[data-change="procBranch"]', '');
-  expect(await page.isVisible('.alert.danger'), 'procurement sees an emergency alert');
+  // الطلب الجديد لدى الطبيب أولاً: التموين يراه لكن لا يستطيع تجهيزه
+  expect(await page.isVisible('.alert.warning:has-text("لدى الطبيب")'), 'procurement is alerted that an emergency awaits doctor approval');
+  expect((await page.textContent(`.req[data-rid="${newId}"] .badge`)).includes('مراجعة الطبيب'), 'new request goes straight to doctor review');
   await page.check(`.req[data-rid="${newId}"] .req-main > .check`);
   await page.waitForSelector('#bulkbar.show');
   const bulkState = async () => page.$$eval('#bulkbar [data-act="bulk"]', bs => bs.map(b => b.dataset.s + ':' + (b.disabled ? 'off' : 'on')).join(','));
-  expect(await bulkState() === 'قيد التجهيز:on,بانتظار المندوب:off,استلم المندوب:off,مراجعة الطبيب:off,تم الإرسال:off',
-    'new request: only "in progress" is enabled (dispatch before approval is disabled)');
+  expect(await bulkState() === 'قيد التجهيز:off,بانتظار المندوب:off,استلم المندوب:off,تم الإرسال:off,مراجعة الطبيب:off',
+    'awaiting the doctor: every procurement action is disabled');
   await shot(page, 'proc-bulk-new');
-  await page.click('#bulkbar [data-s="قيد التجهيز"]');
-  expect(await toastHas(page, 'تم تحديث 1'), 'moved to "in progress"');
-  await page.waitForTimeout(300);
-  await page.click(`.req[data-rid="${newId}"] .req-actions [data-act="procToggle"]`);
-  await page.waitForSelector(`#exp-${newId} input[data-change="approveQty"]`);
-  await page.fill(`#exp-${newId} input[data-item="DENTAL FLOSS"]`, '2');
-  await page.dispatchEvent(`#exp-${newId} input[data-item="DENTAL FLOSS"]`, 'change');
-  expect(await toastHas(page, 'تم الحفظ'), 'approved quantity saved');
-  await page.check(`.req[data-rid="${newId}"] .req-main > .check`);
-  expect(await bulkState() === 'قيد التجهيز:off,بانتظار المندوب:on,استلم المندوب:off,مراجعة الطبيب:on,تم الإرسال:off',
-    'in progress: vendor wait and doctor review are enabled');
-  await shot(page, 'procurement-board');
-  await page.click('#bulkbar [data-s="مراجعة الطبيب"]');
-  expect(await toastHas(page, 'تم تحديث'), 'sent to doctor review');
+  await page.click('[data-act="clearSel"]');
   await page.click('.sidebar [data-view="complaints"]');
   await page.waitForSelector('#cList .req');
+  expect(await page.locator('#cList [data-act="resolve"]').count() === 0 && await page.isVisible('#cList .hint:has-text("الجودة")'),
+    'procurement cannot close issues (Quality/executive only)');
   await shot(page, 'procurement-complaints');
   await logout(page);
 
@@ -241,18 +242,51 @@ function log(msg) { console.log('  ✔ ' + msg); }
   await shot(page, 'doctor-review-modal');
   await page.click('#rvApprove');
   expect(await toastHas(page, 'تم اعتماد'), 'doctor approved the request');
+  await page.waitForTimeout(400);
+  // تقرير الطبيب
+  await page.click('#docReportBtn');
+  await page.waitForSelector('.rep .rep-tiles');
+  expect(await page.locator('.rep .rep-req').count() >= 1, 'doctor report lists the requests with items');
+  expect(/\d/.test(await page.textContent('.rep-grand b')), 'doctor report shows a grand total');
+  expect(await page.isVisible('.rep-logo'), 'report header carries the company logo');
+  await page.click('[data-seg-name="repMode"][data-v="cum"]');
+  expect(await page.isVisible('#repTo') && !(await page.isVisible('#repMonth')), 'cumulative mode asks for an end date');
+  await page.click('#repGo');
+  await page.waitForSelector('.rep .rep-tiles');
+  await shot(page, 'doctor-report');
+  await page.evaluate(() => { window.print = () => {}; });
+  await page.click('#repPrint');
+  await page.emulateMedia({ media: 'print' });
+  expect(await page.isVisible('#printArea .rep-grand') && !(await page.isVisible('#appShell')), 'print shows only the report');
+  await shot(page, 'doctor-report-print', true);
+  await page.emulateMedia({ media: 'screen' });
+  await page.waitForTimeout(1600);
+  await page.keyboard.press('Escape');
   await logout(page);
 
-  // ---------- Procurement dispatch ----------
+  // ---------- Procurement: prepare & dispatch after approval ----------
   await login(page, 'علي', '3333');
   expect(await page.isVisible('#pageTitle:has-text("البلاغات")'), 'app remembers the last visited screen');
   await page.click('.sidebar [data-view="requests"]');
-  await page.click('.chip[data-g="approved"]');
+  await page.click('.chip[data-g="ready"]');
   await page.check(`.req[data-rid="${newId}"] .req-main > .check`);
   await page.waitForSelector('#bulkbar.show');
-  expect(await bulkState() === 'قيد التجهيز:off,بانتظار المندوب:off,استلم المندوب:off,مراجعة الطبيب:off,تم الإرسال:on',
-    'doctor-approved: only "dispatch" is enabled');
+  expect(await bulkState() === 'قيد التجهيز:on,بانتظار المندوب:off,استلم المندوب:off,تم الإرسال:on,مراجعة الطبيب:off',
+    'approved: prepare (or dispatch directly) is enabled');
   await shot(page, 'proc-bulk-approved');
+  await page.click('#bulkbar [data-s="قيد التجهيز"]');
+  expect(await toastHas(page, 'تم تحديث 1'), 'moved to "in progress" after approval');
+  await page.waitForTimeout(300);
+  await page.click('.chip[data-g="all"]');
+  await page.click(`.req[data-rid="${newId}"] .req-actions [data-act="procToggle"]`);
+  await page.waitForSelector(`#exp-${newId} input[data-change="approveQty"]`);
+  await page.fill(`#exp-${newId} input[data-change="approveQty"][data-item="DENTAL FLOSS"]`, '2');
+  await page.dispatchEvent(`#exp-${newId} input[data-change="approveQty"][data-item="DENTAL FLOSS"]`, 'change');
+  expect(await toastHas(page, 'تم الحفظ'), 'approved quantity adjusted during preparation');
+  await page.check(`.req[data-rid="${newId}"] .req-main > .check`);
+  expect(await bulkState() === 'قيد التجهيز:off,بانتظار المندوب:on,استلم المندوب:off,تم الإرسال:on,مراجعة الطبيب:off',
+    'in progress: vendor wait and dispatch are enabled');
+  await shot(page, 'procurement-board');
   await page.click('[data-act="clearSel"]');
   await page.waitForSelector(`.req[data-rid="${newId}"]`);
   const exp = await page.$(`#exp-${newId}`);
