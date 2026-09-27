@@ -16,7 +16,7 @@ const LOGIN_LOCK_SECONDS = 3 * 60;
 const DUP_WINDOW_SECONDS = 120;
 
 const SCHEMA = {
-  Users:        ['Name', 'Password', 'Role', 'Clinic', 'Email', 'PasswordChangedAt'],
+  Users:        ['Name', 'Password', 'Role', 'Clinic', 'Email', 'PasswordChangedAt', 'DoctorName'],
   Roles:        ['RoleName', 'Screen'],
   Clinics:      ['ClinicName', 'Branch', 'Type'],
   Doctors:      ['DoctorName', 'Clinic', 'NurseName', 'Subspecialty'],
@@ -222,6 +222,7 @@ const API_ = {
   getQualityReport:          { screens: MGMT, fn: function (u, m) { return getQualityReport_(m); } },
   getQualityTrend:           { screens: MGMT, fn: function (u, n) { return getQualityTrend_(n); } },
   getUsers:                  { screens: ['admin'], fn: getUsers_ },
+  getDoctorLinks:            { screens: ['admin'], fn: getDoctorLinks_ },
   createUser:                { screens: ['admin'], fn: createUser_ },
   updateUser:                { screens: ['admin'], fn: updateUser_ },
   deleteUser:                { screens: ['admin'], fn: deleteUser_ },
@@ -706,6 +707,33 @@ function clinicBranch_(clinic) {
   return MEMO_.cBranch[str_(clinic)] || '';
 }
 
+/**
+ * رقم من خلية شيت: يرفض التواريخ (Sheets يحوّل «3/8» إلى تاريخ، و Number(تاريخ) = رقم ضخم بالملي ثانية)
+ * ويقبل النصوص مثل «1,250.50 ر.س» والأرقام العربية.
+ */
+function num_(v) {
+  if (v === null || v === undefined || v === '' || isDate_(v)) return NaN;
+  if (typeof v === 'number') return v;
+  const m = latinDigits_(String(v)).replace(/[٬,\s]/g, '').replace(/٫/g, '.').match(/-?\d+(?:\.\d+)?/);
+  return m ? Number(m[0]) : NaN; // أول رقم في النص («1250.50ر.س» → 1250.5)
+}
+const CLINIC_ONLY_LABEL = 'مستهلكات عيادة';
+const PRICE_MAX = 1000000; // أي سعر أعلى من مليون ريال للوحدة يُعد خطأ إدخال
+/** سعر صالح أو null (فارغ/تاريخ/نص غير رقمي/سالب/غير منطقي) */
+function price_(v) {
+  const n = num_(v);
+  return n >= 0 && n <= PRICE_MAX ? round2_(n) : null;
+}
+function priceProblem_(v) {
+  if (v === '' || v === null || v === undefined) return '';
+  if (isDate_(v)) return 'date';
+  const n = num_(v);
+  if (isNaN(n)) return 'text';
+  if (n < 0) return 'negative';
+  if (n > PRICE_MAX) return 'too_big';
+  return '';
+}
+
 function getCatalog_(withPrice) {
   const seen = {};
   return read_('ItemsCatalog').rows.filter(function (r) {
@@ -715,7 +743,11 @@ function getCatalog_(withPrice) {
     return true;
   }).map(function (r) {
     const o = { name: str_(r.ItemName), commercial: str_(r.CommercialName), category: str_(r.Category) };
-    if (withPrice) o.price = Number(r.Price) || 0;
+    if (withPrice) {
+      o.price = price_(r.Price) || 0;
+      const issue = priceProblem_(r.Price);
+      if (issue) o.priceIssue = issue;
+    }
     return o;
   });
 }
@@ -742,6 +774,8 @@ function getConfig_(user) {
 }
 
 /** تطبيع نص للمقارنة: مسافات، حالة الأحرف، والتشكيل */
+function t0len_(t) { return t && t.length >= 6; } // جزء ملتصق طويل بما يكفي لتجنب التطابق العشوائي
+
 function norm_(v) {
   return str_(v).toLowerCase().replace(/[\u064B-\u0652\u0640]/g, '').replace(/\s+/g, ' ')
     .replace(/[أإآ]/g, 'ا').replace(/ة/g, 'ه').replace(/ى/g, 'ي');
@@ -801,8 +835,25 @@ function getDoctors_(user, clinicFilter) {
   clinicFilter = str_(clinicFilter);
   const clinic = getClinics_().filter(function (c) { return c.name === clinicFilter; })[0] ||
     (clinicFilter ? { name: clinicFilter, type: '', branch: '' } : null);
-  return allDoctors_().filter(function (d) { return doctorMatchesClinic_(d, clinic); })
-    .map(function (d) { return { name: d.name, clinic: d.clinic, nurse: d.nurse, subspecialty: d.subspecialty || d.specialty }; });
+  let list = allDoctors_().filter(function (d) { return doctorMatchesClinic_(d, clinic); });
+  // بدون عيادة: أطباء عيادات الممرضة فقط (إن كانت مقيّدة بعيادات)، وإلا كل الأطباء
+  const mine = user ? userClinics_(user) : [];
+  if (!clinic && mine.length) {
+    const cs = getClinics_().filter(function (c) { return mine.indexOf(c.name) !== -1; });
+    const inMine = list.filter(function (d) { return cs.some(function (c) { return doctorMatchesClinic_(d, c); }); });
+    if (inMine.length) list = inMine;
+  }
+  return list.map(function (d) { return { name: d.name, clinic: d.clinic, nurse: d.nurse, subspecialty: d.subspecialty || d.specialty }; });
+}
+
+/** عيادة الطبيب (من تبويب Clinics) — تُفضَّل عيادات المستخدم إن وُجدت؛ '' إن لم تتضح */
+function doctorClinic_(user, doctor) {
+  const d = allDoctors_().filter(function (x) { return x.name === doctor; })[0];
+  if (!d) return '';
+  const mine = userClinics_(user);
+  const cs = getClinics_().filter(function (c) { return doctorMatchesClinic_(d, c) && str_(d.clinic || d.specialty); });
+  const pick = cs.filter(function (c) { return mine.indexOf(c.name) !== -1; })[0] || (mine.length ? null : cs[0]);
+  return pick ? pick.name : (mine.length === 1 ? mine[0] : '');
 }
 
 /** البكج المعتاد: من تبويب DoctorProfiles إن وُجد، وإلا من آخر 10 طلبات للطبيب */
@@ -961,21 +1012,27 @@ function nextRequestId_() {
 
 function createRequest_(user, payload) {
   payload = payload || {};
-  const clinic = str_(payload.clinic);
   const doctor = str_(payload.doctor);
   const type = str_(payload.type);
-  if (!clinic || !doctor) throw new Error('ERR_REQUIRED');
+  // الطلب الاعتيادي مبني على طبيب (والعيادة اختيارية وتُستنتج منه)؛
+  // «مستهلكات العيادة» فقط تكون بلا طبيب والعيادة فيها إلزامية
+  const clinicOnly = !doctor;
+  let clinic = str_(payload.clinic);
+  if (clinicOnly && !clinic) throw new Error('ERR_REQUIRED');
   if (REQUEST_TYPES.indexOf(type) === -1) throw new Error('ERR_BAD_TYPE');
   const mine = userClinics_(user);
-  if (mine.length && mine.indexOf(clinic) === -1) throw new Error('ERR_FORBIDDEN');
-  if (!getClinics_().some(function (c) { return c.name === clinic; })) throw new Error('ERR_BAD_CLINIC');
+  if (clinic) {
+    if (mine.length && mine.indexOf(clinic) === -1) throw new Error('ERR_FORBIDDEN');
+    if (!getClinics_().some(function (c) { return c.name === clinic; })) throw new Error('ERR_BAD_CLINIC');
+  }
+  if (!clinicOnly) {
+    if (!getDoctors_(user, clinic).some(function (d) { return d.name === doctor; })) throw new Error('ERR_BAD_DOCTOR');
+    if (!clinic) clinic = doctorClinic_(user, doctor);
+  }
   // الفرع الذي ستُرسل له الطلبية: يختاره المستخدم، والافتراضي فرع العيادة
   const branches = getBranches_();
-  const branch = str_(payload.branch) || clinicBranch_(clinic);
+  const branch = str_(payload.branch) || (clinic ? clinicBranch_(clinic) : '');
   if (branches.length && branches.indexOf(branch) === -1) throw new Error(branch ? 'ERR_BAD_BRANCH' : 'ERR_BRANCH_REQUIRED');
-  if (!getDoctors_(user, clinic).some(function (d) { return d.name === doctor; })) {
-    throw new Error('ERR_BAD_DOCTOR');
-  }
 
   // دمج الأصناف المكررة + التحقق من الكميات
   const merged = {};
@@ -1000,7 +1057,7 @@ function createRequest_(user, payload) {
   const cache = CacheService.getScriptCache();
 
   // الطبيب الذي له حساب يراجع الطلب أولاً؛ غير ذلك يذهب للتموين مباشرة
-  const needsReview = doctorHasAccount_(doctor);
+  const needsReview = !clinicOnly && doctorHasAccount_(doctor);
   const id = withLock_(function () {
     const prev = cache.get(dupKey);
     if (prev) return { duplicate: true, id: prev };
@@ -1031,7 +1088,7 @@ function createRequest_(user, payload) {
   });
   if (id && id.duplicate) return id;
 
-  const details = '\nرقم الطلب: ' + id + '\nالفرع: ' + (branch || '—') + '\nالعيادة: ' + clinic + '\nالطبيب: ' + doctor +
+  const details = '\nرقم الطلب: ' + id + '\nالفرع: ' + (branch || '—') + '\nالعيادة: ' + (clinic || '—') + '\nالطبيب: ' + (doctor || 'مستهلكات عيادة') +
     '\nالممرضة: ' + user.name + '\nنوع الطلب: ' + type + '\nعدد الأصناف: ' + items.length;
   if (needsReview) {
     notifyUser_(doctorAccounts_()[doctor], (type === 'طارئ' ? '🚨 طلب طارئ بانتظار مراجعتك - ' : 'طلب جديد بانتظار مراجعتك - ') + id,
@@ -1040,7 +1097,7 @@ function createRequest_(user, payload) {
     if (type === 'طارئ') notifyRole_('procurement', '🚨 طلب طارئ (بانتظار اعتماد الطبيب) - ' + id, 'رُفع طلب طارئ وهو الآن لدى الطبيب للاعتماد.' + details);
   } else {
     notifyRole_('procurement', (type === 'طارئ' ? '🚨 طلب طارئ - ' : 'طلب مستلزمات جديد - ') + id,
-      'تم رفع طلب جديد (الطبيب ليس له حساب — لا يحتاج اعتماداً في النظام).' + details);
+      (clinicOnly ? 'تم رفع طلب مستهلكات عيادة (بدون طبيب — لا يحتاج اعتماداً).' : 'تم رفع طلب جديد (الطبيب ليس له حساب — لا يحتاج اعتماداً في النظام).') + details);
   }
   return { id: id, duplicate: false };
 }
@@ -1076,8 +1133,9 @@ function receiptsIndex_() {
  */
 /** الكمية المستهدفة للصنف = المعتمدة إن حُددت وإلا المطلوبة */
 function targetQty_(r) {
-  const a = r.ApprovedQty;
-  return Math.max(0, Number(a !== '' && a !== null && a !== undefined ? a : r.RequestedQty) || 0);
+  const a = num_(r.ApprovedQty);
+  const q = isNaN(a) ? num_(r.RequestedQty) : a; // تاريخ/نص في خلية الكمية لا يتحول لرقم ضخم
+  return Math.max(0, Math.min(100000, isNaN(q) ? 0 : Math.floor(q)));
 }
 
 /** أسطر الشحنات لكل الطلبات: { requestId: [rows] } */
@@ -1264,7 +1322,8 @@ function updateItemApproval_(user, requestId, itemName, approvedQty) {
 
 /** مفتاح مقارنة لاسم طبيب: بدون ألقاب (Dr / د. / دكتور) ونقاط وشرطات */
 function doctorKey_(v) {
-  return norm_(v).replace(/[._\-]/g, ' ')
+  // «ZakhirRais» → «Zakhir Rais» (اسم حساب ملتصق بحروف كبيرة)
+  return norm_(String(v === null || v === undefined ? '' : v).replace(/([a-z])([A-Z])/g, '$1 $2')).replace(/[._\-]/g, ' ')
     .replace(/^(dr|doctor|الدكتور|الدكتوره|دكتور|دكتوره|د)\s+/, '').replace(/\s+/g, ' ').trim();
 }
 
@@ -1293,12 +1352,16 @@ function doctorAccounts_() {
       if (!matches.length) matches = [explicit];
     } else {
       const key = doctorKey_(acc);
-      matches = all.filter(function (n) { return doctorKey_(n) === key; });
+      const compact = function (x) { return x.replace(/\s+/g, '').replace(/^(al)/, ''); };
+      matches = all.filter(function (n) { return doctorKey_(n) === key || compact(doctorKey_(n)) === compact(key); });
       if (!matches.length && key) {
         const toks = key.split(' ');
         const fuzzy = all.filter(function (n) {
           const nt = doctorKey_(n).split(' ');
-          return toks.every(function (t) { return nt.indexOf(t) !== -1; });
+          const joined = nt.join('');
+          // كل مقاطع اسم الحساب موجودة في اسم الطبيب، أو الاسم الملتصق جزء من اسم الطبيب بدون مسافات
+          return toks.every(function (t) { return nt.indexOf(t) !== -1; }) ||
+            (toks.length === 1 && t0len_(toks[0]) && joined.replace(/al/g, '').indexOf(toks[0].replace(/al/g, '')) !== -1);
         });
         if (fuzzy.length === 1) matches = fuzzy;
       }
@@ -1519,8 +1582,8 @@ function resubmitRequest_(user, requestId, note) {
  * ويُحفظ إيصال موحّد يجمع كل الشحنات وتواقيعها (يرسمه المتصفح بـ mergedReceiptDataUrl).
  */
 function receiveShipment_(user, requestId, batch, receivedItems, receiverName, signatureDataUrl, receiptDataUrl, mergedReceiptDataUrl) {
-  receiverName = clean_(receiverName, 120);
-  if (!receiverName) throw new Error('ERR_REQUIRED');
+  // اسم المستلم هو صاحب الحساب المسجّل دخوله فقط — لا يُقبل اسم حر من الواجهة
+  receiverName = clean_(user.name, 120);
   batch = Math.floor(Number(batch)) || 0;
   // فحص مبدئي سريع من الكاش؛ التحقق النهائي يتم داخل القفل على بيانات الشيت الحية
   const pre = cachedRead_(function () {
@@ -1887,6 +1950,7 @@ function getDoctorReport_(user, opts) {
   if (from && to && from > to) throw new Error('ERR_BAD_RANGE');
   const cat = {};
   getCatalog_(true).forEach(function (c) { cat[c.name.toLowerCase()] = c; });
+  const badPrices = {};
   const byReq = itemsByRequest_();
   const reqs = queryRequests_(isDoctor ? { doctorUser: user } : {}).filter(function (r) {
     if (r.status === ST.REJECTED) return false;
@@ -1901,9 +1965,10 @@ function getDoctorReport_(user, opts) {
       const name = str_(it.ItemName);
       const c = cat[name.toLowerCase()] || {};
       const qty = Number(it.ApprovedQty !== '' && it.ApprovedQty !== null && it.ApprovedQty !== undefined ? it.ApprovedQty : it.RequestedQty) || 0;
-      const price = Number(c.price) || 0;
+      const price = Number(c.price) || 0; // مُنقّى في getCatalog_ (التواريخ والقيم غير المنطقية = 0)
       const total = round2_(qty * price);
       if (!price) sum.unpriced++;
+      if (c.priceIssue) badPrices[name] = c.priceIssue;
       const k = name.toLowerCase();
       top[k] = top[k] || { item: name, qty: 0, total: 0 };
       top[k].qty += qty; top[k].total = round2_(top[k].total + total);
@@ -1917,6 +1982,7 @@ function getDoctorReport_(user, opts) {
   return {
     doctor: isDoctor ? user.name : doctor,
     from: from, to: to, generatedAt: new Date(), rows: rows, summary: sum,
+    badPrices: Object.keys(badPrices).map(function (k) { return { item: k, issue: badPrices[k] }; }),
     top: Object.keys(top).map(function (k) { return top[k]; }).sort(function (a, b) { return b.total - a.total || b.qty - a.qty; }).slice(0, 8)
   };
 }
@@ -1931,8 +1997,11 @@ function getStatsReport_(user, opts) {
   const from = parseDay_(opts.from), to = parseDay_(opts.to, true);
   if (from && to && from > to) throw new Error('ERR_BAD_RANGE');
   const branch = str_(opts.branch);
-  const cat = {};
-  getCatalog_(true).forEach(function (c) { cat[c.name.toLowerCase()] = Number(c.price) || 0; });
+  const cat = {}, badPrices = [];
+  getCatalog_(true).forEach(function (c) {
+    cat[c.name.toLowerCase()] = Number(c.price) || 0;
+    if (c.priceIssue) badPrices.push({ item: c.name, issue: c.priceIssue });
+  });
   const byReq = itemsByRequest_();
   const reqs = queryRequests_({}).filter(function (r) {
     if (branch && r.branch !== branch) return false;
@@ -1959,7 +2028,7 @@ function getStatsReport_(user, opts) {
     const fulfilH = hrs(r.submittedAt, r.sentAt);
     if (r.sentQty > 0 && r.remainingQty > 0) partial++;
     statuses[r.status] = (statuses[r.status] || 0) + 1;
-    [sum, byDoc[r.doctor] = byDoc[r.doctor] || bucket(), byBranch[r.branch || '—'] = byBranch[r.branch || '—'] || bucket(),
+    [sum, byDoc[r.doctor || CLINIC_ONLY_LABEL] = byDoc[r.doctor || CLINIC_ONLY_LABEL] || bucket(), byBranch[r.branch || '—'] = byBranch[r.branch || '—'] || bucket(),
       byClinic[r.clinic] = byClinic[r.clinic] || bucket()].forEach(function (b) {
       b.requests++;
       if (r.status === ST.REJECTED) b.rejected++;
@@ -1984,7 +2053,7 @@ function getStatsReport_(user, opts) {
   return {
     from: from, to: to, branch: branch, generatedAt: new Date(),
     summary: Object.assign(out('', sum), { partial: partial }),
-    doctors: list(byDoc), branches: list(byBranch), clinics: list(byClinic), statuses: statuses,
+    doctors: list(byDoc), branches: list(byBranch), clinics: list(byClinic), statuses: statuses, badPrices: badPrices,
     topItems: Object.keys(items).map(function (k) { return items[k]; }).sort(function (a, b) { return b.value - a.value || b.qty - a.qty; }).slice(0, 12)
   };
 }
@@ -2089,9 +2158,27 @@ function getExecutiveStats_(user, month) {
  * ===================================================================== */
 
 function getUsers_() {
+  const acc = doctorAccounts_();
+  const linked = {};
+  // اسم الحساب نفسه يُحسب ربطاً فقط إن كان اسم طبيب فعلي (في Doctors أو الطلبات)
+  const real = {};
+  read_('Doctors').rows.forEach(function (r) { if (str_(r.DoctorName)) real[str_(r.DoctorName)] = true; });
+  requestRows_().forEach(function (r) { if (str_(r.Doctor)) real[str_(r.Doctor)] = true; });
+  Object.keys(acc).forEach(function (n) { if (n !== acc[n] || real[n]) (linked[acc[n]] = linked[acc[n]] || []).push(n); });
   return read_('Users').rows.filter(function (r) { return str_(r.Name); }).map(function (r) {
-    return { name: str_(r.Name), role: str_(r.Role), clinic: str_(r.Clinic), email: str_(r.Email), screen: roleScreen_(r.Role) };
+    const u = { name: str_(r.Name), role: str_(r.Role), clinic: str_(r.Clinic), email: str_(r.Email), screen: roleScreen_(r.Role), doctorName: str_(r.DoctorName) };
+    if (u.screen === 'doctor') u.linked = linked[u.name] || [];
+    return u;
   });
+}
+
+/** أسماء الأطباء (تبويب Doctors + الطلبات) ومن منهم بلا حساب مرتبط — طلباتهم تتخطى مراجعة الطبيب */
+function getDoctorLinks_() {
+  const acc = doctorAccounts_();
+  const names = {};
+  read_('Doctors').rows.forEach(function (r) { if (str_(r.DoctorName)) names[str_(r.DoctorName)] = true; });
+  const all = Object.keys(names).sort();
+  return { names: all, unlinked: all.filter(function (n) { return !acc[n]; }) };
 }
 
 function validateUserFields_(u) {
@@ -2143,10 +2230,11 @@ function createUser_(user, u) {
   const password = String(u.password || '');
   if (!name || !password) throw new Error('ERR_REQUIRED');
   if (password.length < 4) throw new Error('ERR_WEAK_PASSWORD');
-  const fields = { role: str_(u.role), clinic: clean_(u.clinic, 500), email: str_(u.email) };
+  const fields = { role: str_(u.role), clinic: clean_(u.clinic, 500), email: str_(u.email), doctorName: clean_(u.doctorName, 120) };
   validateUserFields_(fields);
   if (getUsers_().some(function (x) { return loginKey_(x.name) === loginKey_(name); })) throw new Error('ERR_USER_EXISTS');
-  append_('Users', { Name: name, Password: hashPassword_(latinDigits_(password).trim()), Role: fields.role, Clinic: fields.clinic, Email: fields.email });
+  append_('Users', { Name: name, Password: hashPassword_(latinDigits_(password).trim()), Role: fields.role, Clinic: fields.clinic, Email: fields.email,
+    DoctorName: roleScreen_(fields.role) === 'doctor' ? fields.doctorName : '' });
   logAction_('', 'إنشاء مستخدم: ' + name, user.name);
   return getUsers_();
 }
@@ -2160,12 +2248,12 @@ function updateUser_(user, name, u) {
   const t = read_('Users');
   const row = t.rows.filter(function (r) { return str_(r.Name) === str_(name); })[0];
   if (!row) throw new Error('ERR_NOT_FOUND');
-  const fields = { role: str_(u.role), clinic: clean_(u.clinic, 500), email: str_(u.email) };
+  const fields = { role: str_(u.role), clinic: clean_(u.clinic, 500), email: str_(u.email), doctorName: clean_(u.doctorName, 120) };
   validateUserFields_(fields);
   if (roleScreen_(row.Role) === 'admin' && roleScreen_(fields.role) !== 'admin' && countAdmins_(str_(name)) === 0) {
     throw new Error('ERR_LAST_ADMIN');
   }
-  const upd = { Role: fields.role, Clinic: fields.clinic, Email: fields.email };
+  const upd = { Role: fields.role, Clinic: fields.clinic, Email: fields.email, DoctorName: roleScreen_(fields.role) === 'doctor' ? fields.doctorName : '' };
   if (u.password) {
     if (String(u.password).length < 4) throw new Error('ERR_WEAK_PASSWORD');
     upd.Password = hashPassword_(latinDigits_(String(u.password)).trim());
