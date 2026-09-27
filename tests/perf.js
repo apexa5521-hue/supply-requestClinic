@@ -53,10 +53,14 @@ function measure(gas, ctx, label, token, fn, args) {
 
 function run(N) {
   const { gas, ctx } = boot(N);
+  const rows = [];
   const login = (n, p) => ctx.api(null, 'login', [n, p]).token;
   const n = login('سارة', '1111'), p = login('علي', '3333'), d = login('د. خالد', '4444'), q = login('منى', '5555');
+  const plan = { procurement: [['getRequests', [{}]], ['getComplaints', [false]], ['getAlerts', []], ['getNotices', []]] };
+  ctx.api(null, 'login', ['علي', '3333', plan]); // تسخين
+  rows.push(measure(gas, ctx, 'login + preload (procurement)', null, 'login', ['علي', '3333', plan]));
+  const rv = 'REQ-25010006'; ctx.api(p, 'bulkUpdateStatus', [[rv], 'مراجعة الطبيب']);
   const id = 'REQ-25010002'; // معتمد من الطبيب
-  const rows = [];
   const m = (l, t, f, a) => rows.push(measure(gas, ctx, l, t, f, a || []));
   m('nurse getConfig (cold cache)', n, 'getConfig');
   m('nurse getConfig', n, 'getConfig');
@@ -75,6 +79,8 @@ function run(N) {
   m('nurse receiveShipment', n, 'receiveShipment', [id, 1, [{ name: 'PROPHY PASTE', qty: 3 }], 'سارة', '', '', '']);
   m('nurse getRequestDetail (after receipt)', n, 'getRequestDetail', [id]);
   m('doctor getDoctorRequests', d, 'getDoctorRequests');
+  m('doctor approve (doctorReview)', d, 'doctorReview', [rv, 'اعتمد', '', []]);
+  m('proc updateItemApproval', p, 'updateItemApproval', ['REQ-25010005', 'PROPHY PASTE', 2]);
   m('quality getExecutiveStats', q, 'getExecutiveStats', ['']);
   return rows;
 }

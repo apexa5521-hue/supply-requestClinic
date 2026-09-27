@@ -315,11 +315,62 @@ test('read cache: every write is visible immediately, cached reads equal fresh s
     ctx.onEdit({ range: { getSheet: () => t } });
   }, id);
 
+  // كتابة مبنية على كاش قديم (تعديل في الشيت لم يمر عبر onEdit) تُرفض بدل الكتابة فوق البيانات
+  const id2 = api(n, 'createRequest', { clinic: 'عيادة الأسنان 1', doctor: 'د. نورة', type: 'شهري', items: [{ name: 'DENTAL FLOSS', qty: 3 }] }).id;
+  api(p, 'getRequestItemsFull', id2); api(p, 'getRequestItemsFull', id2); // الكاش ساخن
+  const ri = gas.ss.getSheetByName('RequestItems');
+  const line = ri._data.find(r => r[0] === id2);
+  line[ri._data[0].indexOf('RequestedQty')] = 7; // تعديل خارجي بدون onEdit
+  throwsCode(() => api(p, 'updateItemApproval', id2, 'DENTAL FLOSS', 2), 'ERR_CONFLICT');
+  ctx.onEdit({ range: { getSheet: () => ri } });
+  api(p, 'updateItemApproval', id2, 'DENTAL FLOSS', 2);
+  assert.equal(line[ri._data[0].indexOf('ApprovedQty')], 2);
+  assert.equal(line[ri._data[0].indexOf('RequestedQty')], 7, 'external edit is preserved');
+
   // القراءات المتكررة لا تلمس الشيت
   api(p, 'getRequests', {});
   const before = gas.ops.byKind.read || 0;
   api(p, 'getRequests', {}); api(n, 'getRequestDetail', id); api(n, 'getMyRequests');
   assert.equal((gas.ops.byKind.read || 0) - before, 0, 'warm reads are served from the cache');
+});
+
+test('branch: chosen per order, defaults to the clinic branch, validated, filterable', () => {
+  const { api, login, gas } = boot();
+  const n = login('سارة', '1111'), p = login('علي', '3333');
+  assert.deepEqual(api(n, 'getConfig').branches, ['الرياض', 'جدة']);
+  const base = { clinic: 'عيادة الأسنان 1', doctor: 'د. خالد', type: 'شهري' };
+  // الافتراضي = فرع العيادة
+  const a = api(n, 'createRequest', Object.assign({ items: [{ name: 'PROPHY PASTE', qty: 1 }] }, base)).id;
+  // فرع مختلف تختاره الممرضة
+  const b = api(n, 'createRequest', Object.assign({ branch: 'جدة', items: [{ name: 'DENTAL FLOSS', qty: 1 }] }, base)).id;
+  throwsCode(() => api(n, 'createRequest', Object.assign({ branch: 'الدمام', items: [{ name: 'DENTAL FLOSS', qty: 2 }] }, base)), 'ERR_BAD_BRANCH');
+  assert.equal(rows(gas, 'Requests').find(r => r.RequestID === b).Branch, 'جدة');
+  const all = api(p, 'getRequests', {});
+  assert.equal(all.find(r => r.id === a).branch, 'الرياض');
+  assert.equal(all.find(r => r.id === b).branch, 'جدة');
+  assert.deepEqual(api(p, 'getRequests', { branch: 'جدة' }).map(r => r.id), [b]);
+  assert.equal(api(n, 'getRequestDetail', b).branch, 'جدة');
+  assert.ok(gas.mails.some(m => m.body.includes('الفرع: جدة')), 'procurement email names the branch');
+  // طلب قديم بلا عمود فرع → فرع العيادة
+  const t = gas.ss.getSheetByName('Requests');
+  t._data.find(r => r[0] === a)[t._data[0].indexOf('Branch')] = '';
+  gas.globals.CacheService.getScriptCache().remove('v:Requests');
+  assert.equal(api(p, 'getRequests', {}).find(r => r.id === a).branch, 'الرياض');
+});
+
+test('login preloads the first screen data in the same call (reads only)', () => {
+  const { api } = boot();
+  const plan = {
+    nurse: [['getMyRequests', []], ['getAlerts', []], ['createRequest', [{}]], ['getRequests', [{}]]],
+    procurement: [['getRequests', [{}]]]
+  };
+  const r = api(null, 'login', 'سارة', '1111', plan);
+  assert.equal(r.success, true);
+  assert.equal(r.preload.length, 4);
+  assert.deepEqual(r.preload.map(x => x.ok), [true, true, false, false]);
+  assert.equal(r.preload[2].error, 'ERR_UNKNOWN_FN', 'writes are never run by preload');
+  assert.equal(r.preload[3].error, 'ERR_FORBIDDEN', 'screen permissions still apply');
+  assert.equal(api(null, 'login', 'سارة', '0000', plan).preload, undefined);
 });
 
 test('doctor rejection returns to procurement and can be re-prepared', () => {

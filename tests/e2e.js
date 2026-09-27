@@ -147,6 +147,9 @@ function log(msg) { console.log('  ✔ ' + msg); }
   await login(page, 'سارة', '1111');
   expect(await page.isVisible('text=طلب جديد'), 'nurse lands on the new-request screen');
   await page.waitForSelector('#fDoctor option[value="د. خالد"]', { state: 'attached' });
+  expect(await page.inputValue('#fBranch') === 'الرياض', 'branch defaults to the clinic branch');
+  await page.selectOption('#fBranch', 'جدة');
+  expect((await page.textContent('#sumBox')).includes('جدة'), 'chosen branch shows in the summary');
   await page.click('[data-seg-name="reqType"][data-v="طارئ"]');
   await page.fill('#itemSearch', 'floss');
   await page.waitForSelector('.combo-opt');
@@ -173,6 +176,7 @@ function log(msg) { console.log('  ✔ ' + msg); }
   await page.click('.sidebar [data-view="mine"]');
   await page.waitForSelector('#mineList .req');
   expect(await page.isVisible(`text=${newId}`), 'new request appears in "my requests"');
+  expect((await page.textContent(`.req:has-text("${newId}") .tag.branch`)).includes('جدة'), 'request card shows its branch');
   await shot(page, 'nurse-my-requests', true);
   // complaint
   await page.click(`.req:has-text("${newId}") [data-act="complaint"]`);
@@ -192,7 +196,13 @@ function log(msg) { console.log('  ✔ ' + msg); }
   await page.waitForTimeout(600);
   const runs = await page.evaluate(() => __runs.slice());
   const startup = runs.filter(f => f !== 'login' && f !== 'logout' && f !== 'getRequestItemsFull'); // الأخير = تحميل مسبق عند مرور المؤشر
-  expect(startup.length === 1 && startup[0] === 'batch', 'Apps Script mode: all startup reads go out as one batched call (' + runs.join(', ') + ')');
+  expect(startup.length === 0, 'login brings the first screen data: no extra server calls after login (' + runs.join(', ') + ')');
+  expect((await page.textContent(`.req[data-rid="${newId}"] .tag.branch`)).includes('جدة'), 'procurement sees the order branch');
+  await page.selectOption('[data-change="procBranch"]', 'الرياض');
+  expect(await page.locator(`#procList .req[data-rid="${newId}"]`).count() === 0, 'branch filter hides other branches');
+  await page.selectOption('[data-change="procBranch"]', 'جدة');
+  expect(await page.locator(`#procList .req[data-rid="${newId}"]`).count() === 1, 'branch filter shows the order');
+  await page.selectOption('[data-change="procBranch"]', '');
   expect(await page.isVisible('.alert.danger'), 'procurement sees an emergency alert');
   await page.check(`.req[data-rid="${newId}"] .req-main > .check`);
   await page.waitForSelector('#bulkbar.show');
@@ -404,7 +414,8 @@ function log(msg) { console.log('  ✔ ' + msg); }
       if (net.rejectBatch && JSON.parse(body).fn === 'batch') return r.fulfill({ contentType: 'application/json', headers: { 'Access-Control-Allow-Origin': '*' }, body: JSON.stringify({ ok: false, error: 'ERR_UNKNOWN_FN' }) });
       if (net.failNext > 0) { net.failNext--; return r.fulfill({ status: 500, body: '<html>Google error</html>' }); }
       const out = sctx.doPost({ postData: { contents: body } }).getContent();
-      r.fulfill({ contentType: 'application/json', headers: { 'Access-Control-Allow-Origin': '*' }, body: out });
+      const send = () => r.fulfill({ contentType: 'application/json', headers: { 'Access-Control-Allow-Origin': '*' }, body: out }).catch(() => {});
+      if (net.delay) setTimeout(send, net.delay); else send();
     });
     const gp = await ctx.newPage();
     gp.on('pageerror', e => errors.push('pages-mode pageerror: ' + e.message));
@@ -413,7 +424,11 @@ function log(msg) { console.log('  ✔ ' + msg); }
     expect(!(await gp.isVisible('text=include_')), 'Pages mode: include line is invisible');
     await login(gp, 'علي', '3333');
     await gp.waitForSelector('#procList .req, #procList .empty, #cList .req, #cList .empty');
-    expect(net.batches >= 1, 'Pages mode: simultaneous reads are sent as one batch (' + net.posts + ' posts, ' + net.batches + ' batches)');
+    await gp.waitForTimeout(400);
+    expect(net.posts === 1, 'Pages mode: login + first screen data in a single request (' + net.posts + ' posts)');
+    await gp.click('.topbar [data-act="sync"]');
+    expect(await toastHas(gp, 'تم بنجاح'), 'Pages mode: sync done');
+    expect(net.posts === 2 && net.batches === 1, 'Pages mode: sync sends all reads as one batch (' + net.posts + ' posts, ' + net.batches + ' batches)');
     net.failNext = 2;
     await gp.click('.topbar [data-act="sync"]');
     expect(await toastHas(gp, 'تم بنجاح'), 'Pages mode: reads recover from two failed server responses (retry)');
@@ -424,6 +439,16 @@ function log(msg) { console.log('  ✔ ' + msg); }
     await gp.click('.topbar [data-act="sync"]');
     expect(await toastHas(gp, 'تم بنجاح'), 'Pages mode: falls back to single calls when the server has no batch support');
     expect(!(await gp.isVisible('.toast.error')), 'Pages mode: fallback shows no error');
+    net.rejectBatch = false;
+    // إعادة تحميل الصفحة مع خادم بطيء (ثانيتان): الواجهة تفتح فوراً بآخر بيانات معروفة
+    net.delay = 2000;
+    await gp.waitForTimeout(1000);
+    const t0 = Date.now();
+    await gp.reload();
+    await gp.waitForSelector('#procList .req, #procList .empty', { timeout: 1500 });
+    const ms = Date.now() - t0;
+    expect(ms < 1500, 'Pages mode: page reload shows the app and list instantly while the server takes 2 s (' + ms + ' ms)');
+    net.delay = 0;
     await ctx.close();
   }
 

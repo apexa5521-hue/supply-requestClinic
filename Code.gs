@@ -24,7 +24,7 @@ const SCHEMA = {
   Requests:     ['RequestID', 'Date', 'Clinic', 'Doctor', 'Nurse', 'Type', 'Status',
                  'SubmittedAt', 'SentAt', 'ReceivedAt', 'ReceiverName', 'SignatureURL',
                  'PrepAt', 'VendorWaitAt', 'VendorReceivedAt', 'ReviewAt', 'ReviewedAt',
-                 'RejectionReason', 'ReceiptURL'],
+                 'RejectionReason', 'ReceiptURL', 'Branch'],
   RequestItems: ['RequestID', 'ItemName', 'RequestedQty', 'ApprovedQty', 'ReceivedQty', 'DispatchedAt', 'DispatchBatch'],
   Shipments:    ['RequestID', 'Batch', 'ReceivedAt', 'ReceiverName', 'ReceivedBy', 'SignatureURL', 'SignatureFileID', 'ReceiptURL'],
   ItemNotes:    ['Timestamp', 'RequestID', 'ItemName', 'Author', 'Role', 'Note'],
@@ -89,6 +89,7 @@ function setupSheets() {
       'PD METAL STRIP DUBBLE SAID x12', 'PD METAL STRIP ONE SIDE x12', 'DENTAL FLOSS'
     ].forEach(function (i) { append_('ItemsCatalog', { ItemName: i }); });
   }
+  flushDirty_(); // يُبطل كاش التبويبات التي أنشأناها/ملأناها
   try {
     SpreadsheetApp.getUi().alert('تم تجهيز التبويبات. غيّر كلمة سر "المدير" بعد أول دخول، ثم أضف العيادات والأطباء والمستخدمين.');
   } catch (e) { /* يعمل بدون واجهة (مثلاً من المشغّلات) */ }
@@ -131,9 +132,10 @@ function api(token, fn, args) {
   MEMO_ = {};
   args = Array.isArray(args) ? args : [];
   fn = String(fn);
-  CACHED_READS_ = fn === 'batch' || fn.indexOf('get') === 0;
+  // القراءة من الكاش في كل العمليات؛ الكتابات تتحقق من الشيت الحي (withLock_ / setMany_)
+  CACHED_READS_ = true;
   try {
-    if (fn === 'login') return sanitize_(login_(args[0], args[1]));
+    if (fn === 'login') return sanitize_(login_(args[0], args[1], args[2]));
     if (fn === 'logout') { logout_(token); return true; }
     if (fn === 'batch') return batch_(token, args[0]);
     const def = API_[fn];
@@ -154,7 +156,10 @@ function api(token, fn, args) {
 const BATCH_MAX = 12;
 function batch_(token, calls) {
   if (!Array.isArray(calls) || !calls.length || calls.length > BATCH_MAX) throw new Error('ERR_BAD_BATCH');
-  const user = session_(token);
+  return runBatch_(session_(token), calls);
+}
+
+function runBatch_(user, calls) {
   return calls.map(function (c) {
     try {
       const fn = String(c && c[0]);
@@ -231,6 +236,7 @@ function ss_() { return SpreadsheetApp.getActiveSpreadsheet(); }
 const READ_CACHE_TTL = 600;      // ثوانٍ — حد أعلى للتغييرات اليدوية البنيوية (إضافة صفوف/أعمدة)
 const READ_CACHE_CHUNK = 45000;  // حروف لكل جزء (حد CacheService ‏100KB، والعربي بايتان)
 let CACHED_READS_ = false;
+const LOOKUP_SHEETS_ = ['Users', 'Roles', 'Clinics', 'Doctors', 'ItemsCatalog'];
 
 function cache_() { return CacheService.getScriptCache(); }
 
@@ -362,10 +368,14 @@ function sheetValues_(name) {
 function read_(name) {
   const key = 'rd:' + name;
   if (MEMO_[key]) return MEMO_[key];
-  let values = CACHED_READS_ ? cachedValues_(name) : null;
+  // تبويب كُتب فيه خلال هذا الاستدعاء يُقرأ من الشيت (إصدار الكاش يُرفع في نهاية الاستدعاء).
+  // الجداول المرجعية تُقرأ من الكاش حتى داخل القفل (أي كتابة عليها تمر بتحقق setMany_/deleteRow_).
+  const useCache = (CACHED_READS_ || LOOKUP_SHEETS_.indexOf(name) !== -1) && !(MEMO_.dirty && MEMO_.dirty[name]);
+  let values = useCache ? cachedValues_(name) : null;
+  const fromCache = !!values;
   if (!values) {
     values = sheetValues_(name);
-    if (CACHED_READS_) { flushDirty_(); storeValues_(name, values); }
+    if (useCache) storeValues_(name, values);
   }
   const headers = (values[0] || []).map(function (h) { return String(h).trim(); });
   const col = {};
@@ -381,13 +391,31 @@ function read_(name) {
     });
     if (!empty) rows.push(o);
   }
-  const t = { name: name, headers: headers, col: col, rows: rows };
-  MEMO_['hd:' + name] = headers;
+  const t = { name: name, headers: headers, col: col, rows: rows, cached: fromCache };
+  if (!fromCache) MEMO_['hd:' + name] = headers;
   MEMO_[key] = t;
   return t;
 }
 
 function invalidate_(name) { delete MEMO_['rd:' + name]; }
+
+function freshTable_(name) {
+  const was = CACHED_READS_;
+  CACHED_READS_ = false;
+  try { invalidate_(name); return read_(name); } finally { CACHED_READS_ = was; }
+}
+
+function cellKey_(v) { return isDate_(v) ? 'd' + v.getTime() : String(v === null || v === undefined ? '' : v); }
+function sameRow_(a, b, headers) {
+  return headers.every(function (h) { return !h || cellKey_(a[h]) === cellKey_(b[h]); });
+}
+
+/** يحذف الجداول المقروءة من الكاش من الذاكرة (داخل القفل نقرأ الشيت الحي فقط) */
+function dropCachedTables_() {
+  Object.keys(MEMO_).forEach(function (k) {
+    if (k.indexOf('rd:') === 0 && MEMO_[k] && MEMO_[k].cached && LOOKUP_SHEETS_.indexOf(MEMO_[k].name) === -1) delete MEMO_[k];
+  });
+}
 
 /** كتابة حقول صف واحد — الأعمدة المتجاورة تُكتب في استدعاء واحد */
 function setCells_(t, row, obj) { setMany_(t, [{ row: row, obj: obj }]); }
@@ -398,6 +426,17 @@ function setCells_(t, row, obj) { setMany_(t, [{ row: row, obj: obj }]); }
  */
 function setMany_(t, updates) {
   if (!updates.length) return;
+  if (t.cached) {
+    // الجدول من الكاش: نتحقق أن كل صف لم يتغيّر في الشيت قبل الكتابة عليه
+    const fresh = freshTable_(t.name);
+    updates = updates.map(function (u) {
+      const fr = fresh.rows.filter(function (r) { return r._row === u.row._row; })[0];
+      if (!fr || !sameRow_(fr, u.row, t.headers)) throw new Error('ERR_CONFLICT');
+      Object.keys(u.obj).forEach(function (k) { u.row[k] = u.obj[k]; });
+      return { row: fr, obj: u.obj };
+    });
+    t = fresh;
+  }
   const sh = sheet_(t.name);
   updates.forEach(function (u) { Object.keys(u.obj).forEach(function (k) { u.row[k] = u.obj[k]; }); });
   const groups = {};
@@ -433,6 +472,10 @@ function setMany_(t, updates) {
 }
 
 function deleteRow_(t, row) {
+  if (t.cached) {
+    const fr = freshTable_(t.name).rows.filter(function (r) { return r._row === row._row; })[0];
+    if (!fr || !sameRow_(fr, row, t.headers)) throw new Error('ERR_CONFLICT');
+  }
   sheet_(t.name).deleteRow(row._row);
   markDirty_(t.name);
 }
@@ -503,6 +546,7 @@ function withLock_(fn) {
   lock.waitLock(20000);
   const cached = CACHED_READS_;
   CACHED_READS_ = false;
+  dropCachedTables_();
   try { return fn(); } finally { flushDirty_(); CACHED_READS_ = cached; lock.releaseLock(); }
 }
 
@@ -549,7 +593,11 @@ function loginKey_(s) {
     .replace(/\s+/g, ' ').trim().toLowerCase();
 }
 
-function login_(name, password) {
+/**
+ * preload (اختياري) = { screen: [[fn, args], ...] } — قراءات الشاشة الأولى تُنفَّذ مع الدخول
+ * فتفتح الصفحة ببياناتها بدون رحلة ثانية للخادم.
+ */
+function login_(name, password, preload) {
   name = str_(name);
   password = String(password || '');
   if (!name || !password) throw new Error('ERR_LOGIN_EMPTY');
@@ -571,7 +619,14 @@ function login_(name, password) {
   }
   cache.remove(failKey);
   // ترقية كلمة السر النصية القديمة إلى مشفّرة
-  if (String(row.Password).indexOf('h1$') !== 0) setCells_(t, row, { Password: hashPassword_(latinDigits_(matched).trim()) });
+  if (String(row.Password).indexOf('h1$') !== 0) {
+    try {
+      withLock_(function () {
+        const fr = read_('Users').rows.filter(function (r) { return r._row === row._row && String(r.Password) === String(row.Password); })[0];
+        if (fr) setCells_(read_('Users'), fr, { Password: hashPassword_(latinDigits_(matched).trim()) });
+      });
+    } catch (e) { console.error(e); } // الترقية تحسين فقط — لا تمنع الدخول
+  }
 
   const screen = roleScreen_(row.Role);
   if (!screen) throw new Error('ERR_ROLE_UNMAPPED');
@@ -581,7 +636,10 @@ function login_(name, password) {
   };
   const token = Utilities.getUuid() + Utilities.getUuid().replace(/-/g, '');
   cache.put('s:' + token, JSON.stringify(Object.assign({ _at: Date.now() }, user)), SESSION_TTL);
-  return { success: true, token: token, user: user, config: getConfig_(user) };
+  const out = { success: true, token: token, user: user, config: getConfig_(user) };
+  const calls = preload && typeof preload === 'object' ? preload[screen] : null;
+  if (Array.isArray(calls) && calls.length && calls.length <= BATCH_MAX) out.preload = runBatch_(user, calls);
+  return out;
 }
 
 function logout_(token) {
@@ -615,6 +673,22 @@ function getClinics_() {
     .map(function (r) { return { name: str_(r.ClinicName), branch: str_(r.Branch), type: str_(r.Type) }; });
 }
 
+/** كل الفروع المعرّفة في تبويب Clinics (بدون تكرار، بترتيب ظهورها) */
+function getBranches_() {
+  const out = [];
+  getClinics_().forEach(function (c) { if (c.branch && out.indexOf(c.branch) === -1) out.push(c.branch); });
+  return out;
+}
+
+/** فرع العيادة الافتراضي (للطلبات القديمة التي لم يُحفظ فيها فرع) */
+function clinicBranch_(clinic) {
+  if (!MEMO_.cBranch) {
+    MEMO_.cBranch = {};
+    getClinics_().forEach(function (c) { MEMO_.cBranch[c.name] = c.branch; });
+  }
+  return MEMO_.cBranch[str_(clinic)] || '';
+}
+
 function getCatalog_(withPrice) {
   const seen = {};
   return read_('ItemsCatalog').rows.filter(function (r) {
@@ -643,6 +717,7 @@ function getConfig_(user) {
   return {
     user: user,
     clinics: clinics,
+    branches: getBranches_(),
     catalog: getCatalog_(user.screen !== 'nurse'),
     roles: user.screen === 'admin' ? getRoles_() : [],
     serverTime: new Date()
@@ -758,7 +833,7 @@ function findRequest_(id) {
 
 function mapRequest_(r) {
   return {
-    id: str_(r.RequestID), date: r.Date, clinic: str_(r.Clinic), doctor: str_(r.Doctor),
+    id: str_(r.RequestID), date: r.Date, clinic: str_(r.Clinic), branch: str_(r.Branch) || clinicBranch_(r.Clinic), doctor: str_(r.Doctor),
     nurse: str_(r.Nurse), type: str_(r.Type), status: str_(r.Status) || ST.NEW,
     submittedAt: r.SubmittedAt, prepAt: r.PrepAt, vendorWaitAt: r.VendorWaitAt,
     vendorReceivedAt: r.VendorReceivedAt, reviewAt: r.ReviewAt, reviewedAt: r.ReviewedAt,
@@ -782,6 +857,7 @@ function queryRequests_(filters) {
   return requestRows_().map(mapRequest_).filter(function (r) {
     if (filters.status && r.status !== filters.status) return false;
     if (filters.clinic && r.clinic !== filters.clinic) return false;
+    if (filters.branch && r.branch !== filters.branch) return false;
     if (filters.nurse && r.nurse !== filters.nurse) return false;
     if (filters.doctorUser && !isMyDoctor_(filters.doctorUser, r.doctor)) return false;
     if (filters.month && monthOf_(r.date) !== filters.month) return false;
@@ -849,6 +925,10 @@ function createRequest_(user, payload) {
   const mine = userClinics_(user);
   if (mine.length && mine.indexOf(clinic) === -1) throw new Error('ERR_FORBIDDEN');
   if (!getClinics_().some(function (c) { return c.name === clinic; })) throw new Error('ERR_BAD_CLINIC');
+  // الفرع الذي ستُرسل له الطلبية: يختاره المستخدم، والافتراضي فرع العيادة
+  const branches = getBranches_();
+  const branch = str_(payload.branch) || clinicBranch_(clinic);
+  if (branches.length && branches.indexOf(branch) === -1) throw new Error(branch ? 'ERR_BAD_BRANCH' : 'ERR_BRANCH_REQUIRED');
   if (!getDoctors_(user, clinic).some(function (d) { return d.name === doctor; })) {
     throw new Error('ERR_BAD_DOCTOR');
   }
@@ -870,7 +950,7 @@ function createRequest_(user, payload) {
   if (items.length > 200) throw new Error('ERR_TOO_MANY_ITEMS');
 
   // منع الإرسال المزدوج لنفس الطلب خلال دقيقتين
-  const sig = [user.name, clinic, doctor, type].concat(items.map(function (i) { return i.name + ':' + i.qty; })).join('|');
+  const sig = [user.name, clinic, branch, doctor, type].concat(items.map(function (i) { return i.name + ':' + i.qty; })).join('|');
   const dupKey = 'dup:' + Utilities.base64Encode(Utilities.computeDigest(Utilities.DigestAlgorithm.MD5, sig, Utilities.Charset.UTF_8));
   const cache = CacheService.getScriptCache();
 
@@ -881,7 +961,7 @@ function createRequest_(user, payload) {
     const newId = nextRequestId_();
     const now = new Date();
     append_('Requests', {
-      RequestID: newId, Date: now, Clinic: clinic, Doctor: doctor, Nurse: user.name,
+      RequestID: newId, Date: now, Clinic: clinic, Branch: branch, Doctor: doctor, Nurse: user.name,
       Type: type, Status: ST.NEW, SubmittedAt: now
     });
     const ri = sheet_('RequestItems');
@@ -906,7 +986,7 @@ function createRequest_(user, payload) {
 
   notifyRole_('procurement',
     (type === 'طارئ' ? '🚨 طلب طارئ - ' : 'طلب مستلزمات جديد - ') + id,
-    'تم رفع طلب جديد.\nرقم الطلب: ' + id + '\nالعيادة: ' + clinic + '\nالطبيب: ' + doctor +
+    'تم رفع طلب جديد.\nرقم الطلب: ' + id + '\nالفرع: ' + (branch || '—') + '\nالعيادة: ' + clinic + '\nالطبيب: ' + doctor +
     '\nالممرضة: ' + user.name + '\nنوع الطلب: ' + type + '\nعدد الأصناف: ' + items.length);
   return { id: id, duplicate: false };
 }
@@ -1122,7 +1202,7 @@ function bulkUpdateStatus_(user, requestIds, newStatus) {
   toNotify.forEach(function (req) {
     if (newStatus === ST.SENT) notifyNurseSent_(req);
     if (newStatus === ST.REVIEW) notifyUser_(doctorAccounts_()[req.doctor] || req.doctor, 'طلب بانتظار مراجعتك - ' + req.id,
-      'الطلب ' + req.id + ' (عيادة ' + req.clinic + ') جاهز لمراجعتك واعتمادك من داخل النظام.');
+      'الطلب ' + req.id + ' (عيادة ' + req.clinic + (req.branch ? ' · فرع ' + req.branch : '') + ') جاهز لمراجعتك واعتمادك من داخل النظام.');
   });
   return result;
 }
@@ -1513,14 +1593,14 @@ function notifyUser_(name, subject, body) {
 
 function notifyNursePartial_(req, r) {
   notifyUser_(req.nurse, 'شحنة جزئية من طلبك - ' + req.id + ' (' + r.sent + '/' + r.total + ')',
-    'تم إرسال الشحنة رقم ' + r.batch + ' من طلبك ' + req.id + ' الخاص بعيادة ' + req.clinic + ':\n- ' +
+    'تم إرسال الشحنة رقم ' + r.batch + ' من طلبك ' + req.id + ' الخاص بعيادة ' + req.clinic + (req.branch ? ' (فرع ' + req.branch + ')' : '') + ':\n- ' +
     r.items.join('\n- ') + '\n\nأُرسل ' + r.sent + ' من ' + r.total + ' صنف، والمتبقي ' + r.remaining +
     ' صنف سيُرسل لاحقاً.\nيرجى تأكيد استلام هذه الشحنة والتوقيع عليها من داخل النظام عند وصولها.');
 }
 
 function notifyNurseSent_(req) {
   notifyUser_(req.nurse, 'تم إرسال طلبك - ' + req.id,
-    'تم إرسال طلبك رقم ' + req.id + ' الخاص بعيادة ' + req.clinic +
+    'تم إرسال طلبك رقم ' + req.id + ' الخاص بعيادة ' + req.clinic + (req.branch ? ' (فرع ' + req.branch + ')' : '') +
     '.\nيرجى تأكيد الاستلام والتوقيع من داخل النظام عند وصول الطلب.');
 }
 
@@ -1532,7 +1612,7 @@ function getQualityReport_(month) {
   const rows = queryRequests_(month ? { month: month } : {})
     .filter(function (r) { return toMs_(r.submittedAt) && toMs_(r.sentAt); })
     .map(function (r) {
-      return { id: r.id, clinic: r.clinic, doctor: r.doctor, type: r.type, status: r.status,
+      return { id: r.id, branch: r.branch, clinic: r.clinic, doctor: r.doctor, type: r.type, status: r.status,
         hours: round1_((toMs_(r.sentAt) - toMs_(r.submittedAt)) / 36e5) };
     });
   const byClinic = {};

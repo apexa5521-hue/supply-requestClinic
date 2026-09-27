@@ -56,14 +56,14 @@ const I18N = {
     bulk_done: 'تم تحديث {n} طلب', bulk_skipped_title: 'بعض الطلبات لم تُحدَّث', bulk_skipped_sub: 'تم تحديث {a} وتخطي {b} للأسباب التالية:',
     view_items: 'الأصناف والاعتماد', requested: 'المطلوب', approved: 'المعتمد', received: 'المستلم', dispatch_status: 'الإرسال',
     dispatched: 'أُرسل', waiting: 'بالانتظار', dispatch_selected: 'إرسال المحدد كشحنة', select_item: 'اختر صنفاً واحداً على الأقل',
-    dispatch_all_done: 'اكتمل إرسال كل الأصناف — تم إرسال الطلب', dispatch_partial: 'أُرسلت الشحنة #{b} ({n} صنف) — متبقي {r} صنف',
+    dispatch_all_done: 'اكتمل إرسال كل الأصناف — تم إرسال الطلب', save_failed: 'لم يُحفظ الإجراء على {id}', dispatch_partial: 'أُرسلت الشحنة #{b} ({n} صنف) — متبقي {r} صنف',
     ship_sent_of: 'أُرسل {a} من {b}', ship_left: 'متبقي {n}', ship_total: 'إجمالي الأصناف', ship_remaining: 'متبقي', shipment_n: 'شحنة #{n}',
     shipments: 'الشحنات', ship_title: 'تتبع الإرسال', select_remaining: 'تحديد كل المتبقي', grp_partial: 'إرسال جزئي', ship_all_done: 'اكتمل الإرسال',
     ship_received: 'استُلمت', ship_pending_rcv: 'بانتظار الاستلام', ship_wait_rcv: 'بانتظار استلام {n} شحنة', ship_rcv_of: 'استُلم {a} من {b} شحنة',
     rcv_pick: 'اختر الشحنة التي وصلت', rcv_final_note: 'الشحنة #{n} هي الأخيرة — بعد توقيعها يكتمل الطلب ويُنشأ إيصال موحّد يضم كل الشحنات وتواقيعها',
     rcv_partial_note: 'استلام الشحنة #{n} فقط — يبقى الطلب مفتوحاً حتى استلام كل الشحنات', shipment_received_ok: 'تم استلام الشحنة #{n} وتوقيعها',
     request_complete_ok: 'اكتمل استلام الطلب {id} — دُمجت التواقيع في إيصال موحّد', merged_receipt: 'الإيصال الموحّد', ship_receipt: 'إيصال الشحنة',
-    ERR_ALREADY_RECEIVED: 'هذه الشحنة استُلمت مسبقاً',
+    ERR_ALREADY_RECEIVED: 'هذه الشحنة استُلمت مسبقاً', branch: 'الفرع', branch_hint: 'الفرع الذي ستُرسل له الطلبية', all_branches: 'كل الفروع', ERR_CONFLICT: 'تغيّرت البيانات للتو من مستخدم آخر — حدّثنا الصفحة، أعد المحاولة', ERR_BAD_BRANCH: 'الفرع غير معروف', ERR_BRANCH_REQUIRED: 'اختر الفرع',
     approval_locked: 'الكميات مقفلة بعد إرسال الطلب للمراجعة', bulk_not_applicable: 'لا ينطبق على حالة الطلبات المحددة', saved: 'تم الحفظ', item_notes: 'ملاحظات الصنف', request_notes: 'ملاحظات الطلب',
     workflow_hint: 'المسار: قيد التجهيز ← (المندوب اختياري) ← مراجعة الطبيب ← إرسال للفرع بعد الاعتماد',
     pending_review: 'بانتظار مراجعتك', approved_by_you: 'اعتمدتها', sent_to_branch: 'أُرسلت للفرع', received_k: 'تم استلامها', rejected_k: 'مرفوضة',
@@ -153,14 +153,14 @@ const I18N = {
     bulk_done: '{n} request(s) updated', bulk_skipped_title: 'Some requests were not updated', bulk_skipped_sub: '{a} updated, {b} skipped:',
     view_items: 'Items & approval', requested: 'Requested', approved: 'Approved', received: 'Received', dispatch_status: 'Dispatch',
     dispatched: 'Sent', waiting: 'Waiting', dispatch_selected: 'Dispatch selected as a shipment', select_item: 'Select at least one item',
-    dispatch_all_done: 'All items dispatched — request sent', dispatch_partial: 'Shipment #{b} sent ({n} items) — {r} remaining',
+    dispatch_all_done: 'All items dispatched — request sent', save_failed: 'Action on {id} was not saved', dispatch_partial: 'Shipment #{b} sent ({n} items) — {r} remaining',
     ship_sent_of: '{a} of {b} sent', ship_left: '{n} remaining', ship_total: 'Total items', ship_remaining: 'Remaining', shipment_n: 'Shipment #{n}',
     shipments: 'Shipments', ship_title: 'Dispatch tracking', select_remaining: 'Select all remaining', grp_partial: 'Partially sent', ship_all_done: 'Fully dispatched',
     ship_received: 'Received', ship_pending_rcv: 'Awaiting receipt', ship_wait_rcv: '{n} shipment(s) awaiting receipt', ship_rcv_of: '{a} of {b} shipments received',
     rcv_pick: 'Choose the shipment that arrived', rcv_final_note: 'Shipment #{n} is the last one — once signed, the request is complete and a combined receipt with all shipments and signatures is created',
     rcv_partial_note: 'Receiving shipment #{n} only — the request stays open until every shipment is received', shipment_received_ok: 'Shipment #{n} received and signed',
     request_complete_ok: 'Request {id} fully received — signatures merged into one combined receipt', merged_receipt: 'Combined receipt', ship_receipt: 'Shipment receipt',
-    ERR_ALREADY_RECEIVED: 'This shipment was already received',
+    ERR_ALREADY_RECEIVED: 'This shipment was already received', branch: 'Branch', branch_hint: 'The branch this order is delivered to', all_branches: 'All branches', ERR_CONFLICT: 'The data just changed by another user — refreshed, please try again', ERR_BAD_BRANCH: 'Unknown branch', ERR_BRANCH_REQUIRED: 'Choose the branch',
     approval_locked: 'Quantities are locked after sending to review', bulk_not_applicable: 'Not applicable to the selected requests’ status', saved: 'Saved', item_notes: 'Item notes', request_notes: 'Request notes',
     workflow_hint: 'Flow: In progress → (vendor optional) → Doctor review → Dispatch after approval',
     pending_review: 'Awaiting your review', approved_by_you: 'Approved', sent_to_branch: 'Sent to branch', received_k: 'Received', rejected_k: 'Rejected',
@@ -384,9 +384,38 @@ function peek(fn, args, maxAgeMs) {
   const e = RC.get(rkey(fn, args || []));
   return e && (!maxAgeMs || Date.now() - e.at < maxAgeMs) ? e.data : undefined;
 }
+/* بيانات جاهزة مسبقاً (مع الدخول أو من آخر زيارة للتبويب) تُقدَّم فوراً مرة واحدة */
+function seedRC(fn, args, data) {
+  // بيانات جديدة من الخادم (مع الدخول): تُقدَّم لكل من يطلبها خلال 8 ثوانٍ
+  RC.set(rkey(fn, args || []), { data: data, at: Date.now(), seedUntil: Date.now() + 8000 });
+}
+const PERSIST = ['getMyRequests', 'getRequests', 'getDoctorRequests', 'getAlerts', 'getNotices', 'getComplaints', 'getExecutiveStats', 'getQualityReport', 'getQualityTrend'];
+let persistTimer = null;
+function persistRC() {
+  clearTimeout(persistTimer);
+  persistTimer = setTimeout(() => {
+    if (!S.user) return;
+    const out = [];
+    RC.forEach((e, k) => { if (PERSIST.indexOf(k.split('|')[0]) !== -1) out.push([k, e.data]); });
+    try { sessionStorage.setItem('sf_rc', JSON.stringify({ u: S.user.name, e: out })); } catch (e) { /* مساحة ممتلئة: تجاهل */ }
+  }, 800);
+}
+function restoreRC(userName) {
+  try {
+    const o = JSON.parse(sessionStorage.getItem('sf_rc') || 'null');
+    if (!o || o.u !== userName) return 0;
+    o.e.forEach(([k, d]) => RC.set(k, { data: d, at: 0, seed: true }));
+    return o.e.length;
+  } catch (e) { return 0; }
+}
 function call(fn) {
   const args = Array.prototype.slice.call(arguments, 1);
   const read = isRead(fn), key = read ? rkey(fn, args) : '';
+  if (read) {
+    const e = RC.get(key);
+    if (e && e.seed) { e.seed = false; return Promise.resolve(e.data); } // من آخر زيارة: مرة واحدة ثم تحديث
+    if (e && e.seedUntil > Date.now()) return Promise.resolve(e.data);
+  }
   if (read && PENDING.has(key)) return PENDING.get(key);
   const p = new Promise((resolve, reject) => {
     NET.queue.push({ fn: fn, args: args, resolve: resolve, reject: reject });
@@ -396,10 +425,12 @@ function call(fn) {
     if (read) {
       RC.delete(key); RC.set(key, { data: data, at: Date.now() });
       if (RC.size > 150) RC.delete(RC.keys().next().value);
+      if (PERSIST.indexOf(fn) !== -1) persistRC();
     } else if (fn !== 'login' && fn !== 'logout') RC.clear();
     return data;
   }, e => {
     if (errCode(e) === 'ERR_SESSION' && fn !== 'login' && S.user) sessionExpired();
+    if (errCode(e) === 'ERR_CONFLICT' && S.user) { RC.clear(); setTimeout(() => sync(true), 50); }
     throw e;
   });
   if (read) {
@@ -450,6 +481,10 @@ function badge(s) {
   const m = stMeta(s);
   return '<span class="badge' + (m.live ? ' live' : '') + '" style="--tone:' + m.tone + '"><i class="dot"></i>' + esc(statusLabel(s)) + '</span>';
 }
+function branchTag(b) {
+  return b ? '<span class="tag branch" title="' + esc(t('branch')) + '">' + icon('pin') + esc(b) + '</span>' : '';
+}
+const clinicBranch = name => { const c = (S.clinics || []).find(x => x.name === name); return c ? c.branch : ''; };
 function typeTag(ty) {
   return ty === 'طارئ'
     ? '<span class="tag emergency">' + icon('zap') + esc(t('type_emergency')) + '</span>'
@@ -688,15 +723,31 @@ $('#loginForm').addEventListener('submit', e => {
   const slow = setTimeout(() => $('#loginSlow').classList.remove('hidden'), 4000);
   const done = () => { clearTimeout(slow); $('#loginSlow').classList.add('hidden'); busy(btn, false); };
   // الدخول آمن للإعادة: عند انقطاع الشبكة أو استيقاظ الخادم نعيد المحاولة تلقائياً
-  withRetry(() => call('login', name, pass), 2).then(res => {
+  const plan = preloadPlan(name);
+  withRetry(() => call('login', name, pass, plan), 2).then(res => {
     done();
     if (!res || !res.success) { loginError(t('login_error')); $('#loginPass').select(); return; }
     S.token = res.token;
-    session.set({ token: res.token });
+    session.set({ token: res.token, cfg: res.config });
     $('#loginPass').value = '';
+    RC.clear();
+    const calls = plan[res.user.screen] || [];
+    (res.preload || []).forEach((r, i) => { if (r && r.ok && calls[i]) seedRC(calls[i][0], calls[i][1], r.data); });
     enterApp(res.config);
   }).catch(err => { done(); loginError(errMsg(err)); });
 });
+/* قراءات الشاشة الأولى لكل دور — تُنفَّذ على الخادم مع الدخول نفسه (رحلة واحدة بدل اثنتين) */
+function preloadPlan(name) {
+  const base = [['getAlerts', []], ['getNotices', []]];
+  const draft = store.get('draft_' + name, null);
+  const mgmt = [['getExecutiveStats', ['']], ['getQualityReport', ['']], ['getQualityTrend', [6]], ['getComplaints', [false]], ['getAlerts', []]];
+  return {
+    nurse: [['getMyRequests', []]].concat(base, draft && draft.clinic ? [['getDoctors', [draft.clinic]]] : []),
+    procurement: [['getRequests', [{}]], ['getComplaints', [false]]].concat(base),
+    doctor: [['getDoctorRequests', []]].concat(base),
+    dashboard: mgmt, admin: mgmt
+  };
+}
 function sessionExpired() {
   if (!S.user) return;
   toast(t('ERR_SESSION'), 'warning');
@@ -706,7 +757,8 @@ function resetApp() {
   if (TOUR.active) { TOUR.active = false; Object.keys(TOUR.els).forEach(k => TOUR.els[k].remove()); document.removeEventListener('keydown', tourKeys, true); }
   clearInterval(S.syncTimer);
   S.token = null; S.user = null; S.view = null; S.loaded = {};
-  session.clear();
+  session.clear(); RC.clear();
+  try { sessionStorage.removeItem('sf_rc'); } catch (e) { /* ignore */ }
   while (MODALS.length) { const m = MODALS.pop(); m.el.remove(); }
   document.body.style.overflow = '';
   showLogin();
@@ -732,6 +784,7 @@ function applyConfig(cfg) {
   if (!cfg) return;
   S.user = cfg.user || S.user;
   S.clinics = cfg.clinics || [];
+  S.branches = cfg.branches || [];
   S.catalog = cfg.catalog || [];
   S.roles = cfg.roles || [];
 }
@@ -846,9 +899,10 @@ function updateSyncTime() { $('#syncTime').textContent = S.lastSync ? fmtTime(S.
 function sync(silent) {
   const btn = $('#syncBtn');
   btn.classList.add('syncing');
+  RC.forEach(e => { e.seed = false; e.seedUntil = 0; }); // المزامنة تجلب من الخادم دائماً
   // كل القراءات تُطلق معاً فتُجمع في طلب واحد للخادم؛ الإعدادات تتغير نادراً → كل 5 دقائق
   const cfgDue = !silent || !S.cfgAt || Date.now() - S.cfgAt > 5 * 60 * 1000;
-  const cfg = cfgDue ? call('getConfig').then(c => { applyConfig(c); S.cfgAt = Date.now(); }) : Promise.resolve();
+  const cfg = cfgDue ? call('getConfig').then(c => { applyConfig(c); S.cfgAt = Date.now(); session.set({ token: S.token, cfg: c }); }) : Promise.resolve();
   const v = VIEWS[S.view];
   if (v && v.refresh) v.refresh(silent);
   loadAlerts();
@@ -891,7 +945,7 @@ function groupCounts(groups, list) {
 function matchGroup(g, r) { return g.test ? g.test(r) : (!g.statuses || g.statuses.indexOf(r.status) !== -1); }
 function reqSearch(r, q) {
   if (!q) return true;
-  return [r.id, r.clinic, r.doctor, r.nurse, statusLabel(r.status), r.type].join(' ').toLowerCase().indexOf(q.toLowerCase()) !== -1;
+  return [r.id, r.clinic, r.branch, r.doctor, r.nurse, statusLabel(r.status), r.type].join(' ').toLowerCase().indexOf(q.toLowerCase()) !== -1;
 }
 function segmented(name, options, value, extraCls) {
   return '<div class="segmented ' + (extraCls || '') + '" data-seg="' + name + '">' +
@@ -983,11 +1037,12 @@ function renderDetail(m, d) {
     const oldFoot = m.el.querySelector('.modal > .modal-foot'); if (oldFoot) oldFoot.remove();
     const canReceive = S.user.screen === 'nurse' && d.status !== ST.RECEIVED && (d.shipments || []).some(g => !g.received);
     body.innerHTML =
-      '<div class="between">' + '<div class="row-wrap">' + badge(d.status) + typeTag(d.type) + '</div>' +
+      '<div class="between">' + '<div class="row-wrap">' + badge(d.status) + typeTag(d.type) + branchTag(d.branch) + '</div>' +
         '<span class="muted" style="font-size:13px">' + esc(fmtDateTime(d.submittedAt || d.date)) + '</span></div>' +
       stepperHtml(d) +
       (d.rejectionReason ? '<div class="reject-box">' + icon('xc') + '<div><b>' + esc(t('rejection_reason')) + ':</b> ' + esc(d.rejectionReason) + '</div></div>' : '') +
       '<dl class="meta-grid">' +
+        '<div><dt>' + esc(t('branch')) + '</dt><dd>' + esc(d.branch || '—') + '</dd></div>' +
         '<div><dt>' + esc(t('clinic')) + '</dt><dd>' + esc(d.clinic) + '</dd></div>' +
         '<div><dt>' + esc(t('doctor')) + '</dt><dd>' + esc(d.doctor) + '</dd></div>' +
         '<div><dt>' + esc(t('nurse')) + '</dt><dd>' + esc(d.nurse) + '</dd></div>' +
@@ -1096,7 +1151,8 @@ VIEWS.new = {
   title: 'nav_new', sub: 'sub_new',
   render() {
     const d = nurseDraft();
-    if (!d.clinic || !S.clinics.some(c => c.name === d.clinic)) d.clinic = S.clinics[0] ? S.clinics[0].name : '';
+    if (!d.clinic || !S.clinics.some(c => c.name === d.clinic)) { d.clinic = S.clinics[0] ? S.clinics[0].name : ''; d.branch = ''; }
+    if (!d.branch || S.branches.indexOf(d.branch) === -1) d.branch = clinicBranch(d.clinic) || S.branches[0] || '';
     return '<div id="nNotices"></div>' +
       '<div class="new-layout">' +
         '<div class="stack" style="gap:18px">' +
@@ -1107,6 +1163,8 @@ VIEWS.new = {
               '</select></div>' +
               '<div class="field"><label for="fDoctor">' + esc(t('doctor')) + '</label><select class="select" id="fDoctor" data-change="nDoctor"><option>' + esc(t('loading')) + '</option></select></div>' +
             '</div>' +
+            (S.branches.length ? '<div class="field"><label for="fBranch">' + icon('pin', 'i-sm') + ' ' + esc(t('branch')) + ' <span class="hint">· ' + esc(t('branch_hint')) + '</span></label>' +
+              '<select class="select" id="fBranch" data-change="nBranch">' + S.branches.map(b => '<option' + (b === d.branch ? ' selected' : '') + '>' + esc(b) + '</option>').join('') + '</select></div>' : '') +
             '<div class="field"><span class="label">' + esc(t('type')) + '</span><div>' +
               segmented('reqType', [{ v: 'شهري', label: t('type_monthly'), icon: 'calendar' }, { v: 'طارئ', label: t('type_emergency'), icon: 'zap' }], d.type, d.type === 'طارئ' ? 'emergency' : '') +
               '</div><div class="hint' + (d.type === 'طارئ' ? '' : ' hidden') + '" id="emgHint">' + icon('info', 'i-sm') + ' ' + esc(t('emergency_note')) + '</div></div>' +
@@ -1143,7 +1201,14 @@ SEG_HANDLERS.reqType = (v, seg) => {
   $('#emgHint').classList.toggle('hidden', v !== 'طارئ');
   renderSummary();
 };
-ACT.nClinic = el => { nurseDraft().clinic = el.value; nurseDraft().doctor = ''; saveDraft(); loadDoctors(); };
+ACT.nClinic = el => {
+  const d = nurseDraft();
+  d.clinic = el.value; d.doctor = '';
+  d.branch = clinicBranch(d.clinic) || d.branch;
+  const fb = $('#fBranch'); if (fb && d.branch) fb.value = d.branch;
+  saveDraft(); loadDoctors(); renderSummary();
+};
+ACT.nBranch = el => { nurseDraft().branch = el.value; saveDraft(); renderSummary(); };
 ACT.nDoctor = el => { nurseDraft().doctor = el.value; saveDraft(); loadProfile(); };
 function loadDoctors() {
   const d = nurseDraft();
@@ -1226,6 +1291,7 @@ function renderSummary() {
   const d = nurseDraft();
   const units = d.items.reduce((s, i) => s + (Number(i.qty) || 0), 0);
   $('#sumBox').innerHTML =
+    (S.branches.length ? '<div class="sum-row"><span class="muted">' + esc(t('branch')) + '</span>' + (branchTag(d.branch) || '<b>—</b>') + '</div>' : '') +
     '<div class="sum-row"><span class="muted">' + esc(t('clinic')) + '</span><b>' + esc(d.clinic || '—') + '</b></div>' +
     '<div class="sum-row"><span class="muted">' + esc(t('doctor')) + '</span><b>' + esc(d.doctor || '—') + '</b></div>' +
     '<div class="sum-row"><span class="muted">' + esc(t('type')) + '</span>' + typeTag(d.type) + '</div>' +
@@ -1322,12 +1388,12 @@ ACT.submitRequest = el => {
   const d = nurseDraft();
   const err = $('#submitErr');
   err.classList.add('hidden');
-  if (!d.clinic || !d.doctor || !d.items.length) {
+  if (!d.clinic || !d.doctor || !d.items.length || (S.branches.length && !d.branch)) {
     err.querySelector('span').textContent = t('err_fill_all'); err.classList.remove('hidden');
     return;
   }
   busy(el, true, t('sending'));
-  call('createRequest', { clinic: d.clinic, doctor: d.doctor, type: d.type, items: d.items.map(i => ({ name: i.name, qty: Number(i.qty) })) })
+  call('createRequest', { clinic: d.clinic, branch: d.branch || '', doctor: d.doctor, type: d.type, items: d.items.map(i => ({ name: i.name, qty: Number(i.qty) })) })
     .then(res => {
       busy(el, false);
       if (res && res.duplicate) { toast(t('duplicate_request', { id: res.id }), 'warning', 5000); return; }
@@ -1382,7 +1448,7 @@ function renderMineList(animate) {
   setList(box, list.map((r, i) => stagger(
     '<article class="req' + (r.type === 'طارئ' ? ' urgent' : '') + '">' +
       '<div class="req-main clickable" data-act="detail" data-id="' + esc(r.id) + '">' +
-        '<div class="grow"><div class="row-wrap"><span class="req-id">' + esc(r.id) + '</span>' + typeTag(r.type) + '</div>' +
+        '<div class="grow"><div class="row-wrap"><span class="req-id">' + esc(r.id) + '</span>' + typeTag(r.type) + branchTag(r.branch) + branchTag(r.branch) + '</div>' +
           '<div class="req-sub"><span>' + icon('building') + esc(r.clinic) + '</span><span>' + icon('steth') + esc(r.doctor) + '</span><span>' + icon('calendar') + esc(fmtDate(r.date)) + '</span><span>' + icon('package') + esc(t('items_count', { n: r.itemCount || 0 })) + '</span></div>' + shipTrack(r) + '</div>' +
         '<div class="req-side">' + badge(r.status) + progressBar(r.status) + '</div>' +
       '</div>' +
@@ -1455,7 +1521,8 @@ function openReceive(id) {
     const rec = ship.items.map((it, i) => ({ name: it.item, qty: got[i] }));
     const sigData = sig.hasInk() ? sig.toDataURL() : '';
     const section = { batch: ship.batch, items: ship.items.map((it, i) => ({ item: it.item, sent: sentQty(it), got: got[i] })), receiver: name, at: new Date(), sig: sig.hasInk() ? sig.canvas : null };
-    const receipt = drawReceipt(id, [section], false);
+    const rid = id + (d.branch ? ' · ' + d.branch : '');
+    const receipt = drawReceipt(rid, [section], false);
     const b = $('#rOk', m.el); busy(b, true, t('sending'));
     const merged = !last ? Promise.resolve('') : call('getShipmentSignatures', id)
       .then(list => Promise.all(d.shipments.map(g => {
@@ -1466,7 +1533,7 @@ function openReceive(id) {
           receiver: g.receiver, at: g.receivedAt, sig: img
         }));
       })))
-      .then(sections => drawReceipt(id, sections, true))
+      .then(sections => drawReceipt(rid, sections, true))
       .catch(() => '');
     merged.then(mr => call('receiveShipment', id, ship.batch, rec, name, sigData, receipt, mr)).then(res => {
       closeModal(m);
@@ -1598,6 +1665,7 @@ VIEWS.requests = {
       '<div id="procChips"></div>' +
       '<div class="card card-pad" id="procFilters" style="padding:14px"><div class="form-grid" style="grid-template-columns:minmax(220px,2fr) repeat(3,minmax(150px,1fr))">' +
         '<div class="input-icon">' + icon('search') + '<input class="input" data-input="procQ" value="' + esc(p.q) + '" placeholder="' + esc(t('search_requests')) + '"></div>' +
+        (S.branches.length ? '<select class="select" data-change="procBranch" aria-label="' + esc(t('branch')) + '"><option value="">' + esc(t('all_branches')) + '</option>' + S.branches.map(b => '<option' + (b === p.branch ? ' selected' : '') + '>' + esc(b) + '</option>').join('') + '</select>' : '') +
         '<select class="select" data-change="procClinic" aria-label="' + esc(t('clinic')) + '"><option value="">' + esc(t('all_clinics')) + '</option>' + S.clinics.map(c => '<option' + (c.name === p.clinic ? ' selected' : '') + '>' + esc(c.name) + '</option>').join('') + '</select>' +
         '<input class="input" type="month" data-change="procMonth" value="' + esc(p.month) + '" aria-label="' + esc(t('month')) + '">' +
         '<select class="select" data-change="procSort" aria-label="' + esc(t('sort')) + '">' +
@@ -1613,6 +1681,7 @@ VIEWS.requests = {
 };
 ACT.procQ = debounce(el => { S.proc.q = el.value.trim(); renderProcList(true); }, 150);
 ACT.procClinic = el => { S.proc.clinic = el.value; renderProcList(true); };
+ACT.procBranch = el => { S.proc.branch = el.value; renderProcList(true); };
 ACT.procMonth = el => { S.proc.month = el.value; renderProcList(true); };
 ACT.procSort = el => { S.proc.sort = el.value; renderProcList(true); };
 ACT.procGroup = el => { S.proc.group = el.dataset.g; renderProcList(true); };
@@ -1620,7 +1689,7 @@ function procFiltered(ignoreGroup) {
   const p = S.proc;
   const g = PROC_GROUPS.find(x => x.id === p.group) || PROC_GROUPS[0];
   const ts = (r, f) => { const d = toDate(r[f]); return d ? d.getTime() : 0; };
-  return p.list.filter(r => (ignoreGroup || matchGroup(g, r)) && reqSearch(r, p.q) && (!p.clinic || r.clinic === p.clinic) && (!p.month || monthKey(r.date) === p.month))
+  return p.list.filter(r => (ignoreGroup || matchGroup(g, r)) && reqSearch(r, p.q) && (!p.branch || r.branch === p.branch) && (!p.clinic || r.clinic === p.clinic) && (!p.month || monthKey(r.date) === p.month))
     .sort((a, b) => {
       switch (p.sort) {
         case 'old': return ts(a, 'date') - ts(b, 'date');
@@ -1652,7 +1721,7 @@ function procCard(r) {
   return '<article class="req' + (sel ? ' selected' : '') + (open ? ' open' : '') + (r.type === 'طارئ' ? ' urgent' : '') + '" data-rid="' + esc(r.id) + '">' +
     '<div class="req-main">' +
       '<input type="checkbox" class="check" data-change="procSel" data-id="' + esc(r.id) + '"' + (sel ? ' checked' : '') + ' aria-label="' + esc(r.id) + '">' +
-      '<div class="grow clickable" data-act="procToggle" data-id="' + esc(r.id) + '" style="cursor:pointer"><div class="row-wrap"><span class="req-id">' + esc(r.id) + '</span>' + typeTag(r.type) +
+      '<div class="grow clickable" data-act="procToggle" data-id="' + esc(r.id) + '" style="cursor:pointer"><div class="row-wrap"><span class="req-id">' + esc(r.id) + '</span>' + typeTag(r.type) + branchTag(r.branch) +
         '</div>' +
         '<div class="req-sub"><span>' + icon('building') + esc(r.clinic) + '</span><span>' + icon('steth') + esc(r.doctor) + '</span><span>' + icon('user') + esc(r.nurse) + '</span><span>' + icon('clock') + esc(relTime(r.date)) + '</span><span>' + icon('package') + esc(t('items_count', { n: r.itemCount || 0 })) + '</span></div>' + shipTrack(r) + '</div>' +
       '<div class="req-side">' + badge(r.status) + progressBar(r.status) + '</div>' +
@@ -1745,23 +1814,33 @@ function renderBulkbar() {
 }
 ACT.clearSel = () => { S.proc.selected.clear(); renderProcList(false); };
 ACT.bulk = el => {
-  const ids = eligibleFor(el.dataset.s).map(r => r.id);
+  const target = el.dataset.s;
+  const rows = eligibleFor(target);
+  const ids = rows.map(r => r.id);
   if (!ids.length) return;
-  $$('#bulkbar .btn').forEach(b => { b.disabled = true; });
-  busy(el, true);
-  call('bulkUpdateStatus', ids, el.dataset.s).then(res => {
-    const upd = res.updated || [], sk = res.skipped || [];
-    upd.forEach(id => S.proc.selected.delete(id));
-    if (upd.length) toast(t('bulk_done', { n: upd.length }));
+  // تحديث فوري للقائمة (نفس قواعد الخادم في CAN_MOVE)؛ الخادم يؤكد في الخلفية
+  const prev = rows.map(r => [r, r.status]);
+  rows.forEach(r => { r.status = target; S.proc.selected.delete(r.id); });
+  renderProcList(false);
+  toast(t('bulk_done', { n: ids.length }));
+  call('bulkUpdateStatus', ids, target).then(res => {
+    const sk = res.skipped || [];
     if (sk.length) {
+      prev.forEach(([r, st]) => { if (sk.some(x => x.id === r.id)) r.status = st; });
+      renderProcList(false);
       openModal({
-        title: esc(t('bulk_skipped_title')), sub: esc(t('bulk_skipped_sub', { a: upd.length, b: sk.length })), icon: 'alert', tone: 'warn',
+        title: esc(t('bulk_skipped_title')), sub: esc(t('bulk_skipped_sub', { a: (res.updated || []).length, b: sk.length })), icon: 'alert', tone: 'warn',
         body: '<div class="table-wrap"><table class="table"><tbody>' + sk.map(s => '<tr><td class="mono" style="font-weight:700">' + esc(s.id) + '</td><td>' + (s.from ? badge(s.from) : '') + '</td><td>' + esc(t(s.reason)) + '</td></tr>').join('') + '</tbody></table></div>',
         foot: '<span class="spacer"></span><button class="btn btn-primary" data-close>' + esc(t('close')) + '</button>'
       });
     }
     loadProc(true); loadAlerts();
-  }).catch(e => { toast(errMsg(e), 'error'); renderBulkbar(); });
+  }).catch(e => {
+    prev.forEach(([r, st]) => { r.status = st; });
+    renderProcList(false);
+    toast(t('save_failed', { id: ids.join('، ') }) + ' — ' + errMsg(e), 'error', 6000);
+    loadProc(true);
+  });
 };
 ACT.approveQty = el => {
   const v = Math.floor(Number(el.value));
@@ -1887,7 +1966,7 @@ function renderDoc(animate, keepKpis) {
   if (!list.length) { box.innerHTML = emptyState(g.id === 'review' ? 'checkc' : 'clipboard', t('no_requests'), g.id === 'review' ? t('no_complaints_sub') : ''); return; }
   setList(box, list.map((r, i) => stagger(
     '<article class="req' + (r.type === 'طارئ' ? ' urgent' : '') + '"><div class="req-main clickable" data-act="review" data-id="' + esc(r.id) + '">' +
-      '<div class="grow"><div class="row-wrap"><span class="req-id">' + esc(r.id) + '</span>' + typeTag(r.type) + '</div>' +
+      '<div class="grow"><div class="row-wrap"><span class="req-id">' + esc(r.id) + '</span>' + typeTag(r.type) + branchTag(r.branch) + '</div>' +
         '<div class="req-sub"><span>' + icon('building') + esc(r.clinic) + '</span><span>' + icon('user') + esc(r.nurse) + '</span><span>' + icon('calendar') + esc(fmtDate(r.date)) + '</span><span>' + icon('package') + esc(t('items_count', { n: r.itemCount || 0 })) + '</span></div></div>' +
       '<div class="req-side">' + badge(r.status) + (r.status === ST.REVIEW ? '<span class="btn btn-primary btn-sm">' + esc(t('review_title')) + icon('chevr', 'i-sm flip') + '</span>' : '') + '</div>' +
     '</div></article>', i)).join(''), animate);
@@ -1899,7 +1978,7 @@ function openReview(id) {
   const m = openModal({
     title: esc(t('review_title')) + ' · <span class="mono">' + esc(id) + '</span>',
     sub: esc([r.clinic, r.nurse, fmtDate(r.date)].filter(Boolean).join(' · ')), icon: 'steth', size: 'lg',
-    body: '<div class="row-wrap">' + badge(r.status) + typeTag(r.type) + '</div>' +
+    body: '<div class="row-wrap">' + badge(r.status) + typeTag(r.type) + branchTag(r.branch) + '</div>' +
       (r.rejectionReason ? '<div class="reject-box">' + icon('xc') + '<div><b>' + esc(t('rejection_reason')) + ':</b> ' + esc(r.rejectionReason) + '</div></div>' : '') +
       '<div id="rvItems">' + skeletonList(1) + '</div>' +
       (canReview
@@ -1935,12 +2014,21 @@ function openReview(id) {
     if (decision === 'رفض' && !reason) { err.querySelector('span').textContent = t('reason_required'); err.classList.remove('hidden'); $('#rvReason', m.el).focus(); return; }
     const go2 = () => {
       const notes = $$('.rvNote', m.el).map(i => ({ item: i.dataset.item, note: i.value.trim() })).filter(n => n.note);
-      busy(btn, true);
-      call('doctorReview', id, decision, reason, notes).then(() => {
-        closeModal(m);
-        toast(decision === 'اعتمد' ? t('approved_ok') : t('rejected_ok'), decision === 'اعتمد' ? 'success' : 'warning');
-        loadDoc(true); loadAlerts();
-      }).catch(e => { busy(btn, false); err.querySelector('span').textContent = errMsg(e); err.classList.remove('hidden'); });
+      // تحديث فوري للواجهة؛ الحفظ يكتمل في الخلفية، وعند الفشل نُرجع القائمة من الخادم ونعرض الخطأ
+      const r = S.doc.list.find(x => x.id === id);
+      const prev = r ? r.status : null;
+      if (r) { r.status = decision === 'اعتمد' ? ST.APPROVED : ST.REJECTED; if (decision === 'رفض') r.rejectionReason = reason; }
+      closeModal(m);
+      if (S.view === 'reviews') renderDoc(false);
+      renderNav();
+      toast(decision === 'اعتمد' ? t('approved_ok') : t('rejected_ok'), decision === 'اعتمد' ? 'success' : 'warning');
+      call('doctorReview', id, decision, reason, notes).then(() => { loadDoc(true); loadAlerts(); })
+        .catch(e => {
+          if (r && prev) r.status = prev;
+          if (S.view === 'reviews') renderDoc(false);
+          toast(t('save_failed', { id: id }) + ' — ' + errMsg(e), 'error', 6000);
+          loadDoc(true);
+        });
     };
     if (decision === 'رفض') confirmDialog(t('confirm_reject', { id: id }), { danger: true, ok: t('reject'), icon: 'xc' }).then(ok => { if (ok) go2(); });
     else go2();
@@ -2037,8 +2125,8 @@ function renderDash(silent) {
 
   const rows = (rep && rep.rows) || [];
   $('#dashRows').innerHTML = rows.length
-    ? '<div class="table-wrap" style="max-height:420px;overflow:auto"><table class="table"><thead><tr><th>#</th><th>' + esc(t('clinic')) + '</th><th>' + esc(t('doctor')) + '</th><th>' + esc(t('type')) + '</th><th class="num">' + esc(t('hours')) + '</th></tr></thead><tbody>' +
-      rows.map(r => '<tr><td><button class="btn btn-ghost btn-sm mono" data-act="detail" data-id="' + esc(r.id) + '" style="min-height:26px;padding:2px 6px">' + esc(r.id) + '</button></td><td>' + esc(r.clinic) + '</td><td>' + esc(r.doctor) + '</td><td>' + typeTag(r.type) + '</td><td class="num"' + (r.hours > (r.type === 'طارئ' ? 24 : 72) ? ' style="color:var(--t-red);font-weight:700"' : '') + '>' + fmtNum(r.hours) + '</td></tr>').join('') +
+    ? '<div class="table-wrap" style="max-height:420px;overflow:auto"><table class="table"><thead><tr><th>#</th><th>' + esc(t('branch')) + '</th><th>' + esc(t('clinic')) + '</th><th>' + esc(t('doctor')) + '</th><th>' + esc(t('type')) + '</th><th class="num">' + esc(t('hours')) + '</th></tr></thead><tbody>' +
+      rows.map(r => '<tr><td><button class="btn btn-ghost btn-sm mono" data-act="detail" data-id="' + esc(r.id) + '" style="min-height:26px;padding:2px 6px">' + esc(r.id) + '</button></td><td>' + esc(r.branch || '—') + '</td><td>' + esc(r.clinic) + '</td><td>' + esc(r.doctor) + '</td><td>' + typeTag(r.type) + '</td><td class="num"' + (r.hours > (r.type === 'طارئ' ? 24 : 72) ? ' style="color:var(--t-red);font-weight:700"' : '') + '>' + fmtNum(r.hours) + '</td></tr>').join('') +
       '</tbody></table></div>'
     : emptyState('clock', t('no_data'));
 
@@ -2709,9 +2797,17 @@ VIEWS.workflow = {
   if (window.matchMedia) matchMedia('(prefers-color-scheme: dark)').addEventListener && matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => { if (!S.theme) { applyTheme(); redrawCharts(); } });
   const done = () => { const b = $('#boot'); b.classList.add('done'); setTimeout(() => b.remove(), 400); };
   const saved = session.get();
-  if (saved && saved.token) {
+  if (saved && saved.token && saved.cfg && saved.cfg.user) {
+    // إعادة تحميل الصفحة: نفتح فوراً بآخر بيانات معروفة، ثم نحدّث كل شيء بطلب واحد في الخلفية
     S.token = saved.token;
-    call('getConfig').then(cfg => { done(); enterApp(cfg); }).catch(() => { session.clear(); S.token = null; done(); showLogin(); });
+    restoreRC(saved.cfg.user.name);
+    done();
+    enterApp(saved.cfg);
+    S.cfgAt = 0;
+    setTimeout(() => sync(true), 30);
+  } else if (saved && saved.token) {
+    S.token = saved.token;
+    call('getConfig').then(cfg => { done(); session.set({ token: saved.token, cfg: cfg }); enterApp(cfg); }).catch(() => { session.clear(); S.token = null; done(); showLogin(); });
   } else { done(); showLogin(); }
 })();
 </script>
