@@ -136,18 +136,31 @@ function log(msg) { console.log('  ✔ ' + msg); }
 
   // ---------- Login ----------
   await shot(page, 'login');
+  await page.click('.login-tools [data-act="toggleTheme"]');
+  await page.waitForTimeout(250);
+  await shot(page, 'login-dark');
+  await page.click('.login-tools [data-act="toggleTheme"]');
   await page.fill('#loginName', 'سارة');
   await page.fill('#loginPass', 'wrong');
   await page.click('#loginBtn');
   await page.waitForSelector('#loginError:not(.hidden)');
   expect((await page.innerText('#loginError')).includes('غير صحيح'), 'wrong password shows an error');
+  expect(await page.evaluate(() => { const i = document.getElementById('companyLogo'); return i && i.complete && i.naturalWidth > 100; }), 'company logo shows on the login screen');
   await shot(page, 'login-error');
 
   // ---------- Nurse: create request ----------
   await login(page, 'سارة', '1111');
   expect(await page.isVisible('text=طلب جديد'), 'nurse lands on the new-request screen');
   await page.waitForSelector('#fDoctor option[value="د. خالد"]', { state: 'attached' });
+  expect(await page.inputValue('#fBranch') === 'الرياض', 'branch defaults to the clinic branch');
+  await page.selectOption('#fBranch', 'جدة');
+  expect((await page.textContent('#sumBox')).includes('جدة'), 'chosen branch shows in the summary');
   await page.click('[data-seg-name="reqType"][data-v="طارئ"]');
+  await page.click('#itemSearch');
+  await page.waitForSelector('#comboList .combo-opt');
+  const catN = await page.evaluate(() => S.catalog.length);
+  expect(catN >= 5 && await page.locator('#comboList .combo-opt').count() === catN, 'item picker lists the whole catalog (' + catN + ') on focus, scrollable');
+  await shot(page, 'item-picker-all');
   await page.fill('#itemSearch', 'floss');
   await page.waitForSelector('.combo-opt');
   await page.keyboard.press('Enter');
@@ -163,6 +176,16 @@ function log(msg) { console.log('  ✔ ' + msg); }
   await page.click('.pkg-chip >> nth=0');
   expect(await page.locator('.item-line').count() >= 3, 'items added via search, new-item option and doctor package');
   expect((await page.inputValue('.item-line:nth-child(1) input')) === '3', 'qty stepper increments');
+  // الكمية صفر: خطأ واضح ويُمنع الإرسال
+  await page.fill('.item-line:nth-child(1) input', '0');
+  await page.dispatchEvent('.item-line:nth-child(1) input', 'input');
+  expect(await page.isVisible('.item-line:nth-child(1) .qty-err') && (await page.textContent('.item-line:nth-child(1) .qty-err')).includes('أقل كمية 1'), 'zero quantity shows "minimum is 1"');
+  await page.click('#submitBtn');
+  expect((await page.textContent('#submitErr')).includes('لا يمكن طلب صفر'), 'submit is blocked while a quantity is zero');
+  await shot(page, 'nurse-qty-zero');
+  await page.fill('.item-line:nth-child(1) input', '3');
+  await page.dispatchEvent('.item-line:nth-child(1) input', 'input');
+  expect(!(await page.isVisible('.item-line:nth-child(1) .qty-err')), 'error clears once the quantity is valid');
   await shot(page, 'nurse-new-request', true);
   await page.click('#submitBtn');
   let tt = await toastText(page);
@@ -173,6 +196,7 @@ function log(msg) { console.log('  ✔ ' + msg); }
   await page.click('.sidebar [data-view="mine"]');
   await page.waitForSelector('#mineList .req');
   expect(await page.isVisible(`text=${newId}`), 'new request appears in "my requests"');
+  expect((await page.textContent(`.req:has-text("${newId}") .tag.branch`)).includes('جدة'), 'request card shows its branch');
   await shot(page, 'nurse-my-requests', true);
   // complaint
   await page.click(`.req:has-text("${newId}") [data-act="complaint"]`);
@@ -192,30 +216,27 @@ function log(msg) { console.log('  ✔ ' + msg); }
   await page.waitForTimeout(600);
   const runs = await page.evaluate(() => __runs.slice());
   const startup = runs.filter(f => f !== 'login' && f !== 'logout' && f !== 'getRequestItemsFull'); // الأخير = تحميل مسبق عند مرور المؤشر
-  expect(startup.length === 1 && startup[0] === 'batch', 'Apps Script mode: all startup reads go out as one batched call (' + runs.join(', ') + ')');
-  expect(await page.isVisible('.alert.danger'), 'procurement sees an emergency alert');
+  expect(startup.length === 0, 'login brings the first screen data: no extra server calls after login (' + runs.join(', ') + ')');
+  expect((await page.textContent(`.req[data-rid="${newId}"] .tag.branch`)).includes('جدة'), 'procurement sees the order branch');
+  await page.selectOption('[data-change="procBranch"]', 'الرياض');
+  expect(await page.locator(`#procList .req[data-rid="${newId}"]`).count() === 0, 'branch filter hides other branches');
+  await page.selectOption('[data-change="procBranch"]', 'جدة');
+  expect(await page.locator(`#procList .req[data-rid="${newId}"]`).count() === 1, 'branch filter shows the order');
+  await page.selectOption('[data-change="procBranch"]', '');
+  // الطلب الجديد لدى الطبيب أولاً: التموين يراه لكن لا يستطيع تجهيزه
+  expect(await page.isVisible('.alert.warning:has-text("لدى الطبيب")'), 'procurement is alerted that an emergency awaits doctor approval');
+  expect((await page.textContent(`.req[data-rid="${newId}"] .badge`)).includes('مراجعة الطبيب'), 'new request goes straight to doctor review');
   await page.check(`.req[data-rid="${newId}"] .req-main > .check`);
   await page.waitForSelector('#bulkbar.show');
   const bulkState = async () => page.$$eval('#bulkbar [data-act="bulk"]', bs => bs.map(b => b.dataset.s + ':' + (b.disabled ? 'off' : 'on')).join(','));
-  expect(await bulkState() === 'قيد التجهيز:on,بانتظار المندوب:off,استلم المندوب:off,مراجعة الطبيب:off,تم الإرسال:off',
-    'new request: only "in progress" is enabled (dispatch before approval is disabled)');
+  expect(await bulkState() === 'قيد التجهيز:off,بانتظار المندوب:off,استلم المندوب:off,تم الإرسال:off,مراجعة الطبيب:off',
+    'awaiting the doctor: every procurement action is disabled');
   await shot(page, 'proc-bulk-new');
-  await page.click('#bulkbar [data-s="قيد التجهيز"]');
-  expect(await toastHas(page, 'تم تحديث 1'), 'moved to "in progress"');
-  await page.waitForTimeout(300);
-  await page.click(`.req[data-rid="${newId}"] .req-actions [data-act="procToggle"]`);
-  await page.waitForSelector(`#exp-${newId} input[data-change="approveQty"]`);
-  await page.fill(`#exp-${newId} input[data-item="DENTAL FLOSS"]`, '2');
-  await page.dispatchEvent(`#exp-${newId} input[data-item="DENTAL FLOSS"]`, 'change');
-  expect(await toastHas(page, 'تم الحفظ'), 'approved quantity saved');
-  await page.check(`.req[data-rid="${newId}"] .req-main > .check`);
-  expect(await bulkState() === 'قيد التجهيز:off,بانتظار المندوب:on,استلم المندوب:off,مراجعة الطبيب:on,تم الإرسال:off',
-    'in progress: vendor wait and doctor review are enabled');
-  await shot(page, 'procurement-board');
-  await page.click('#bulkbar [data-s="مراجعة الطبيب"]');
-  expect(await toastHas(page, 'تم تحديث'), 'sent to doctor review');
+  await page.click('[data-act="clearSel"]');
   await page.click('.sidebar [data-view="complaints"]');
   await page.waitForSelector('#cList .req');
+  expect(await page.locator('#cList [data-act="resolve"]').count() === 0 && await page.isVisible('#cList .hint:has-text("الجودة")'),
+    'procurement cannot close issues (Quality/executive only)');
   await shot(page, 'procurement-complaints');
   await logout(page);
 
@@ -231,18 +252,71 @@ function log(msg) { console.log('  ✔ ' + msg); }
   await shot(page, 'doctor-review-modal');
   await page.click('#rvApprove');
   expect(await toastHas(page, 'تم اعتماد'), 'doctor approved the request');
+  await page.waitForTimeout(400);
+  // تقرير الطبيب
+  await page.click('#docReportBtn');
+  await page.waitForSelector('.rep .rep-tiles');
+  expect(await page.locator('.rep .rep-req').count() >= 1, 'doctor report lists the requests with items');
+  expect(/\d/.test(await page.textContent('.rep-grand b')), 'doctor report shows a grand total');
+  expect(await page.isVisible('.rep-logo'), 'report header carries the company logo');
+  await page.click('[data-seg-name="repMode"][data-v="cum"]');
+  expect(await page.isVisible('#repTo') && !(await page.isVisible('#repMonth')), 'cumulative mode asks for an end date');
+  await page.click('#repGo');
+  await page.waitForSelector('.rep .rep-tiles');
+  await shot(page, 'doctor-report');
+  await page.evaluate(() => { window.print = () => {}; });
+  await page.click('#repPrint');
+  await page.emulateMedia({ media: 'print' });
+  expect(await page.isVisible('#printArea .rep-grand') && !(await page.isVisible('#appShell')), 'print shows only the report');
+  await shot(page, 'doctor-report-print', true);
+  await page.emulateMedia({ media: 'screen' });
+  await page.waitForTimeout(1600);
+  await page.keyboard.press('Escape');
+  // الطبيب يغيّر رقمه السري بنفسه
+  await page.click('#pwBtn');
+  await page.waitForSelector('#pwCur');
+  await page.fill('#pwCur', '0000'); await page.fill('#pwNew', 'dr-khaled-7'); await page.fill('#pwNew2', 'dr-khaled-7');
+  await page.click('#pwOk');
+  await page.waitForSelector('#pwErr:not(.hidden)');
+  expect((await page.textContent('#pwErr')).includes('غير صحيح'), 'wrong current password is rejected');
+  await page.fill('#pwCur', '4444'); await page.fill('#pwNew2', 'mismatch');
+  await page.click('#pwOk');
+  expect((await page.textContent('#pwErr')).includes('لا يطابق'), 'confirmation mismatch is caught');
+  await page.fill('#pwNew2', 'dr-khaled-7');
+  await shot(page, 'change-password');
+  await page.click('#pwOk');
+  expect(await toastHas(page, 'تم تغيير الرقم السري'), 'doctor changed his own password');
+  await logout(page);
+  await page.fill('#loginName', 'د. خالد'); await page.fill('#loginPass', '4444'); await page.click('#loginBtn');
+  await page.waitForSelector('#loginError:not(.hidden)');
+  expect(true, 'old doctor password no longer signs in');
+  await login(page, 'د. خالد', 'dr-khaled-7');
+  expect(await page.isVisible('#docList'), 'new doctor password signs in');
   await logout(page);
 
-  // ---------- Procurement dispatch ----------
+  // ---------- Procurement: prepare & dispatch after approval ----------
   await login(page, 'علي', '3333');
   expect(await page.isVisible('#pageTitle:has-text("البلاغات")'), 'app remembers the last visited screen');
   await page.click('.sidebar [data-view="requests"]');
-  await page.click('.chip[data-g="approved"]');
+  await page.click('.chip[data-g="ready"]');
   await page.check(`.req[data-rid="${newId}"] .req-main > .check`);
   await page.waitForSelector('#bulkbar.show');
-  expect(await bulkState() === 'قيد التجهيز:off,بانتظار المندوب:off,استلم المندوب:off,مراجعة الطبيب:off,تم الإرسال:on',
-    'doctor-approved: only "dispatch" is enabled');
+  expect(await bulkState() === 'قيد التجهيز:on,بانتظار المندوب:off,استلم المندوب:off,تم الإرسال:on,مراجعة الطبيب:off',
+    'approved: prepare (or dispatch directly) is enabled');
   await shot(page, 'proc-bulk-approved');
+  await page.click('#bulkbar [data-s="قيد التجهيز"]');
+  expect(await toastHas(page, 'تم تحديث 1'), 'moved to "in progress" after approval');
+  await page.waitForTimeout(300);
+  await page.click('.chip[data-g="all"]');
+  await page.click(`.req[data-rid="${newId}"] .req-actions [data-act="procToggle"]`);
+  await page.waitForSelector(`#exp-${newId} input[data-change="approveQty"]`);
+  await page.fill(`#exp-${newId} input[data-change="approveQty"][data-item="DENTAL FLOSS"]`, '2');
+  await page.dispatchEvent(`#exp-${newId} input[data-change="approveQty"][data-item="DENTAL FLOSS"]`, 'change');
+  expect(await toastHas(page, 'تم الحفظ'), 'approved quantity adjusted during preparation');
+  await page.check(`.req[data-rid="${newId}"] .req-main > .check`);
+  expect(await bulkState() === 'قيد التجهيز:off,بانتظار المندوب:on,استلم المندوب:off,تم الإرسال:on,مراجعة الطبيب:off',
+    'in progress: vendor wait and dispatch are enabled');
+  await shot(page, 'procurement-board');
   await page.click('[data-act="clearSel"]');
   await page.waitForSelector(`.req[data-rid="${newId}"]`);
   const exp = await page.$(`#exp-${newId}`);
@@ -250,25 +324,42 @@ function log(msg) { console.log('  ✔ ' + msg); }
   await page.waitForSelector(`#exp-${newId} .dsp`);
   const totalItems = await page.locator(`#exp-${newId} .dsp`).count();
   expect(totalItems >= 2 && await page.isDisabled(`#exp-${newId} [data-act="dispatch"]`), 'dispatch button stays disabled until items are selected');
-  await page.check(`#exp-${newId} .dsp >> nth=0`);
-  expect(await page.textContent(`#exp-${newId} .dsp-btn .count-pill`) === '1', 'dispatch button shows the selected count');
+  // الشحنة 1: كمية جزئية من نفس الصنف (1 من 4) + صنف كامل
+  const qtyInp = n => `#exp-${newId} input.dsp-qty[data-item="${n}"]`;
+  expect(await page.inputValue(qtyInp('MICRO BRUSH FINE')) === '4', 'shipment qty defaults to what is left');
+  await page.fill(qtyInp('MICRO BRUSH FINE'), '9');
+  await page.dispatchEvent(qtyInp('MICRO BRUSH FINE'), 'input');
+  expect(await page.isChecked(`#exp-${newId} .dsp[data-item="MICRO BRUSH FINE"]`), 'typing a quantity ticks the item in the checklist');
   await page.click(`#exp-${newId} [data-act="dispatch"]`);
-  expect(await toastHas(page, 'أُرسلت الشحنة #1'), 'first item sent as shipment #1');
-  await page.waitForSelector(`.req[data-rid="${newId}"] .ship-track`);
+  expect(await toastHas(page, 'أكبر من المتبقي'), 'cannot send more than what is left');
+  await page.fill(qtyInp('MICRO BRUSH FINE'), '1');
+  await page.dispatchEvent(qtyInp('MICRO BRUSH FINE'), 'input');
+  await page.check(`#exp-${newId} .dsp[data-item="DENTAL FLOSS"]`);
+  const pill = await page.textContent(`#exp-${newId} .dsp-btn .count-pill`);
+  expect(pill.startsWith('2 · 3'), 'button shows items and units of this shipment: ' + pill);
+  await page.click(`#exp-${newId} [data-act="dispatch"]`);
+  expect(await toastHas(page, 'أُرسلت الشحنة #1'), 'shipment #1 sent (1 of 4 micro brushes + all floss)');
+  await page.waitForSelector(`.req[data-rid="${newId}"] .ship-left`);
   const track = await page.textContent(`.req[data-rid="${newId}"] .ship-track`);
-  expect(track.includes('أُرسل 1 من ' + totalItems) && track.includes('متبقي ' + (totalItems - 1)), 'card tracker shows sent/remaining: ' + track.trim());
+  const left = await page.textContent(`.req[data-rid="${newId}"] .ship-left`);
+  expect(/أُرسل 3 من \d+ قطعة/.test(track), 'card tracker counts units: ' + track.trim());
+  expect(left.includes('MICRO BRUSH FINE') && left.includes('×3') && left.includes('أُرسل 1 من 4'), 'card lists what is left of each item: ' + left.trim());
   await page.waitForSelector(`#exp-${newId} .ship-sum .ship`);
-  expect(await page.locator(`#exp-${newId} .ship-stats .is-left b`).textContent() === String(totalItems - 1), 'items panel shows remaining count');
-  expect(await page.locator(`#exp-${newId} .badge:has-text("شحنة #1")`).count() === 1, 'sent item is tagged with its shipment number');
+  expect((await page.textContent(`#exp-${newId} .dsp-row.partial .qp-left`)).includes('باقي 3'), 'item row shows its remaining quantity');
+  expect(await page.locator(`#exp-${newId} .dsp-row.done .dsp-ok`).count() === 1, 'fully-sent item is ticked as complete');
   await page.click('.chip[data-g="partial"]');
   expect(await page.locator(`#procList .req[data-rid="${newId}"]`).count() === 1, '"partially sent" filter lists the request');
+  await page.click('.topbar [data-act="sync"]');
+  await page.waitForSelector('.alert:has-text("مُرسل جزئياً")');
+  expect(true, 'procurement alert shows partially-sent requests with quantities left');
   await shot(page, 'proc-partial-dispatch');
   await page.click('.chip[data-g="all"]');
   await page.waitForSelector(`#exp-${newId} .dsp`);
   await page.check(`#exp-${newId} [data-change="dspAll"]`);
-  expect(await page.locator(`#exp-${newId} .dsp:checked`).count() === totalItems - 1, '"select all remaining" checks every unsent item');
+  expect(await page.locator(`#exp-${newId} .dsp:checked`).count() === totalItems - 1, '"select all remaining" ticks every item with quantity left');
+  expect(await page.inputValue(qtyInp('MICRO BRUSH FINE')) === '3', 'remaining 3 micro brushes prefilled');
   await page.click(`#exp-${newId} [data-act="dispatch"]`);
-  expect(await toastHas(page, 'اكتمل'), 'all items dispatched → request sent');
+  expect(await toastHas(page, 'اكتمل'), 'all quantities dispatched → request sent');
   await logout(page);
 
   // ---------- Nurse receives ----------
@@ -288,7 +379,8 @@ function log(msg) { console.log('  ✔ ' + msg); }
   await page.click(`.req:has-text("${newId}") [data-act="receive"]`);
   await page.waitForSelector('.rq');
   expect(await page.locator('#rShip .chip').count() === 2, 'nurse picks which shipment arrived');
-  expect(await page.locator('.rcv-note:not(.last)').count() === 1 && await page.locator('.rq').count() === 1, 'first shipment: only its item, marked as partial receipt');
+  expect(await page.locator('.rcv-note:not(.last)').count() === 1 && await page.locator('.rq').count() === 2, 'first shipment: only its items, marked as partial receipt');
+  expect((await page.textContent('#rShip tbody')).includes('MICRO BRUSH FINE') && await page.inputValue('#rShip .rq[data-i="0"], #rShip .rq >> nth=0') !== '', 'shipment lists its own quantities');
   await page.fill('.rq >> nth=0', '1');
   await sign(0);
   expect(await page.isVisible('#sigWrap.inked'), 'signature pad captures ink');
@@ -403,8 +495,10 @@ function log(msg) { console.log('  ✔ ' + msg); }
       if (JSON.parse(body).fn === 'batch') net.batches++;
       if (net.rejectBatch && JSON.parse(body).fn === 'batch') return r.fulfill({ contentType: 'application/json', headers: { 'Access-Control-Allow-Origin': '*' }, body: JSON.stringify({ ok: false, error: 'ERR_UNKNOWN_FN' }) });
       if (net.failNext > 0) { net.failNext--; return r.fulfill({ status: 500, body: '<html>Google error</html>' }); }
+      if (net.busyWrites > 0 && !/^(get|batch|login)/.test(JSON.parse(body).fn)) { net.busyWrites--; net.busyServed = (net.busyServed || 0) + 1; return r.fulfill({ contentType: 'application/json', headers: { 'Access-Control-Allow-Origin': '*' }, body: JSON.stringify({ ok: false, error: 'ERR_BUSY' }) }); }
       const out = sctx.doPost({ postData: { contents: body } }).getContent();
-      r.fulfill({ contentType: 'application/json', headers: { 'Access-Control-Allow-Origin': '*' }, body: out });
+      const send = () => r.fulfill({ contentType: 'application/json', headers: { 'Access-Control-Allow-Origin': '*' }, body: out }).catch(() => {});
+      if (net.delay) setTimeout(send, net.delay); else send();
     });
     const gp = await ctx.newPage();
     gp.on('pageerror', e => errors.push('pages-mode pageerror: ' + e.message));
@@ -413,7 +507,11 @@ function log(msg) { console.log('  ✔ ' + msg); }
     expect(!(await gp.isVisible('text=include_')), 'Pages mode: include line is invisible');
     await login(gp, 'علي', '3333');
     await gp.waitForSelector('#procList .req, #procList .empty, #cList .req, #cList .empty');
-    expect(net.batches >= 1, 'Pages mode: simultaneous reads are sent as one batch (' + net.posts + ' posts, ' + net.batches + ' batches)');
+    await gp.waitForTimeout(400);
+    expect(net.posts === 1, 'Pages mode: login + first screen data in a single request (' + net.posts + ' posts)');
+    await gp.click('.topbar [data-act="sync"]');
+    expect(await toastHas(gp, 'تم بنجاح'), 'Pages mode: sync done');
+    expect(net.posts === 2 && net.batches === 1, 'Pages mode: sync sends all reads as one batch (' + net.posts + ' posts, ' + net.batches + ' batches)');
     net.failNext = 2;
     await gp.click('.topbar [data-act="sync"]');
     expect(await toastHas(gp, 'تم بنجاح'), 'Pages mode: reads recover from two failed server responses (retry)');
@@ -424,6 +522,20 @@ function log(msg) { console.log('  ✔ ' + msg); }
     await gp.click('.topbar [data-act="sync"]');
     expect(await toastHas(gp, 'تم بنجاح'), 'Pages mode: falls back to single calls when the server has no batch support');
     expect(!(await gp.isVisible('.toast.error')), 'Pages mode: fallback shows no error');
+    net.rejectBatch = false;
+    // ضغط كتابة: الخادم يرد «مشغول» مرتين ثم ينجح — الواجهة تعيد المحاولة تلقائياً بلا خطأ
+    net.busyWrites = 2;
+    const saved = await gp.evaluate(() => call('changePassword', '3333', 'busy-test-1').then(r => r, e => 'ERR ' + e.message));
+    expect(saved === true && net.busyServed === 2, 'Pages mode: writes retry automatically when the server is busy (' + saved + ')');
+    // إعادة تحميل الصفحة مع خادم بطيء (ثانيتان): الواجهة تفتح فوراً بآخر بيانات معروفة
+    net.delay = 2000;
+    await gp.waitForTimeout(1000);
+    const t0 = Date.now();
+    await gp.reload();
+    await gp.waitForSelector('#procList .req, #procList .empty', { timeout: 1500 });
+    const ms = Date.now() - t0;
+    expect(ms < 1500, 'Pages mode: page reload shows the app and list instantly while the server takes 2 s (' + ms + ' ms)');
+    net.delay = 0;
     await ctx.close();
   }
 

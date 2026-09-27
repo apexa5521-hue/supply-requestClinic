@@ -5,6 +5,8 @@
   "scripts": {
     "test": "node --test tests/backend.test.js",
     "test:e2e": "node tests/e2e.js",
-    "perf": "node tests/perf.js"
+    "perf": "node tests/perf.js",
+    "test:load": "node tests/load.js",
+    "test:load-ui": "node tests/load-ui.js"
   }
 }
