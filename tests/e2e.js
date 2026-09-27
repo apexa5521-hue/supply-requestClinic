@@ -197,6 +197,8 @@ function log(msg) { console.log('  ✔ ' + msg); }
   await page.waitForSelector('#mineList .req');
   expect(await page.isVisible(`text=${newId}`), 'new request appears in "my requests"');
   expect((await page.textContent(`.req:has-text("${newId}") .tag.branch`)).includes('جدة'), 'request card shows its branch');
+  expect(await page.locator(`.req:has-text("${newId}") .tag.branch`).count() === 1, 'branch tag appears once');
+  expect((await page.textContent(`.req:has-text("${newId}") .stage-at`)).includes('رُفع'), 'card shows the time of the current stage (submitted)');
   await shot(page, 'nurse-my-requests', true);
   // complaint
   await page.click(`.req:has-text("${newId}") [data-act="complaint"]`);
@@ -312,8 +314,10 @@ function log(msg) { console.log('  ✔ ' + msg); }
   await shot(page, 'proc-bulk-approved');
   await page.click('#bulkbar [data-s="قيد التجهيز"]');
   expect(await toastHas(page, 'تم تحديث 1'), 'moved to "in progress" after approval');
+
   await page.waitForTimeout(300);
   await page.click('.chip[data-g="all"]');
+  expect((await page.textContent(`.req[data-rid="${newId}"] .stage-at`)).includes('بدأ التجهيز'), 'card time follows the stage: "prep started"');
   await page.click(`.req[data-rid="${newId}"] .req-actions [data-act="procToggle"]`);
   await page.waitForSelector(`#exp-${newId} .dsp-table`);
   expect(await page.locator(`#exp-${newId} input[data-change="approveQty"]`).count() === 0 && (await page.textContent(`#exp-${newId}`)).includes('كما اعتمدها الطبيب'),
@@ -432,6 +436,24 @@ function log(msg) { console.log('  ✔ ' + msg); }
   await page.waitForTimeout(600);
   await shot(page, 'dashboard-dark', true);
   await page.click('.topbar [data-act="toggleTheme"]');
+  // التقارير والإحصائيات + تقرير طبيب من قائمة منسدلة
+  await page.click('.sidebar [data-view="reports"]');
+  await page.click('[data-seg-name="rpMode"][data-v="all"]');
+  await page.click('[data-act="rpGo"]');
+  await page.waitForSelector('#rpStats .rp-tile');
+  expect(await page.locator('#rpStats .rp-tile').count() === 8, 'statistics page shows 8 summary figures');
+  expect(await page.locator('#rpStats .rp-table').count() === 4, 'tables by doctor, branch, clinic and top items');
+  expect((await page.textContent('#rpStats .rp-table >> nth=0')).includes('د. خالد'), 'doctor table lists doctors');
+  await page.waitForSelector('#rpDoctor option[value="د. خالد"], #rpDoctor option:has-text("د. خالد")', { state: 'attached' });
+  await page.selectOption('#rpDoctor', 'د. خالد');
+  await page.click('[data-act="rpDoc"]');
+  await page.waitForSelector('#rpDocOut .rep-grand');
+  expect((await page.textContent('#rpDocOut .rep-meta')).includes('د. خالد') && await page.locator('#rpDocOut .rep-req').count() >= 1, 'doctor dropdown report shows his request history with prices');
+  expect(!(await page.isDisabled('[data-act="rpDocPrint"]')), 'doctor report can be printed/exported');
+  await page.click('[data-act="rpDocOf"] >> nth=0');
+  await page.waitForSelector('#rpDocOut .rep-grand');
+  expect(true, 'report button in the doctor table opens that doctor');
+  await shot(page, 'reports-statistics', true);
   await page.click('.sidebar [data-view="notices"]');
   await page.click('[data-seg-name="noticeTarget"][data-v="ممرضة"]');
   await page.fill('#noticeMsg', 'يرجى تأكيد الاستلام في نفس اليوم');

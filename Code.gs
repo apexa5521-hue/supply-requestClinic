@@ -216,6 +216,7 @@ const API_ = {
   resolveComplaint:          { screens: MGMT, fn: resolveComplaint_ },
   getDoctorReport:           { screens: ['doctor'].concat(MGMT), fn: getDoctorReport_ },
   getReportDoctors:          { screens: MGMT, fn: getReportDoctors_ },
+  getStatsReport:            { screens: MGMT, fn: getStatsReport_ },
   addNotice:                 { screens: MGMT, fn: addNotice_ },
   getExecutiveStats:         { screens: MGMT, fn: getExecutiveStats_ },
   getQualityReport:          { screens: MGMT, fn: function (u, m) { return getQualityReport_(m); } },
@@ -890,6 +891,7 @@ function queryRequests_(filters) {
     r.remainingQty = st.remainingQty;
     r.remainingItems = st.sentQty > 0 && st.remainingQty > 0 ? st.remaining : [];
     r.shipmentCount = st.ships.length;
+    r.lastShipAt = st.ships.length ? st.ships.reduce(function (m, g) { return toMs_(g.sentAt) > toMs_(m) ? g.sentAt : m; }, '') : '';
     r.pendingShipments = st.pending;
     r.needsReview = !!reviewers[r.doctor];
     r.cleared = !r.needsReview || r.status === ST.APPROVED || !!r.approvedAt;
@@ -1916,6 +1918,74 @@ function getDoctorReport_(user, opts) {
     doctor: isDoctor ? user.name : doctor,
     from: from, to: to, generatedAt: new Date(), rows: rows, summary: sum,
     top: Object.keys(top).map(function (k) { return top[k]; }).sort(function (a, b) { return b.total - a.total || b.qty - a.qty; }).slice(0, 8)
+  };
+}
+
+/**
+ * إحصائيات الجودة والإدارة لفترة (من/إلى) وفرع اختياري:
+ * ملخص + حسب الطبيب + حسب الفرع + حسب العيادة + الأصناف الأعلى قيمة + توزيع الحالات.
+ * القيمة = الكمية المعتمدة (أو المطلوبة) × سعر الكتالوج، ولا تُحسب قيمة المرفوض.
+ */
+function getStatsReport_(user, opts) {
+  opts = opts || {};
+  const from = parseDay_(opts.from), to = parseDay_(opts.to, true);
+  if (from && to && from > to) throw new Error('ERR_BAD_RANGE');
+  const branch = str_(opts.branch);
+  const cat = {};
+  getCatalog_(true).forEach(function (c) { cat[c.name.toLowerCase()] = Number(c.price) || 0; });
+  const byReq = itemsByRequest_();
+  const reqs = queryRequests_({}).filter(function (r) {
+    if (branch && r.branch !== branch) return false;
+    const ms = toMs_(r.submittedAt || r.date);
+    return (!from || ms >= from.getTime()) && (!to || ms <= to.getTime());
+  });
+  const H = 36e5;
+  function hrs(a, b) { const x = toMs_(a), y = toMs_(b); return x && y && y >= x ? (y - x) / H : null; }
+  function bucket() { return { requests: 0, approved: 0, rejected: 0, pending: 0, received: 0, emergency: 0, value: 0, qty: 0, approvalHrs: [], fulfilHrs: [] }; }
+  function avg(a) { return a.length ? round1_(a.reduce(function (x, y) { return x + y; }, 0) / a.length) : null; }
+  const sum = bucket(), byDoc = {}, byBranch = {}, byClinic = {}, items = {}, statuses = {};
+  let partial = 0;
+  reqs.forEach(function (r) {
+    let value = 0, qty = 0;
+    if (r.status !== ST.REJECTED) {
+      (byReq[r.id] || []).forEach(function (it) {
+        const q = targetQty_(it), n = str_(it.ItemName), k = n.toLowerCase(), v = round2_(q * (cat[k] || 0));
+        value += v; qty += q;
+        items[k] = items[k] || { item: n, qty: 0, value: 0, requests: 0 };
+        items[k].qty += q; items[k].value = round2_(items[k].value + v); items[k].requests++;
+      });
+    }
+    const approvalH = r.approvedAt || r.status === ST.REJECTED ? hrs(r.reviewAt || r.submittedAt, r.reviewedAt || r.approvedAt) : null;
+    const fulfilH = hrs(r.submittedAt, r.sentAt);
+    if (r.sentQty > 0 && r.remainingQty > 0) partial++;
+    statuses[r.status] = (statuses[r.status] || 0) + 1;
+    [sum, byDoc[r.doctor] = byDoc[r.doctor] || bucket(), byBranch[r.branch || '—'] = byBranch[r.branch || '—'] || bucket(),
+      byClinic[r.clinic] = byClinic[r.clinic] || bucket()].forEach(function (b) {
+      b.requests++;
+      if (r.status === ST.REJECTED) b.rejected++;
+      else if (r.cleared && r.needsReview) b.approved++;
+      if (r.awaitingDoctor) b.pending++;
+      if (r.status === ST.RECEIVED) b.received++;
+      if (r.type === 'طارئ') b.emergency++;
+      b.value = round2_(b.value + value); b.qty += qty;
+      if (approvalH !== null) b.approvalHrs.push(approvalH);
+      if (fulfilH !== null) b.fulfilHrs.push(fulfilH);
+    });
+  });
+  function out(name, b) {
+    return {
+      name: name, requests: b.requests, approved: b.approved, rejected: b.rejected, pending: b.pending, received: b.received,
+      emergency: b.emergency, value: b.value, qty: b.qty, avgValue: b.requests ? round2_(b.value / (b.requests - b.rejected || 1)) : 0,
+      avgApprovalHrs: avg(b.approvalHrs), avgFulfilHrs: avg(b.fulfilHrs),
+      rejectRate: b.requests ? Math.round(b.rejected / b.requests * 100) : 0
+    };
+  }
+  function list(m) { return Object.keys(m).map(function (k) { return out(k, m[k]); }).sort(function (a, b) { return b.value - a.value || b.requests - a.requests; }); }
+  return {
+    from: from, to: to, branch: branch, generatedAt: new Date(),
+    summary: Object.assign(out('', sum), { partial: partial }),
+    doctors: list(byDoc), branches: list(byBranch), clinics: list(byClinic), statuses: statuses,
+    topItems: Object.keys(items).map(function (k) { return items[k]; }).sort(function (a, b) { return b.value - a.value || b.qty - a.qty; }).slice(0, 12)
   };
 }
 
