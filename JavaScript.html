@@ -1757,20 +1757,20 @@ function drawReceipt(id, sections, combined) {
     const x = c.getContext('2d');
     const when = v => { const d = toDate(v) || new Date(); return d.toLocaleString('en-GB', { timeZone: 'Asia/Riyadh' }); };
     x.fillStyle = '#fff'; x.fillRect(0, 0, W, H);
-    x.fillStyle = '#5b3aa8'; x.fillRect(0, 0, W, 10);
-    x.textAlign = 'center'; x.fillStyle = '#5b3aa8'; x.font = 'bold 21px Arial, sans-serif';
+    x.fillStyle = '#5b76c9'; x.fillRect(0, 0, W, 10);
+    x.textAlign = 'center'; x.fillStyle = '#5b76c9'; x.font = 'bold 21px Arial, sans-serif';
     x.fillText('SupplyFlow — ApexCare · ' + (combined ? 'Combined receipt' : 'Receipt'), W / 2, 44);
     x.fillStyle = '#555'; x.font = '13px Arial, sans-serif';
     x.fillText(id + '   |   ' + when() + (combined ? '   |   ' + sections.length + ' shipment(s)' : ''), W / 2, 68);
     let y = 92;
     sections.forEach(s => {
-      x.fillStyle = '#5b3aa8'; x.font = 'bold 15px Arial, sans-serif'; x.textAlign = 'left';
+      x.fillStyle = '#5b76c9'; x.font = 'bold 15px Arial, sans-serif'; x.textAlign = 'left';
       x.fillText('Shipment #' + s.batch, 20, y + 20);
       x.fillStyle = '#777'; x.font = '12px Arial, sans-serif'; x.textAlign = 'right';
       x.fillText('Received ' + when(s.at), W - 20, y + 20);
       y += 34;
       x.fillStyle = '#e8f4f0'; x.fillRect(20, y, W - 40, rowH);
-      x.fillStyle = '#5b3aa8'; x.font = 'bold 13px Arial, sans-serif';
+      x.fillStyle = '#5b76c9'; x.font = 'bold 13px Arial, sans-serif';
       x.textAlign = 'left'; x.fillText('Item', 30, y + 19);
       x.textAlign = 'center'; x.fillText('Sent', W - 170, y + 19); x.fillText('Received', W - 70, y + 19);
       y += rowH;
@@ -1797,7 +1797,7 @@ function drawReceipt(id, sections, combined) {
       y += sigH + 32;
       if (combined) { x.strokeStyle = '#e5e9e7'; x.beginPath(); x.moveTo(20, y - 8); x.lineTo(W - 20, y - 8); x.stroke(); }
     });
-    x.fillStyle = '#5b3aa8'; x.fillRect(0, H - 8, W, 8);
+    x.fillStyle = '#5b76c9'; x.fillRect(0, H - 8, W, 8);
     return c.toDataURL('image/png');
   } catch (e) { console.error(e); return ''; }
 }
