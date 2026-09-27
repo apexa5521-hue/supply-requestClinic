@@ -689,6 +689,33 @@ test('under write contention the server answers ERR_BUSY without writing anythin
   assert.equal(api(n, 'createRequest', payload).duplicate, true, 'a double retry is caught by the duplicate guard');
 });
 
+test('quality/executive statistics: by doctor, branch, clinic, items, with period and branch filters', () => {
+  const { api, login, gas } = boot();
+  const n = login('سارة', '1111'), r2 = login('ريم', '2222'), p = login('علي', '3333'), d = login('د. خالد', '4444'), q = login('منى', '5555'), a = login('المدير', '1234');
+  const mk = (tok, clinic, doctor, items, extra) => api(tok, 'createRequest', Object.assign({ clinic, doctor, type: 'شهري', items }, extra || {})).id;
+  const x1 = mk(n, 'عيادة الأسنان 1', 'د. خالد', [{ name: 'PROPHY PASTE', qty: 2 }]);                  // 120
+  const x2 = mk(n, 'عيادة الأسنان 1', 'د. خالد', [{ name: 'Itero Sleeve', qty: 1 }], { branch: 'جدة' }); // 300 (فرع جدة)
+  const x3 = mk(n, 'عيادة الأسنان 1', 'د. خالد', [{ name: 'DENTAL FLOSS', qty: 4 }]);                  // مرفوض
+  const x4 = mk(r2, 'عيادة الأسنان 2', 'د. سعد', [{ name: 'DENTAL FLOSS', qty: 2 }]);                  // 25 (طبيب بلا حساب)
+  api(d, 'doctorReview', x1, 'اعتمد', '', []);
+  api(d, 'doctorReview', x2, 'اعتمد', '', [], [{ item: 'Itero Sleeve', qty: 1 }]);
+  api(d, 'doctorReview', x3, 'رفض', 'لا', []);
+  const st = api(q, 'getStatsReport', {});
+  assert.deepEqual([st.summary.requests, st.summary.rejected, st.summary.value], [4, 1, 445], 'rejected value not counted');
+  const kh = st.doctors.find(x => x.name === 'د. خالد');
+  assert.deepEqual([kh.requests, kh.approved, kh.rejected, kh.value, kh.rejectRate], [3, 2, 1, 420, 33]);
+  assert.ok(kh.avgApprovalHrs !== null, 'approval time measured');
+  assert.equal(st.doctors[0].name, 'د. خالد', 'sorted by value');
+  assert.deepEqual(st.branches.map(b => [b.name, b.requests, b.value]).sort(), [['الرياض', 2, 120], ['جدة', 2, 325]].sort());
+  assert.equal(st.clinics.find(c => c.name === 'عيادة الأسنان 2').value, 25);
+  assert.equal(st.topItems[0].item, 'Itero Sleeve');
+  assert.equal(st.statuses['مرفوض'], 1);
+  assert.deepEqual(api(q, 'getStatsReport', { branch: 'جدة' }).summary.requests, 2, 'branch filter');
+  assert.equal(api(a, 'getStatsReport', { from: '2020-01-01', to: '2020-01-31' }).summary.requests, 0, 'period filter');
+  throwsCode(() => api(q, 'getStatsReport', { from: '2025-02-01', to: '2025-01-01' }), 'ERR_BAD_RANGE');
+  for (const tok of [n, p, d]) throwsCode(() => api(tok, 'getStatsReport', {}), 'ERR_FORBIDDEN');
+});
+
 test('doctor without an account: request can be dispatched without review', () => {
   const { api, login } = boot();
   const n = login('سارة', '1111'), p = login('علي', '3333');
