@@ -893,6 +893,9 @@ function queryRequests_(filters) {
     r.pendingShipments = st.pending;
     r.needsReview = !!reviewers[r.doctor];
     r.cleared = !r.needsReview || r.status === ST.APPROVED || !!r.approvedAt;
+    r.awaitingDoctor = r.needsReview && !r.cleared && AWAITING_DOCTOR.indexOf(r.status) !== -1;
+    if (r.awaitingDoctor && r.status === ST.NEW) r.status = ST.REVIEW; // طلب قديم «جديد» = لدى الطبيب
+    r.doctorApproved = r.needsReview && r.cleared;
     r._ms = toMs_(r.date);
     return r;
   }).sort(function (a, b) { return b._ms - a._ms; });
@@ -1245,6 +1248,8 @@ const EDITABLE_APPROVAL = [ST.NEW, ST.APPROVED, ST.PREP, ST.VENDOR_WAIT, ST.VEND
 function updateItemApproval_(user, requestId, itemName, approvedQty) {
   const req = mapRequest_(findRequest_(requestId).row);
   if (EDITABLE_APPROVAL.indexOf(req.status) === -1) throw new Error('ERR_LOCKED');
+  // كميات الطلب الذي يراجعه الطبيب يحددها الطبيب فقط (والنقص يُعالَج بالإرسال الجزئي)
+  if (doctorHasAccount_(req.doctor)) throw new Error('ERR_DOCTOR_QTY');
   const qty = Math.floor(Number(approvedQty));
   if (!(qty >= 0 && qty <= 100000)) throw new Error('ERR_BAD_QTY');
   const t = read_('RequestItems');
@@ -1314,6 +1319,15 @@ function cleared_(row) {
   return !doctorHasAccount_(str_(row.Doctor)) || st === ST.APPROVED || !!row.ApprovedAt;
 }
 
+/**
+ * طلب ينتظر قرار الطبيب: طبيبه له حساب ولم يُعتمد بعد.
+ * يشمل «مراجعة الطبيب»، والطلبات القديمة «جديد» أو المجهّزة قبل الاعتماد (المسار السابق) — تظهر عند الطبيب تلقائياً.
+ */
+const AWAITING_DOCTOR = [ST.REVIEW, ST.NEW, ST.PREP, ST.VENDOR_WAIT, ST.VENDOR_RECV];
+function awaitingDoctor_(row) {
+  return AWAITING_DOCTOR.indexOf(str_(row.Status) || ST.NEW) !== -1 && doctorHasAccount_(str_(row.Doctor)) && !cleared_(row);
+}
+
 /** سبب منع الانتقال (أو '' إن كان مسموحاً) */
 function transitionError_(row, newStatus) {
   const cur = str_(row.Status) || ST.NEW;
@@ -1329,7 +1343,8 @@ function transitionError_(row, newStatus) {
 
 function bulkUpdateStatus_(user, requestIds, newStatus) {
   const tr = TRANSITIONS[newStatus];
-  if (!tr) throw new Error('ERR_BAD_STATUS');
+  // المراجعة تبدأ تلقائياً برفع الممرضة للطلب — التموين لا يرسل للطبيب
+  if (!tr || newStatus === ST.REVIEW) throw new Error('ERR_BAD_STATUS');
   const result = { updated: [], skipped: [] };
   const toNotify = [];
   withLock_(function () {
@@ -1423,7 +1438,11 @@ function dispatchItems_(user, requestId, lines) {
   return res;
 }
 
-function doctorReview_(user, requestId, decision, reason, itemNotes) {
+/**
+ * قرار الطبيب على طلب الممرضة: اعتماد (مع تعديل الكميات اختيارياً) أو رفض مع السبب.
+ * qtys = [{ item, qty }] — الكمية المعتمدة لكل صنف (0 = لا يُصرف).
+ */
+function doctorReview_(user, requestId, decision, reason, itemNotes, qtys) {
   reason = clean_(reason, 1000);
   if (decision !== 'اعتمد' && decision !== 'رفض') throw new Error('ERR_BAD_DECISION');
   if (decision === 'رفض' && !reason) throw new Error('ERR_REASON_REQUIRED');
@@ -1433,9 +1452,26 @@ function doctorReview_(user, requestId, decision, reason, itemNotes) {
     const f = findRequest_(requestId);
     req = mapRequest_(f.row);
     if (!isMyDoctor_(user, req.doctor)) throw new Error('ERR_FORBIDDEN');
-    if (req.status !== ST.REVIEW) throw new Error('ERR_BAD_TRANSITION');
+    if (req.status !== ST.REVIEW && !awaitingDoctor_(f.row)) throw new Error('ERR_BAD_TRANSITION');
     const status = decision === 'اعتمد' ? ST.APPROVED : ST.REJECTED;
     const now = new Date();
+    if (decision === 'اعتمد' && Array.isArray(qtys) && qtys.length) {
+      const ri = read_('RequestItems');
+      const rows = ri.rows.filter(function (r) { return str_(r.RequestID) === req.id; });
+      const changes = [];
+      const ups = [];
+      qtys.forEach(function (x) {
+        const row = rows.filter(function (r) { return str_(r.ItemName) === str_(x && x.item); })[0];
+        if (!row) return;
+        const q = Math.floor(Number(x.qty));
+        if (!(q >= 0 && q <= 100000) || String(x.qty).trim() === '') throw new Error('ERR_BAD_QTY');
+        if (q !== targetQty_(row)) { changes.push(str_(row.ItemName) + ': ' + targetQty_(row) + ' ← ' + q); }
+        ups.push({ row: row, obj: { ApprovedQty: q } });
+      });
+      if (ups.length && ups.every(function (u) { return u.obj.ApprovedQty === 0; })) throw new Error('ERR_ALL_ZERO');
+      setMany_(ri, ups);
+      if (changes.length) logAction_(requestId, 'الطبيب عدّل الكميات: ' + changes.join('، '), user.name);
+    }
     setCells_(f.t, f.row, { Status: status, ReviewedAt: now, ApprovedAt: decision === 'اعتمد' ? now : '', RejectionReason: decision === 'رفض' ? reason : '' });
     req.status = status;
     logAction_(requestId, (decision === 'اعتمد' ? 'اعتماد الطبيب' : 'رفض الطبيب: ' + reason), user.name);
@@ -1761,7 +1797,7 @@ function getAlerts_(user) {
     const ready = all.filter(function (r) { return r.cleared && (r.status === ST.APPROVED || r.status === ST.NEW); });
     const urgent = ready.filter(function (r) { return r.type === 'طارئ'; }).length;
     const toSend = all.filter(function (r) { return r.cleared && (r.status === ST.PREP || r.status === ST.VENDOR_RECV); }).length;
-    const urgentReview = all.filter(function (r) { return r.status === ST.REVIEW && r.type === 'طارئ'; }).length;
+    const urgentReview = all.filter(function (r) { return r.awaitingDoctor && r.type === 'طارئ'; }).length;
     const stale = all.filter(function (r) {
       return [ST.NEW, ST.APPROVED, ST.PREP, ST.VENDOR_WAIT, ST.VENDOR_RECV].indexOf(r.status) !== -1 && hoursSince(r.submittedAt) > 72;
     }).length;
@@ -1774,7 +1810,7 @@ function getAlerts_(user) {
     if (urgentReview) alerts.push({ type: 'warning', code: 'alert_urgent_review', n: urgentReview });
     if (stale) alerts.push({ type: 'warning', code: 'alert_stale', n: stale });
   } else if (user.screen === 'doctor') {
-    const pending = reqs.filter(function (r) { return isMyDoctor_(user, r.doctor) && r.status === ST.REVIEW; }).length;
+    const pending = queryRequests_({ doctorUser: user }).filter(function (r) { return r.awaitingDoctor; }).length;
     if (pending) alerts.push({ type: 'warning', code: 'alert_pending_review', n: pending });
   } else {
     const open = getComplaints_(user, true).length;

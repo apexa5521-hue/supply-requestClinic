@@ -244,16 +244,21 @@ test('full workflow: submit → doctor review → approve → prep → partial d
   const withPrices = api(d, 'getRequestItemsWithCatalog', id);
   assert.equal(withPrices.find(i => i.item === 'PROPHY PASTE').price, 60);
   throwsCode(() => api(d, 'doctorReview', id, 'رفض', '', []), 'ERR_REASON_REQUIRED');
-  api(d, 'doctorReview', id, 'اعتمد', 'تمام', [{ item: 'DENTAL FLOSS', note: 'نوع شمعي' }]);
+  throwsCode(() => api(d, 'doctorReview', id, 'اعتمد', '', [], [{ item: 'DENTAL FLOSS', qty: -1 }]), 'ERR_BAD_QTY');
+  throwsCode(() => api(d, 'doctorReview', id, 'اعتمد', '', [], [{ item: 'DENTAL FLOSS', qty: 0 }, { item: 'PROPHY PASTE', qty: 0 }]), 'ERR_ALL_ZERO');
+  // الطبيب يعدّل الكمية أثناء المراجعة ثم يعتمد
+  api(d, 'doctorReview', id, 'اعتمد', 'تمام', [{ item: 'DENTAL FLOSS', note: 'نوع شمعي' }], [{ item: 'DENTAL FLOSS', qty: 8 }, { item: 'PROPHY PASTE', qty: 4 }]);
   throwsCode(() => api(d, 'doctorReview', id, 'اعتمد', '', []), 'ERR_BAD_TRANSITION');
+  assert.equal(api(p, 'getRequestItemsFull', id).items.find(i => i.item === 'DENTAL FLOSS').approvedQty, 8, 'doctor quantity reaches procurement exactly');
+  assert.ok(rows(gas, 'Log').some(l => /الطبيب عدّل الكميات: DENTAL FLOSS: 10 ← 8/.test(l.Action)), 'the change is logged');
   assert.ok(gas.mails.some(m => m.to.indexOf('ali@example.com') !== -1 && /معتمد جاهز للتجهيز/.test(m.subject)), 'procurement emailed after approval');
   const pa = api(p, 'getAlerts');
   assert.ok(pa.some(a => a.code === 'alert_new' && a.n === 1), 'approved request shows as ready to prepare');
 
-  // التجهيز بعد الاعتماد + تعديل الكمية حسب المتوفر
+  // التجهيز بعد الاعتماد — الكميات كما اعتمدها الطبيب (التموين لا يعدّلها)
   assert.deepEqual(api(p, 'bulkUpdateStatus', [id, 'REQ-NOPE'], 'قيد التجهيز').updated, [id]);
-  api(p, 'updateItemApproval', id, 'DENTAL FLOSS', 8);
-  assert.deepEqual(api(p, 'bulkUpdateStatus', [id], 'مراجعة الطبيب').skipped[0].reason, 'ERR_BAD_TRANSITION', 'already approved');
+  throwsCode(() => api(p, 'updateItemApproval', id, 'DENTAL FLOSS', 5), 'ERR_DOCTOR_QTY');
+  throwsCode(() => api(p, 'bulkUpdateStatus', [id], 'مراجعة الطبيب'), 'ERR_BAD_STATUS');
   assert.ok(api(p, 'getAlerts').some(a => a.code === 'alert_approved_ready' && a.n === 1), 'prepared → ready to send');
 
   // إرسال جزئي ثم كامل
@@ -319,7 +324,6 @@ test('items can be dispatched in numbered shipments with a sent/remaining tracke
   const id = api(n, 'createRequest', { clinic: 'عيادة الأسنان 1', doctor: 'د. خالد', type: 'شهري', items: names.map(x => ({ name: x, qty: 2 })) }).id;
   api(p, 'bulkUpdateStatus', [id], 'قيد التجهيز');
   throwsCode(() => api(p, 'dispatchItems', id, [names[0]]), 'ERR_NEEDS_APPROVAL');
-  api(p, 'bulkUpdateStatus', [id], 'مراجعة الطبيب');
   api(d, 'doctorReview', id, 'اعتمد', '', []);
 
   // الشحنة 1: صنفان
@@ -449,9 +453,8 @@ test('read cache: every write is visible immediately, cached reads equal fresh s
   step('resubmit', () => api(n, 'resubmitRequest', id, 'تم التعديل'), id);
   step('comment', () => api(n, 'addComment', id, 'تعليق'), id);
   step('complaint', () => api(n, 'addComplaint', id, 'تأخير', 'تفاصيل'), id);
-  step('approve', () => api(d, 'doctorReview', id, 'اعتمد', '', [{ item: 'PROPHY PASTE', note: 'ملاحظة' }]), id);
+  step('approve with doctor quantities', () => api(d, 'doctorReview', id, 'اعتمد', '', [{ item: 'PROPHY PASTE', note: 'ملاحظة' }], [{ item: 'DENTAL FLOSS', qty: 2 }]), id);
   step('prep', () => api(p, 'bulkUpdateStatus', [id], 'قيد التجهيز'), id);
-  step('approval qty', () => api(p, 'updateItemApproval', id, 'DENTAL FLOSS', 2), id);
   step('dispatch 1', () => api(p, 'dispatchItems', id, ['PROPHY PASTE']), id);
   step('receive 1', () => api(n, 'receiveShipment', id, 1, [{ name: 'PROPHY PASTE', qty: 2 }], 'سارة', '', ''), id);
   step('dispatch rest', () => api(p, 'bulkUpdateStatus', [id], 'تم الإرسال'), id);
@@ -583,7 +586,7 @@ test('doctor rejection returns to the nurse, who can resubmit it to the doctor',
   assert.deepEqual(api(p, 'bulkUpdateStatus', [id], 'قيد التجهيز').updated, [id]);
 });
 
-test('requests prepared under the old order (not yet approved) go to review before dispatch', () => {
+test('old requests not yet approved (new or prepared under the old order) appear at the doctor automatically', () => {
   const { api, login, gas } = boot();
   const n = login('سارة', '1111'), p = login('علي', '3333'), d = login('د. خالد', '4444');
   const id = api(n, 'createRequest', { clinic: 'عيادة الأسنان 1', doctor: 'د. خالد', type: 'شهري', items: [{ name: 'PROPHY PASTE', qty: 1 }] }).id;
@@ -591,11 +594,22 @@ test('requests prepared under the old order (not yet approved) go to review befo
   const t = gas.ss.getSheetByName('Requests');
   t._data.find(r => r[0] === id)[t._data[0].indexOf('Status')] = 'قيد التجهيز';
   gas.globals.CacheService.getScriptCache().remove('v:Requests');
-  assert.equal(api(p, 'getRequests', {})[0].cleared, false);
+  assert.deepEqual([api(p, 'getRequests', {})[0].cleared, api(p, 'getRequests', {})[0].awaitingDoctor], [false, true]);
   assert.equal(api(p, 'bulkUpdateStatus', [id], 'تم الإرسال').skipped[0].reason, 'ERR_NEEDS_APPROVAL');
   throwsCode(() => api(p, 'dispatchItems', id, ['PROPHY PASTE']), 'ERR_NEEDS_APPROVAL');
-  assert.deepEqual(api(p, 'bulkUpdateStatus', [id], 'مراجعة الطبيب').updated, [id]);
+  throwsCode(() => api(p, 'bulkUpdateStatus', [id], 'مراجعة الطبيب'), 'ERR_BAD_STATUS');
+  // يظهر عند الطبيب بلا أي إجراء من التموين
+  assert.deepEqual(api(d, 'getDoctorRequests').map(r => [r.id, r.awaitingDoctor]), [[id, true]]);
+  assert.ok(api(d, 'getAlerts').some(a => a.code === 'alert_pending_review' && a.n === 1));
   api(d, 'doctorReview', id, 'اعتمد', '', []);
+  // طلب قديم بحالة «جديد» وطبيبه له حساب → يظهر عند الطبيب كمراجعة
+  const id2 = api(n, 'createRequest', { clinic: 'عيادة الأسنان 1', doctor: 'د. خالد', type: 'شهري', items: [{ name: 'DENTAL FLOSS', qty: 2 }] }).id;
+  t._data.find(r => r[0] === id2)[t._data[0].indexOf('Status')] = 'جديد';
+  gas.globals.CacheService.getScriptCache().remove('v:Requests');
+  const legacy = api(d, 'getDoctorRequests').find(r => r.id === id2);
+  assert.deepEqual([legacy.status, legacy.awaitingDoctor], ['مراجعة الطبيب', true]);
+  api(d, 'doctorReview', id2, 'اعتمد', '', []);
+  assert.equal(api(p, 'getRequests', {}).find(r => r.id === id2).status, 'معتمد من الطبيب');
   assert.deepEqual(api(p, 'bulkUpdateStatus', [id], 'تم الإرسال').updated, [id], 'approved → can be sent directly');
 });
 
@@ -607,9 +621,8 @@ test('doctor report: priced items and totals for a month or a cumulative period'
   const b = mk([{ name: 'Itero Sleeve', qty: 1 }, { name: 'صنف بلا سعر', qty: 3 }]);  // 300
   const c = mk([{ name: 'PROPHY PASTE', qty: 9 }]);                                     // مرفوض → خارج التقرير
   api(d, 'doctorReview', c, 'رفض', 'لا', []);
-  api(d, 'doctorReview', a, 'اعتمد', '', []);
+  api(d, 'doctorReview', a, 'اعتمد', '', [], [{ item: 'DENTAL FLOSS', qty: 2 }]); // الكمية المعتمدة تُستخدم: 2×60 + 2×12.5 = 145
   api(p, 'bulkUpdateStatus', [a], 'قيد التجهيز');
-  api(p, 'updateItemApproval', a, 'DENTAL FLOSS', 2); // الكمية المعتمدة تُستخدم: 2×60 + 2×12.5 = 145
   // طلب b في شهر سابق
   const t = gas.ss.getSheetByName('Requests');
   const H = t._data[0];
@@ -838,9 +851,7 @@ test('doctor account with a short name sees and reviews requests for the full do
   const n = login('Abhie', '1'), p = login('ahmed', '2'), sami = login('Dr.Sami', '3'), fahad = login('Dr.Fahad', '5');
   const mk = doc => api(n, 'createRequest', { clinic: 'Dental Clinic 8 - Buraydah', doctor: doc, type: 'شهري', items: [{ name: 'X', qty: 1 }] }).id;
   const a = mk('Dr. Sami Al-Duwaihi'), b = mk('Dr. Turki Al-Mutairi'), c = mk('Dr. Fahad Al-Harbi');
-  api(p, 'bulkUpdateStatus', [a, b, c], 'قيد التجهيز');
-  api(p, 'bulkUpdateStatus', [a, b, c], 'مراجعة الطبيب');
-  assert.ok(gas.mails.some(m => m.to === 'sami@example.com'), 'review email reaches the linked account');
+  assert.ok(gas.mails.some(m => m.to === 'sami@example.com' && /بانتظار مراجعتك/.test(m.subject)), 'review email reaches the linked account on submission');
   assert.deepEqual(api(sami, 'getDoctorRequests').map(r => r.id), [a]);
   assert.equal(api(sami, 'getAlerts')[0].n, 1);
   api(sami, 'doctorReview', a, 'اعتمد', '', []);

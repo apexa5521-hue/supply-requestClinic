@@ -229,8 +229,9 @@ function log(msg) { console.log('  ✔ ' + msg); }
   await page.check(`.req[data-rid="${newId}"] .req-main > .check`);
   await page.waitForSelector('#bulkbar.show');
   const bulkState = async () => page.$$eval('#bulkbar [data-act="bulk"]', bs => bs.map(b => b.dataset.s + ':' + (b.disabled ? 'off' : 'on')).join(','));
-  expect(await bulkState() === 'قيد التجهيز:off,بانتظار المندوب:off,استلم المندوب:off,تم الإرسال:off,مراجعة الطبيب:off',
-    'awaiting the doctor: every procurement action is disabled');
+  expect(await bulkState() === 'قيد التجهيز:off,بانتظار المندوب:off,استلم المندوب:off,تم الإرسال:off',
+    'awaiting the doctor: every procurement action is disabled (no "send to doctor" button)');
+  expect(await page.locator('.chip[data-g="review"] .count-pill').textContent() === '1', 'procurement sees it under "With doctor" right after submission');
   await shot(page, 'proc-bulk-new');
   await page.click('[data-act="clearSel"]');
   await page.click('.sidebar [data-view="complaints"]');
@@ -249,6 +250,11 @@ function log(msg) { console.log('  ✔ ' + msg); }
   await page.click('#rvReject');
   expect(await page.isVisible('#rvErr:not(.hidden)'), 'rejecting without a reason is blocked');
   await page.fill('.rvNote >> nth=0', 'يفضل النوع الشمعي');
+  // الطبيب يعدّل كمية الخيط (3 → 2) قبل الاعتماد والإجمالي يتحدث فوراً
+  const tot0 = await page.textContent('#rvTotal');
+  await page.fill('.rvQty[data-item="DENTAL FLOSS"]', '2');
+  await page.dispatchEvent('.rvQty[data-item="DENTAL FLOSS"]', 'input');
+  expect(await page.textContent('#rvTotal') !== tot0 && await page.isVisible('.rvQty.changed'), 'doctor edits a quantity and the estimated total updates');
   await shot(page, 'doctor-review-modal');
   await page.click('#rvApprove');
   expect(await toastHas(page, 'تم اعتماد'), 'doctor approved the request');
@@ -301,7 +307,7 @@ function log(msg) { console.log('  ✔ ' + msg); }
   await page.click('.chip[data-g="ready"]');
   await page.check(`.req[data-rid="${newId}"] .req-main > .check`);
   await page.waitForSelector('#bulkbar.show');
-  expect(await bulkState() === 'قيد التجهيز:on,بانتظار المندوب:off,استلم المندوب:off,تم الإرسال:on,مراجعة الطبيب:off',
+  expect(await bulkState() === 'قيد التجهيز:on,بانتظار المندوب:off,استلم المندوب:off,تم الإرسال:on',
     'approved: prepare (or dispatch directly) is enabled');
   await shot(page, 'proc-bulk-approved');
   await page.click('#bulkbar [data-s="قيد التجهيز"]');
@@ -309,12 +315,13 @@ function log(msg) { console.log('  ✔ ' + msg); }
   await page.waitForTimeout(300);
   await page.click('.chip[data-g="all"]');
   await page.click(`.req[data-rid="${newId}"] .req-actions [data-act="procToggle"]`);
-  await page.waitForSelector(`#exp-${newId} input[data-change="approveQty"]`);
-  await page.fill(`#exp-${newId} input[data-change="approveQty"][data-item="DENTAL FLOSS"]`, '2');
-  await page.dispatchEvent(`#exp-${newId} input[data-change="approveQty"][data-item="DENTAL FLOSS"]`, 'change');
-  expect(await toastHas(page, 'تم الحفظ'), 'approved quantity adjusted during preparation');
+  await page.waitForSelector(`#exp-${newId} .dsp-table`);
+  expect(await page.locator(`#exp-${newId} input[data-change="approveQty"]`).count() === 0 && (await page.textContent(`#exp-${newId}`)).includes('كما اعتمدها الطبيب'),
+    'procurement sees the doctor-approved quantities, locked');
+  const flossRow = await page.textContent(`#exp-${newId} .dsp-row:has-text("DENTAL FLOSS")`);
+  expect(flossRow.includes('أُرسل 0 من 2'), 'the doctor quantity (2) is what procurement prepares: ' + flossRow.replace(/\s+/g, ' '));
   await page.check(`.req[data-rid="${newId}"] .req-main > .check`);
-  expect(await bulkState() === 'قيد التجهيز:off,بانتظار المندوب:on,استلم المندوب:off,تم الإرسال:on,مراجعة الطبيب:off',
+  expect(await bulkState() === 'قيد التجهيز:off,بانتظار المندوب:on,استلم المندوب:off,تم الإرسال:on',
     'in progress: vendor wait and dispatch are enabled');
   await shot(page, 'procurement-board');
   await page.click('[data-act="clearSel"]');
