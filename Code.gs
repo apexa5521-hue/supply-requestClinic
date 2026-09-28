@@ -823,7 +823,8 @@ function hasAdmin_() {
 /** صلاحيات المستخدم الحالي. قبل إنشاء أي حساب أدمن تبقى الإدارة التنفيذية بكل الصلاحيات (حتى لا يُقفل النظام) */
 function permsOf_(user) {
   if (MGMT_SCREENS.indexOf(user.screen) === -1) return [];
-  if (user.screen === 'executive' && !hasAdmin_()) return PERMS.slice();
+  // الإدارة التنفيذية (أو لوحة المؤشرات القديمة) بكل الصلاحيات ما دام لا يوجد أدمن
+  if ((user.screen === 'executive' || user.screen === 'dashboard') && !hasAdmin_()) return PERMS.slice();
   const r = read_('Roles').rows.filter(function (x) { return str_(x.RoleName) === str_(user.role); })[0];
   return rolePerms_(user.screen, r ? r.Permissions : '');
 }
@@ -851,7 +852,9 @@ function ensureMgmtRoles_() {
  * الصف الذي فيه Permissions محفوظة يُعتبر مقصوداً ولا يُمس.
  */
 const LEGACY_ROLE_MAP_ = { 'جودة|admin': 'quality', 'جوده|admin': 'quality', 'جودة|dashboard': 'quality', 'جوده|dashboard': 'quality',
-  'تنفيذي|admin': 'executive', 'مالية|dashboard': 'finance', 'ماليه|dashboard': 'finance' };
+  'تنفيذي|admin': 'executive', 'تنفيذي|dashboard': 'executive', 'إدارة تنفيذية|admin': 'executive', 'إدارة تنفيذية|dashboard': 'executive',
+  'ادارة تنفيذية|admin': 'executive', 'ادارة تنفيذية|dashboard': 'executive',
+  'مالية|dashboard': 'finance', 'ماليه|dashboard': 'finance', 'مالية|admin': 'finance', 'ماليه|admin': 'finance' };
 function migrateRoles_() {
   const legacy = function (r) { return !str_(r.Permissions) && LEGACY_ROLE_MAP_[str_(r.RoleName) + '|' + str_(r.Screen)]; };
   ensureMgmtRoles_();

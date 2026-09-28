@@ -1206,3 +1206,24 @@ test('management roles (finance…) are added automatically when missing, so the
   login('المدير', '1234');
   assert.equal(rows(gas, 'Roles').filter(r => r.RoleName === 'مالية').length, 1, 'added once only');
 });
+
+test('executive role mapped to the legacy dashboard screen migrates and can still manage users (no admin yet)', () => {
+  const { api, login, gas } = boot(g => {
+    g.seed('Roles', ['RoleName', 'Screen'], [['ممرضة', 'nurse'], ['تموين', 'procurement'], ['تنفيذي', 'dashboard'], ['مشرف', 'dashboard']]);
+    g.seed('Users', ['Name', 'Password', 'Role', 'Clinic', 'Email'], [['admin', '1234', 'تنفيذي', '', ''], ['سالم', '1111', 'مشرف', '', '']]);
+  });
+  const a = login('admin', '1234');
+  const cfg = api(a, 'getConfig');
+  assert.equal(cfg.user.screen, 'executive', 'تنفيذي on the old dashboard screen becomes executive');
+  assert.ok(cfg.user.perms.includes('users'), 'no admin yet → full access, users screen visible');
+  assert.equal(cfg.hasAdmin, false);
+  assert.ok(api(a, 'getUsers').length === 2);
+  // دور مخصص على الشاشة القديمة: أيضاً كامل الصلاحيات حتى يوجد أدمن (لا أحد يُقفل خارج إدارة المستخدمين)
+  assert.ok(api(login('سالم', '1111'), 'getConfig').user.perms.includes('users'));
+  assert.ok(rows(gas, 'Roles').some(r => r.RoleName === 'أدمن' && r.Screen === 'admin'));
+  // إنشاء الأدمن وتحويل الحساب نفسه إليه
+  api(a, 'updateUser', 'admin', { role: 'أدمن' });
+  const a2 = login('admin', '1234');
+  assert.equal(api(a2, 'getConfig').user.screen, 'admin');
+  assert.ok(!api(login('سالم', '1111'), 'getConfig').user.perms.includes('users'), 'after an admin exists the legacy role gets its defaults');
+});
