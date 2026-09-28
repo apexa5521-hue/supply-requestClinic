@@ -39,6 +39,7 @@
           return this;
         },
         setValue(v) { op('write', 1); sh._set(row, col, v); return this; },
+        setNumberFormat() { return this; },
         setFontWeight() { return this; }
       };
     }

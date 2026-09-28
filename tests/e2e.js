@@ -467,6 +467,32 @@ function log(msg) { console.log('  ✔ ' + msg); }
   await page.fill('#noticeMsg', 'يرجى تأكيد الاستلام في نفس اليوم');
   await page.click('[data-act="sendNotice"]');
   expect(await toastHas(page, 'تم إرسال التنبيه'), 'notice sent');
+  // ---------- Quality: deadlines & procurement follow-up ----------
+  const qNav = await page.$$eval('.sidebar .nav-item', els => els.map(e => e.dataset.view));
+  expect(qNav.includes('monitor') && !qNav.includes('users') && !qNav.includes('finance'), 'quality menu follows its permissions (follow-up yes, users/finance no): ' + qNav.join(','));
+  await page.click('.sidebar [data-view="monitor"]');
+  await page.waitForSelector('#monBody .rp-tile');
+  expect(await page.locator('#monBody .mon-clinic').count() === 3, 'monthly cycle lists every clinic');
+  expect(await page.locator('#monBody [data-act="monNudge"]').count() >= 1, 'overdue requests are listed with a nudge button');
+  await shot(page, 'quality-monitor', true);
+  await page.click('#monBody [data-act="monNudge"] >> nth=0');
+  await page.click('#nSend');
+  expect(await toastHas(page, 'تم تنبيه التموين'), 'quality nudged procurement on an overdue request');
+  expect(await page.evaluate(() => __gas.mails.some(m => /متابعة طلب متأخر/.test(m.subject))), 'nudge emailed procurement');
+  await logout(page);
+
+  // ---------- Finance ----------
+  await login(page, 'نواف', '7777');
+  await page.waitForSelector('#fnBody .rp-tile');
+  const fNav = await page.$$eval('.sidebar .nav-item', els => els.map(e => e.dataset.view));
+  expect(fNav[0] === 'finance' && !fNav.includes('users') && !fNav.includes('complaints'), 'finance lands on its own screen: ' + fNav.join(','));
+  expect(await page.locator('#fnBody .rp-tile').count() === 8, 'finance shows 8 money figures');
+  await page.waitForSelector('#fnPrices tr:has-text("Itero Sleeve") .price-in');
+  await page.fill('#fnPrices tr:has-text("Itero Sleeve") .price-in', '320');
+  await page.click('#fnPrices tr:has-text("Itero Sleeve") [data-act="priceSave"]');
+  expect(await toastHas(page, 'حُفظ سعر Itero Sleeve'), 'finance edited a catalog price');
+  expect(await page.evaluate(() => { const d = __gas.dump('ItemsCatalog'); const h = d[0]; const r = d.find(x => x[0] === 'Itero Sleeve'); return r[h.indexOf('Price')]; }) === 320, 'price written to the ItemsCatalog sheet');
+  await shot(page, 'finance', true);
   await logout(page);
 
   // ---------- Admin ----------
@@ -482,6 +508,15 @@ function log(msg) { console.log('  ✔ ' + msg); }
   await shot(page, 'admin-new-user');
   await page.click('#uSave');
   expect(await toastHas(page, 'تم حفظ المستخدم'), 'admin created a user');
+  // صلاحيات الدور: الأدمن يحدد ما يظهر لكل دور
+  await page.click('[data-act="roleEdit"][data-name="جودة"]');
+  await page.waitForSelector('#rPermWrap:not(.hidden)');
+  expect(await page.isChecked('#rPerms input[value="monitor"]') && !(await page.isChecked('#rPerms input[value="users"]')), 'quality role shows its default permissions');
+  await shot(page, 'admin-role-permissions');
+  await page.uncheck('#rPerms input[value="reports"]');
+  await page.click('#rSave');
+  expect(await toastHas(page, 'تم حفظ الدور'), 'admin saved role permissions');
+  expect(await page.evaluate(() => { const d = __gas.dump('Roles'); const h = d[0]; const r = d.find(x => x[0] === 'جودة'); return !/reports/.test(r[h.indexOf('Permissions')]) && /monitor/.test(r[h.indexOf('Permissions')]); }), 'permissions saved to the Roles sheet');
   await page.click('[data-act="userEdit"][data-name="المدير"]');
   await page.click('#uDel');
   await page.click('[data-yes]');
