@@ -14,6 +14,7 @@ const CODE = fs.readFileSync(path.join(__dirname, '..', 'Code.gs'), 'utf8');
 function boot(extraSeed, gasOpts) {
   const gas = createGas({
     lockBusy: gasOpts && gasOpts.lockBusy,
+    docLockBusy: gasOpts && gasOpts.docLockBusy,
     digest: (str, len) => Array.from(crypto.createHash(len === 16 ? 'md5' : 'sha256').update(str, 'utf8').digest()).map(b => (b > 127 ? b - 256 : b))
   });
   seedFixtures(gas);
@@ -681,19 +682,38 @@ test('lists hide completed requests older than 60 days unless the archive is ask
   assert.equal(api(d, 'getDoctorRequests', { archive: true }).length, 4, 'the doctor archive includes old received and rejected requests');
 });
 
-test('under write contention the server answers ERR_BUSY without writing anything', () => {
-  let busy = false;
-  const { api, login, gas } = boot(null, { lockBusy: () => busy });
-  const n = login('سارة', '1111');
-  const payload = { clinic: 'عيادة الأسنان 1', doctor: 'د. خالد', type: 'شهري', items: [{ name: 'PROPHY PASTE', qty: 2 }] };
-  busy = true;
-  throwsCode(() => api(n, 'createRequest', payload), 'ERR_BUSY');
-  assert.ok((gas.dump('Requests') || [[]]).length <= 1, 'nothing saved while busy');
-  assert.ok(Array.isArray(api(n, 'getMyRequests')), 'reads keep working while writes are queued');
+test('submitting a request never waits for the general write lock (peak 15–20 of the month); other writes still answer ERR_BUSY', () => {
+  let busy = false, docBusy = false;
+  const { api, login, gas } = boot(null, { lockBusy: () => busy, docLockBusy: () => docBusy });
+  const n = login('سارة', '1111'), p = login('علي', '3333');
+  const payload = { clinic: 'عيادة الأسنان 1', doctor: 'د. نورة', type: 'شهري', items: [{ name: 'PROPHY PASTE', qty: 2 }, { name: 'DENTAL FLOSS', qty: 1 }], clientKey: 'draft-peak-0001' };
+  busy = true; // التموين/الأطباء يكتبون الآن
+  const r = api(n, 'createRequest', payload);
+  assert.equal(r.duplicate, false, 'the nurse submits while other writes hold the lock');
+  assert.deepEqual(rows(gas, 'RequestItems').filter(x => x.RequestID === r.id).map(x => x.ItemName), ['PROPHY PASTE', 'DENTAL FLOSS']);
+  throwsCode(() => api(p, 'bulkUpdateStatus', [r.id], 'قيد التجهيز'), 'ERR_BUSY'); // الكتابات الأخرى تبقى محمية بالقفل العام
+  assert.ok(Array.isArray(api(n, 'getMyRequests')), 'reads keep working');
   busy = false;
-  const r = api(n, 'createRequest', payload);   // إعادة المحاولة تنجح
-  assert.equal(r.duplicate, false);
-  assert.equal(api(n, 'createRequest', payload).duplicate, true, 'a double retry is caught by the duplicate guard');
+  // إعادة الإرسال (انقطع الرد): نفس المسودة لا تتكرر
+  assert.deepEqual(api(n, 'createRequest', payload), { duplicate: true, id: r.id });
+  // حجز الرقم نفسه مشغول لحظياً → ERR_BUSY بدون أي كتابة، والإعادة تنجح
+  docBusy = true;
+  const before = rows(gas, 'Requests').length;
+  throwsCode(() => api(n, 'createRequest', Object.assign({}, payload, { clientKey: 'draft-peak-0002', type: 'طارئ' })), 'ERR_BUSY');
+  assert.equal(rows(gas, 'Requests').length, before, 'nothing saved');
+  docBusy = false;
+  assert.equal(api(n, 'createRequest', Object.assign({}, payload, { clientKey: 'draft-peak-0002', type: 'طارئ' })).duplicate, false);
+});
+
+test('request numbers stay sequential and unique per day, continuing from existing rows', () => {
+  const { api, login, gas } = boot(g => {
+    const day = new Date(Date.now() + 3 * 36e5).toISOString().slice(2, 10).replace(/-/g, '');
+    g.seed('Requests', ['RequestID', 'Date', 'Clinic', 'Doctor', 'Nurse', 'Type', 'Status'], [['REQ-' + day + '-041', new Date(), 'عيادة الأسنان 1', 'د. نورة', 'سارة', 'شهري', 'جديد']]);
+  });
+  const n = login('سارة', '1111');
+  const ids = [1, 2, 3].map(i => api(n, 'createRequest', { doctor: 'د. نورة', type: i === 2 ? 'طارئ' : 'شهري', items: [{ name: 'DENTAL FLOSS', qty: i }], clientKey: 'seq-test-000' + i }).id);
+  assert.deepEqual(ids.map(x => x.slice(-3)), ['042', '043', '044']);
+  assert.equal(new Set(rows(gas, 'Requests').map(r => r.RequestID)).size, 4);
 });
 
 test('quality/executive statistics: by doctor, branch, clinic, items, with period and branch filters', () => {

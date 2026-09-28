@@ -41,7 +41,7 @@ const I18N = {
     no_items_match: 'لا يوجد صنف بهذا الاسم في الكتالوج', catalog_only_hint: 'الطلب من الكتالوج فقط — إن احتجت صنفاً غير موجود تواصل مع التموين لإضافته', not_in_catalog: 'ليس في الكتالوج — احذفه من الطلب', ERR_UNKNOWN_ITEM: 'صنف غير موجود في الكتالوج — الطلب من الكتالوج فقط', ERR_UNKNOWN_ITEM_N: '«{n}» ليس في الكتالوج — احذفه من الطلب (الطلب من الكتالوج فقط)', items_all: 'كل الأصناف · {n} صنف — اكتب للتصفية', items_found: '{n} من {total} صنف', catalog_empty: 'الكتالوج فارغ — أضف أصنافاً في تبويب ItemsCatalog',
     items_empty_title: 'لم تُضف أصنافاً بعد', items_empty_sub: 'ابحث في الكتالوج أو اختر من البكج المعتاد للطبيب.',
     summary: 'ملخص الطلب', sum_items: 'عدد الأصناف', sum_units: 'إجمالي القطع', submit_request: 'إرسال الطلب',
-    clear_items: 'مسح الأصناف', draft_restored: 'تمت استعادة المسودة غير المرسلة', more: 'المزيد', save_draft: 'حفظ كمسودة', draft_saved: 'محفوظ كمسودة على هذا الجهاز · {t}', draft_offline: 'لا يوجد اتصال — طلبك محفوظ كمسودة ({t})، أرسله عند عودة الاتصال', draft_saved_toast: 'حُفظت المسودة — تجدها هنا حتى لو أغلقت الصفحة أو انتهت الجلسة', offline_kept: 'لا يوجد اتصال بالإنترنت — طلبك محفوظ كمسودة، أرسله عند عودة الاتصال', send_failed_kept: 'تعذّر الإرسال (انقطع الاتصال أو الخادم مشغول) — طلبك محفوظ كمسودة ولن يضيع، اضغط «إرسال» مرة أخرى', session_draft_kept: 'انتهت الجلسة — طلبك محفوظ كمسودة، سجّل الدخول وستجده كما هو', offline_now: 'انقطع الاتصال — تقدر تكمل تعبئة الطلب وسيُحفظ كمسودة', online_back: 'عاد الاتصال ✓', err_fill_all: 'اختر العيادة والطبيب وأضف صنفاً واحداً على الأقل',
+    clear_items: 'مسح الأصناف', draft_restored: 'تمت استعادة المسودة غير المرسلة', send_auto_retry: 'الخادم لم يستجب الآن — طلبك محفوظ وسيُرسل تلقائياً خلال ثوانٍ، لا تحتاجين للضغط مرة ثانية', draft_pending: 'بانتظار الإرسال التلقائي · محفوظ على الجهاز ({t})', send_resuming: 'جارٍ إرسال طلبك المحفوظ…', more: 'المزيد', save_draft: 'حفظ كمسودة', draft_saved: 'محفوظ كمسودة على هذا الجهاز · {t}', draft_offline: 'لا يوجد اتصال — طلبك محفوظ كمسودة ({t})، أرسله عند عودة الاتصال', draft_saved_toast: 'حُفظت المسودة — تجدها هنا حتى لو أغلقت الصفحة أو انتهت الجلسة', offline_kept: 'لا يوجد اتصال بالإنترنت — طلبك محفوظ كمسودة، أرسله عند عودة الاتصال', send_failed_kept: 'تعذّر الإرسال (انقطع الاتصال أو الخادم مشغول) — طلبك محفوظ كمسودة ولن يضيع، اضغط «إرسال» مرة أخرى', session_draft_kept: 'انتهت الجلسة — طلبك محفوظ كمسودة، سجّل الدخول وستجده كما هو', offline_now: 'انقطع الاتصال — تقدر تكمل تعبئة الطلب وسيُحفظ كمسودة', online_back: 'عاد الاتصال ✓', err_fill_all: 'اختر العيادة والطبيب وأضف صنفاً واحداً على الأقل',
     request_sent: 'تم إرسال الطلب {id}', duplicate_request: 'هذه المسودة وصلت للخادم سابقاً برقم {id} — لم يُكرَّر الطلب',
     emergency_note: 'الطلبات الطارئة تُنبَّه لها إدارة التموين فوراً', remove: 'حذف', qty: 'الكمية',
     receive_btn: 'استلام وتوقيع', details: 'التفاصيل', notes: 'الملاحظات', report: 'إبلاغ عن مشكلة',
@@ -138,7 +138,7 @@ const I18N = {
     no_items_match: 'No catalog item matches', catalog_only_hint: 'Requests use catalog items only — ask procurement to add a missing item', not_in_catalog: 'Not in the catalog — remove it', ERR_UNKNOWN_ITEM: 'Item not in the catalog — requests use catalog items only', ERR_UNKNOWN_ITEM_N: '“{n}” is not in the catalog — remove it (catalog items only)', items_all: 'All items · {n} — type to filter', items_found: '{n} of {total} items', catalog_empty: 'Catalog is empty — add items to the ItemsCatalog sheet',
     items_empty_title: 'No items yet', items_empty_sub: "Search the catalog or pick from the doctor's usual package.",
     summary: 'Summary', sum_items: 'Items', sum_units: 'Total units', submit_request: 'Submit request',
-    clear_items: 'Clear items', draft_restored: 'Unsent draft restored', more: 'More', save_draft: 'Save draft', draft_saved: 'Saved as a draft on this device · {t}', draft_offline: 'Offline — your request is saved as a draft ({t}); send it when you are back online', draft_saved_toast: 'Draft saved — it stays here even if you close the page or your session expires', offline_kept: 'No internet connection — your request is saved as a draft; send it when you are back online', send_failed_kept: 'Could not send (connection lost or server busy) — your request is kept as a draft; press “Send” again', session_draft_kept: 'Session expired — your request is saved as a draft; sign in again to continue', offline_now: 'You are offline — keep filling in the request; it is saved as a draft', online_back: 'Back online ✓', err_fill_all: 'Pick clinic and doctor and add at least one item',
+    clear_items: 'Clear items', draft_restored: 'Unsent draft restored', send_auto_retry: 'The server did not respond — your request is saved and will be sent automatically in a few seconds; no need to press again', draft_pending: 'Waiting to send automatically · saved on this device ({t})', send_resuming: 'Sending your saved request…', more: 'More', save_draft: 'Save draft', draft_saved: 'Saved as a draft on this device · {t}', draft_offline: 'Offline — your request is saved as a draft ({t}); send it when you are back online', draft_saved_toast: 'Draft saved — it stays here even if you close the page or your session expires', offline_kept: 'No internet connection — your request is saved as a draft; send it when you are back online', send_failed_kept: 'Could not send (connection lost or server busy) — your request is kept as a draft; press “Send” again', session_draft_kept: 'Session expired — your request is saved as a draft; sign in again to continue', offline_now: 'You are offline — keep filling in the request; it is saved as a draft', online_back: 'Back online ✓', err_fill_all: 'Pick clinic and doctor and add at least one item',
     request_sent: 'Request {id} sent', duplicate_request: 'This draft already reached the server as {id} — no duplicate was created',
     emergency_note: 'Procurement is alerted immediately for emergency requests', remove: 'Remove', qty: 'Qty',
     receive_btn: 'Receive & sign', details: 'Details', notes: 'Notes', report: 'Report issue',
@@ -864,7 +864,7 @@ function resetApp() {
   S.token = null; S.user = null; S.view = null; S.loaded = {};
   // لا يبقى أي بيانات من المستخدم السابق في الذاكرة (قوائم، أصناف، تحديد، صفحات)
   S.proc.list = []; S.proc.items = {}; S.proc.expanded.clear(); S.proc.selected.clear(); S.proc.archive = false;
-  S.nurse.mine = []; S.nurse.archive = false; S.nurse.draft = null; S.nurse.lab = null;
+  S.nurse.mine = []; S.nurse.archive = false; S.nurse.draft = null; S.nurse.lab = null; clearTimeout(AUTO_SEND.timer); AUTO_SEND.tries = 0; AUTO_SEND.sending = false;
   LAB.mine = []; LAB.doc = []; LAB.board = []; LAB.stats = null; LAB.cfg = null; LAB.loaded = {}; // المسودة محفوظة لكل مستخدم على حدة S.doc.list = []; S.doc.archive = false;
   Object.keys(SIGS).forEach(k => delete SIGS[k]); Object.keys(LIMITS).forEach(k => delete LIMITS[k]);
   session.clear(); RC.clear();
@@ -977,6 +977,7 @@ function enterApp(cfg) {
   S.syncTimer = setInterval(() => { if (!document.hidden && S.user) sync(true); }, SYNC_INTERVAL_MS);
   if (!tourSeen()) setTimeout(() => { if (S.user && !MODALS.length) startTour(); }, 900);
   setTimeout(warmViews, 1800);
+  setTimeout(resumePendingSend, 1200);
 }
 function renderShell() {
   const u = S.user;
@@ -1078,7 +1079,7 @@ function go(view, keepScroll) {
 }
 /* انقطاع الاتصال: المسودة تبقى محفوظة، ونبلغ المستخدم */
 window.addEventListener('offline', () => { if (S.user) { toast(t('offline_now'), 'warning', 6000); renderDraftState(); } });
-window.addEventListener('online', () => { if (S.user) { toast(t('online_back'), 'success', 2500); renderDraftState(); } });
+window.addEventListener('online', () => { if (S.user) { toast(t('online_back'), 'success', 2500); renderDraftState(); setTimeout(resumePendingSend, 800); } });
 window.addEventListener('scroll', () => { $('#topbar').classList.toggle('scrolled', window.scrollY > 4); }, { passive: true });
 
 /* =====================================================================
@@ -1410,8 +1411,9 @@ function renderDraftState() {
   const box = $('#draftState'); const d = S.nurse.draft; if (!box || !d) return;
   const has = d.items.length > 0;
   box.classList.toggle('hidden', !has);
-  if (has) box.innerHTML = icon(navigator.onLine === false ? 'alert' : 'checkc', 'i-sm') + '<span>' + esc(t(navigator.onLine === false ? 'draft_offline' : 'draft_saved', { t: d.savedAt ? fmtTime(d.savedAt) : '' })) + '</span>';
-  box.classList.toggle('offline', navigator.onLine === false);
+  const off = navigator.onLine === false || d.pending;
+  if (has) box.innerHTML = icon(off ? 'clock' : 'checkc', 'i-sm') + '<span>' + esc(t(navigator.onLine === false ? 'draft_offline' : d.pending ? 'draft_pending' : 'draft_saved', { t: d.savedAt ? fmtTime(d.savedAt) : '' })) + '</span>';
+  box.classList.toggle('offline', off);
 }
 ACT.saveDraftNow = () => { saveDraft(); toast(t('draft_saved_toast'), 'info', 2500); };
 
@@ -1712,28 +1714,61 @@ ACT.submitRequest = el => {
     return;
   }
   saveDraft(); // قبل الإرسال: المسودة محفوظة على الجهاز مهما حدث
-  if (navigator.onLine === false) { err.querySelector('span').textContent = t('offline_kept'); err.classList.remove('hidden'); return; }
-  busy(el, true, t('sending'));
+  sendDraft(el, false);
+};
+/*
+ * إرسال المسودة. عند تعذّر الإرسال (انقطاع/خادم مشغول) تُعلَّم «بانتظار الإرسال» ويُعاد إرسالها تلقائياً
+ * كل 20 ثانية (وفور عودة الاتصال، وبعد إعادة فتح الصفحة) — مفتاح المسودة يمنع أي تكرار.
+ */
+const AUTO_SEND = { timer: 0, tries: 0, delay: 20000 };
+function sendDraft(el, auto) {
+  const d = nurseDraft();
+  const err = $('#submitErr');
+  if (!d.items.length || AUTO_SEND.sending) return;
+  clearTimeout(AUTO_SEND.timer);
+  if (navigator.onLine === false) { markPending(d, err, 'offline_kept'); return; }
+  AUTO_SEND.sending = true;
+  if (el) busy(el, true, t('sending'));
   const byClinic = d.kind === 'clinic';
   call('createRequest', { clinic: byClinic ? d.clinic : '', branch: d.branch || '', doctor: byClinic ? '' : d.doctor, type: d.type, items: d.items.map(i => ({ name: i.name, qty: Number(i.qty) })), clientKey: d.key })
     .then(res => {
-      busy(el, false);
+      AUTO_SEND.sending = false; AUTO_SEND.tries = 0;
+      if (el) busy(el, false);
       // duplicate = هذه المسودة وصلت الخادم سابقاً (مثلاً انقطع الاتصال قبل وصول الرد) — لا طلب مكرر
       if (res && res.duplicate) toast(t('duplicate_request', { id: res.id }), 'info', 5000);
-      else toast(t('request_sent', { id: res.id }));
-      d.items = []; d.key = uid(); saveDraft();
-      renderItems();
+      else toast(t('request_sent', { id: res.id }), 'success', 5000);
+      d.items = []; d.key = uid(); d.pending = false; saveDraft();
+      if (err) err.classList.add('hidden');
+      if (S.view === 'new') renderItems();
       S.loaded.mine = false;
       loadMine(true);
     })
     .catch(e => {
-      busy(el, false);
-      if (errCode(e) === 'ERR_SESSION') return; // تسجيل الدخول من جديد يستعيد المسودة كما هي
+      AUTO_SEND.sending = false;
+      if (el) busy(el, false);
+      if (errCode(e) === 'ERR_SESSION') { d.pending = true; saveDraft(); return; } // بعد الدخول تُرسل تلقائياً
       const lost = ['ERR_NETWORK', 'ERR_BAD_RESPONSE', 'ERR_BUSY', 'ERR_TIMEOUT'].indexOf(errCode(e)) !== -1;
-      err.querySelector('span').textContent = lost ? t('send_failed_kept') : errMsg(e);
-      err.classList.remove('hidden');
+      if (lost) { markPending(d, err, 'send_auto_retry'); return; }
+      d.pending = false; saveDraft();
+      if (err) { err.querySelector('span').textContent = errMsg(e); err.classList.remove('hidden'); }
+      else toast(errMsg(e), 'error', 6000);
     });
-};
+}
+function markPending(d, err, k) {
+  d.pending = true; saveDraft();
+  AUTO_SEND.tries++;
+  const box = err || $('#submitErr');
+  if (box) { box.querySelector('span').textContent = t(k); box.classList.remove('hidden'); }
+  if (AUTO_SEND.tries === 1 && !box) toast(t(k), 'warning', 5000);
+  clearTimeout(AUTO_SEND.timer);
+  AUTO_SEND.timer = setTimeout(() => { if (S.user && S.nurse.draft && S.nurse.draft.pending) sendDraft($('#submitBtn'), true); }, Math.min(AUTO_SEND.delay * AUTO_SEND.tries, 120000));
+}
+/* عند عودة الاتصال أو بعد الدخول: مسودة «بانتظار الإرسال» تُرسل وحدها */
+function resumePendingSend() {
+  if (!S.user || S.user.screen !== 'nurse') return;
+  const d = nurseDraft();
+  if (d.pending && d.items.length && !AUTO_SEND.sending) { toast(t('send_resuming'), 'info', 3000); sendDraft($('#submitBtn'), true); }
+}
 
 /* =====================================================================
    NURSE — my requests

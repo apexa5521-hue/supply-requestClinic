@@ -81,6 +81,7 @@
       deleteSheet(sh) { delete sheets[sh._name]; order.splice(order.indexOf(sh._name), 1); }
     };
 
+    const props = {};
     const cacheStore = {};
     const now = () => (opts.now ? opts.now() : Date.now());
     const cache = {
@@ -129,10 +130,21 @@
         getUi() { return { alert() {} }; }
       },
       CacheService: { getScriptCache() { return cache; } },
-      LockService: { getScriptLock() { return {
-        waitLock() { op('lock'); },
-        tryLock() { op('lock'); if (opts.lockBusy && opts.lockBusy() ) return false; return true; },
-        releaseLock() {} }; } },
+      LockService: {
+        getScriptLock() { return {
+          waitLock() { op('lock'); },
+          tryLock() { op('lock'); if (opts.lockBusy && opts.lockBusy() ) return false; return true; },
+          releaseLock() {} }; },
+        // قفل المستند (منفصل عن قفل السكربت) — يُستخدم لحجز أرقام الطلبات
+        getDocumentLock() { return {
+          tryLock() { op('lock'); if (opts.docLockBusy && opts.docLockBusy()) return false; return true; },
+          releaseLock() {} }; }
+      },
+      PropertiesService: { getScriptProperties() { return {
+        getProperty(k) { op('cache'); return Object.prototype.hasOwnProperty.call(props, k) ? props[k] : null; },
+        setProperty(k, v) { op('cache'); props[k] = String(v); return this; },
+        deleteProperty(k) { delete props[k]; return this; },
+        getKeys() { return Object.keys(props); } }; } },
       MailApp: { sendEmail(to, subject, body) { op('mail'); mails.push({ to, subject, body }); } },
       DriveApp: {
         Access: { ANYONE_WITH_LINK: 'ANYONE_WITH_LINK' },
