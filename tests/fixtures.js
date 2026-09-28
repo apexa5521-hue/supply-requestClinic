@@ -3,7 +3,7 @@
   function seedFixtures(gas) {
     gas.seed('Roles', ['RoleName', 'Screen'], [
       ['ممرضة', 'nurse'], ['تموين', 'procurement'], ['طبيب', 'doctor'],
-      ['جودة', 'quality'], ['تنفيذي', 'executive'], ['مالية', 'finance'], ['أدمن', 'admin']
+      ['جودة', 'quality'], ['تنفيذي', 'executive'], ['مالية', 'finance'], ['أدمن', 'admin'], ['المعمل', 'lab']
     ]);
     // كلمات سر نصية قديمة (legacy) — يجب أن تُرقّى تلقائياً لمشفّرة بعد أول دخول
     gas.seed('Users', ['Name', 'Password', 'Role', 'Clinic', 'Email'], [
@@ -14,7 +14,8 @@
       ['منى', '5555', 'جودة', '', 'mona@example.com'],
       ['المدير', '1234', 'أدمن', '', 'boss@example.com'],
       ['فيصل', '6666', 'تنفيذي', '', 'exec@example.com'],
-      ['نواف', '7777', 'مالية', '', 'fin@example.com']
+      ['نواف', '7777', 'مالية', '', 'fin@example.com'],
+      ['فني المعمل', '8888', 'المعمل', '', 'lab@example.com']
     ]);
     gas.seed('Clinics', ['ClinicName', 'Branch', 'Type'], [
       ['عيادة الأسنان 1', 'الرياض', 'أسنان'], ['عيادة الأسنان 2', 'جدة', 'أسنان'], ['عيادة الجلدية 1', 'الرياض', 'جلدية']
@@ -24,6 +25,12 @@
       ['د. نورة', 'عيادة الأسنان 1', 'سارة', ''],      // بدون حساب — يمكن الإرسال بدون مراجعة
       ['د. فهد', 'عيادة الجلدية 1', 'سارة', 'ليزر'],
       ['د. سعد', 'عيادة الأسنان 2', 'ريم', '']
+    ]);
+    gas.seed('Labs', ['LabName', 'Type', 'Email', 'Phone', 'Active'], [
+      ['المعمل الداخلي', 'داخلي', 'lab@example.com', '', 'نعم'],
+      ['معمل النخبة', 'خارجي', 'elite@example.com', '0500000000', 'نعم'],
+      ['معمل الابتسامة', 'خارجي', '', '', 'نعم'],
+      ['معمل موقوف', 'خارجي', '', '', 'لا']
     ]);
     gas.seed('ItemsCatalog', ['ItemName', 'CommercialName', 'Category', 'Price'], [
       ['MICRO BRUSH FINE', 'TPC Micro', 'Consumables', 45],

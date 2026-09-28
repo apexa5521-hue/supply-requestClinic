@@ -34,7 +34,15 @@ const SCHEMA = {
   Comments:     ['Timestamp', 'RequestID', 'Author', 'Role', 'Message'],
   Notices:      ['Timestamp', 'FromRole', 'FromName', 'ToRole', 'Message'],
   Complaints:   ['ComplaintID', 'Timestamp', 'RequestID', 'Author', 'Role', 'Type', 'Message',
-                 'Resolved', 'ResolvedBy', 'ResolvedAt']
+                 'Resolved', 'ResolvedBy', 'ResolvedAt'],
+  // المعمل: المعامل وأنواع الأعمال تُعبّأ يدوياً؛ الإرساليات وأسطرها وملاحظاتها تُنشأ من النظام
+  Labs:         ['LabName', 'Type', 'Email', 'Phone', 'Active'],
+  LabWorkTypes: ['WorkType'],
+  LabCases:     ['CaseID', 'Date', 'Nurse', 'Doctor', 'Clinic', 'Branch', 'Patient', 'FileNo', 'NeededBy', 'Urgent',
+                 'RedoOf', 'RedoReason', 'RedoNote', 'Attachments', 'ClientKey'],
+  LabItems:     ['ItemID', 'CaseID', 'Lab', 'LabType', 'WorkType', 'Details', 'Status', 'ReceivedAt', 'StartedAt',
+                 'ExternalLab', 'ExternalAt', 'ExpectedAt', 'ReadyAt', 'SentAt', 'DeliveredAt', 'Cost', 'RedoOfItem', 'RedoReason', 'UpdatedBy'],
+  LabNotes:     ['Timestamp', 'CaseID', 'ItemID', 'Author', 'Role', 'Message']
 };
 
 const ST = {
@@ -59,12 +67,12 @@ TRANSITIONS[ST.SENT]        = { from: [ST.APPROVED, ST.PREP, ST.VENDOR_RECV], st
 const DISPATCHABLE = [ST.APPROVED, ST.PREP, ST.VENDOR_WAIT, ST.VENDOR_RECV];
 
 const REQUEST_TYPES = ['شهري', 'طارئ'];
-const SCREENS = ['nurse', 'procurement', 'doctor', 'quality', 'executive', 'finance', 'dashboard', 'admin'];
+const SCREENS = ['nurse', 'procurement', 'doctor', 'lab', 'quality', 'executive', 'finance', 'dashboard', 'admin'];
 /** شاشات الإدارة: ما يظهر فيها تحدده صلاحيات الدور (Permissions في تبويب Roles) */
 const MGMT_SCREENS = ['quality', 'executive', 'finance', 'dashboard', 'admin'];
 const DEFAULT_ROLES = [
   ['ممرضة', 'nurse'], ['تموين', 'procurement'], ['طبيب', 'doctor'],
-  ['جودة', 'quality'], ['جوده', 'quality'], ['مالية', 'finance'], ['تنفيذي', 'executive'], ['أدمن', 'admin']
+  ['جودة', 'quality'], ['جوده', 'quality'], ['مالية', 'finance'], ['تنفيذي', 'executive'], ['أدمن', 'admin'], ['المعمل', 'lab']
 ];
 /**
  * الصلاحيات القابلة للتحديد لكل دور إداري. الأدمن له كل شيء دائماً.
@@ -72,11 +80,11 @@ const DEFAULT_ROLES = [
  * notices: إرسال التنبيهات · monitor: متابعة التموين والمواعيد · finance: شاشة المالية
  * prices_edit: تعديل أسعار الكتالوج · users: المستخدمون والأدوار
  */
-const PERMS = ['overview', 'reports', 'complaints', 'complaints_close', 'notices', 'monitor', 'finance', 'prices_edit', 'users'];
+const PERMS = ['overview', 'reports', 'complaints', 'complaints_close', 'notices', 'monitor', 'finance', 'prices_edit', 'lab_view', 'users'];
 const DEFAULT_PERMS = {
   admin: PERMS,
-  executive: ['overview', 'reports', 'complaints', 'complaints_close', 'notices', 'monitor'],
-  quality: ['overview', 'reports', 'complaints', 'complaints_close', 'notices', 'monitor'],
+  executive: ['overview', 'reports', 'complaints', 'complaints_close', 'notices', 'monitor', 'lab_view'],
+  quality: ['overview', 'reports', 'complaints', 'complaints_close', 'notices', 'monitor', 'lab_view'],
   finance: ['finance', 'prices_edit', 'reports', 'monitor'],
   dashboard: ['overview', 'reports', 'complaints', 'notices']
 };
@@ -109,6 +117,10 @@ function setupSheets() {
   if (read_('Users').rows.length === 0) {
     append_('Users', { Name: 'المدير', Password: '1234', Role: 'أدمن' });
   }
+  if (read_('LabWorkTypes').rows.length === 0) {
+    LAB_WORK_TYPES_DEFAULT.forEach(function (w) { append_('LabWorkTypes', { WorkType: w }); });
+  }
+  if (read_('Labs').rows.length === 0) append_('Labs', { LabName: 'المعمل الداخلي', Type: 'داخلي', Active: 'نعم' });
   if (read_('ItemsCatalog').rows.length === 0) {
     [
       'MICRO BRUSH FINE', 'MICRO BRUSH SUPER FINE', 'PROPHY PASTE', 'PROPHY BRUSH',
@@ -132,7 +144,7 @@ function setupSheets() {
 
 function doGet() {
   return HtmlService.createTemplateFromFile('Index').evaluate()
-    .setTitle('SupplyFlow — ApexCare')
+    .setTitle('مسار — ApexCare')
     .addMetaTag('viewport', 'width=device-width, initial-scale=1, viewport-fit=cover')
     .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
 }
@@ -256,6 +268,18 @@ const API_ = {
   deleteUser:                { screens: [], perm: 'users', fn: deleteUser_ },
   getRoles:                  { screens: [], perm: 'users', fn: function () { return getRoles_(); } },
   getMonitor:                { screens: [], perm: 'monitor', fn: getMonitor_ },
+  // المعمل
+  getLabConfig:              { screens: ['nurse', 'doctor', 'lab'], perm: 'lab_view', fn: getLabConfig_ },
+  createLabCase:             { screens: ['nurse'], fn: createLabCase_ },
+  getMyLabCases:             { screens: ['nurse'], fn: function (u, o) { return queryLabCases_(u, { nurse: u.name }, o); } },
+  getDoctorLabCases:         { screens: ['doctor'], fn: function (u, o) { return queryLabCases_(u, { doctorUser: u }, o); } },
+  getLabCases:               { screens: ['lab'], perm: 'lab_view', fn: function (u, o) { return queryLabCases_(u, {}, o); } },
+  getLabCase:                { screens: ['nurse', 'doctor', 'lab'], perm: 'lab_view', fn: getLabCase_ },
+  addLabNote:                { screens: ['nurse', 'doctor', 'lab'], perm: 'lab_view', fn: addLabNote_ },
+  updateLabItems:            { screens: ['lab'], fn: updateLabItems_ },
+  confirmLabReceipt:         { screens: ['nurse'], fn: confirmLabReceipt_ },
+  getLabStats:               { screens: ['lab'], perm: 'lab_view', fn: getLabStats_ },
+  nudgeLab:                  { screens: [], perm: 'lab_view', fn: nudgeLab_ },
   nudgeProcurement:          { screens: [], perm: 'monitor', fn: nudgeProcurement_ },
   getFinance:                { screens: [], perm: 'finance', fn: getFinance_ },
   getPriceList:              { screens: [], perm: 'prices_edit', fn: getPriceList_ },
@@ -833,7 +857,7 @@ function permsOf_(user) {
 function ensureMgmtRoles_() {
   const have = {};
   read_('Roles').rows.forEach(function (r) { if (str_(r.RoleName)) have[str_(r.RoleName)] = str_(r.Screen); });
-  const missing = [['جودة', 'quality'], ['مالية', 'finance'], ['تنفيذي', 'executive'], ['أدمن', 'admin']].filter(function (d) {
+  const missing = [['جودة', 'quality'], ['مالية', 'finance'], ['تنفيذي', 'executive'], ['أدمن', 'admin'], ['المعمل', 'lab']].filter(function (d) {
     // لا نضيف «جودة» إن كان «جوده» موجوداً، ولا أي دور شاشته موجودة مسبقاً باسم آخر
     if (have[d[0]] !== undefined || (d[0] === 'جودة' && have['جوده'] !== undefined) || (d[0] === 'مالية' && have['ماليه'] !== undefined)) return false;
     return !Object.keys(have).some(function (n) { return have[n] === d[1]; });
@@ -2215,6 +2239,8 @@ function getAlerts_(user) {
     const rejected = mine.filter(function (r) { return r.status === ST.REJECTED; }).length;
     if (toReceive) alerts.push({ type: 'info', code: 'alert_to_receive', n: toReceive });
     if (rejected) alerts.push({ type: 'danger', code: 'alert_rejected', n: rejected });
+    const labIn = queryLabCases_(user, { nurse: user.name }).filter(function (c) { return c.toReceive; }).length;
+    if (labIn) alerts.push({ type: 'info', code: 'alert_lab_to_receive', n: labIn });
   } else if (user.screen === 'procurement') {
     const all = queryRequests_({});
     const ready = all.filter(function (r) { return r.cleared && (r.status === ST.APPROVED || r.status === ST.NEW); });
@@ -2234,6 +2260,14 @@ function getAlerts_(user) {
     if (stale) alerts.push({ type: 'warning', code: 'alert_stale', n: stale });
     const overdue = all.filter(function (r) { return r.overdue && stageOf_(r).owner === 'procurement'; }).length;
     if (overdue) alerts.push({ type: 'danger', code: 'alert_overdue_proc', n: overdue });
+  } else if (user.screen === 'lab') {
+    const lc = queryLabCases_(user, {});
+    const fresh = lc.filter(function (c) { return c.items.some(function (i) { return i.status === LAB_ST.NEW; }); });
+    const redo = fresh.filter(function (c) { return c.redoOf; }).length;
+    const late = lc.filter(function (c) { return c.overdue || c.externalLate; }).length;
+    if (redo) alerts.push({ type: 'danger', code: 'alert_lab_redo', n: redo });
+    if (fresh.length - redo) alerts.push({ type: 'info', code: 'alert_lab_new', n: fresh.length - redo });
+    if (late) alerts.push({ type: 'warning', code: 'alert_lab_late', n: late });
   } else if (user.screen === 'doctor') {
     const pending = queryRequests_({ doctorUser: user }).filter(function (r) { return r.awaitingDoctor; }).length;
     if (pending) alerts.push({ type: 'warning', code: 'alert_pending_review', n: pending });
@@ -2689,4 +2723,406 @@ function deleteRole_(user, name) {
   if (!row) throw new Error('ERR_NOT_FOUND');
   deleteRow_(t, row);
   return getRoles_();
+}
+
+
+/* =====================================================================
+ *  المعمل: إرساليات المرضى من العيادة للمعمل (داخلي أو خارجي)
+ *  كل إرسالية = مريض + رقم ملف + طبيب، وفيها سطر أو أكثر (عمل لمعمل معيّن).
+ *  مسار السطر: أُرسل من العيادة ← استلمه المعمل ← قيد العمل (داخلي) أو عند معمل خارجي ← جاهز ← أُرسل للعيادة ← استلمته العيادة
+ * ===================================================================== */
+
+const LAB_ST = {
+  NEW: 'أُرسل من العيادة', RECEIVED: 'استلمه المعمل', WORK: 'قيد العمل', EXTERNAL: 'عند معمل خارجي',
+  READY: 'جاهز', SENT: 'أُرسل للعيادة', DELIVERED: 'استلمته العيادة'
+};
+const LAB_ORDER = [LAB_ST.NEW, LAB_ST.RECEIVED, LAB_ST.WORK, LAB_ST.EXTERNAL, LAB_ST.READY, LAB_ST.SENT, LAB_ST.DELIVERED];
+const LAB_DONE = [LAB_ST.READY, LAB_ST.SENT, LAB_ST.DELIVERED];
+const LAB_REDO_REASONS = ['مقاس', 'لون', 'كسر', 'خطأ تصميم', 'تأخير', 'أخرى'];
+const LAB_WORK_TYPES_DEFAULT = ['تاج', 'جسر', 'طقم كامل', 'طقم جزئي', 'حافظ مسافة', 'واقي ليلي', 'تقويم متحرك', 'قشور (فينير)', 'حشوة خزفية (إنلاي/أونلاي)', 'زراعة — تاج على زرعة', 'أخرى'];
+const LAB_MAX_ITEMS = 20, LAB_MAX_PHOTOS = 3;
+
+function isYes_(v) { return v === true || /^(نعم|yes|true|1|y|✓)$/i.test(str_(v)); }
+
+function getLabs_() {
+  return read_('Labs').rows.filter(function (r) { return str_(r.LabName) && (str_(r.Active) === '' || isYes_(r.Active)); })
+    .map(function (r) { return { name: str_(r.LabName), type: /خارج|external/i.test(str_(r.Type)) ? 'خارجي' : 'داخلي', email: str_(r.Email), phone: str_(r.Phone) }; });
+}
+function getLabWorkTypes_() {
+  const list = read_('LabWorkTypes').rows.map(function (r) { return str_(r.WorkType); }).filter(String);
+  return list.length ? list : LAB_WORK_TYPES_DEFAULT.slice();
+}
+function getLabConfig_() {
+  return { labs: getLabs_(), workTypes: getLabWorkTypes_(), redoReasons: LAB_REDO_REASONS, statuses: LAB_ORDER };
+}
+
+function nextLabId_() {
+  const prefix = 'LAB-' + Utilities.formatDate(new Date(), TZ, 'yyMMdd') + '-';
+  let max = 0;
+  read_('LabCases').rows.forEach(function (r) {
+    const id = str_(r.CaseID);
+    if (id.indexOf(prefix) === 0) max = Math.max(max, Number(id.slice(prefix.length)) || 0);
+  });
+  const next = String(max + 1);
+  return prefix + (next.length < 3 ? ('00' + next).slice(-3) : next);
+}
+
+/** صورة مرفقة (PNG/JPEG) تُحفظ في Drive */
+function saveLabPhoto_(fileName, dataUrl) {
+  const m = /^data:image\/(png|jpeg);base64,([A-Za-z0-9+/=]+)$/.exec(String(dataUrl));
+  if (!m || m[2].length > 4 * 1024 * 1024) throw new Error('ERR_BAD_IMAGE');
+  const type = 'image/' + m[1];
+  const blob = Utilities.newBlob(Utilities.base64Decode(m[2]), type, fileName + (m[1] === 'png' ? '.png' : '.jpg'));
+  const file = signaturesFolder_().createFile(blob);
+  try { file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW); } catch (e) { /* سياسة النطاق */ }
+  return file.getUrl();
+}
+
+/**
+ * رفع إرسالية للمعمل (أو إعادة لإرسالية سابقة).
+ * payload = { doctor, patient, fileNo, neededBy:'YYYY-MM-DD', urgent, lines:[{lab, workType, details}],
+ *             redoOf, redoItems:[ItemID], redoReason, redoNote, photos:[dataUrl], clientKey }
+ */
+function createLabCase_(user, payload) {
+  payload = payload || {};
+  const doctor = str_(payload.doctor);
+  const patient = clean_(payload.patient, 120);
+  const fileNo = clean_(payload.fileNo, 40);
+  const needed = parseDay_(payload.neededBy, true);
+  if (!doctor || !patient || !fileNo) throw new Error('ERR_REQUIRED');
+  if (!getDoctors_(user, '').some(function (d) { return d.name === doctor; })) throw new Error('ERR_BAD_DOCTOR');
+  const labs = {};
+  getLabs_().forEach(function (l) { labs[l.name] = l; });
+  const types = getLabWorkTypes_();
+
+  // إعادة: الإرسالية الأصلية للممرضة نفسها، والأسطر المختارة منها، وسبب واضح
+  const redoOf = str_(payload.redoOf);
+  let origin = null, redoLines = [];
+  if (redoOf) {
+    origin = labCaseRow_(redoOf);
+    if (!origin || str_(origin.Nurse) !== user.name) throw new Error('ERR_NOT_FOUND');
+    if (LAB_REDO_REASONS.indexOf(str_(payload.redoReason)) === -1) throw new Error('ERR_REDO_REASON');
+    const want = (payload.redoItems || []).map(str_);
+    redoLines = labItemsOf_(redoOf).filter(function (it) { return want.indexOf(str_(it.ItemID)) !== -1; });
+    if (!redoLines.length) throw new Error('ERR_NO_ITEMS');
+  }
+  const lines = redoOf
+    ? redoLines.map(function (it) { return { lab: str_(it.Lab), workType: str_(it.WorkType), details: str_(it.Details), redoOfItem: str_(it.ItemID) }; })
+    : (payload.lines || []).map(function (l) { return { lab: str_(l && l.lab), workType: str_(l && l.workType), details: clean_(l && l.details, 500) }; })
+        .filter(function (l) { return l.lab || l.workType || l.details; });
+  if (!lines.length) throw new Error('ERR_NO_ITEMS');
+  if (lines.length > LAB_MAX_ITEMS) throw new Error('ERR_TOO_MANY_ITEMS');
+  lines.forEach(function (l) {
+    if (!labs[l.lab] && !redoOf) throw new Error('ERR_BAD_LAB');
+    if (!l.workType || (types.indexOf(l.workType) === -1 && !redoOf)) throw new Error('ERR_BAD_WORKTYPE');
+  });
+  const photos = (payload.photos || []).slice(0, LAB_MAX_PHOTOS);
+  const clientKey = /^[A-Za-z0-9-]{8,64}$/.test(str_(payload.clientKey)) ? str_(payload.clientKey) : '';
+  const clinic = doctorClinic_(user, doctor);
+  const branch = clinic ? clinicBranch_(clinic) : '';
+
+  const res = withLock_(function () {
+    resetMemo_();
+    if (clientKey) {
+      const same = read_('LabCases').rows.filter(function (r) { return str_(r.ClientKey) === clientKey && str_(r.Nurse) === user.name; })[0];
+      if (same) return { duplicate: true, id: str_(same.CaseID) };
+    }
+    const id = nextLabId_();
+    const urls = [];
+    photos.forEach(function (ph, i) { try { urls.push(saveLabPhoto_(id + '-photo' + (i + 1), ph)); } catch (e) { console.error(e); } });
+    const now = new Date();
+    append_('LabCases', {
+      CaseID: id, Date: now, Nurse: user.name, Doctor: doctor, Clinic: clinic, Branch: branch, Patient: patient, FileNo: fileNo,
+      NeededBy: needed || '', Urgent: payload.urgent ? 'نعم' : '', RedoOf: redoOf, RedoReason: redoOf ? str_(payload.redoReason) : '',
+      RedoNote: redoOf ? clean_(payload.redoNote, 1000) : '', Attachments: urls.join(' '), ClientKey: clientKey
+    });
+    lines.forEach(function (l, i) {
+      append_('LabItems', { ItemID: id + '-' + (i + 1), CaseID: id, Lab: l.lab, LabType: (labs[l.lab] || {}).type || '', WorkType: l.workType,
+        Details: l.details, Status: LAB_ST.NEW, RedoOfItem: l.redoOfItem || '', RedoReason: l.redoOfItem ? str_(payload.redoReason) : '' });
+    });
+    logAction_(id, redoOf ? 'إعادة للمعمل (' + redoOf + '): ' + payload.redoReason : 'إرسالية للمعمل', user.name);
+    return { duplicate: false, id: id };
+  });
+  if (!res.duplicate) {
+    const body = 'رقم الإرسالية: ' + res.id + '\nالمريض: ' + patient + ' — ملف ' + fileNo + '\nالطبيب: ' + doctor + (clinic ? '\nالعيادة: ' + clinic : '') +
+      (needed ? '\nمطلوب قبل: ' + Utilities.formatDate(needed, TZ, 'yyyy-MM-dd') : '') + '\nالممرضة: ' + user.name +
+      '\n\nالأعمال:\n- ' + lines.map(function (l) { return l.workType + ' · ' + l.lab + (l.details ? ' · ' + l.details : ''); }).join('\n- ') +
+      (redoOf ? '\n\n⚠️ إعادة للإرسالية ' + redoOf + '\nالسبب: ' + payload.redoReason + (payload.redoNote ? '\nالمشكلة: ' + payload.redoNote : '') : '');
+    notifyRole_('lab', (redoOf ? '⚠️ إعادة للمعمل - ' : (payload.urgent ? '🚨 إرسالية عاجلة للمعمل - ' : 'إرسالية جديدة للمعمل - ')) + res.id, body);
+    if (redoOf) notifyUser_(doctorAccounts_()[doctor], '⚠️ إعادة عمل معمل لمريضك - ' + res.id, body);
+  }
+  return res;
+}
+
+function labCaseRow_(id) {
+  id = str_(id);
+  return read_('LabCases').rows.filter(function (r) { return str_(r.CaseID) === id; })[0] || null;
+}
+function labItemsOf_(id) {
+  id = str_(id);
+  return read_('LabItems').rows.filter(function (r) { return str_(r.CaseID) === id; });
+}
+/** من يرى الإرسالية: الممرضة صاحبتها، الطبيب نفسه، المعمل، ومن لديه صلاحية متابعة المعمل */
+function canSeeLab_(user, c) {
+  if (user.screen === 'lab' || (user.perms || []).indexOf('lab_view') !== -1) return true;
+  if (user.screen === 'nurse') return str_(c.Nurse) === user.name;
+  if (user.screen === 'doctor') return isMyDoctor_(user, str_(c.Doctor));
+  return false;
+}
+function mapLabItem_(it, c, now) {
+  const needed = toMs_(c && c.NeededBy);
+  const done = LAB_DONE.indexOf(str_(it.Status)) !== -1;
+  const exp = toMs_(it.ExpectedAt);
+  return {
+    id: str_(it.ItemID), caseId: str_(it.CaseID), lab: str_(it.Lab), labType: str_(it.LabType), workType: str_(it.WorkType), details: str_(it.Details),
+    status: str_(it.Status) || LAB_ST.NEW, receivedAt: it.ReceivedAt, startedAt: it.StartedAt, externalLab: str_(it.ExternalLab), externalAt: it.ExternalAt,
+    expectedAt: it.ExpectedAt, readyAt: it.ReadyAt, sentAt: it.SentAt, deliveredAt: it.DeliveredAt, cost: price_(it.Cost),
+    redoOfItem: str_(it.RedoOfItem), redoReason: str_(it.RedoReason), updatedBy: str_(it.UpdatedBy),
+    overdue: !done && !!needed && now > needed,
+    externalLate: str_(it.Status) === LAB_ST.EXTERNAL && !!exp && now > exp + 864e5 - 1
+  };
+}
+function caseStatus_(items) {
+  if (!items.length) return LAB_ST.NEW;
+  let min = LAB_ORDER.length;
+  items.forEach(function (i) { min = Math.min(min, Math.max(0, LAB_ORDER.indexOf(i.status))); });
+  return LAB_ORDER[min];
+}
+function mapLabCase_(c, items, now) {
+  const its = items.map(function (it) { return mapLabItem_(it, c, now); });
+  return {
+    id: str_(c.CaseID), date: c.Date, nurse: str_(c.Nurse), doctor: str_(c.Doctor), clinic: str_(c.Clinic), branch: str_(c.Branch),
+    patient: str_(c.Patient), fileNo: str_(c.FileNo), neededBy: c.NeededBy, urgent: isYes_(c.Urgent),
+    redoOf: str_(c.RedoOf), redoReason: str_(c.RedoReason), redoNote: str_(c.RedoNote),
+    attachments: str_(c.Attachments).split(/\s+/).filter(String), items: its, status: caseStatus_(its),
+    overdue: its.some(function (i) { return i.overdue; }), externalLate: its.some(function (i) { return i.externalLate; }),
+    toReceive: its.some(function (i) { return i.status === LAB_ST.SENT; }),
+    labs: its.map(function (i) { return i.lab; }).filter(function (l, k, a) { return a.indexOf(l) === k; })
+  };
+}
+function queryLabCases_(user, filters, opts) {
+  filters = filters || {}; opts = opts || {};
+  const now = Date.now();
+  const byCase = {};
+  read_('LabItems').rows.forEach(function (it) { (byCase[str_(it.CaseID)] = byCase[str_(it.CaseID)] || []).push(it); });
+  const redone = {};
+  read_('LabCases').rows.forEach(function (c) { if (str_(c.RedoOf)) (redone[str_(c.RedoOf)] = redone[str_(c.RedoOf)] || []).push(str_(c.CaseID)); });
+  return read_('LabCases').rows.filter(function (c) {
+    if (!str_(c.CaseID)) return false;
+    if (filters.nurse && str_(c.Nurse) !== filters.nurse) return false;
+    if (filters.doctorUser && !isMyDoctor_(filters.doctorUser, str_(c.Doctor))) return false;
+    return canSeeLab_(user, c);
+  }).map(function (c) {
+    const o = mapLabCase_(c, byCase[str_(c.CaseID)] || [], now);
+    o.redoneBy = redone[o.id] || [];
+    return o;
+  }).filter(function (o) {
+    // الأرشيف: الإرساليات المستلمة الأقدم من 60 يوماً لا تُحمّل إلا عند الطلب
+    return opts.archive || o.status !== LAB_ST.DELIVERED || (now - toMs_(o.date)) < ARCHIVE_DAYS * 864e5;
+  }).sort(function (a, b) { return toMs_(b.date) - toMs_(a.date); });
+}
+function labNotes_(id) {
+  return read_('LabNotes').rows.filter(function (r) { return str_(r.CaseID) === str_(id); })
+    .map(function (r) { return { time: r.Timestamp, item: str_(r.ItemID), author: str_(r.Author), role: str_(r.Role), message: str_(r.Message) }; })
+    .sort(function (a, b) { return toMs_(a.time) - toMs_(b.time); });
+}
+function getLabCase_(user, id) {
+  const c = labCaseRow_(id);
+  if (!c) throw new Error('ERR_NOT_FOUND');
+  if (!canSeeLab_(user, c)) throw new Error('ERR_FORBIDDEN');
+  const o = mapLabCase_(c, labItemsOf_(id), Date.now());
+  o.notes = labNotes_(id);
+  o.redoneBy = read_('LabCases').rows.filter(function (r) { return str_(r.RedoOf) === o.id; }).map(function (r) { return str_(r.CaseID); });
+  if (o.redoOf) {
+    const orig = labCaseRow_(o.redoOf);
+    if (orig) o.origin = mapLabCase_(orig, labItemsOf_(o.redoOf), Date.now());
+  }
+  return o;
+}
+function addLabNote_(user, id, message, itemId) {
+  const c = labCaseRow_(id);
+  if (!c) throw new Error('ERR_NOT_FOUND');
+  if (!canSeeLab_(user, c)) throw new Error('ERR_FORBIDDEN');
+  message = clean_(message, 1000);
+  if (!message) throw new Error('ERR_REQUIRED');
+  append_('LabNotes', { Timestamp: new Date(), CaseID: str_(id), ItemID: str_(itemId), Author: user.name, Role: user.role, Message: message });
+  return labNotes_(id);
+}
+
+/**
+ * موظف المعمل يحدّث أسطراً (واحداً أو أكثر): action =
+ *  receive (استلام) · start (بدء العمل داخلياً) · external (إرسال لمعمل خارجي: lab, expectedAt, cost) ·
+ *  ready (جاهز — ومنه الرجوع من الخارجي) · send (أُرسل للعيادة) · reroute (تغيير المعمل: lab, note) · cost (تسجيل التكلفة)
+ */
+const LAB_ACTIONS = {
+  receive:  { from: [LAB_ST.NEW], to: LAB_ST.RECEIVED, stamp: 'ReceivedAt' },
+  start:    { from: [LAB_ST.NEW, LAB_ST.RECEIVED], to: LAB_ST.WORK, stamp: 'StartedAt' },
+  external: { from: [LAB_ST.NEW, LAB_ST.RECEIVED, LAB_ST.WORK], to: LAB_ST.EXTERNAL, stamp: 'ExternalAt' },
+  ready:    { from: [LAB_ST.NEW, LAB_ST.RECEIVED, LAB_ST.WORK, LAB_ST.EXTERNAL], to: LAB_ST.READY, stamp: 'ReadyAt' },
+  send:     { from: [LAB_ST.READY], to: LAB_ST.SENT, stamp: 'SentAt' },
+  reroute:  { from: [LAB_ST.NEW, LAB_ST.RECEIVED, LAB_ST.WORK, LAB_ST.EXTERNAL], to: null },
+  cost:     { from: LAB_ORDER, to: null }
+};
+function updateLabItems_(user, itemIds, action, data) {
+  data = data || {};
+  const def = LAB_ACTIONS[str_(action)];
+  if (!def) throw new Error('ERR_BAD_ACTION');
+  itemIds = (Array.isArray(itemIds) ? itemIds : [itemIds]).map(str_).filter(String);
+  if (!itemIds.length) throw new Error('ERR_NO_ITEMS');
+  const labs = {};
+  getLabs_().forEach(function (l) { labs[l.name] = l; });
+  const note = clean_(data.note, 500);
+  const out = withLock_(function () {
+    const t = read_('LabItems');
+    const rows = t.rows.filter(function (r) { return itemIds.indexOf(str_(r.ItemID)) !== -1; });
+    if (rows.length !== itemIds.length) throw new Error('ERR_NOT_FOUND');
+    const now = new Date();
+    const updates = rows.map(function (r) {
+      const st = str_(r.Status) || LAB_ST.NEW;
+      if (def.from.indexOf(st) === -1) throw new Error('ERR_BAD_TRANSITION');
+      const o = { UpdatedBy: user.name };
+      if (def.to) { o.Status = def.to; o[def.stamp] = now; }
+      if (action === 'receive' || action === 'start' || action === 'ready') { if (!r.ReceivedAt) o.ReceivedAt = now; }
+      if (action === 'external') {
+        const ext = str_(data.lab);
+        if (!labs[ext] || labs[ext].type !== 'خارجي') throw new Error('ERR_BAD_LAB');
+        const exp = parseDay_(data.expectedAt, true);
+        if (!exp) throw new Error('ERR_REQUIRED');
+        o.ExternalLab = ext; o.ExpectedAt = exp; o.Lab = ext; o.LabType = 'خارجي';
+        if (!r.ReceivedAt) o.ReceivedAt = now;
+      }
+      if (action === 'reroute') {
+        const to = str_(data.lab);
+        if (!labs[to]) throw new Error('ERR_BAD_LAB');
+        o.Lab = to; o.LabType = labs[to].type;
+      }
+      if (action === 'external' || action === 'cost') {
+        if (data.cost !== undefined && data.cost !== '' && data.cost !== null) {
+          const c = num_(data.cost);
+          if (!(c >= 0 && c <= PRICE_MAX)) throw new Error('ERR_BAD_PRICE');
+          o.Cost = round2_(c);
+        } else if (action === 'cost') throw new Error('ERR_REQUIRED');
+      }
+      return { row: r, obj: o };
+    });
+    setMany_(t, updates);
+    const cases = {};
+    rows.forEach(function (r) { cases[str_(r.CaseID)] = (cases[str_(r.CaseID)] || []).concat(str_(r.ItemID)); });
+    Object.keys(cases).forEach(function (cid) {
+      const label = { receive: 'استلام', start: 'بدء العمل', external: 'إرسال لمعمل خارجي: ' + str_(data.lab), ready: 'جاهز', send: 'أُرسل للعيادة', reroute: 'تحويل إلى ' + str_(data.lab), cost: 'تسجيل تكلفة' }[action];
+      logAction_(cid, 'معمل — ' + label + ' (' + cases[cid].join('، ') + ')', user.name);
+      if (note) append_('LabNotes', { Timestamp: now, CaseID: cid, ItemID: cases[cid].join(','), Author: user.name, Role: user.role, Message: note });
+    });
+    return Object.keys(cases);
+  });
+  // جاهز / أُرسل للعيادة: إشعار الممرضة والطبيب
+  if (action === 'ready' || action === 'send') {
+    out.forEach(function (cid) {
+      const c = labCaseRow_(cid); if (!c) return;
+      const subj = (action === 'ready' ? 'عمل المعمل جاهز - ' : 'أُرسل عمل المعمل للعيادة - ') + cid;
+      const body = 'المريض: ' + str_(c.Patient) + ' — ملف ' + str_(c.FileNo) + '\nالطبيب: ' + str_(c.Doctor) +
+        (action === 'send' ? '\n\nيرجى تأكيد الاستلام من داخل النظام عند الوصول.' : '');
+      notifyUser_(str_(c.Nurse), subj, body);
+      notifyUser_(doctorAccounts_()[str_(c.Doctor)], subj, body);
+    });
+  }
+  return out.map(function (cid) { return getLabCase_(user, cid); });
+}
+
+/** الممرضة تؤكد استلام ما أُرسل للعيادة من هذه الإرسالية */
+function confirmLabReceipt_(user, id) {
+  const c = labCaseRow_(id);
+  if (!c || str_(c.Nurse) !== user.name) throw new Error('ERR_NOT_FOUND');
+  withLock_(function () {
+    const t = read_('LabItems');
+    const rows = t.rows.filter(function (r) { return str_(r.CaseID) === str_(id) && str_(r.Status) === LAB_ST.SENT; });
+    if (!rows.length) throw new Error('ERR_BAD_TRANSITION');
+    const now = new Date();
+    setMany_(t, rows.map(function (r) { return { row: r, obj: { Status: LAB_ST.DELIVERED, DeliveredAt: now, UpdatedBy: user.name } }; }));
+    logAction_(str_(id), 'استلام عمل المعمل في العيادة', user.name);
+  });
+  return getLabCase_(user, id);
+}
+
+/** تنبيه المعمل على إرسالية متأخرة (الجودة / الإدارة) */
+function nudgeLab_(user, id, message) {
+  const c = labCaseRow_(id);
+  if (!c) throw new Error('ERR_NOT_FOUND');
+  message = clean_(message, 500) || 'يرجى الإسراع — الإرسالية تجاوزت الموعد المطلوب.';
+  append_('LabNotes', { Timestamp: new Date(), CaseID: str_(id), ItemID: '', Author: user.name, Role: user.role, Message: '⏰ ' + message });
+  notifyRole_('lab', '⏰ متابعة إرسالية متأخرة - ' + id, user.name + ' (' + user.role + '): ' + message + '\n\nالمريض: ' + str_(c.Patient) + ' — ملف ' + str_(c.FileNo));
+  return labNotes_(id);
+}
+
+/**
+ * مؤشرات المعمل للفترة (حسب تاريخ الإرسالية): زمن الإنجاز، الالتزام بالموعد، الإعادات وأسبابها،
+ * مقارنة المعامل (داخلي/خارجي) وأنواع الأعمال، التكلفة، والمتأخرات الآن.
+ */
+function getLabStats_(user, opts) {
+  opts = opts || {};
+  const from = parseDay_(opts.from), to = parseDay_(opts.to, true);
+  const now = Date.now(), D = 864e5;
+  const cases = {};
+  read_('LabCases').rows.forEach(function (c) { if (str_(c.CaseID)) cases[str_(c.CaseID)] = c; });
+  const items = read_('LabItems').rows.filter(function (it) { return cases[str_(it.CaseID)]; });
+  const inRange = function (c) { const ms = toMs_(c.Date); return (!from || ms >= from.getTime()) && (!to || ms <= to.getTime()); };
+  // الأسطر التي أُعيدت: كل سطر إعادة يشير لسطره الأصلي — تُحسب الإعادة على معمل/نوع السطر الأصلي
+  const redoneItem = {}, reasons = {};
+  items.forEach(function (it) {
+    if (!str_(it.RedoOfItem)) return;
+    redoneItem[str_(it.RedoOfItem)] = str_(it.RedoReason);
+    if (inRange(cases[str_(it.CaseID)])) reasons[str_(it.RedoReason) || 'أخرى'] = (reasons[str_(it.RedoReason) || 'أخرى'] || 0) + 1;
+  });
+  function bucket() { return { items: 0, done: 0, onTime: 0, withDue: 0, days: [], redo: 0, cost: 0, overdue: 0 }; }
+  function avg(a) { return a.length ? round1_(a.reduce(function (x, y) { return x + y; }, 0) / a.length) : null; }
+  const sum = bucket(), byLab = {}, byType = {}, byKind = { 'داخلي': bucket(), 'خارجي': bucket() };
+  let redoCases = 0, caseCount = 0;
+  Object.keys(cases).forEach(function (id) { if (inRange(cases[id])) { caseCount++; if (str_(cases[id].RedoOf)) redoCases++; } });
+  const overdueNow = [];
+  items.forEach(function (it) {
+    const c = cases[str_(it.CaseID)];
+    const m = mapLabItem_(it, c, now);
+    if (m.overdue || m.externalLate) overdueNow.push({ caseId: m.caseId, item: m.id, patient: str_(c.Patient), fileNo: str_(c.FileNo), doctor: str_(c.Doctor),
+      lab: m.lab, workType: m.workType, status: m.status, neededBy: c.NeededBy, expectedAt: m.expectedAt, externalLate: m.externalLate,
+      daysLate: round1_((now - (m.externalLate ? toMs_(m.expectedAt) : toMs_(c.NeededBy))) / D) });
+    if (!inRange(c)) return;
+    const kind = str_(it.LabType) === 'خارجي' ? 'خارجي' : 'داخلي';
+    [sum, byLab[m.lab] = byLab[m.lab] || bucket(), byType[m.workType] = byType[m.workType] || bucket(), byKind[kind]].forEach(function (b) {
+      b.items++;
+      if (m.overdue) b.overdue++;
+      if (m.cost) b.cost = round2_(b.cost + m.cost);
+      if (redoneItem[m.id] !== undefined) b.redo++;
+      const readyMs = toMs_(m.readyAt);
+      if (readyMs) {
+        b.done++;
+        b.days.push((readyMs - toMs_(m.receivedAt || c.Date)) / D);
+        if (toMs_(c.NeededBy)) { b.withDue++; if (readyMs <= toMs_(c.NeededBy)) b.onTime++; }
+      }
+    });
+  });
+  function out(name, b) {
+    return { name: name, items: b.items, done: b.done, avgDays: avg(b.days), onTimeRate: b.withDue ? Math.round(b.onTime / b.withDue * 100) : null,
+      redo: b.redo, redoRate: b.items ? Math.round(b.redo / b.items * 100) : 0, cost: b.cost, overdue: b.overdue };
+  }
+  function list(m) { return Object.keys(m).map(function (k) { return out(k, m[k]); }).sort(function (a, b) { return b.items - a.items; }); }
+  const labTypes = {};
+  getLabs_().forEach(function (l) { labTypes[l.name] = l.type; });
+  // اتجاه 6 أشهر: عدد الأسطر ومتوسط أيام الإنجاز
+  const trend = [], nowD = new Date();
+  for (let i = 5; i >= 0; i--) {
+    const mth = Utilities.formatDate(new Date(nowD.getFullYear(), nowD.getMonth() - i, 15), TZ, 'yyyy-MM');
+    const its = items.filter(function (it) { return monthOf_(cases[str_(it.CaseID)].Date) === mth; });
+    const ds = its.filter(function (it) { return toMs_(it.ReadyAt); }).map(function (it) { return (toMs_(it.ReadyAt) - toMs_(it.ReceivedAt || cases[str_(it.CaseID)].Date)) / D; });
+    trend.push({ month: mth, items: its.length, avgDays: avg(ds) || 0 });
+  }
+  const openBy = {};
+  items.forEach(function (it) { const st = str_(it.Status) || LAB_ST.NEW; openBy[st] = (openBy[st] || 0) + 1; });
+  return {
+    from: from, to: to, generatedAt: new Date(),
+    summary: Object.assign(out('', sum), { cases: caseCount, redoCases: redoCases }),
+    labs: list(byLab).map(function (x) { x.type = labTypes[x.name] || ''; return x; }),
+    workTypes: list(byType), kinds: [out('داخلي', byKind['داخلي']), out('خارجي', byKind['خارجي'])],
+    reasons: Object.keys(reasons).map(function (k) { return { reason: k, count: reasons[k] }; }).sort(function (a, b) { return b.count - a.count; }),
+    overdueNow: overdueNow.sort(function (a, b) { return b.daysLate - a.daysLate; }), byStatus: openBy, trend: trend
+  };
 }

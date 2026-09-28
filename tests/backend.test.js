@@ -175,7 +175,7 @@ test('config: nurse sees only her clinics and no prices', () => {
   const proc = api(login('علي', '3333'), 'getConfig');
   assert.equal(proc.catalog.find(c => c.name === 'PROPHY PASTE').price, 60);
   assert.equal(proc.roles.length, 0, 'roles only for admin');
-  assert.equal(api(login('المدير', '1234'), 'getConfig').roles.length, 7);
+  assert.equal(api(login('المدير', '1234'), 'getConfig').roles.length, 8);
 });
 
 test('createRequest: validation', () => {
@@ -970,7 +970,7 @@ test('setupSheets is idempotent and seeds defaults on an empty spreadsheet', () 
   ctx.setupSheets();
   ctx.setupSheets();
   assert.equal(gas.dump('Users').length, 2);
-  assert.equal(gas.dump('Roles').length, 9);
+  assert.equal(gas.dump('Roles').length, 10);
   assert.equal(gas.dump('ItemsCatalog').length, 18);
   const r = ctx.api(null, 'login', ['المدير', '1234']);
   assert.equal(r.user.screen, 'admin');
@@ -1047,7 +1047,7 @@ test('roles split: legacy quality/executive/finance migrate; executive keeps ful
   });
   const q = login('منى', '5555');
   assert.deepEqual(rows(gas, 'Roles').map(r => [r.RoleName, r.Screen]).sort(), [
-    ['أدمن', 'admin'], ['ممرضة', 'nurse'], ['تموين', 'procurement'], ['جودة', 'quality'], ['تنفيذي', 'executive'], ['مالية', 'finance']].sort());
+    ['أدمن', 'admin'], ['ممرضة', 'nurse'], ['تموين', 'procurement'], ['جودة', 'quality'], ['تنفيذي', 'executive'], ['مالية', 'finance'], ['المعمل', 'lab']].sort());
   const qc = api(q, 'getConfig');
   assert.equal(qc.user.screen, 'quality');
   assert.ok(qc.user.perms.includes('monitor') && !qc.user.perms.includes('users') && !qc.user.perms.includes('finance'));
@@ -1061,7 +1061,7 @@ test('roles split: legacy quality/executive/finance migrate; executive keeps ful
   throwsCode(() => api(e, 'getUsers'), 'ERR_FORBIDDEN'); // بعد وجود الأدمن: صلاحيات التنفيذي الافتراضية فقط (فوراً)
   assert.ok(api(e, 'getExecutiveStats'));
   const a = login('admin', '9999');
-  assert.equal(api(a, 'getConfig').user.perms.length, 9);
+  assert.equal(api(a, 'getConfig').user.perms.length, 10);
   const f = login('نواف', '7777');
   assert.ok(api(f, 'getFinance', {}).summary);
   throwsCode(() => api(f, 'getComplaints'), 'ERR_FORBIDDEN');
@@ -1198,7 +1198,7 @@ test('management roles (finance…) are added automatically when missing, so the
   });
   const a = login('المدير', '1234');
   const roles = api(a, 'getConfig').roles.map(r => r.name + ':' + r.screen).sort();
-  assert.deepEqual(roles, ['أدمن:admin', 'تموين:procurement', 'تنفيذي:executive', 'جودة:quality', 'طبيب:doctor', 'مالية:finance', 'ممرضة:nurse'].sort());
+  assert.deepEqual(roles, ['أدمن:admin', 'تموين:procurement', 'تنفيذي:executive', 'جودة:quality', 'طبيب:doctor', 'مالية:finance', 'ممرضة:nurse', 'المعمل:lab'].sort());
   api(a, 'createUser', { name: 'المالية', password: '2468', role: 'مالية', email: 'finance@example.com' });
   const f = api(null, 'login', 'المالية', '2468');
   assert.equal(f.user.screen, 'finance');
@@ -1252,4 +1252,99 @@ test('draft resubmission after a lost connection never creates a duplicate reque
   // مفتاح غير صالح يُتجاهل
   assert.equal(api(n, 'createRequest', Object.assign({}, draft, { items: [{ name: 'PROPHY PASTE', qty: 1 }], clientKey: '<bad>' })).duplicate, false);
   assert.ok(ctx);
+});
+
+test('lab: nurse sends a case with lines to different labs; lab moves it internal/external → ready → clinic; doctor follows; nurse confirms', () => {
+  const { api, login, gas } = boot();
+  const n = login('سارة', '1111');
+  const cfg = api(n, 'getLabConfig');
+  assert.deepEqual(cfg.labs.map(l => l.name), ['المعمل الداخلي', 'معمل النخبة', 'معمل الابتسامة'], 'inactive labs are hidden');
+  assert.ok(cfg.workTypes.includes('تاج'));
+  const base = { doctor: 'د. خالد', patient: 'محمد أحمد', fileNo: 'F-1001', neededBy: '2099-01-10',
+    lines: [{ lab: 'المعمل الداخلي', workType: 'تاج', details: 'سن 16 · لون A2' }, { lab: 'معمل النخبة', workType: 'جسر', details: '14-16' }] };
+  throwsCode(() => api(n, 'createLabCase', Object.assign({}, base, { patient: '' })), 'ERR_REQUIRED');
+  throwsCode(() => api(n, 'createLabCase', Object.assign({}, base, { lines: [{ lab: 'معمل موقوف', workType: 'تاج' }] })), 'ERR_BAD_LAB');
+  throwsCode(() => api(n, 'createLabCase', Object.assign({}, base, { lines: [{ lab: 'المعمل الداخلي', workType: 'شيء' }] })), 'ERR_BAD_WORKTYPE');
+  throwsCode(() => api(n, 'createLabCase', Object.assign({}, base, { doctor: 'د. سعد' })), 'ERR_BAD_DOCTOR');
+  gas.mails.length = 0;
+  const PNG = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==';
+  const c = api(n, 'createLabCase', Object.assign({}, base, { photos: [PNG], clientKey: 'lab-draft-00001' }));
+  assert.match(c.id, /^LAB-\d{6}-001$/);
+  assert.equal(api(n, 'createLabCase', Object.assign({}, base, { clientKey: 'lab-draft-00001' })).id, c.id, 'resend after lost response → no duplicate');
+  assert.ok(gas.mails.some(m => m.to.includes('lab@example.com') && /إرسالية جديدة للمعمل/.test(m.subject)), 'lab account notified');
+  const row = rows(gas, 'LabCases')[0];
+  assert.deepEqual([row.Clinic, row.Branch, row.Patient, row.FileNo], ['عيادة الأسنان 1', 'الرياض', 'محمد أحمد', 'F-1001']);
+  assert.equal(api(n, 'getLabCase', c.id).attachments.length, 1);
+  // من يرى: الممرضة، الطبيب نفسه، المعمل — لا ممرضة أخرى ولا التموين
+  assert.equal(api(n, 'getMyLabCases').length, 1);
+  assert.equal(api(login('ريم', '2222'), 'getMyLabCases').length, 0);
+  throwsCode(() => api(login('ريم', '2222'), 'getLabCase', c.id), 'ERR_FORBIDDEN');
+  throwsCode(() => api(login('علي', '3333'), 'getLabCase', c.id), 'ERR_FORBIDDEN');
+  const d = login('د. خالد', '4444');
+  assert.deepEqual(api(d, 'getDoctorLabCases').map(x => x.id), [c.id]);
+  throwsCode(() => api(d, 'updateLabItems', [c.id + '-1'], 'receive'), 'ERR_FORBIDDEN');
+  api(d, 'addLabNote', c.id, 'انتبهوا للون');
+  // المعمل
+  const L = login('فني المعمل', '8888');
+  assert.equal(api(L, 'getConfig').user.screen, 'lab');
+  assert.ok(api(L, 'getAlerts').some(a => a.code === 'alert_lab_new'));
+  const [i1, i2] = [c.id + '-1', c.id + '-2'];
+  api(L, 'updateLabItems', [i1, i2], 'receive');
+  throwsCode(() => api(L, 'updateLabItems', [i1], 'send'), 'ERR_BAD_TRANSITION');
+  throwsCode(() => api(L, 'updateLabItems', [i2], 'external', { lab: 'المعمل الداخلي', expectedAt: '2099-01-05' }), 'ERR_BAD_LAB');
+  throwsCode(() => api(L, 'updateLabItems', [i2], 'external', { lab: 'معمل النخبة' }), 'ERR_REQUIRED');
+  api(L, 'updateLabItems', [i1], 'start');
+  const afterExt = api(L, 'updateLabItems', [i2], 'external', { lab: 'معمل النخبة', expectedAt: '2099-01-05', cost: '250', note: 'أُرسل مع المندوب' })[0];
+  const x2 = afterExt.items.find(i => i.id === i2);
+  assert.deepEqual([x2.status, x2.externalLab, x2.cost], ['عند معمل خارجي', 'معمل النخبة', 250]);
+  assert.ok(afterExt.notes.some(nn => /المندوب/.test(nn.message)) && afterExt.notes.some(nn => nn.author === 'د. خالد'));
+  gas.mails.length = 0;
+  api(L, 'updateLabItems', [i1, i2], 'ready');
+  assert.ok(gas.mails.some(m => m.to === 'sara@example.com' && /جاهز/.test(m.subject)), 'nurse told it is ready');
+  assert.ok(gas.mails.some(m => m.to === 'khaled@example.com'), 'doctor told it is ready');
+  api(L, 'updateLabItems', [i1, i2], 'send');
+  assert.ok(api(n, 'getAlerts').some(a => a.code === 'alert_lab_to_receive'));
+  throwsCode(() => api(login('ريم', '2222'), 'confirmLabReceipt', c.id), 'ERR_NOT_FOUND');
+  const done = api(n, 'confirmLabReceipt', c.id);
+  assert.equal(done.status, 'استلمته العيادة');
+  throwsCode(() => api(n, 'confirmLabReceipt', c.id), 'ERR_BAD_TRANSITION');
+});
+
+test('lab redo: nurse picks a previous case and the faulty line with a reason; lab sees it flagged; KPIs count redo per lab, cost and overdue', () => {
+  const { api, login, gas } = boot();
+  const n = login('سارة', '1111'), L = login('فني المعمل', '8888');
+  const c = api(n, 'createLabCase', { doctor: 'د. خالد', patient: 'سارة علي', fileNo: '7788', neededBy: '2099-02-01',
+    lines: [{ lab: 'المعمل الداخلي', workType: 'تاج' }, { lab: 'معمل النخبة', workType: 'جسر' }] });
+  api(L, 'updateLabItems', [c.id + '-2'], 'external', { lab: 'معمل النخبة', expectedAt: '2099-01-20', cost: 400 });
+  api(L, 'updateLabItems', [c.id + '-1', c.id + '-2'], 'ready');
+  api(L, 'updateLabItems', [c.id + '-1', c.id + '-2'], 'send');
+  api(n, 'confirmLabReceipt', c.id);
+  const redoBase = { doctor: 'د. خالد', patient: 'سارة علي', fileNo: '7788', redoOf: c.id, redoItems: [c.id + '-2'], redoReason: 'لون', redoNote: 'اللون أغمق من المطلوب' };
+  throwsCode(() => api(n, 'createLabCase', Object.assign({}, redoBase, { redoReason: 'مزاج' })), 'ERR_REDO_REASON');
+  throwsCode(() => api(login('ريم', '2222'), 'createLabCase', Object.assign({}, redoBase, { doctor: 'د. سعد' })), 'ERR_NOT_FOUND');
+  gas.mails.length = 0;
+  const r = api(n, 'createLabCase', redoBase);
+  assert.ok(gas.mails.some(m => /إعادة للمعمل/.test(m.subject) && /أغمق/.test(m.body)), 'lab gets the problem in the email');
+  assert.ok(gas.mails.some(m => m.to === 'khaled@example.com' && /إعادة/.test(m.subject)), 'doctor informed of the redo');
+  const rc = api(L, 'getLabCase', r.id);
+  assert.deepEqual([rc.redoOf, rc.redoReason, rc.redoNote, rc.items.length, rc.items[0].lab, rc.items[0].redoOfItem], [c.id, 'لون', 'اللون أغمق من المطلوب', 1, 'معمل النخبة', c.id + '-2']);
+  assert.equal(rc.origin.id, c.id);
+  assert.deepEqual(api(n, 'getLabCase', c.id).redoneBy, [r.id]);
+  assert.ok(api(L, 'getAlerts').some(a => a.code === 'alert_lab_redo'));
+  // متأخر: إرسالية موعدها مضى
+  const late = api(n, 'createLabCase', { doctor: 'د. خالد', patient: 'خالد', fileNo: '1', neededBy: '2020-01-01', lines: [{ lab: 'المعمل الداخلي', workType: 'طقم كامل' }] });
+  const st = api(L, 'getLabStats', {});
+  assert.deepEqual([st.summary.cases, st.summary.redoCases, st.summary.items], [3, 1, 4]);
+  const elite = st.labs.find(x => x.name === 'معمل النخبة');
+  assert.deepEqual([elite.type, elite.items, elite.redo, elite.redoRate, elite.cost, elite.done], ['خارجي', 2, 1, 50, 400, 1]);
+  assert.deepEqual(st.reasons, [{ reason: 'لون', count: 1 }]);
+  assert.ok(st.overdueNow.some(o => o.caseId === late.id));
+  assert.equal(st.trend.length, 6);
+  // الجودة تتابع وتنبّه المعمل؛ المالية بدون صلاحية
+  const q = login('منى', '5555');
+  assert.ok(api(q, 'getLabStats', {}).summary);
+  gas.mails.length = 0;
+  api(q, 'nudgeLab', late.id, 'المريض ينتظر');
+  assert.ok(gas.mails.some(m => m.to.includes('lab@example.com') && /متأخرة/.test(m.subject)));
+  throwsCode(() => api(login('نواف', '7777'), 'getLabStats', {}), 'ERR_FORBIDDEN');
 });

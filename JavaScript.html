@@ -13,7 +13,7 @@ const SYNC_INTERVAL_MS = 60 * 1000;
    ===================================================================== */
 const I18N = {
   ar: {
-    lang_switch: 'English', theme_toggle: 'الوضع الليلي/النهاري', brand_tag: 'إدارة مستلزمات العيادات', req_kind: 'الطلب لـ', kind_doctor: 'طلب طبيب', kind_clinic: 'مستهلكات عيادة', kind_doctor_hint: 'الطلب الاعتيادي: يُرفع باسم الطبيب ويصل لصفحته ليعتمده بنفسه قبل التجهيز.', kind_clinic_hint: 'لمستهلكات العيادة العامة فقط (بدون طبيب) — تذهب للتموين مباشرة.', linked_doctor: 'الطبيب المرتبط بالحساب', linked_doctor_hint: 'اسم الطبيب كما يظهر في قائمة الأطباء — لتصل طلباته لهذا الحساب', link_auto: 'تلقائي (حسب اسم الحساب)', linked_now: 'مرتبط حالياً بـ: {n}', not_linked: 'غير مرتبط بطبيب', unlinked_title: '{n} طبيب بلا حساب مرتبط:', unlinked_hint: 'طلباتهم لا تصل لصفحة أي طبيب وتذهب للتموين دون اعتماد. عدّل حساب الطبيب واختر اسمه من «الطبيب المرتبط».', built_by: 'Built & Developed by Ibrahim Alluhaydi',
+    lang_switch: 'English', theme_toggle: 'الوضع الليلي/النهاري', brand_tag: 'إدارة مستلزمات العيادات', brand_name: 'مسار', req_kind: 'الطلب لـ', kind_doctor: 'طلب طبيب', kind_clinic: 'مستهلكات عيادة', kind_doctor_hint: 'الطلب الاعتيادي: يُرفع باسم الطبيب ويصل لصفحته ليعتمده بنفسه قبل التجهيز.', kind_clinic_hint: 'لمستهلكات العيادة العامة فقط (بدون طبيب) — تذهب للتموين مباشرة.', kind_lab: 'إرسال للمعمل', nav_lab: 'المعمل', nav_lab_board: 'لوحة المعمل', nav_lab_kpi: 'مؤشرات المعمل', sub_lab_board: 'إرساليات المرضى من العيادات — استلم، اعمل أو حوّل لمعمل خارجي، ثم أرسل للعيادة', sub_lab_mine: 'إرسالياتك للمعمل وحالتها — أكّد الاستلام أو اطلب إعادة', sub_lab_doc: 'إرساليات مرضاك للمعمل (اطلاع)', sub_lab_kpi: 'زمن الإنجاز، الالتزام بالموعد، الإعادات، والمعامل الخارجية', lab_case: 'إرسالية معمل', lab_mode: 'نوع الإرسالية', lab_mode_new: 'إرسالية جديدة', lab_mode_redo: 'إعادة', lab_needed_by: 'مطلوب قبل', lab_needed_hint: 'موعد المريض', lab_patient: 'اسم المريض', lab_file: 'رقم الملف', lab_urgent: 'عاجل', lab_works: 'الأعمال المطلوبة', lab_add_line: 'إضافة عمل آخر (لنفس المعمل أو معمل آخر)', lab_name: 'المعمل', lab_work: 'نوع العمل', lab_details: 'التفاصيل', lab_details_ph: 'السن، اللون، ملاحظات…', lab_photos: 'صور مرفقة', lab_photos_hint: 'اختياري — حتى 3 صور (تُصغَّر تلقائياً)', lab_add_photo: 'إضافة صورة', lab_no_photos: 'لا توجد صور', lab_photo: 'صورة', lab_submit: 'إرسال للمعمل', lab_submit_redo: 'إرسال الإعادة للمعمل', lab_labs: 'المعامل', lab_redo_pick: 'الإرسالية السابقة', lab_redo_search: 'ابحث باسم المريض أو رقم الملف أو الإرسالية…', lab_redo_choose: 'اختر الإرسالية…', lab_redo_hint: 'اختر إرسالية سابقة لعرض تفاصيلها واختيار الأعمال المعادة', lab_redo_lines_pick: 'ما الذي يحتاج إعادة؟', lab_redo_reason: 'سبب الإعادة', lab_redo_note: 'وصف المشكلة (يظهر للمعمل)', lab_redo_note_ph: 'مثال: اللون أغمق من A2، المقاس ضيق على السن 16…', lab_redo_of: 'إعادة للإرسالية', lab_redo_lines: 'أعمال معادة', lab_redo_tag: 'إعادة', lab_redone_by: 'أُعيدت في:', lab_err_fill: 'اختر الطبيب واكتب اسم المريض ورقم الملف', lab_err_lines_fill: 'كل عمل يحتاج معملاً ونوع عمل', lab_err_pick: 'اختر الإرسالية السابقة', lab_err_lines: 'اختر عملاً واحداً على الأقل للإعادة', lab_err_reason: 'اختر سبب الإعادة', lab_err_note: 'اكتب وصف المشكلة حتى يعرفها المعمل', lab_sent: 'أُرسلت الإرسالية {id} للمعمل', lab_redo_sent: 'أُرسلت الإعادة {id} للمعمل مع وصف المشكلة', lab_g_active: 'قيد التنفيذ', lab_g_receive: 'بانتظار استلامك', lab_g_late: 'متأخر', lab_g_redo: 'إعادات', lab_g_done: 'مكتملة', lab_g_new: 'جديد', lab_g_work: 'قيد العمل', lab_g_external: 'عند معمل خارجي', lab_g_ready: 'جاهز للإرسال', lab_due: 'مطلوب قبل {d}', lab_confirm: 'تأكيد الاستلام', lab_confirmed: 'تم تأكيد استلام عمل المعمل', lab_search: 'بحث باسم المريض، رقم الملف، الطبيب، الإرسالية…', lab_all_labs: 'كل المعامل', lab_new: 'إرسالية جديدة', lab_empty: 'لا توجد إرساليات بعد', lab_empty_nurse: 'ارفع إرسالية من «طلب جديد» ← «إرسال للمعمل»', lst_new: 'جديد من العيادة', lst_received: 'استلمه المعمل', lst_work: 'قيد العمل', lst_external: 'عند معمل خارجي', lst_ready: 'جاهز', lst_sent: 'أُرسل للعيادة', lst_delivered: 'استلمته العيادة', la_receive: 'استلام', la_start: 'بدء العمل', la_external: 'معمل خارجي', la_ready: 'جاهز', la_send: 'إرسال للعيادة', la_reroute: 'تحويل', la_cost: 'التكلفة', lab_done_receive: 'تم الاستلام ({n})', lab_done_start: 'بدأ العمل ({n})', lab_done_external: 'أُرسل لمعمل خارجي', lab_done_ready: 'جاهز ({n}) — أُبلغت الممرضة والطبيب', lab_done_send: 'أُرسل للعيادة ({n})', lab_done_reroute: 'تم التحويل', lab_done_cost: 'حُفظت التكلفة', lab_all_items: 'كل الأعمال ({n})', lab_external: 'المعمل الخارجي', lab_expected: 'موعد الرجوع المتوقع', lab_cost: 'التكلفة (ر.س)', lab_reroute_to: 'تحويل إلى معمل', lab_note: 'ملاحظة', lab_ext_late: 'تأخر الخارجي', lab_timeline: 'المراحل', lab_notes: 'الملاحظات', lab_note_ph: 'اكتب ملاحظة للمعمل/الممرضة/الطبيب…', lab_nudged: 'تم تنبيه المعمل', lab_k_cases: 'الإرساليات', lab_k_items: 'الأعمال', lab_k_avg: 'متوسط الإنجاز', lab_k_ontime: 'في الموعد', lab_k_redo: 'نسبة الإعادة', lab_k_overdue: 'متأخر الآن', lab_k_external: 'أعمال خارجية', lab_k_cost: 'تكلفة الخارجي', lab_overdue_title: 'أعمال متأخرة', lab_overdue_sub: 'تجاوزت «مطلوب قبل» أو موعد رجوع المعمل الخارجي', lab_by_lab: 'حسب المعمل', lab_by_type: 'حسب نوع العمل', lab_reasons: 'أسباب الإعادة', lab_no_redo: 'لا توجد إعادات 👌', lab_kind: 'داخلي / خارجي', lab_trend: 'الأعمال شهرياً — آخر 6 أشهر', lab_trend_sub: 'عدد الأعمال حسب شهر الإرسالية', lab_unit_items: 'عمل', lab_n_items: '{n} عمل', optional: 'اختياري', alert_lab_new: '<b>{n}</b> إرسالية جديدة من العيادات', alert_lab_redo: '<b>{n}</b> إعادة من العيادات — راجع سبب المشكلة', alert_lab_late: '<b>{n}</b> إرسالية متأخرة عن موعدها', alert_lab_to_receive: '<b>{n}</b> عمل معمل وصل للعيادة — أكّد الاستلام', ERR_BAD_LAB: 'معمل غير صالح أو غير نشط', ERR_BAD_WORKTYPE: 'نوع عمل غير صالح', ERR_REDO_REASON: 'اختر سبب الإعادة', ERR_BAD_IMAGE: 'صورة غير صالحة', ERR_BAD_ACTION: 'إجراء غير صالح', linked_doctor: 'الطبيب المرتبط بالحساب', linked_doctor_hint: 'اسم الطبيب كما يظهر في قائمة الأطباء — لتصل طلباته لهذا الحساب', link_auto: 'تلقائي (حسب اسم الحساب)', linked_now: 'مرتبط حالياً بـ: {n}', not_linked: 'غير مرتبط بطبيب', unlinked_title: '{n} طبيب بلا حساب مرتبط:', unlinked_hint: 'طلباتهم لا تصل لصفحة أي طبيب وتذهب للتموين دون اعتماد. عدّل حساب الطبيب واختر اسمه من «الطبيب المرتبط».', built_by: 'Built & Developed by Ibrahim Alluhaydi',
     login_hero_title: 'مسار',
     login_hero_sub: 'مسار إمداد متكامل | نظام إدارة المستهلكات بذكاء وشفافية',
     flow_1: 'رفع الطلب', flow_2: 'التجهيز', flow_3: 'اعتماد الطبيب', flow_4: 'الإرسال', flow_5: 'الاستلام والتوقيع',
@@ -95,7 +95,7 @@ const I18N = {
     confirm_delete_role: 'حذف الدور «{n}»؟', role_saved: 'تم حفظ الدور',
     alert_to_receive: 'لديك <b>{n}</b> طلب فيه شحنات بانتظار تأكيد الاستلام', alert_rejected: '<b>{n}</b> من طلباتك رُفض من الطبيب — راجع السبب وأعد الإرسال',
     alert_urgent_new: '<b>{n}</b> طلب طارئ معتمد بانتظار التجهيز', alert_new: '<b>{n}</b> طلب جاهز للتجهيز', alert_approved_ready: '<b>{n}</b> طلب مجهّز جاهز للإرسال للفرع',
-    alert_rejected_proc: '<b>{n}</b> طلب مرفوض من الطبيب يحتاج مراجعة', alert_stale: '<b>{n}</b> طلب متأخر أكثر من 72 ساعة', alert_pending_review: '<b>{n}</b> طلب بانتظار مراجعتك', alert_urgent_review: '<b>{n}</b> طلب طارئ ما زال لدى الطبيب للاعتماد', grp_wait_doctor: 'لدى الطبيب', grp_ready_prep: 'جاهز للتجهيز', resubmit: 'إعادة الإرسال للطبيب', this_shipment: 'كمية هذه الشحنة', total_units: 'إجمالي الكمية', sent_progress: 'الإرسال', sent_of: 'أُرسل {a} من {b}', left_n: 'باقي {n}', item_done: 'مكتمل', item_zero: 'لا يُرسل (الكمية 0)', partial_badge: 'جزئي {a}/{b}', ships_n: '{n} شحنات', units_sent_of: 'أُرسل {a} من {b} قطعة', remaining_list: 'المتبقي', ship_units: '{n} قطعة', items_done_of: 'أصناف مكتملة {a} من {b}', partial_items: '{n} صنف أُرسل جزئياً', alert_partial: '<b>{n}</b> طلب مُرسل جزئياً ما زال له أصناف أو كميات متبقية', ERR_QTY_EXCEEDS: 'الكمية أكبر من المتبقي لهذا الصنف', ERR_QTY_MIN1: 'لا يمكن طلب صفر — أقل كمية 1', bad_prices_title: 'أسعار غير صالحة في الكتالوج (حُسبت صفراً حتى تُصحَّح):', bad_prices_fix: 'صحّح خلية السعر في تبويب ItemsCatalog واكتبها رقماً فقط (مثل 300 أو 27.5) — إن ظهرت كتاريخ غيّر تنسيق العمود إلى «رقم».', price_issue_date: 'مكتوب كتاريخ', price_issue_text: 'ليس رقماً', price_issue_too_big: 'قيمة غير منطقية', price_issue_negative: 'سالب', nav_reports: 'التقارير والإحصائيات', sub_reports: 'إحصائيات الطلبات والقيمة لكل طبيب وفرع وعيادة، وتقرير أي طبيب بأسعاره', all_time: 'كل الفترات', rp_update: 'تحديث', rp_value: 'القيمة', rp_approved_rate: 'نسبة الاعتماد', rp_reject_rate: 'نسبة الرفض', rp_avg_approval: 'متوسط زمن اعتماد الطبيب', rp_avg_fulfil: 'متوسط زمن الإرسال', rp_pending_doc: 'بانتظار الطبيب', rp_approved: 'معتمد', rp_avg_request: 'متوسط قيمة الطلب', rp_report: 'تقرير', rp_received: 'نسبة الاستلام', rp_in_requests: 'في طلبات', rp_by_doctor: 'حسب الطبيب', rp_by_branch: 'حسب الفرع', rp_by_clinic: 'حسب العيادة', rp_export_stats: 'تصدير الإحصائيات (Excel)', rp_doc_title: 'تقرير طبيب — تاريخ طلباته بالأسعار', rp_doc_sub: 'اختر الطبيب من القائمة؛ يُستخدم نفس فلتر الفترة أعلاه', rp_doc_hint: 'اختر طبيباً ثم «إصدار التقرير» — أو اضغط «تقرير» بجانب أي طبيب في الجدول', t_reports_t: 'التقارير والإحصائيات', t_reports_b: 'إحصائيات كل طبيب وفرع وعيادة بالقيمة والأزمنة، وتقرير أي طبيب بأسعاره من قائمة منسدلة مع طباعة وتصدير.', stamp_submitted: 'رُفع', stamp_approved: 'اعتُمد', stamp_rejected: 'رُفض', stamp_prep: 'بدأ التجهيز', stamp_vendor_wait: 'طُلب من المندوب', stamp_vendor_recv: 'وصل من المندوب', stamp_sent: 'أُرسل', stamp_received: 'استُلم', stamp_shipment: 'آخر شحنة', approved_qty: 'الكمية المعتمدة', doctor_qty_hint: 'يمكنك تعديل الكمية قبل الاعتماد — تصل للتموين كما اعتمدتها بالضبط (0 = لا يُصرف الصنف)', qty_by_doctor: 'الكميات كما اعتمدها الطبيب — للنقص استخدم الإرسال الجزئي', ERR_DOCTOR_QTY: 'كميات هذا الطلب يحددها الطبيب عند الاعتماد', ERR_ALL_ZERO: 'لا يمكن اعتماد كل الأصناف بصفر — استخدم الرفض مع السبب', ERR_BUSY: 'النظام مشغول بطلبات كثيرة الآن — لم يُحفظ شيء، حاول بعد لحظات', busy_retry: 'ضغط عالٍ على النظام — نعيد المحاولة تلقائياً…', show_more: 'عرض المزيد ({n}) — باقي {left}', show_archive: 'عرض الأرشيف (الطلبات المكتملة الأقدم من 60 يوماً)', change_pw: 'تغيير الرقم السري', change_pw_sub: 'لكل مستخدم رقمه السري الخاص — لا تشاركه مع أحد', pw_current: 'الرقم السري الحالي', pw_new: 'الرقم السري الجديد', pw_confirm: 'تأكيد الرقم السري الجديد', pw_rules: '4 خانات على الأقل، ويختلف عن الحالي', pw_mismatch: 'التأكيد لا يطابق الرقم الجديد', pw_changed: 'تم تغيير الرقم السري — استخدمه في الدخول القادم', pw_save: 'حفظ الرقم الجديد', ERR_WRONG_PASSWORD: 'الرقم السري الحالي غير صحيح', ERR_SAME_PASSWORD: 'الرقم الجديد مطابق للحالي — اختر رقماً مختلفاً', ERR_PASSWORD_TOO_LONG: 'الرقم السري طويل جداً (64 خانة كحد أقصى)', ERR_QTY_MIN1_ITEM: 'لا يمكن طلب صفر من «{n}» — أقل كمية 1', qty_hint: 'اكتب الكمية المتوفرة الآن — الباقي يبقى مفتوحاً للشحنة القادمة', rep_btn: 'تقرير الطلبات', rep_btn_doc: 'تقرير طبيب', rep_title: 'تقرير طلبات الطبيب', rep_mode_month: 'شهر محدد', rep_mode_cum: 'تراكمي حتى تاريخ', rep_month: 'الشهر', rep_to: 'حتى تاريخ', rep_doctor: 'الطبيب', rep_generate: 'إصدار التقرير', rep_period: 'الفترة', rep_all_until: 'كل الطلبات حتى {d}', rep_generated: 'أُصدر في', rep_requests: 'عدد الطلبات', rep_lines: 'بنود الأصناف', rep_qty: 'إجمالي الكمية', rep_total: 'الإجمالي', rep_price: 'سعر الوحدة', rep_line_total: 'الإجمالي', rep_subtotal: 'إجمالي الطلب', rep_top: 'الأصناف الأعلى قيمة', rep_unpriced: '{n} بند بدون سعر في الكتالوج (محسوب بصفر)', rep_empty: 'لا توجد طلبات في هذه الفترة', rep_print: 'طباعة / PDF', rep_csv: 'تصدير Excel', rep_note: 'الكمية = المعتمدة (أو المطلوبة إن لم تُعدَّل) · السعر من الكتالوج · الطلبات المرفوضة غير محسوبة', ERR_BAD_RANGE: 'نطاق التاريخ غير صحيح', t_doc_report_t: 'تقرير طلباتك', t_doc_report_b: 'أصدر تقريراً مرتباً بطلباتك مع السعر والإجمالي لشهر محدد أو تراكمياً حتى تاريخ، واطبعه أو صدّره.', resubmit_title: 'إعادة إرسال الطلب للطبيب', resubmit_note: 'ملاحظة للطبيب (اختياري) — ماذا عدّلتِ؟', resubmitted_ok: 'أُعيد الطلب {id} للطبيب', ERR_NO_DOCTOR_ACCOUNT: 'الطبيب ليس له حساب في النظام — لا يحتاج مراجعة', close_mgmt_only: 'إغلاق البلاغات لمن لديه صلاحية الإغلاق (الجودة / الإدارة التنفيذية)', screen_quality: 'جودة', screen_executive: 'إدارة تنفيذية', screen_finance: 'مالية', nav_monitor: 'متابعة المواعيد', sub_monitor: 'متابعة التموين: المتأخرات، دورة الطلب الشهري، وأداء التجهيز والإرسال', nav_finance: 'المالية', sub_finance: 'الصرف والتكلفة حسب الفرع والعيادة والطبيب، وأسعار الكتالوج', perms: 'الصلاحيات', perms_hint: 'ما يظهر لهذا الدور ويستطيع فعله', perm_all: 'كل الصلاحيات', perm_none: 'بدون صلاحيات', perm_operational: 'شاشة تشغيلية ثابتة', perm_admin_note: 'الأدمن له كل الصلاحيات دائماً ولا يمكن تقليلها.', perm_overview: 'نظرة عامة', perm_overview_d: 'مؤشرات الأداء والرسوم', perm_monitor: 'متابعة المواعيد', perm_monitor_d: 'المتأخرات، تنبيه التموين، الملخص اليومي', perm_reports: 'التقارير والإحصائيات', perm_reports_d: 'تقارير الأطباء والفروع والعيادات بالأسعار', perm_finance: 'شاشة المالية', perm_finance_d: 'الصرف والتكلفة واتجاه 12 شهراً', perm_prices_edit: 'تعديل الأسعار', perm_prices_edit_d: 'يُكتب في تبويب ItemsCatalog مباشرة', perm_complaints: 'عرض البلاغات', perm_complaints_d: 'قائمة البلاغات ومتابعتها', perm_complaints_close: 'إغلاق البلاغات', perm_complaints_close_d: 'إنهاء البلاغ بعد المعالجة', perm_notices: 'التنبيهات', perm_notices_d: 'إرسال تنبيه للممرضات/التموين/الأطباء', perm_users: 'المستخدمون والأدوار', perm_users_d: 'إضافة الحسابات وتحديد الصلاحيات', no_admin_title: 'لا يوجد حساب أدمن بعد.', no_admin_hint: 'الإدارة التنفيذية تملك كل الصلاحيات مؤقتاً — أنشئ حساباً بدور «أدمن»، وبعدها تعود كل الأدوار لصلاحياتها المحددة.', tag_overdue: 'متأخر عن الموعد', tag_at_risk: 'قريب من الموعد', due_by: 'الموعد: {d}', alert_overdue: '<b>{n}</b> طلب تجاوز موعد الاستلام', alert_at_risk: '<b>{n}</b> طلب قريب من الموعد ولم يُرسل بعد', alert_overdue_proc: '<b>{n}</b> طلب متأخر عن موعده لدى التموين — الأولوية لها', stage_doctor: 'بانتظار اعتماد الطبيب', stage_prep: 'بانتظار التجهيز', stage_dispatch: 'بانتظار الإرسال', stage_partial: 'متبقي من الإرسال', stage_receipt: 'بانتظار استلام العيادة', stage_done: 'مكتمل', mon_kpi_month: 'أداء شهر', mon_rules: 'الشهري: رفع 15–20 واستلام قبل يوم 1 · الطارئ: خلال 24 ساعة', n_of: '{a} من {b}', mon_late_submit: 'شهري رُفع بعد يوم 20', monthly_late_note: 'تجاوزت فترة رفع الطلب الشهري (15–20) — الرفع متاح لك عادي، وسيظهر الطلب «رُفع متأخراً» للجودة', tag_late_submit: 'رُفع متأخراً', mon_missing_late: '{n} طبيب لم يُرفع طلبه الشهري — انتهت فترة الرفع', mon_missing_soon: '{n} طبيب لم يُرفع طلبه الشهري بعد', mon_late_submits: '{n} طبيب رُفع طلبه متأخراً (بعد يوم 20)', mon_sent_ok: '{n} من {of} في الموعد', mon_doc_sent: '{n} طلب شهري · أول رفع {d}', mon_doc_state_ok: 'رُفع في الفترة', mon_doc_state_late: 'رُفع متأخراً', mon_doc_state_pending: 'لم يُرفع بعد', mon_doc_state_missing: 'لم يُرفع', mon_late_now: 'متأخر الآن', mon_at_risk: 'قريب من الموعد', mon_late_proc: 'متأخر لدى التموين', mon_on_time: 'استلام في الموعد', mon_clear_prep: 'من الاعتماد للتجهيز', mon_prep_send: 'من التجهيز للإرسال', mon_emergency_avg: 'زمن إرسال الطارئ', mon_cycle_open: 'فترة الرفع مفتوحة الآن', mon_cycle_soon: 'لم تبدأ فترة الرفع بعد', mon_cycle_closed: 'انتهت فترة الرفع — مرحلة التجهيز', mon_cycle_title: 'دورة الطلب الشهري — {m}', mon_cycle_sub: 'الرفع من {a} إلى {b} · الاستلام قبل نهاية {d}', mon_stage: 'أين يقف', mon_due: 'الموعد', mon_nudge: 'تنبيه', mon_late_title: 'طلبات تجاوزت الموعد', mon_late_sub: 'مرتبة من الأكثر تأخيراً — «تنبيه» يرسل تعليقاً على الطلب وإيميلاً للتموين', mon_late_by: 'متأخر', mon_none_late: 'لا توجد طلبات متأخرة 👌', mon_risk_title: 'قريبة من الموعد ولم تُرسل', mon_risk_sub: 'الشهري: أقل من 5 أيام على يوم 1 · الطارئ: مضى نصف المهلة', mon_left: 'المتبقي', mon_none_risk: 'لا يوجد', mon_nudge_title: 'تنبيه التموين', mon_nudge_msg: 'الرسالة', mon_nudge_default: 'يرجى الإسراع في إنهاء هذا الطلب — تجاوز الموعد المحدد.', mon_nudge_hint: 'تُضاف كتعليق على الطلب ويصل إيميل لكل حسابات التموين.', mon_nudged: 'تم تنبيه التموين', fn_prices_title: 'أسعار الكتالوج', fn_prices_sub: 'التعديل يُحفظ مباشرة في عمود Price بتبويب ItemsCatalog (بتنسيق رقمي) ويُسجَّل في السجل', fn_issues_only: 'الأسعار الخاطئة فقط', fn_requests: 'الطلبات (غير المرفوضة)', fn_requested: 'قيمة المطلوب', fn_approved: 'قيمة المعتمد', fn_saving: 'وفر مراجعة الطبيب', fn_dispatched: 'قيمة المُرسل', fn_received: 'قيمة المستلم', fn_emergency_value: 'قيمة الطارئ', fn_share: 'النسبة', fn_trend: 'اتجاه الصرف — آخر 12 شهراً', fn_trend_sub: 'قيمة المعتمد حسب شهر الرفع', fn_bad_count: '{n} صنف سعره غير صالح — صحّحه هنا مباشرة', fn_category: 'الفئة', fn_price: 'السعر', fn_price_saved: 'حُفظ سعر {n}: {v}', ERR_BAD_PRICE: 'سعر غير صالح — اكتب رقماً من 0 إلى 1,000,000',
+    alert_rejected_proc: '<b>{n}</b> طلب مرفوض من الطبيب يحتاج مراجعة', alert_stale: '<b>{n}</b> طلب متأخر أكثر من 72 ساعة', alert_pending_review: '<b>{n}</b> طلب بانتظار مراجعتك', alert_urgent_review: '<b>{n}</b> طلب طارئ ما زال لدى الطبيب للاعتماد', grp_wait_doctor: 'لدى الطبيب', grp_ready_prep: 'جاهز للتجهيز', resubmit: 'إعادة الإرسال للطبيب', this_shipment: 'كمية هذه الشحنة', total_units: 'إجمالي الكمية', sent_progress: 'الإرسال', sent_of: 'أُرسل {a} من {b}', left_n: 'باقي {n}', item_done: 'مكتمل', item_zero: 'لا يُرسل (الكمية 0)', partial_badge: 'جزئي {a}/{b}', ships_n: '{n} شحنات', units_sent_of: 'أُرسل {a} من {b} قطعة', remaining_list: 'المتبقي', ship_units: '{n} قطعة', items_done_of: 'أصناف مكتملة {a} من {b}', partial_items: '{n} صنف أُرسل جزئياً', alert_partial: '<b>{n}</b> طلب مُرسل جزئياً ما زال له أصناف أو كميات متبقية', ERR_QTY_EXCEEDS: 'الكمية أكبر من المتبقي لهذا الصنف', ERR_QTY_MIN1: 'لا يمكن طلب صفر — أقل كمية 1', bad_prices_title: 'أسعار غير صالحة في الكتالوج (حُسبت صفراً حتى تُصحَّح):', bad_prices_fix: 'صحّح خلية السعر في تبويب ItemsCatalog واكتبها رقماً فقط (مثل 300 أو 27.5) — إن ظهرت كتاريخ غيّر تنسيق العمود إلى «رقم».', price_issue_date: 'مكتوب كتاريخ', price_issue_text: 'ليس رقماً', price_issue_too_big: 'قيمة غير منطقية', price_issue_negative: 'سالب', nav_reports: 'التقارير والإحصائيات', sub_reports: 'إحصائيات الطلبات والقيمة لكل طبيب وفرع وعيادة، وتقرير أي طبيب بأسعاره', all_time: 'كل الفترات', rp_update: 'تحديث', rp_value: 'القيمة', rp_approved_rate: 'نسبة الاعتماد', rp_reject_rate: 'نسبة الرفض', rp_avg_approval: 'متوسط زمن اعتماد الطبيب', rp_avg_fulfil: 'متوسط زمن الإرسال', rp_pending_doc: 'بانتظار الطبيب', rp_approved: 'معتمد', rp_avg_request: 'متوسط قيمة الطلب', rp_report: 'تقرير', rp_received: 'نسبة الاستلام', rp_in_requests: 'في طلبات', rp_by_doctor: 'حسب الطبيب', rp_by_branch: 'حسب الفرع', rp_by_clinic: 'حسب العيادة', rp_export_stats: 'تصدير الإحصائيات (Excel)', rp_doc_title: 'تقرير طبيب — تاريخ طلباته بالأسعار', rp_doc_sub: 'اختر الطبيب من القائمة؛ يُستخدم نفس فلتر الفترة أعلاه', rp_doc_hint: 'اختر طبيباً ثم «إصدار التقرير» — أو اضغط «تقرير» بجانب أي طبيب في الجدول', t_reports_t: 'التقارير والإحصائيات', t_reports_b: 'إحصائيات كل طبيب وفرع وعيادة بالقيمة والأزمنة، وتقرير أي طبيب بأسعاره من قائمة منسدلة مع طباعة وتصدير.', stamp_submitted: 'رُفع', stamp_approved: 'اعتُمد', stamp_rejected: 'رُفض', stamp_prep: 'بدأ التجهيز', stamp_vendor_wait: 'طُلب من المندوب', stamp_vendor_recv: 'وصل من المندوب', stamp_sent: 'أُرسل', stamp_received: 'استُلم', stamp_shipment: 'آخر شحنة', approved_qty: 'الكمية المعتمدة', doctor_qty_hint: 'يمكنك تعديل الكمية قبل الاعتماد — تصل للتموين كما اعتمدتها بالضبط (0 = لا يُصرف الصنف)', qty_by_doctor: 'الكميات كما اعتمدها الطبيب — للنقص استخدم الإرسال الجزئي', ERR_DOCTOR_QTY: 'كميات هذا الطلب يحددها الطبيب عند الاعتماد', ERR_ALL_ZERO: 'لا يمكن اعتماد كل الأصناف بصفر — استخدم الرفض مع السبب', ERR_BUSY: 'النظام مشغول بطلبات كثيرة الآن — لم يُحفظ شيء، حاول بعد لحظات', busy_retry: 'ضغط عالٍ على النظام — نعيد المحاولة تلقائياً…', show_more: 'عرض المزيد ({n}) — باقي {left}', show_archive: 'عرض الأرشيف (الطلبات المكتملة الأقدم من 60 يوماً)', change_pw: 'تغيير الرقم السري', change_pw_sub: 'لكل مستخدم رقمه السري الخاص — لا تشاركه مع أحد', pw_current: 'الرقم السري الحالي', pw_new: 'الرقم السري الجديد', pw_confirm: 'تأكيد الرقم السري الجديد', pw_rules: '4 خانات على الأقل، ويختلف عن الحالي', pw_mismatch: 'التأكيد لا يطابق الرقم الجديد', pw_changed: 'تم تغيير الرقم السري — استخدمه في الدخول القادم', pw_save: 'حفظ الرقم الجديد', ERR_WRONG_PASSWORD: 'الرقم السري الحالي غير صحيح', ERR_SAME_PASSWORD: 'الرقم الجديد مطابق للحالي — اختر رقماً مختلفاً', ERR_PASSWORD_TOO_LONG: 'الرقم السري طويل جداً (64 خانة كحد أقصى)', ERR_QTY_MIN1_ITEM: 'لا يمكن طلب صفر من «{n}» — أقل كمية 1', qty_hint: 'اكتب الكمية المتوفرة الآن — الباقي يبقى مفتوحاً للشحنة القادمة', rep_btn: 'تقرير الطلبات', rep_btn_doc: 'تقرير طبيب', rep_title: 'تقرير طلبات الطبيب', rep_mode_month: 'شهر محدد', rep_mode_cum: 'تراكمي حتى تاريخ', rep_month: 'الشهر', rep_to: 'حتى تاريخ', rep_doctor: 'الطبيب', rep_generate: 'إصدار التقرير', rep_period: 'الفترة', rep_all_until: 'كل الطلبات حتى {d}', rep_generated: 'أُصدر في', rep_requests: 'عدد الطلبات', rep_lines: 'بنود الأصناف', rep_qty: 'إجمالي الكمية', rep_total: 'الإجمالي', rep_price: 'سعر الوحدة', rep_line_total: 'الإجمالي', rep_subtotal: 'إجمالي الطلب', rep_top: 'الأصناف الأعلى قيمة', rep_unpriced: '{n} بند بدون سعر في الكتالوج (محسوب بصفر)', rep_empty: 'لا توجد طلبات في هذه الفترة', rep_print: 'طباعة / PDF', rep_csv: 'تصدير Excel', rep_note: 'الكمية = المعتمدة (أو المطلوبة إن لم تُعدَّل) · السعر من الكتالوج · الطلبات المرفوضة غير محسوبة', ERR_BAD_RANGE: 'نطاق التاريخ غير صحيح', t_doc_report_t: 'تقرير طلباتك', t_doc_report_b: 'أصدر تقريراً مرتباً بطلباتك مع السعر والإجمالي لشهر محدد أو تراكمياً حتى تاريخ، واطبعه أو صدّره.', resubmit_title: 'إعادة إرسال الطلب للطبيب', resubmit_note: 'ملاحظة للطبيب (اختياري) — ماذا عدّلتِ؟', resubmitted_ok: 'أُعيد الطلب {id} للطبيب', ERR_NO_DOCTOR_ACCOUNT: 'الطبيب ليس له حساب في النظام — لا يحتاج مراجعة', close_mgmt_only: 'إغلاق البلاغات لمن لديه صلاحية الإغلاق (الجودة / الإدارة التنفيذية)', screen_quality: 'جودة', screen_lab: 'المعمل', screen_executive: 'إدارة تنفيذية', screen_finance: 'مالية', nav_monitor: 'متابعة المواعيد', sub_monitor: 'متابعة التموين: المتأخرات، دورة الطلب الشهري، وأداء التجهيز والإرسال', nav_finance: 'المالية', sub_finance: 'الصرف والتكلفة حسب الفرع والعيادة والطبيب، وأسعار الكتالوج', perms: 'الصلاحيات', perms_hint: 'ما يظهر لهذا الدور ويستطيع فعله', perm_all: 'كل الصلاحيات', perm_none: 'بدون صلاحيات', perm_operational: 'شاشة تشغيلية ثابتة', perm_admin_note: 'الأدمن له كل الصلاحيات دائماً ولا يمكن تقليلها.', perm_overview: 'نظرة عامة', perm_overview_d: 'مؤشرات الأداء والرسوم', perm_monitor: 'متابعة المواعيد', perm_monitor_d: 'المتأخرات، تنبيه التموين، الملخص اليومي', perm_reports: 'التقارير والإحصائيات', perm_reports_d: 'تقارير الأطباء والفروع والعيادات بالأسعار', perm_finance: 'شاشة المالية', perm_finance_d: 'الصرف والتكلفة واتجاه 12 شهراً', perm_prices_edit: 'تعديل الأسعار', perm_prices_edit_d: 'يُكتب في تبويب ItemsCatalog مباشرة', perm_lab_view: 'متابعة المعمل', perm_lab_view_d: 'مؤشرات المعمل والمتأخرات والإعادات', perm_complaints: 'عرض البلاغات', perm_complaints_d: 'قائمة البلاغات ومتابعتها', perm_complaints_close: 'إغلاق البلاغات', perm_complaints_close_d: 'إنهاء البلاغ بعد المعالجة', perm_notices: 'التنبيهات', perm_notices_d: 'إرسال تنبيه للممرضات/التموين/الأطباء', perm_users: 'المستخدمون والأدوار', perm_users_d: 'إضافة الحسابات وتحديد الصلاحيات', no_admin_title: 'لا يوجد حساب أدمن بعد.', no_admin_hint: 'الإدارة التنفيذية تملك كل الصلاحيات مؤقتاً — أنشئ حساباً بدور «أدمن»، وبعدها تعود كل الأدوار لصلاحياتها المحددة.', tag_overdue: 'متأخر عن الموعد', tag_at_risk: 'قريب من الموعد', due_by: 'الموعد: {d}', alert_overdue: '<b>{n}</b> طلب تجاوز موعد الاستلام', alert_at_risk: '<b>{n}</b> طلب قريب من الموعد ولم يُرسل بعد', alert_overdue_proc: '<b>{n}</b> طلب متأخر عن موعده لدى التموين — الأولوية لها', stage_doctor: 'بانتظار اعتماد الطبيب', stage_prep: 'بانتظار التجهيز', stage_dispatch: 'بانتظار الإرسال', stage_partial: 'متبقي من الإرسال', stage_receipt: 'بانتظار استلام العيادة', stage_done: 'مكتمل', mon_kpi_month: 'أداء شهر', mon_rules: 'الشهري: رفع 15–20 واستلام قبل يوم 1 · الطارئ: خلال 24 ساعة', n_of: '{a} من {b}', mon_late_submit: 'شهري رُفع بعد يوم 20', monthly_late_note: 'تجاوزت فترة رفع الطلب الشهري (15–20) — الرفع متاح لك عادي، وسيظهر الطلب «رُفع متأخراً» للجودة', tag_late_submit: 'رُفع متأخراً', mon_missing_late: '{n} طبيب لم يُرفع طلبه الشهري — انتهت فترة الرفع', mon_missing_soon: '{n} طبيب لم يُرفع طلبه الشهري بعد', mon_late_submits: '{n} طبيب رُفع طلبه متأخراً (بعد يوم 20)', mon_sent_ok: '{n} من {of} في الموعد', mon_doc_sent: '{n} طلب شهري · أول رفع {d}', mon_doc_state_ok: 'رُفع في الفترة', mon_doc_state_late: 'رُفع متأخراً', mon_doc_state_pending: 'لم يُرفع بعد', mon_doc_state_missing: 'لم يُرفع', mon_late_now: 'متأخر الآن', mon_at_risk: 'قريب من الموعد', mon_late_proc: 'متأخر لدى التموين', mon_on_time: 'استلام في الموعد', mon_clear_prep: 'من الاعتماد للتجهيز', mon_prep_send: 'من التجهيز للإرسال', mon_emergency_avg: 'زمن إرسال الطارئ', mon_cycle_open: 'فترة الرفع مفتوحة الآن', mon_cycle_soon: 'لم تبدأ فترة الرفع بعد', mon_cycle_closed: 'انتهت فترة الرفع — مرحلة التجهيز', mon_cycle_title: 'دورة الطلب الشهري — {m}', mon_cycle_sub: 'الرفع من {a} إلى {b} · الاستلام قبل نهاية {d}', mon_stage: 'أين يقف', mon_due: 'الموعد', mon_nudge: 'تنبيه', mon_late_title: 'طلبات تجاوزت الموعد', mon_late_sub: 'مرتبة من الأكثر تأخيراً — «تنبيه» يرسل تعليقاً على الطلب وإيميلاً للتموين', mon_late_by: 'متأخر', mon_none_late: 'لا توجد طلبات متأخرة 👌', mon_risk_title: 'قريبة من الموعد ولم تُرسل', mon_risk_sub: 'الشهري: أقل من 5 أيام على يوم 1 · الطارئ: مضى نصف المهلة', mon_left: 'المتبقي', mon_none_risk: 'لا يوجد', mon_nudge_title: 'تنبيه التموين', mon_nudge_msg: 'الرسالة', mon_nudge_default: 'يرجى الإسراع في إنهاء هذا الطلب — تجاوز الموعد المحدد.', mon_nudge_hint: 'تُضاف كتعليق على الطلب ويصل إيميل لكل حسابات التموين.', mon_nudged: 'تم تنبيه التموين', fn_prices_title: 'أسعار الكتالوج', fn_prices_sub: 'التعديل يُحفظ مباشرة في عمود Price بتبويب ItemsCatalog (بتنسيق رقمي) ويُسجَّل في السجل', fn_issues_only: 'الأسعار الخاطئة فقط', fn_requests: 'الطلبات (غير المرفوضة)', fn_requested: 'قيمة المطلوب', fn_approved: 'قيمة المعتمد', fn_saving: 'وفر مراجعة الطبيب', fn_dispatched: 'قيمة المُرسل', fn_received: 'قيمة المستلم', fn_emergency_value: 'قيمة الطارئ', fn_share: 'النسبة', fn_trend: 'اتجاه الصرف — آخر 12 شهراً', fn_trend_sub: 'قيمة المعتمد حسب شهر الرفع', fn_bad_count: '{n} صنف سعره غير صالح — صحّحه هنا مباشرة', fn_category: 'الفئة', fn_price: 'السعر', fn_price_saved: 'حُفظ سعر {n}: {v}', ERR_BAD_PRICE: 'سعر غير صالح — اكتب رقماً من 0 إلى 1,000,000',
     alert_open_complaints: '<b>{n}</b> بلاغ مفتوح', view: 'عرض',
     just_now: 'الآن', loading: 'جاري التحميل…', saving: 'جاري الحفظ…', sending: 'جاري الإرسال…', done: 'تم بنجاح', error_generic: 'حدث خطأ غير متوقع',
     ERR_SESSION: 'انتهت الجلسة — سجّل الدخول مجدداً', ERR_FORBIDDEN: 'ليست لديك صلاحية لهذا الإجراء', ERR_NOT_FOUND: 'العنصر غير موجود (ربما حُذف)',
@@ -110,7 +110,7 @@ const I18N = {
     ERR_BAD_RESPONSE: 'الخادم رجّع صفحة بدل بيانات — تأكد من إعدادات النشر', ERR_NETWORK: 'تعذّر الاتصال بالخادم — حاول مرة أخرى', ERR_BAD_BATCH: 'طلب غير صالح'
   },
   en: {
-    lang_switch: 'عربي', theme_toggle: 'Toggle dark mode', brand_tag: 'Clinic supply management', req_kind: 'Request for', kind_doctor: 'Doctor request', kind_clinic: 'Clinic consumables', kind_doctor_hint: 'The usual request: raised for a doctor and sent to their page for approval before preparation.', kind_clinic_hint: 'Only for general clinic consumables (no doctor) — goes straight to procurement.', linked_doctor: 'Linked doctor', linked_doctor_hint: 'The doctor name as in the doctors list — so their requests reach this account', link_auto: 'Automatic (by account name)', linked_now: 'Currently linked to: {n}', not_linked: 'Not linked to a doctor', unlinked_title: '{n} doctor(s) without a linked account:', unlinked_hint: 'Their requests reach no doctor page and go to procurement unapproved. Edit the doctor account and pick the name under "Linked doctor".', built_by: 'Built & Developed by Ibrahim Alluhaydi',
+    lang_switch: 'عربي', theme_toggle: 'Toggle dark mode', brand_tag: 'Clinic supply management', brand_name: 'Supply Flow', req_kind: 'Request for', kind_doctor: 'Doctor request', kind_clinic: 'Clinic consumables', kind_doctor_hint: 'The usual request: raised for a doctor and sent to their page for approval before preparation.', kind_clinic_hint: 'Only for general clinic consumables (no doctor) — goes straight to procurement.', kind_lab: 'Send to lab', nav_lab: 'Lab', nav_lab_board: 'Lab board', nav_lab_kpi: 'Lab KPIs', sub_lab_board: 'Patient cases from clinics — receive, work or send out, then return to the clinic', sub_lab_mine: 'Your lab cases and their status — confirm receipt or request a redo', sub_lab_doc: 'Your patients’ lab cases (view only)', sub_lab_kpi: 'Turnaround, on-time delivery, redos and external labs', lab_case: 'Lab case', lab_mode: 'Case type', lab_mode_new: 'New case', lab_mode_redo: 'Redo', lab_needed_by: 'Needed by', lab_needed_hint: 'patient appointment', lab_patient: 'Patient name', lab_file: 'File no.', lab_urgent: 'Urgent', lab_works: 'Work items', lab_add_line: 'Add another item (same or another lab)', lab_name: 'Lab', lab_work: 'Work type', lab_details: 'Details', lab_details_ph: 'Tooth, shade, notes…', lab_photos: 'Photos', lab_photos_hint: 'Optional — up to 3 photos (auto-resized)', lab_add_photo: 'Add photo', lab_no_photos: 'No photos', lab_photo: 'Photo', lab_submit: 'Send to lab', lab_submit_redo: 'Send redo to lab', lab_labs: 'Labs', lab_redo_pick: 'Previous case', lab_redo_search: 'Search by patient, file no. or case…', lab_redo_choose: 'Choose a case…', lab_redo_hint: 'Pick a previous case to see its details and choose what to redo', lab_redo_lines_pick: 'What needs a redo?', lab_redo_reason: 'Redo reason', lab_redo_note: 'Describe the problem (shown to the lab)', lab_redo_note_ph: 'e.g. shade darker than A2, tight on tooth 16…', lab_redo_of: 'Redo of', lab_redo_lines: 'Items to redo', lab_redo_tag: 'Redo', lab_redone_by: 'Redone in:', lab_err_fill: 'Pick the doctor and enter patient name and file no.', lab_err_lines_fill: 'Each item needs a lab and a work type', lab_err_pick: 'Choose the previous case', lab_err_lines: 'Choose at least one item to redo', lab_err_reason: 'Choose the redo reason', lab_err_note: 'Describe the problem so the lab knows', lab_sent: 'Case {id} sent to the lab', lab_redo_sent: 'Redo {id} sent to the lab with the problem', lab_g_active: 'In progress', lab_g_receive: 'Awaiting your receipt', lab_g_late: 'Overdue', lab_g_redo: 'Redos', lab_g_done: 'Done', lab_g_new: 'New', lab_g_work: 'In work', lab_g_external: 'At external lab', lab_g_ready: 'Ready to send', lab_due: 'Due {d}', lab_confirm: 'Confirm receipt', lab_confirmed: 'Lab work receipt confirmed', lab_search: 'Search patient, file no., doctor, case…', lab_all_labs: 'All labs', lab_new: 'New case', lab_empty: 'No lab cases yet', lab_empty_nurse: 'Send one from “New request” → “Send to lab”', lst_new: 'New from clinic', lst_received: 'Received by lab', lst_work: 'In work', lst_external: 'At external lab', lst_ready: 'Ready', lst_sent: 'Sent to clinic', lst_delivered: 'Received by clinic', la_receive: 'Receive', la_start: 'Start work', la_external: 'External lab', la_ready: 'Ready', la_send: 'Send to clinic', la_reroute: 'Reroute', la_cost: 'Cost', lab_done_receive: 'Received ({n})', lab_done_start: 'Work started ({n})', lab_done_external: 'Sent to external lab', lab_done_ready: 'Ready ({n}) — nurse and doctor notified', lab_done_send: 'Sent to clinic ({n})', lab_done_reroute: 'Rerouted', lab_done_cost: 'Cost saved', lab_all_items: 'All items ({n})', lab_external: 'External lab', lab_expected: 'Expected back', lab_cost: 'Cost (SAR)', lab_reroute_to: 'Reroute to lab', lab_note: 'Note', lab_ext_late: 'External late', lab_timeline: 'Timeline', lab_notes: 'Notes', lab_note_ph: 'Write a note to the lab/nurse/doctor…', lab_nudged: 'Lab notified', lab_k_cases: 'Cases', lab_k_items: 'Items', lab_k_avg: 'Avg turnaround', lab_k_ontime: 'On time', lab_k_redo: 'Redo rate', lab_k_overdue: 'Overdue now', lab_k_external: 'External items', lab_k_cost: 'External cost', lab_overdue_title: 'Overdue work', lab_overdue_sub: 'Past “needed by” or the external lab’s expected date', lab_by_lab: 'By lab', lab_by_type: 'By work type', lab_reasons: 'Redo reasons', lab_no_redo: 'No redos 👌', lab_kind: 'In-house / external', lab_trend: 'Items per month — last 6 months', lab_trend_sub: 'Items by case month', lab_unit_items: 'items', lab_n_items: '{n} items', optional: 'optional', alert_lab_new: '<b>{n}</b> new case(s) from clinics', alert_lab_redo: '<b>{n}</b> redo(s) from clinics — check the problem', alert_lab_late: '<b>{n}</b> case(s) past their due date', alert_lab_to_receive: '<b>{n}</b> lab case(s) arrived — confirm receipt', ERR_BAD_LAB: 'Invalid or inactive lab', ERR_BAD_WORKTYPE: 'Invalid work type', ERR_REDO_REASON: 'Choose a redo reason', ERR_BAD_IMAGE: 'Invalid image', ERR_BAD_ACTION: 'Invalid action', linked_doctor: 'Linked doctor', linked_doctor_hint: 'The doctor name as in the doctors list — so their requests reach this account', link_auto: 'Automatic (by account name)', linked_now: 'Currently linked to: {n}', not_linked: 'Not linked to a doctor', unlinked_title: '{n} doctor(s) without a linked account:', unlinked_hint: 'Their requests reach no doctor page and go to procurement unapproved. Edit the doctor account and pick the name under "Linked doctor".', built_by: 'Built & Developed by Ibrahim Alluhaydi',
     login_hero_title: 'Supply Flow',
     login_hero_sub: 'Integrated Supply Chain | Smart & Transparent Consumable Management System',
     flow_1: 'Request', flow_2: 'Prepare', flow_3: 'Doctor approval', flow_4: 'Dispatch', flow_5: 'Receive & sign',
@@ -192,7 +192,7 @@ const I18N = {
     confirm_delete_role: 'Delete role “{n}”?', role_saved: 'Role saved',
     alert_to_receive: 'You have <b>{n}</b> request(s) with shipments awaiting receipt', alert_rejected: '<b>{n}</b> of your requests were rejected — check the reason and resubmit',
     alert_urgent_new: '<b>{n}</b> approved emergency request(s) to prepare', alert_new: '<b>{n}</b> request(s) ready to prepare', alert_approved_ready: '<b>{n}</b> prepared request(s) ready to dispatch',
-    alert_rejected_proc: '<b>{n}</b> request(s) rejected by doctor need attention', alert_stale: '<b>{n}</b> request(s) older than 72h', alert_pending_review: '<b>{n}</b> request(s) awaiting your review', alert_urgent_review: '<b>{n}</b> emergency request(s) still awaiting doctor approval', grp_wait_doctor: 'With doctor', grp_ready_prep: 'Ready to prepare', resubmit: 'Resubmit to doctor', this_shipment: 'Qty this shipment', total_units: 'Total units', sent_progress: 'Dispatch', sent_of: '{a} of {b} sent', left_n: '{n} left', item_done: 'Complete', item_zero: 'Not sent (qty 0)', partial_badge: 'Partial {a}/{b}', ships_n: '{n} shipments', units_sent_of: '{a} of {b} units sent', remaining_list: 'Remaining', ship_units: '{n} units', items_done_of: '{a} of {b} items complete', partial_items: '{n} item(s) partially sent', alert_partial: '<b>{n}</b> partially-sent request(s) still have items or quantities left', ERR_QTY_EXCEEDS: 'Quantity exceeds what is left for this item', ERR_QTY_MIN1: 'Quantity can’t be zero — minimum is 1', bad_prices_title: 'Invalid catalog prices (counted as 0 until fixed):', bad_prices_fix: 'Fix the Price cell in the ItemsCatalog tab as a plain number (e.g. 300 or 27.5) — if it shows as a date, format the column as Number.', price_issue_date: 'entered as a date', price_issue_text: 'not a number', price_issue_too_big: 'unrealistic value', price_issue_negative: 'negative', nav_reports: 'Reports & statistics', sub_reports: 'Request and value statistics by doctor, branch and clinic, plus any doctor’s priced report', all_time: 'All time', rp_update: 'Update', rp_value: 'Value', rp_approved_rate: 'Approval rate', rp_reject_rate: 'Rejection rate', rp_avg_approval: 'Avg doctor approval time', rp_avg_fulfil: 'Avg time to dispatch', rp_pending_doc: 'Awaiting doctor', rp_approved: 'Approved', rp_avg_request: 'Avg request value', rp_report: 'Report', rp_received: 'Received', rp_in_requests: 'In requests', rp_by_doctor: 'By doctor', rp_by_branch: 'By branch', rp_by_clinic: 'By clinic', rp_export_stats: 'Export statistics (Excel)', rp_doc_title: 'Doctor report — request history with prices', rp_doc_sub: 'Pick the doctor; the period filter above applies', rp_doc_hint: 'Pick a doctor and press “Generate report” — or tap “Report” next to any doctor in the table', t_reports_t: 'Reports & statistics', t_reports_b: 'Statistics per doctor, branch and clinic with value and times, and any doctor’s priced report from a dropdown with print and export.', stamp_submitted: 'Submitted', stamp_approved: 'Approved', stamp_rejected: 'Rejected', stamp_prep: 'Prep started', stamp_vendor_wait: 'Vendor requested', stamp_vendor_recv: 'From vendor', stamp_sent: 'Sent', stamp_received: 'Received', stamp_shipment: 'Last shipment', approved_qty: 'Approved qty', doctor_qty_hint: 'You can adjust quantities before approving — procurement receives exactly what you approve (0 = not issued)', qty_by_doctor: 'Quantities as approved by the doctor — use partial dispatch for shortages', ERR_DOCTOR_QTY: 'This request’s quantities are set by the doctor on approval', ERR_ALL_ZERO: 'All items can’t be zero — reject with a reason instead', ERR_BUSY: 'The system is busy right now — nothing was saved, try again in a moment', busy_retry: 'High load — retrying automatically…', show_more: 'Show more ({n}) — {left} left', show_archive: 'Show archive (completed requests older than 60 days)', change_pw: 'Change password', change_pw_sub: 'Everyone has their own password — never share it', pw_current: 'Current password', pw_new: 'New password', pw_confirm: 'Confirm new password', pw_rules: 'At least 4 characters, different from the current one', pw_mismatch: 'Confirmation does not match the new password', pw_changed: 'Password changed — use it next time you sign in', pw_save: 'Save new password', ERR_WRONG_PASSWORD: 'Current password is incorrect', ERR_SAME_PASSWORD: 'The new password is the same as the current one', ERR_PASSWORD_TOO_LONG: 'Password is too long (max 64)', ERR_QTY_MIN1_ITEM: '“{n}” can’t be zero — minimum quantity is 1', qty_hint: 'Enter what is available now — the rest stays open for the next shipment', rep_btn: 'Requests report', rep_btn_doc: 'Doctor report', rep_title: 'Doctor requests report', rep_mode_month: 'A month', rep_mode_cum: 'Cumulative up to a date', rep_month: 'Month', rep_to: 'Up to', rep_doctor: 'Doctor', rep_generate: 'Generate report', rep_period: 'Period', rep_all_until: 'All requests up to {d}', rep_generated: 'Generated', rep_requests: 'Requests', rep_lines: 'Item lines', rep_qty: 'Total quantity', rep_total: 'Grand total', rep_price: 'Unit price', rep_line_total: 'Total', rep_subtotal: 'Request total', rep_top: 'Top items by value', rep_unpriced: '{n} line(s) have no catalog price (counted as 0)', rep_empty: 'No requests in this period', rep_print: 'Print / PDF', rep_csv: 'Export Excel', rep_note: 'Qty = approved (or requested if unchanged) · price from catalog · rejected requests excluded', ERR_BAD_RANGE: 'Invalid date range', t_doc_report_t: 'Your requests report', t_doc_report_b: 'Generate a tidy report of your requests with prices and totals for a month or cumulatively up to a date, then print or export it.', resubmit_title: 'Resubmit to the doctor', resubmit_note: 'Note to the doctor (optional) — what changed?', resubmitted_ok: 'Request {id} resubmitted to the doctor', ERR_NO_DOCTOR_ACCOUNT: 'The doctor has no account — no review needed', close_mgmt_only: 'Issues are closed by roles with the close permission (Quality / Executive)', screen_quality: 'Quality', screen_executive: 'Executive', screen_finance: 'Finance', nav_monitor: 'Deadlines & follow-up', sub_monitor: 'Procurement follow-up: overdue requests, the monthly cycle, and prep/dispatch performance', nav_finance: 'Finance', sub_finance: 'Spend by branch, clinic and doctor, plus catalog prices', perms: 'Permissions', perms_hint: 'What this role sees and can do', perm_all: 'Full access', perm_none: 'No permissions', perm_operational: 'Fixed operational screen', perm_admin_note: 'Admin always has every permission.', perm_overview: 'Overview', perm_overview_d: 'KPIs and charts', perm_monitor: 'Deadlines & follow-up', perm_monitor_d: 'Overdue list, nudge procurement, daily digest', perm_reports: 'Reports & statistics', perm_reports_d: 'Doctor/branch/clinic reports with prices', perm_finance: 'Finance screen', perm_finance_d: 'Spend, costs and 12-month trend', perm_prices_edit: 'Edit prices', perm_prices_edit_d: 'Written straight to the ItemsCatalog tab', perm_complaints: 'View issues', perm_complaints_d: 'Issue list and follow-up', perm_complaints_close: 'Close issues', perm_complaints_close_d: 'Resolve an issue after handling', perm_notices: 'Notices', perm_notices_d: 'Send notices to nurses/procurement/doctors', perm_users: 'Users & roles', perm_users_d: 'Add accounts and set permissions', no_admin_title: 'No admin account yet.', no_admin_hint: 'Executive has full access for now — create an account with the “أدمن” role, then every role returns to its own permissions.', tag_overdue: 'Overdue', tag_at_risk: 'Due soon', due_by: 'Due: {d}', alert_overdue: '<b>{n}</b> request(s) past their due date', alert_at_risk: '<b>{n}</b> request(s) due soon and not sent yet', alert_overdue_proc: '<b>{n}</b> request(s) overdue on procurement — handle these first', stage_doctor: 'Awaiting doctor', stage_prep: 'Awaiting prep', stage_dispatch: 'Awaiting dispatch', stage_partial: 'Partially sent', stage_receipt: 'Awaiting receipt', stage_done: 'Done', mon_kpi_month: 'Performance for', mon_rules: 'Monthly: submit 15–20, receive by the 1st · Emergency: within 24h', n_of: '{a} of {b}', mon_late_submit: 'Monthly submitted after the 20th', monthly_late_note: 'The monthly window (15th–20th) has passed — you can still submit as usual; it will show as “submitted late” to Quality', tag_late_submit: 'Submitted late', mon_missing_late: '{n} doctor(s) have no monthly request — the window has passed', mon_missing_soon: '{n} doctor(s) have no monthly request yet', mon_late_submits: '{n} doctor(s) submitted late (after the 20th)', mon_sent_ok: '{n} of {of} on time', mon_doc_sent: '{n} monthly request(s) · first {d}', mon_doc_state_ok: 'Submitted on time', mon_doc_state_late: 'Submitted late', mon_doc_state_pending: 'Not submitted yet', mon_doc_state_missing: 'Not submitted', mon_late_now: 'Overdue now', mon_at_risk: 'Due soon', mon_late_proc: 'Overdue on procurement', mon_on_time: 'Received on time', mon_clear_prep: 'Approval → prep', mon_prep_send: 'Prep → dispatch', mon_emergency_avg: 'Emergency dispatch time', mon_cycle_open: 'Submission window open', mon_cycle_soon: 'Window not open yet', mon_cycle_closed: 'Window closed — preparation phase', mon_cycle_title: 'Monthly cycle — {m}', mon_cycle_sub: 'Submit {a}–{b} · receive by end of {d}', mon_stage: 'Stuck at', mon_due: 'Due', mon_nudge: 'Nudge', mon_late_title: 'Past due', mon_late_sub: 'Most overdue first — “Nudge” posts a comment and emails procurement', mon_late_by: 'Late by', mon_none_late: 'Nothing overdue 👌', mon_risk_title: 'Due soon, not sent', mon_risk_sub: 'Monthly: under 5 days to the 1st · Emergency: half the time used', mon_left: 'Time left', mon_none_risk: 'None', mon_nudge_title: 'Nudge procurement', mon_nudge_msg: 'Message', mon_nudge_default: 'Please prioritise this request — it is past its due date.', mon_nudge_hint: 'Added as a comment on the request and emailed to all procurement accounts.', mon_nudged: 'Procurement notified', fn_prices_title: 'Catalog prices', fn_prices_sub: 'Edits are written straight to the Price column in ItemsCatalog (as numbers) and logged', fn_issues_only: 'Invalid prices only', fn_requests: 'Requests (not rejected)', fn_requested: 'Requested value', fn_approved: 'Approved value', fn_saving: 'Saved by doctor review', fn_dispatched: 'Dispatched value', fn_received: 'Received value', fn_emergency_value: 'Emergency value', fn_share: 'Share', fn_trend: 'Spend trend — last 12 months', fn_trend_sub: 'Approved value by submission month', fn_bad_count: '{n} item(s) have an invalid price — fix them right here', fn_category: 'Category', fn_price: 'Price', fn_price_saved: 'Saved {n}: {v}', ERR_BAD_PRICE: 'Invalid price — enter a number from 0 to 1,000,000',
+    alert_rejected_proc: '<b>{n}</b> request(s) rejected by doctor need attention', alert_stale: '<b>{n}</b> request(s) older than 72h', alert_pending_review: '<b>{n}</b> request(s) awaiting your review', alert_urgent_review: '<b>{n}</b> emergency request(s) still awaiting doctor approval', grp_wait_doctor: 'With doctor', grp_ready_prep: 'Ready to prepare', resubmit: 'Resubmit to doctor', this_shipment: 'Qty this shipment', total_units: 'Total units', sent_progress: 'Dispatch', sent_of: '{a} of {b} sent', left_n: '{n} left', item_done: 'Complete', item_zero: 'Not sent (qty 0)', partial_badge: 'Partial {a}/{b}', ships_n: '{n} shipments', units_sent_of: '{a} of {b} units sent', remaining_list: 'Remaining', ship_units: '{n} units', items_done_of: '{a} of {b} items complete', partial_items: '{n} item(s) partially sent', alert_partial: '<b>{n}</b> partially-sent request(s) still have items or quantities left', ERR_QTY_EXCEEDS: 'Quantity exceeds what is left for this item', ERR_QTY_MIN1: 'Quantity can’t be zero — minimum is 1', bad_prices_title: 'Invalid catalog prices (counted as 0 until fixed):', bad_prices_fix: 'Fix the Price cell in the ItemsCatalog tab as a plain number (e.g. 300 or 27.5) — if it shows as a date, format the column as Number.', price_issue_date: 'entered as a date', price_issue_text: 'not a number', price_issue_too_big: 'unrealistic value', price_issue_negative: 'negative', nav_reports: 'Reports & statistics', sub_reports: 'Request and value statistics by doctor, branch and clinic, plus any doctor’s priced report', all_time: 'All time', rp_update: 'Update', rp_value: 'Value', rp_approved_rate: 'Approval rate', rp_reject_rate: 'Rejection rate', rp_avg_approval: 'Avg doctor approval time', rp_avg_fulfil: 'Avg time to dispatch', rp_pending_doc: 'Awaiting doctor', rp_approved: 'Approved', rp_avg_request: 'Avg request value', rp_report: 'Report', rp_received: 'Received', rp_in_requests: 'In requests', rp_by_doctor: 'By doctor', rp_by_branch: 'By branch', rp_by_clinic: 'By clinic', rp_export_stats: 'Export statistics (Excel)', rp_doc_title: 'Doctor report — request history with prices', rp_doc_sub: 'Pick the doctor; the period filter above applies', rp_doc_hint: 'Pick a doctor and press “Generate report” — or tap “Report” next to any doctor in the table', t_reports_t: 'Reports & statistics', t_reports_b: 'Statistics per doctor, branch and clinic with value and times, and any doctor’s priced report from a dropdown with print and export.', stamp_submitted: 'Submitted', stamp_approved: 'Approved', stamp_rejected: 'Rejected', stamp_prep: 'Prep started', stamp_vendor_wait: 'Vendor requested', stamp_vendor_recv: 'From vendor', stamp_sent: 'Sent', stamp_received: 'Received', stamp_shipment: 'Last shipment', approved_qty: 'Approved qty', doctor_qty_hint: 'You can adjust quantities before approving — procurement receives exactly what you approve (0 = not issued)', qty_by_doctor: 'Quantities as approved by the doctor — use partial dispatch for shortages', ERR_DOCTOR_QTY: 'This request’s quantities are set by the doctor on approval', ERR_ALL_ZERO: 'All items can’t be zero — reject with a reason instead', ERR_BUSY: 'The system is busy right now — nothing was saved, try again in a moment', busy_retry: 'High load — retrying automatically…', show_more: 'Show more ({n}) — {left} left', show_archive: 'Show archive (completed requests older than 60 days)', change_pw: 'Change password', change_pw_sub: 'Everyone has their own password — never share it', pw_current: 'Current password', pw_new: 'New password', pw_confirm: 'Confirm new password', pw_rules: 'At least 4 characters, different from the current one', pw_mismatch: 'Confirmation does not match the new password', pw_changed: 'Password changed — use it next time you sign in', pw_save: 'Save new password', ERR_WRONG_PASSWORD: 'Current password is incorrect', ERR_SAME_PASSWORD: 'The new password is the same as the current one', ERR_PASSWORD_TOO_LONG: 'Password is too long (max 64)', ERR_QTY_MIN1_ITEM: '“{n}” can’t be zero — minimum quantity is 1', qty_hint: 'Enter what is available now — the rest stays open for the next shipment', rep_btn: 'Requests report', rep_btn_doc: 'Doctor report', rep_title: 'Doctor requests report', rep_mode_month: 'A month', rep_mode_cum: 'Cumulative up to a date', rep_month: 'Month', rep_to: 'Up to', rep_doctor: 'Doctor', rep_generate: 'Generate report', rep_period: 'Period', rep_all_until: 'All requests up to {d}', rep_generated: 'Generated', rep_requests: 'Requests', rep_lines: 'Item lines', rep_qty: 'Total quantity', rep_total: 'Grand total', rep_price: 'Unit price', rep_line_total: 'Total', rep_subtotal: 'Request total', rep_top: 'Top items by value', rep_unpriced: '{n} line(s) have no catalog price (counted as 0)', rep_empty: 'No requests in this period', rep_print: 'Print / PDF', rep_csv: 'Export Excel', rep_note: 'Qty = approved (or requested if unchanged) · price from catalog · rejected requests excluded', ERR_BAD_RANGE: 'Invalid date range', t_doc_report_t: 'Your requests report', t_doc_report_b: 'Generate a tidy report of your requests with prices and totals for a month or cumulatively up to a date, then print or export it.', resubmit_title: 'Resubmit to the doctor', resubmit_note: 'Note to the doctor (optional) — what changed?', resubmitted_ok: 'Request {id} resubmitted to the doctor', ERR_NO_DOCTOR_ACCOUNT: 'The doctor has no account — no review needed', close_mgmt_only: 'Issues are closed by roles with the close permission (Quality / Executive)', screen_quality: 'Quality', screen_lab: 'Lab', screen_executive: 'Executive', screen_finance: 'Finance', nav_monitor: 'Deadlines & follow-up', sub_monitor: 'Procurement follow-up: overdue requests, the monthly cycle, and prep/dispatch performance', nav_finance: 'Finance', sub_finance: 'Spend by branch, clinic and doctor, plus catalog prices', perms: 'Permissions', perms_hint: 'What this role sees and can do', perm_all: 'Full access', perm_none: 'No permissions', perm_operational: 'Fixed operational screen', perm_admin_note: 'Admin always has every permission.', perm_overview: 'Overview', perm_overview_d: 'KPIs and charts', perm_monitor: 'Deadlines & follow-up', perm_monitor_d: 'Overdue list, nudge procurement, daily digest', perm_reports: 'Reports & statistics', perm_reports_d: 'Doctor/branch/clinic reports with prices', perm_finance: 'Finance screen', perm_finance_d: 'Spend, costs and 12-month trend', perm_prices_edit: 'Edit prices', perm_prices_edit_d: 'Written straight to the ItemsCatalog tab', perm_lab_view: 'Lab follow-up', perm_lab_view_d: 'Lab KPIs, overdue and redos', perm_complaints: 'View issues', perm_complaints_d: 'Issue list and follow-up', perm_complaints_close: 'Close issues', perm_complaints_close_d: 'Resolve an issue after handling', perm_notices: 'Notices', perm_notices_d: 'Send notices to nurses/procurement/doctors', perm_users: 'Users & roles', perm_users_d: 'Add accounts and set permissions', no_admin_title: 'No admin account yet.', no_admin_hint: 'Executive has full access for now — create an account with the “أدمن” role, then every role returns to its own permissions.', tag_overdue: 'Overdue', tag_at_risk: 'Due soon', due_by: 'Due: {d}', alert_overdue: '<b>{n}</b> request(s) past their due date', alert_at_risk: '<b>{n}</b> request(s) due soon and not sent yet', alert_overdue_proc: '<b>{n}</b> request(s) overdue on procurement — handle these first', stage_doctor: 'Awaiting doctor', stage_prep: 'Awaiting prep', stage_dispatch: 'Awaiting dispatch', stage_partial: 'Partially sent', stage_receipt: 'Awaiting receipt', stage_done: 'Done', mon_kpi_month: 'Performance for', mon_rules: 'Monthly: submit 15–20, receive by the 1st · Emergency: within 24h', n_of: '{a} of {b}', mon_late_submit: 'Monthly submitted after the 20th', monthly_late_note: 'The monthly window (15th–20th) has passed — you can still submit as usual; it will show as “submitted late” to Quality', tag_late_submit: 'Submitted late', mon_missing_late: '{n} doctor(s) have no monthly request — the window has passed', mon_missing_soon: '{n} doctor(s) have no monthly request yet', mon_late_submits: '{n} doctor(s) submitted late (after the 20th)', mon_sent_ok: '{n} of {of} on time', mon_doc_sent: '{n} monthly request(s) · first {d}', mon_doc_state_ok: 'Submitted on time', mon_doc_state_late: 'Submitted late', mon_doc_state_pending: 'Not submitted yet', mon_doc_state_missing: 'Not submitted', mon_late_now: 'Overdue now', mon_at_risk: 'Due soon', mon_late_proc: 'Overdue on procurement', mon_on_time: 'Received on time', mon_clear_prep: 'Approval → prep', mon_prep_send: 'Prep → dispatch', mon_emergency_avg: 'Emergency dispatch time', mon_cycle_open: 'Submission window open', mon_cycle_soon: 'Window not open yet', mon_cycle_closed: 'Window closed — preparation phase', mon_cycle_title: 'Monthly cycle — {m}', mon_cycle_sub: 'Submit {a}–{b} · receive by end of {d}', mon_stage: 'Stuck at', mon_due: 'Due', mon_nudge: 'Nudge', mon_late_title: 'Past due', mon_late_sub: 'Most overdue first — “Nudge” posts a comment and emails procurement', mon_late_by: 'Late by', mon_none_late: 'Nothing overdue 👌', mon_risk_title: 'Due soon, not sent', mon_risk_sub: 'Monthly: under 5 days to the 1st · Emergency: half the time used', mon_left: 'Time left', mon_none_risk: 'None', mon_nudge_title: 'Nudge procurement', mon_nudge_msg: 'Message', mon_nudge_default: 'Please prioritise this request — it is past its due date.', mon_nudge_hint: 'Added as a comment on the request and emailed to all procurement accounts.', mon_nudged: 'Procurement notified', fn_prices_title: 'Catalog prices', fn_prices_sub: 'Edits are written straight to the Price column in ItemsCatalog (as numbers) and logged', fn_issues_only: 'Invalid prices only', fn_requests: 'Requests (not rejected)', fn_requested: 'Requested value', fn_approved: 'Approved value', fn_saving: 'Saved by doctor review', fn_dispatched: 'Dispatched value', fn_received: 'Received value', fn_emergency_value: 'Emergency value', fn_share: 'Share', fn_trend: 'Spend trend — last 12 months', fn_trend_sub: 'Approved value by submission month', fn_bad_count: '{n} item(s) have an invalid price — fix them right here', fn_category: 'Category', fn_price: 'Price', fn_price_saved: 'Saved {n}: {v}', ERR_BAD_PRICE: 'Invalid price — enter a number from 0 to 1,000,000',
     alert_open_complaints: '<b>{n}</b> open issue(s)', view: 'View',
     just_now: 'just now', loading: 'Loading…', saving: 'Saving…', sending: 'Sending…', done: 'Done', error_generic: 'Something went wrong',
     ERR_SESSION: 'Session expired — please sign in again', ERR_FORBIDDEN: "You don't have permission for this", ERR_NOT_FOUND: 'Not found (maybe deleted)',
@@ -734,6 +734,7 @@ function applyLang() {
   document.documentElement.lang = S.lang;
   document.documentElement.dir = S.lang === 'ar' ? 'rtl' : 'ltr';
   $$('[data-i18n]').forEach(el => { el.textContent = t(el.dataset.i18n); });
+  document.title = t('brand_name') + ' — ApexCare';
   $$('[data-i18n-ph]').forEach(el => { el.placeholder = t(el.dataset.i18nPh); });
   $$('[data-i18n-title]').forEach(el => { el.title = t(el.dataset.i18nTitle); el.setAttribute('aria-label', t(el.dataset.i18nTitle)); });
 }
@@ -818,7 +819,8 @@ function preloadPlan(name) {
     procurement: [['getRequests', [{}]], ['getComplaints', [false]]].concat(base),
     doctor: [['getDoctorRequests', []]].concat(base),
     dashboard: mgmt, admin: mgmt, quality: mgmt, executive: mgmt,
-    finance: [['getFinance', [{}]], ['getAlerts', []], ['getNotices', []]]
+    finance: [['getFinance', [{}]], ['getAlerts', []], ['getNotices', []]],
+    lab: [['getLabCases', [{}]], ['getLabConfig', []]].concat(base)
   };
 }
 function sessionExpired() {
@@ -834,7 +836,8 @@ function resetApp() {
   S.token = null; S.user = null; S.view = null; S.loaded = {};
   // لا يبقى أي بيانات من المستخدم السابق في الذاكرة (قوائم، أصناف، تحديد، صفحات)
   S.proc.list = []; S.proc.items = {}; S.proc.expanded.clear(); S.proc.selected.clear(); S.proc.archive = false;
-  S.nurse.mine = []; S.nurse.archive = false; S.nurse.draft = null; // المسودة محفوظة لكل مستخدم على حدة S.doc.list = []; S.doc.archive = false;
+  S.nurse.mine = []; S.nurse.archive = false; S.nurse.draft = null; S.nurse.lab = null;
+  LAB.mine = []; LAB.doc = []; LAB.board = []; LAB.stats = null; LAB.cfg = null; LAB.loaded = {}; // المسودة محفوظة لكل مستخدم على حدة S.doc.list = []; S.doc.archive = false;
   Object.keys(SIGS).forEach(k => delete SIGS[k]); Object.keys(LIMITS).forEach(k => delete LIMITS[k]);
   session.clear(); RC.clear();
   try { sessionStorage.removeItem('sf_rc'); } catch (e) { /* ignore */ }
@@ -887,9 +890,10 @@ ACT.logout = () => {
    Shell & navigation
    ===================================================================== */
 const NAV = {
-  nurse:       [{ id: 'new', icon: 'plus', k: 'nav_new' }, { id: 'mine', icon: 'clipboard', k: 'nav_mine' }],
+  nurse:       [{ id: 'new', icon: 'plus', k: 'nav_new' }, { id: 'mine', icon: 'clipboard', k: 'nav_mine' }, { id: 'labmine', icon: 'flask', k: 'nav_lab' }],
+  lab:         [{ id: 'labboard', icon: 'flask', k: 'nav_lab_board' }, { id: 'labkpi', icon: 'chart', k: 'nav_lab_kpi' }],
   procurement: [{ id: 'requests', icon: 'package', k: 'nav_requests' }, { id: 'complaints', icon: 'alert', k: 'nav_complaints' }],
-  doctor:      [{ id: 'reviews', icon: 'steth', k: 'nav_reviews' }]
+  doctor:      [{ id: 'reviews', icon: 'steth', k: 'nav_reviews' }, { id: 'labdoc', icon: 'flask', k: 'nav_lab' }]
 };
 /* شاشات الإدارة (جودة / تنفيذية / مالية / أدمن): القائمة تُبنى من صلاحيات الدور التي يحددها الأدمن */
 const MGMT_SCREENS = ['quality', 'executive', 'finance', 'dashboard', 'admin'];
@@ -898,11 +902,12 @@ const PERM_NAV = [
   { id: 'monitor', icon: 'clock', k: 'nav_monitor', perm: ['monitor'] },
   { id: 'reports', icon: 'file', k: 'nav_reports', perm: ['reports'] },
   { id: 'finance', icon: 'cart', k: 'nav_finance', perm: ['finance', 'prices_edit'] },
+  { id: 'labkpi', icon: 'flask', k: 'nav_lab_kpi', perm: ['lab_view'] },
   { id: 'complaints', icon: 'alert', k: 'nav_complaints', perm: ['complaints'] },
   { id: 'notices', icon: 'mega', k: 'nav_notices', perm: ['notices'] },
   { id: 'users', icon: 'users', k: 'nav_users', perm: ['users'] }
 ];
-const PERM_LIST = ['overview', 'monitor', 'reports', 'finance', 'prices_edit', 'complaints', 'complaints_close', 'notices', 'users'];
+const PERM_LIST = ['overview', 'monitor', 'reports', 'finance', 'prices_edit', 'lab_view', 'complaints', 'complaints_close', 'notices', 'users'];
 const WF_NAV = { id: 'workflow', icon: 'route', k: 'nav_workflow' };
 const isMgmt = () => !!S.user && MGMT_SCREENS.indexOf(S.user.screen) !== -1;
 const hasPerm = p => !!S.user && (S.user.perms || []).indexOf(p) !== -1;
@@ -1005,7 +1010,7 @@ function stackTables(root) {
   $$('table.table', root || document).forEach(tb => {
     const heads = $$('thead th', tb).map(th => th.textContent.trim());
     if (!heads.length || tb.classList.contains('no-stack')) return;
-    tb.classList.add('stack');
+    tb.classList.add('mstack');
     $$('tbody tr', tb).forEach(tr => { Array.from(tr.children).forEach((td, i) => { if (!td.hasAttribute('data-label')) td.setAttribute('data-label', heads[i] || ''); }); });
   });
 }
@@ -1017,6 +1022,8 @@ function stackTables(root) {
 function navCount(id) {
   if (id === 'mine') return S.nurse.mine.filter(r => r.status === ST.SENT).length;
   if (id === 'reviews') return S.doc.list.filter(r => r.status === ST.REVIEW).length;
+  if (id === 'labmine') return (LAB.mine || []).filter(c => c.toReceive).length;
+  if (id === 'labboard') return (LAB.board || []).filter(c => c.items.some(i => i.status === LAB_ST.NEW)).length;
   if (id === 'complaints') return S.dash.complaints.filter(c => !c.resolved).length;
   return 0;
 }
@@ -1052,7 +1059,8 @@ const ALERT_ICON = { info: 'info', success: 'checkc', warning: 'clock', danger: 
 const ALERT_TARGET = {
   alert_to_receive: ['mine', 'to_receive'], alert_rejected: ['mine', 'rejected'],
   alert_partial: ['requests', 'partial'], alert_urgent_new: ['requests', 'ready'], alert_new: ['requests', 'ready'], alert_approved_ready: ['requests', 'prep'], alert_urgent_review: ['requests', 'review'],
-  alert_pending_review: ['reviews', 'review'], alert_open_complaints: ['complaints', 'open']
+  alert_pending_review: ['reviews', 'review'], alert_open_complaints: ['complaints', 'open'],
+  alert_lab_new: ['labboard', 'new'], alert_lab_redo: ['labboard', 'redo'], alert_lab_late: ['labboard', 'late'], alert_lab_to_receive: ['labmine', 'receive']
 };
 function loadAlerts() {
   call('getAlerts').then(a => { S.alerts = a || []; renderAlerts(S.alerts); }).catch(() => {});
@@ -1074,6 +1082,7 @@ ACT.alertGo = el => {
   if (tg[0] === 'requests') S.proc.group = tg[1];
   if (tg[0] === 'reviews') S.doc.group = tg[1];
   if (tg[0] === 'complaints') S.dash.cFilter = tg[1];
+  if (tg[0] === 'labboard' || tg[0] === 'labmine') LAB.group = tg[1];
   go(tg[0]);
 };
 function noticesHtml(list) {
@@ -1350,7 +1359,7 @@ function nurseDraft() {
   if (!S.nurse.draft) {
     const saved = store.get('draft_' + S.user.name, null);
     S.nurse.draft = saved && Array.isArray(saved.items) ? saved : { kind: 'doctor', clinic: '', doctor: '', type: 'شهري', items: [] };
-    if (S.nurse.draft.kind !== 'clinic') S.nurse.draft.kind = 'doctor';
+    if (S.nurse.draft.kind !== 'clinic' && S.nurse.draft.kind !== 'lab') S.nurse.draft.kind = 'doctor';
     if (!S.nurse.draft.key) S.nurse.draft.key = uid();
     if (saved && saved.items && saved.items.length) setTimeout(() => toast(t('draft_restored'), 'info'), 400);
   }
@@ -1381,6 +1390,7 @@ VIEWS.new = {
   title: 'nav_new', sub: 'sub_new',
   render() {
     const d = nurseDraft();
+    if (d.kind === 'lab') return '<div id="nNotices"></div>' + labFormHtml();
     const byClinic = d.kind === 'clinic';
     if (byClinic && (!d.clinic || !S.clinics.some(c => c.name === d.clinic))) { d.clinic = S.clinics[0] ? S.clinics[0].name : ''; d.branch = ''; }
     if (!d.branch || S.branches.indexOf(d.branch) === -1) d.branch = (byClinic && clinicBranch(d.clinic)) || S.branches[0] || '';
@@ -1389,7 +1399,7 @@ VIEWS.new = {
         '<div class="stack" style="gap:18px">' +
           '<section class="card"><div class="card-head"><h2>' + icon('building') + esc(t('req_details')) + '</h2></div><div class="card-body stack">' +
             '<div class="field" id="fKind"><span class="label">' + esc(t('req_kind')) + '</span><div>' +
-              segmented('reqKind', [{ v: 'doctor', label: t('kind_doctor'), icon: 'steth' }, { v: 'clinic', label: t('kind_clinic'), icon: 'building' }], d.kind) +
+              kindSeg(d.kind) +
               '</div><div class="hint">' + icon('info', 'i-sm') + ' ' + esc(t(byClinic ? 'kind_clinic_hint' : 'kind_doctor_hint')) + '</div></div>' +
             (byClinic
               ? '<div class="field"><label for="fClinic">' + esc(t('clinic')) + '</label><select class="select" id="fClinic" data-change="nClinic">' +
@@ -1423,8 +1433,9 @@ VIEWS.new = {
       '</div>';
   },
   mount(root) {
-    $$('.segmented', root).forEach(placeThumb);
     loadNotices('nNotices');
+    if (nurseDraft().kind === 'lab') { labMount(root); return; }
+    $$('.segmented', root).forEach(placeThumb);
     loadDoctors();
     renderItems();
     setupCombo();
@@ -1895,7 +1906,7 @@ function drawReceipt(id, sections, combined) {
     x.fillStyle = '#fff'; x.fillRect(0, 0, W, H);
     x.fillStyle = '#3d8fc8'; x.fillRect(0, 0, W, 10);
     x.textAlign = 'center'; x.fillStyle = '#3d8fc8'; x.font = 'bold 21px Arial, sans-serif';
-    x.fillText('SupplyFlow — ApexCare · ' + (combined ? 'Combined receipt' : 'Receipt'), W / 2, 44);
+    x.fillText('Supply Flow (مسار) — ApexCare · ' + (combined ? 'Combined receipt' : 'Receipt'), W / 2, 44);
     x.fillStyle = '#555'; x.font = '13px Arial, sans-serif';
     x.fillText(id + '   |   ' + when() + (combined ? '   |   ' + sections.length + ' shipment(s)' : ''), W / 2, 68);
     let y = 92;
@@ -3242,15 +3253,524 @@ ACT.priceSave = el => {
 };
 
 /* =====================================================================
+   LAB — إرساليات المعمل (الممرضة ← المعمل الداخلي/الخارجي ← العيادة)
+   ===================================================================== */
+const LAB_ST = { NEW: 'أُرسل من العيادة', RECEIVED: 'استلمه المعمل', WORK: 'قيد العمل', EXTERNAL: 'عند معمل خارجي', READY: 'جاهز', SENT: 'أُرسل للعيادة', DELIVERED: 'استلمته العيادة' };
+const LAB_ORDER = [LAB_ST.NEW, LAB_ST.RECEIVED, LAB_ST.WORK, LAB_ST.EXTERNAL, LAB_ST.READY, LAB_ST.SENT, LAB_ST.DELIVERED];
+const LAB_META = {};
+[['lst_new', 'var(--t-blue)'], ['lst_received', 'var(--t-indigo)'], ['lst_work', 'var(--t-amber)'], ['lst_external', 'var(--t-violet)'],
+ ['lst_ready', 'var(--t-green)'], ['lst_sent', 'var(--t-teal)'], ['lst_delivered', 'var(--t-gray)']].forEach((m, i) => { LAB_META[LAB_ORDER[i]] = { k: m[0], tone: m[1] }; });
+const LAB = { cfg: null, mine: [], doc: [], board: [], group: 'all', q: '', lab: '', stats: null, statsMode: 'month', statsMonth: '', loaded: {} };
+function labBadge(st) { const m = LAB_META[st] || LAB_META[LAB_ST.NEW]; return '<span class="badge" style="--tone:' + m.tone + '"><i class="dot"></i>' + esc(t(m.k)) + '</span>'; }
+function labCfg() {
+  if (LAB.cfg) return Promise.resolve(LAB.cfg);
+  return call('getLabConfig').then(c => (LAB.cfg = c || { labs: [], workTypes: [], redoReasons: [] }));
+}
+function labSearch(c, q) {
+  if (!q) return true;
+  return [c.id, c.patient, c.fileNo, c.doctor, c.clinic, c.nurse, c.labs.join(' ')].join(' ').toLowerCase().indexOf(q.toLowerCase()) !== -1;
+}
+
+/* ---------- الممرضة: نموذج الإرسالية (جديدة أو إعادة) ---------- */
+function labDraft() {
+  if (!S.nurse.lab) {
+    const saved = store.get('labdraft_' + S.user.name, null);
+    S.nurse.lab = saved && Array.isArray(saved.lines) ? saved : { mode: 'new', doctor: '', patient: '', fileNo: '', neededBy: '', urgent: false, lines: [{ lab: '', workType: '', details: '' }], redoOf: '', redoItems: [], redoReason: '', redoNote: '' };
+    if (!S.nurse.lab.key) S.nurse.lab.key = uid();
+    S.nurse.lab.photos = [];
+  }
+  return S.nurse.lab;
+}
+function saveLabDraft() {
+  const d = S.nurse.lab; if (!d || !S.user) return;
+  d.savedAt = Date.now();
+  const copy = Object.assign({}, d); delete copy.photos; // الصور لا تُخزَّن محلياً (حجمها)
+  store.set('labdraft_' + S.user.name, copy);
+  const box = $('#labDraftState');
+  if (box) { box.classList.remove('hidden'); box.innerHTML = icon('checkc', 'i-sm') + '<span>' + esc(t('draft_saved', { t: fmtTime(d.savedAt) })) + '</span>'; }
+}
+function labFormHtml() {
+  const d = labDraft();
+  const redo = d.mode === 'redo';
+  return '<div class="new-layout">' +
+    '<div class="stack" style="gap:18px">' +
+      '<section class="card"><div class="card-head"><h2>' + icon('flask') + esc(t('lab_case')) + '</h2></div><div class="card-body stack">' +
+        '<div class="field" id="fKind"><span class="label">' + esc(t('req_kind')) + '</span><div>' + kindSeg('lab') + '</div></div>' +
+        '<div class="field"><span class="label">' + esc(t('lab_mode')) + '</span><div>' +
+          segmented('labMode', [{ v: 'new', label: t('lab_mode_new'), icon: 'plus' }, { v: 'redo', label: t('lab_mode_redo'), icon: 'refresh' }], d.mode) + '</div></div>' +
+        (redo ? '<div class="field"><label for="lRedoQ">' + esc(t('lab_redo_pick')) + '</label>' +
+            '<div class="input-icon">' + icon('search') + '<input class="input" id="lRedoQ" placeholder="' + esc(t('lab_redo_search')) + '"></div>' +
+            '<select class="select" id="lRedoOf" style="margin-top:8px"><option value="">' + esc(t('loading')) + '</option></select></div>' +
+            '<div id="lRedoBox"></div>'
+          : '<div class="form-grid">' +
+              '<div class="field"><label for="lDoctor">' + esc(t('doctor')) + '</label><select class="select" id="lDoctor"><option>' + esc(t('loading')) + '</option></select></div>' +
+              '<div class="field"><label for="lNeeded">' + esc(t('lab_needed_by')) + ' <span class="hint">· ' + esc(t('lab_needed_hint')) + '</span></label><input class="input" type="date" id="lNeeded" value="' + esc(d.neededBy) + '"></div>' +
+            '</div>' +
+            '<div class="form-grid">' +
+              '<div class="field"><label for="lPatient">' + esc(t('lab_patient')) + '</label><input class="input" id="lPatient" maxlength="120" value="' + esc(d.patient) + '"></div>' +
+              '<div class="field"><label for="lFile">' + esc(t('lab_file')) + '</label><input class="input" id="lFile" maxlength="40" dir="ltr" value="' + esc(d.fileNo) + '"></div>' +
+            '</div>' +
+            '<label class="row" style="gap:8px;font-weight:600"><input type="checkbox" class="check" id="lUrgent"' + (d.urgent ? ' checked' : '') + '>' + icon('zap', 'i-sm') + esc(t('lab_urgent')) + '</label>') +
+      '</div></section>' +
+      (redo ? '' : '<section class="card"><div class="card-head"><h2>' + icon('layers') + esc(t('lab_works')) + '</h2><span class="count-pill" id="lCount">' + d.lines.length + '</span></div>' +
+        '<div class="card-body stack"><div id="lLines" class="stack" style="gap:10px"></div>' +
+        '<button class="btn btn-soft" data-act="labAddLine">' + icon('plus', 'i-sm') + esc(t('lab_add_line')) + '</button></div></section>') +
+      '<section class="card"><div class="card-head"><div><h3>' + icon('image') + esc(t('lab_photos')) + '</h3><div class="hint">' + esc(t('lab_photos_hint')) + '</div></div>' +
+        '<label class="btn btn-soft btn-sm">' + icon('plus', 'i-sm') + esc(t('lab_add_photo')) + '<input type="file" id="lPhoto" accept="image/*" multiple hidden></label></div>' +
+        '<div class="card-body"><div class="lab-photos" id="lPhotos"></div></div></section>' +
+    '</div>' +
+    '<aside class="card summary"><div class="card-head"><h3>' + icon('clipboard') + esc(t('summary')) + '</h3></div><div class="card-body stack">' +
+      '<div id="lSum"></div>' +
+      '<div class="field-error hidden" id="lErr">' + icon('alert', 'i-sm') + '<span></span></div>' +
+      '<div class="draft-state hidden" id="labDraftState"></div>' +
+      '<button class="btn btn-primary btn-lg btn-block" id="lSubmit" data-act="labSubmit">' + icon('send', 'flip') + '<span>' + esc(t(redo ? 'lab_submit_redo' : 'lab_submit')) + '</span></button>' +
+    '</div></aside>' +
+  '</div>';
+}
+function kindSeg(v) {
+  return segmented('reqKind', [{ v: 'doctor', label: t('kind_doctor'), icon: 'steth' }, { v: 'clinic', label: t('kind_clinic'), icon: 'building' }, { v: 'lab', label: t('kind_lab'), icon: 'flask' }], v);
+}
+function labMount(root) {
+  $$('.segmented', root).forEach(placeThumb);
+  const d = labDraft();
+  const bind = (id, key, ev) => { const el = $('#' + id); if (el) el.addEventListener(ev || 'input', () => { d[key] = el.type === 'checkbox' ? el.checked : el.value; saveLabDraft(); renderLabSummary(); }); };
+  bind('lPatient', 'patient'); bind('lFile', 'fileNo'); bind('lNeeded', 'neededBy', 'change'); bind('lUrgent', 'urgent', 'change');
+  $('#lPhoto').addEventListener('change', e => labAddPhotos(e.target.files));
+  renderLabPhotos();
+  labCfg().then(() => {
+    if (d.mode === 'redo') labLoadRedo(); else { renderLabLines(); labLoadDoctors(); }
+    renderLabSummary();
+  }).catch(e => toast(errMsg(e), 'error'));
+}
+function labLoadDoctors() {
+  const d = labDraft(), sel = $('#lDoctor'); if (!sel) return;
+  call('getDoctors', '').then(list => {
+    if (!document.contains(sel)) return;
+    if (!list.length) { sel.innerHTML = '<option value="">' + esc(t('no_doctors')) + '</option>'; return; }
+    if (!list.some(x => x.name === d.doctor)) d.doctor = list[0].name;
+    sel.innerHTML = list.map(x => '<option value="' + esc(x.name) + '"' + (x.name === d.doctor ? ' selected' : '') + '>' + esc(x.name) + '</option>').join('');
+    sel.onchange = () => { d.doctor = sel.value; saveLabDraft(); renderLabSummary(); };
+    renderLabSummary();
+  }).catch(e => toast(errMsg(e), 'error'));
+}
+function renderLabLines() {
+  const d = labDraft(), box = $('#lLines'); if (!box) return;
+  const cfg = LAB.cfg;
+  const opts = (list, v, ph) => '<option value="">' + esc(ph) + '</option>' + list.map(x => '<option' + (x === v ? ' selected' : '') + '>' + esc(x) + '</option>').join('');
+  box.innerHTML = d.lines.map((l, i) => '<div class="lab-line" data-i="' + i + '"><span class="lab-line-n">' + (i + 1) + '</span>' +
+    '<select class="select" data-k="lab" aria-label="' + esc(t('lab_name')) + '">' + opts(cfg.labs.map(x => x.name), l.lab, t('lab_name') + '…') + '</select>' +
+    '<select class="select" data-k="workType" aria-label="' + esc(t('lab_work')) + '">' + opts(cfg.workTypes, l.workType, t('lab_work') + '…') + '</select>' +
+    '<input class="input" data-k="details" maxlength="500" value="' + esc(l.details) + '" placeholder="' + esc(t('lab_details_ph')) + '">' +
+    '<button class="btn btn-ghost btn-icon btn-sm" data-act="labDelLine" data-i="' + i + '" title="' + esc(t('delete')) + '"' + (d.lines.length < 2 ? ' disabled' : '') + '>' + icon('trash', 'i-sm') + '</button></div>').join('');
+  $$('.lab-line [data-k]', box).forEach(el => el.addEventListener(el.tagName === 'SELECT' ? 'change' : 'input', () => {
+    d.lines[Number(el.closest('.lab-line').dataset.i)][el.dataset.k] = el.value; saveLabDraft(); renderLabSummary();
+  }));
+  const c = $('#lCount'); if (c) c.textContent = d.lines.length;
+}
+ACT.labAddLine = () => { const d = labDraft(); if (d.lines.length >= 20) return; const last = d.lines[d.lines.length - 1] || {}; d.lines.push({ lab: last.lab || '', workType: '', details: '' }); saveLabDraft(); renderLabLines(); renderLabSummary(); };
+ACT.labDelLine = el => { const d = labDraft(); if (d.lines.length < 2) return; d.lines.splice(Number(el.dataset.i), 1); saveLabDraft(); renderLabLines(); renderLabSummary(); };
+SEG_HANDLERS.labMode = v => { const d = labDraft(); if (d.mode === v) return; d.mode = v; saveLabDraft(); go('new', true); };
+function renderLabSummary() {
+  const d = labDraft(), box = $('#lSum'); if (!box) return;
+  const redo = d.mode === 'redo';
+  const rows = [[t('doctor'), d.doctor || '—'], [t('lab_patient'), d.patient || '—'], [t('lab_file'), d.fileNo || '—']];
+  if (redo) rows.push([t('lab_redo_of'), d.redoOf || '—'], [t('lab_redo_lines'), String(d.redoItems.length)], [t('lab_redo_reason'), d.redoReason || '—']);
+  else {
+    rows.push([t('lab_needed_by'), d.neededBy ? fmtDate(d.neededBy + 'T12:00:00') : '—'], [t('lab_works'), String(d.lines.filter(l => l.lab && l.workType).length)]);
+    const labs = d.lines.map(l => l.lab).filter((x, i, a) => x && a.indexOf(x) === i);
+    if (labs.length) rows.push([t('lab_labs'), labs.join('، ')]);
+  }
+  if (d.photos.length) rows.push([t('lab_photos'), String(d.photos.length)]);
+  box.innerHTML = rows.map(r => '<div class="sum-row"><span class="muted">' + esc(r[0]) + '</span><b>' + esc(r[1]) + '</b></div>').join('') +
+    (!redo && d.urgent ? '<div class="sum-row"><span class="muted">' + esc(t('type')) + '</span>' + typeTag('طارئ') + '</div>' : '');
+}
+/* الصور: تُصغَّر على الجهاز (JPEG ‏1280px) قبل الإرسال */
+function fileToJpeg(file, max) {
+  return new Promise((res, rej) => {
+    const img = new Image(), url = URL.createObjectURL(file);
+    img.onload = () => {
+      const k = Math.min(1, (max || 1280) / Math.max(img.width, img.height));
+      const c = document.createElement('canvas'); c.width = Math.round(img.width * k); c.height = Math.round(img.height * k);
+      c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+      URL.revokeObjectURL(url); res(c.toDataURL('image/jpeg', 0.8));
+    };
+    img.onerror = () => { URL.revokeObjectURL(url); rej(new Error('ERR_BAD_IMAGE')); };
+    img.src = url;
+  });
+}
+function labAddPhotos(files) {
+  const d = labDraft();
+  Array.from(files || []).slice(0, 3 - d.photos.length).reduce((p, f) => p.then(() => fileToJpeg(f).then(u => { d.photos.push(u); })), Promise.resolve())
+    .then(() => { renderLabPhotos(); renderLabSummary(); }).catch(e => toast(errMsg(e), 'error'));
+}
+function renderLabPhotos() {
+  const d = labDraft(), box = $('#lPhotos'); if (!box) return;
+  box.innerHTML = d.photos.length ? d.photos.map((u, i) => '<div class="lab-photo"><img src="' + u + '" alt=""><button class="btn btn-icon btn-sm" data-act="labDelPhoto" data-i="' + i + '" title="' + esc(t('delete')) + '">' + icon('x', 'i-sm') + '</button></div>').join('')
+    : '<div class="hint">' + esc(t('lab_no_photos')) + '</div>';
+}
+ACT.labDelPhoto = el => { labDraft().photos.splice(Number(el.dataset.i), 1); renderLabPhotos(); renderLabSummary(); };
+/* الإعادة: قائمة منسدلة بالإرساليات السابقة ← التفاصيل ← اختيار الأعمال المعادة والسبب */
+function labLoadRedo() {
+  const d = labDraft();
+  call('getMyLabCases', { archive: true }).then(list => {
+    LAB.mine = list || [];
+    const sel = $('#lRedoOf'), q = $('#lRedoQ'); if (!sel) return;
+    const fill = () => {
+      const f = LAB.mine.filter(c => labSearch(c, q.value.trim()));
+      sel.innerHTML = '<option value="">' + esc(f.length ? t('lab_redo_choose') : t('no_match')) + '</option>' +
+        f.map(c => '<option value="' + esc(c.id) + '"' + (c.id === d.redoOf ? ' selected' : '') + '>' + esc(c.id + ' · ' + c.patient + ' · ' + c.fileNo + ' · ' + fmtDate(c.date)) + '</option>').join('');
+    };
+    fill();
+    q.addEventListener('input', fill);
+    sel.addEventListener('change', () => { d.redoOf = sel.value; d.redoItems = []; saveLabDraft(); renderRedoBox(); renderLabSummary(); });
+    renderRedoBox();
+  }).catch(e => toast(errMsg(e), 'error'));
+}
+function renderRedoBox() {
+  const d = labDraft(), box = $('#lRedoBox'); if (!box) return;
+  const c = LAB.mine.find(x => x.id === d.redoOf);
+  if (!c) { box.innerHTML = '<div class="hint">' + icon('info', 'i-sm') + ' ' + esc(t('lab_redo_hint')) + '</div>'; return; }
+  d.doctor = c.doctor; d.patient = c.patient; d.fileNo = c.fileNo;
+  box.innerHTML = '<div class="lab-redo-case"><div class="row-wrap"><b class="req-id">' + esc(c.id) + '</b>' + labBadge(c.status) + '<span class="muted">' + esc(fmtDate(c.date)) + '</span></div>' +
+      '<div class="req-sub"><span>' + icon('user') + esc(c.patient) + ' · ' + esc(c.fileNo) + '</span><span>' + icon('steth') + esc(c.doctor) + '</span></div>' +
+      '<div class="label" style="margin-top:10px">' + esc(t('lab_redo_lines_pick')) + '</div>' +
+      c.items.map(it => '<label class="lab-pick"><input type="checkbox" class="check" value="' + esc(it.id) + '"' + (d.redoItems.indexOf(it.id) !== -1 ? ' checked' : '') + '>' +
+        '<span><b>' + esc(it.workType) + '</b> · ' + esc(it.lab) + (it.details ? ' · ' + esc(it.details) : '') + '</span>' + labBadge(it.status) + '</label>').join('') +
+    '</div>' +
+    '<div class="field"><label for="lReason">' + esc(t('lab_redo_reason')) + '</label><select class="select" id="lReason"><option value="">' + esc(t('lab_redo_reason')) + '…</option>' +
+      (LAB.cfg.redoReasons || []).map(r => '<option' + (r === d.redoReason ? ' selected' : '') + '>' + esc(r) + '</option>').join('') + '</select></div>' +
+    '<div class="field"><label for="lRedoNote">' + esc(t('lab_redo_note')) + '</label><textarea class="textarea" id="lRedoNote" rows="3" maxlength="1000" placeholder="' + esc(t('lab_redo_note_ph')) + '">' + esc(d.redoNote) + '</textarea></div>';
+  $$('.lab-pick input', box).forEach(cb => cb.addEventListener('change', () => { d.redoItems = $$('.lab-pick input:checked', box).map(x => x.value); saveLabDraft(); renderLabSummary(); }));
+  $('#lReason', box).addEventListener('change', e => { d.redoReason = e.target.value; saveLabDraft(); renderLabSummary(); });
+  $('#lRedoNote', box).addEventListener('input', e => { d.redoNote = e.target.value; saveLabDraft(); });
+  saveLabDraft(); renderLabSummary();
+}
+ACT.labSubmit = el => {
+  const d = labDraft(), err = $('#lErr');
+  const fail = k => { err.querySelector('span').textContent = t(k); err.classList.remove('hidden'); };
+  err.classList.add('hidden');
+  const redo = d.mode === 'redo';
+  if (redo) {
+    if (!d.redoOf) return fail('lab_err_pick');
+    if (!d.redoItems.length) return fail('lab_err_lines');
+    if (!d.redoReason) return fail('lab_err_reason');
+    if (!d.redoNote.trim()) return fail('lab_err_note');
+  } else {
+    if (!d.doctor || !d.patient.trim() || !d.fileNo.trim()) return fail('lab_err_fill');
+    if (!d.lines.some(l => l.lab && l.workType) || d.lines.some(l => (l.lab || l.workType || l.details) && !(l.lab && l.workType))) return fail('lab_err_lines_fill');
+  }
+  saveLabDraft();
+  if (navigator.onLine === false) return fail('offline_kept');
+  busy(el, true, t('sending'));
+  const payload = redo
+    ? { doctor: d.doctor, patient: d.patient, fileNo: d.fileNo, redoOf: d.redoOf, redoItems: d.redoItems, redoReason: d.redoReason, redoNote: d.redoNote, photos: d.photos, clientKey: d.key }
+    : { doctor: d.doctor, patient: d.patient.trim(), fileNo: d.fileNo.trim(), neededBy: d.neededBy, urgent: !!d.urgent, lines: d.lines.filter(l => l.lab && l.workType), photos: d.photos, clientKey: d.key };
+  call('createLabCase', payload).then(res => {
+    busy(el, false);
+    toast(t(res.duplicate ? 'duplicate_request' : (redo ? 'lab_redo_sent' : 'lab_sent'), { id: res.id }), res.duplicate ? 'info' : 'success', 5000);
+    S.nurse.lab = null; store.set('labdraft_' + S.user.name, null);
+    const nd = labDraft(); nd.doctor = d.doctor; saveLabDraft();
+    LAB.loaded.mine = false;
+    go('labmine');
+  }).catch(e => {
+    busy(el, false);
+    if (errCode(e) === 'ERR_SESSION') return;
+    const lost = ['ERR_NETWORK', 'ERR_BAD_RESPONSE', 'ERR_BUSY'].indexOf(errCode(e)) !== -1;
+    err.querySelector('span').textContent = lost ? t('send_failed_kept') : errMsg(e); err.classList.remove('hidden');
+  });
+};
+
+/* ---------- قوائم الإرساليات (الممرضة / الطبيب / المعمل) ---------- */
+const LAB_GROUPS_NURSE = [
+  { id: 'all', k: 'grp_all' },
+  { id: 'active', k: 'lab_g_active', test: c => [LAB_ST.SENT, LAB_ST.DELIVERED].indexOf(c.status) === -1 && !c.toReceive, tone: 'var(--t-amber)' },
+  { id: 'receive', k: 'lab_g_receive', test: c => c.toReceive, tone: 'var(--t-teal)' },
+  { id: 'late', k: 'lab_g_late', test: c => c.overdue, tone: 'var(--t-red)' },
+  { id: 'redo', k: 'lab_g_redo', test: c => !!c.redoOf, tone: 'var(--t-orange)' },
+  { id: 'done', k: 'lab_g_done', test: c => c.status === LAB_ST.DELIVERED, tone: 'var(--t-gray)' }
+];
+const has = (c, st) => c.items.some(i => i.status === st);
+const LAB_GROUPS_BOARD = [
+  { id: 'all', k: 'grp_all' },
+  { id: 'new', k: 'lab_g_new', test: c => has(c, LAB_ST.NEW), tone: 'var(--t-blue)' },
+  { id: 'work', k: 'lab_g_work', test: c => has(c, LAB_ST.RECEIVED) || has(c, LAB_ST.WORK), tone: 'var(--t-amber)' },
+  { id: 'external', k: 'lab_g_external', test: c => has(c, LAB_ST.EXTERNAL), tone: 'var(--t-violet)' },
+  { id: 'ready', k: 'lab_g_ready', test: c => has(c, LAB_ST.READY), tone: 'var(--t-green)' },
+  { id: 'late', k: 'lab_g_late', test: c => c.overdue || c.externalLate, tone: 'var(--t-red)' },
+  { id: 'redo', k: 'lab_g_redo', test: c => !!c.redoOf, tone: 'var(--t-orange)' }
+];
+function labCard(c, role, i) {
+  const acts = [];
+  acts.push('<button class="btn btn-sm" data-act="labOpen" data-id="' + esc(c.id) + '">' + icon('eye', 'i-sm') + esc(t('details')) + '</button>');
+  if (role === 'nurse' && c.toReceive) acts.unshift('<button class="btn btn-primary btn-sm" data-act="labConfirm" data-id="' + esc(c.id) + '">' + icon('check', 'i-sm') + esc(t('lab_confirm')) + '</button>');
+  if (role === 'nurse' && c.items.some(it => [LAB_ST.READY, LAB_ST.SENT, LAB_ST.DELIVERED].indexOf(it.status) !== -1)) acts.push('<button class="btn btn-ghost btn-sm" data-act="labRedo" data-id="' + esc(c.id) + '">' + icon('refresh', 'i-sm') + esc(t('lab_mode_redo')) + '</button>');
+  return stagger('<article class="req lab-card' + (c.urgent ? ' urgent' : '') + (c.redoOf ? ' redo' : '') + '">' +
+    '<div class="req-main clickable" data-act="labOpen" data-id="' + esc(c.id) + '"><div class="grow">' +
+      '<div class="row-wrap"><span class="req-id">' + esc(c.id) + '</span>' + (c.redoOf ? '<span class="tag late">' + icon('refresh') + esc(t('lab_redo_tag')) + '</span>' : '') +
+        (c.urgent ? typeTag('طارئ') : '') + (c.overdue ? '<span class="tag late">' + icon('alert') + esc(t('tag_overdue')) + '</span>' : '') + branchTag(c.branch) + '</div>' +
+      '<div class="req-sub"><span>' + icon('user') + '<b>' + esc(c.patient) + '</b> · ' + esc(c.fileNo) + '</span><span>' + icon('steth') + esc(c.doctor) + '</span>' +
+        (role !== 'nurse' ? '<span>' + icon('building') + esc(c.clinic || '—') + '</span>' : '') +
+        '<span>' + icon('calendar') + esc(c.neededBy ? t('lab_due', { d: fmtDate(c.neededBy) }) : fmtDate(c.date)) + '</span></div>' +
+      (c.redoOf ? '<div class="reject-box" style="margin-top:8px">' + icon('alert') + '<div><b>' + esc(t('lab_redo_of')) + ' ' + esc(c.redoOf) + ' — ' + esc(c.redoReason) + ':</b> ' + esc(c.redoNote) + '</div></div>' : '') +
+      '<div class="lab-items">' + c.items.map(it => '<div class="lab-item-row"><span>' + icon('flask', 'i-sm') + '<b>' + esc(it.workType) + '</b> · ' + esc(it.lab) + (it.details ? ' <span class="muted">· ' + esc(it.details) + '</span>' : '') + '</span>' + labBadge(it.status) + '</div>').join('') + '</div>' +
+    '</div><div class="req-side">' + labBadge(c.status) + '</div></div>' +
+    (role === 'lab' ? labItemActions(c) : '') +
+    '<div class="req-actions">' + acts.join('') + '</div></article>', i);
+}
+/* أزرار المرحلة التالية لكل سطر (موظف المعمل) */
+const LAB_NEXT = {};
+LAB_NEXT[LAB_ST.NEW] = ['receive', 'start', 'external', 'reroute'];
+LAB_NEXT[LAB_ST.RECEIVED] = ['start', 'external', 'ready', 'reroute'];
+LAB_NEXT[LAB_ST.WORK] = ['ready', 'external'];
+LAB_NEXT[LAB_ST.EXTERNAL] = ['ready', 'cost'];
+LAB_NEXT[LAB_ST.READY] = ['send'];
+LAB_NEXT[LAB_ST.SENT] = [];
+LAB_NEXT[LAB_ST.DELIVERED] = [];
+const LAB_ACT_IC = { receive: 'inbox', start: 'play', external: 'truck', ready: 'checkc', send: 'send', reroute: 'route', cost: 'tag' };
+function labItemActions(c) {
+  const rows = c.items.filter(it => (LAB_NEXT[it.status] || []).length);
+  if (!rows.length) return '';
+  // سطر واحد لكل عمل مع أزرار مرحلته — وزر «للكل» إن تشابهت الحالات
+  const same = c.items.length > 1 && c.items.every(it => it.status === c.items[0].status) && (LAB_NEXT[c.items[0].status] || []).length;
+  return '<div class="lab-actions">' + rows.map(it => '<div class="lab-act-row"><span class="muted">' + esc(it.workType) + ' · ' + esc(it.lab) + '</span><div class="row-wrap">' +
+      LAB_NEXT[it.status].map((a, k) => '<button class="btn btn-sm ' + (k === 0 ? 'btn-primary' : 'btn-soft') + '" data-act="labDo" data-a="' + a + '" data-items="' + esc(it.id) + '" data-case="' + esc(c.id) + '">' + icon(LAB_ACT_IC[a], 'i-sm') + esc(t('la_' + a)) + '</button>').join('') + '</div></div>').join('') +
+    (same ? '<div class="lab-act-row all"><span><b>' + esc(t('lab_all_items', { n: c.items.length })) + '</b></span><div class="row-wrap">' +
+      LAB_NEXT[c.items[0].status].filter(a => a !== 'reroute' && a !== 'cost').map(a => '<button class="btn btn-sm btn-tone" style="--tone:var(--primary)" data-act="labDo" data-a="' + a + '" data-items="' + esc(c.items.map(x => x.id).join(',')) + '" data-case="' + esc(c.id) + '">' + icon(LAB_ACT_IC[a], 'i-sm') + esc(t('la_' + a)) + '</button>').join('') + '</div></div>' : '') +
+  '</div>';
+}
+ACT.labDo = el => {
+  const a = el.dataset.a, ids = el.dataset.items.split(',');
+  const needs = { external: 1, reroute: 1, cost: 1 };
+  const run = (data, btn, m) => {
+    busy(btn, true);
+    return call('updateLabItems', ids, a, data || {}).then(res => {
+      busy(btn, false); if (m) closeModal(m);
+      toast(t('lab_done_' + a, { n: ids.length }), 'success');
+      (res || []).forEach(c => { const k = LAB.board.findIndex(x => x.id === c.id); if (k !== -1) LAB.board[k] = Object.assign(LAB.board[k], c); });
+      if (S.view === 'labboard') renderLabBoard(false);
+      if (MODALS.length && $('.modal #lcBody')) openLabCase(el.dataset.case, true);
+      loadAlerts();
+    }).catch(e => { busy(btn, false); toast(errMsg(e), 'error'); });
+  };
+  if (!needs[a]) { run({}, el); return; }
+  const cfg = LAB.cfg || { labs: [] };
+  const ext = cfg.labs.filter(l => l.type === 'خارجي');
+  const labSel = (list) => '<select class="select" id="laLab">' + list.map(l => '<option value="' + esc(l.name) + '">' + esc(l.name + (l.type ? ' — ' + l.type : '')) + '</option>').join('') + '</select>';
+  const body = (a === 'external' ? '<div class="field"><label for="laLab">' + esc(t('lab_external')) + '</label>' + labSel(ext) + '</div>' +
+      '<div class="form-grid"><div class="field"><label for="laExp">' + esc(t('lab_expected')) + '</label><input class="input" type="date" id="laExp" value="' + todayStr() + '"></div>' +
+      '<div class="field"><label for="laCost">' + esc(t('lab_cost')) + ' <span class="hint">· ' + esc(t('optional')) + '</span></label><input class="input" id="laCost" inputmode="decimal"></div></div>'
+    : a === 'reroute' ? '<div class="field"><label for="laLab">' + esc(t('lab_reroute_to')) + '</label>' + labSel(cfg.labs) + '</div>'
+    : '<div class="field"><label for="laCost">' + esc(t('lab_cost')) + '</label><input class="input" id="laCost" inputmode="decimal"></div>') +
+    '<div class="field"><label for="laNote">' + esc(t('lab_note')) + ' <span class="hint">· ' + esc(t('optional')) + '</span></label><textarea class="textarea" id="laNote" rows="2" maxlength="500"></textarea></div>';
+  const m = openModal({ title: esc(t('la_' + a)), sub: esc(ids.join('، ')), icon: LAB_ACT_IC[a], size: 'sm', body: body,
+    foot: '<span class="spacer"></span><button class="btn" data-close>' + esc(t('cancel')) + '</button><button class="btn btn-primary" id="laOk">' + icon('check', 'i-sm') + esc(t('save')) + '</button>' });
+  $('#laOk', m.el).addEventListener('click', e => {
+    const g = id => { const x = $('#' + id, m.el); return x ? x.value.trim() : undefined; };
+    run({ lab: g('laLab'), expectedAt: g('laExp'), cost: g('laCost'), note: g('laNote') }, e.currentTarget, m);
+  });
+};
+function labListView(role) {
+  const key = role === 'nurse' ? 'mine' : role === 'doctor' ? 'doc' : 'board';
+  const groups = role === 'lab' || role === 'mgmt' ? LAB_GROUPS_BOARD : LAB_GROUPS_NURSE;
+  return {
+    title: role === 'lab' ? 'nav_lab_board' : 'nav_lab', sub: role === 'lab' ? 'sub_lab_board' : role === 'doctor' ? 'sub_lab_doc' : 'sub_lab_mine',
+    render() {
+      return '<div class="stack" style="gap:10px"><div class="row-wrap lab-filters"><div class="input-icon grow">' + icon('search') + '<input class="input" data-input="labQ" value="' + esc(LAB.q) + '" placeholder="' + esc(t('lab_search')) + '"></div>' +
+        (role === 'lab' ? '<select class="select" data-change="labFilterLab" style="width:auto"><option value="">' + esc(t('lab_all_labs')) + '</option></select>' : '') +
+        (role === 'nurse' ? '<button class="btn btn-primary" data-act="labNew">' + icon('plus', 'i-sm') + esc(t('lab_new')) + '</button>' : '') + '</div>' +
+        '<div id="labChips"></div></div><div class="list stagger" id="labList">' + skeletonList(3) + '</div>';
+    },
+    mount() { LAB.role = role; LAB.key = key; LAB.groups = groups; if (!groups.some(g => g.id === LAB.group)) LAB.group = 'all'; labLoadList(); labCfg().then(fillLabFilter).catch(() => {}); },
+    refresh() { labLoadList(true); }
+  };
+}
+function fillLabFilter() {
+  const sel = $('[data-change="labFilterLab"]'); if (!sel || !LAB.cfg) return;
+  sel.innerHTML = '<option value="">' + esc(t('lab_all_labs')) + '</option>' + LAB.cfg.labs.map(l => '<option' + (l.name === LAB.lab ? ' selected' : '') + '>' + esc(l.name) + '</option>').join('');
+}
+function labLoadList(silent) {
+  const fn = { mine: 'getMyLabCases', doc: 'getDoctorLabCases', board: 'getLabCases' }[LAB.key];
+  return call(fn, {}).then(list => { LAB[LAB.key] = list || []; LAB.loaded[LAB.key] = true; renderLabBoard(!silent); renderNav(); })
+    .catch(e => { if (!silent) { const b = $('#labList'); if (b) b.innerHTML = emptyState('alert', errMsg(e)); } });
+}
+function renderLabBoard(animate) {
+  const box = $('#labList'); if (!box) return;
+  const all = LAB[LAB.key] || [];
+  const inLab = c => !LAB.lab || c.labs.indexOf(LAB.lab) !== -1;
+  const base = all.filter(inLab);
+  $('#labChips').innerHTML = chipsHtml(LAB.groups, LAB.group, 'labGroup', groupCounts(LAB.groups, base));
+  const g = LAB.groups.find(x => x.id === LAB.group) || LAB.groups[0];
+  const list = base.filter(c => matchGroup(g, c) && labSearch(c, LAB.q));
+  if (!all.length) { box.innerHTML = emptyState('flask', t('lab_empty'), LAB.role === 'nurse' ? t('lab_empty_nurse') : ''); return; }
+  if (!list.length) { box.innerHTML = emptyState('search', t('no_match'), t('no_match_sub')); return; }
+  setList(box, pageOf('lab', list).map((c, i) => labCard(c, LAB.role, i)).join('') + moreBtn('lab', list.length), animate);
+}
+ACT.labQ = debounce(el => { LAB.q = el.value.trim(); resetPage('lab'); renderLabBoard(true); }, 150);
+ACT.labGroup = el => { LAB.group = el.dataset.g; resetPage('lab'); renderLabBoard(true); };
+ACT.labFilterLab = el => { LAB.lab = el.value; resetPage('lab'); renderLabBoard(true); };
+ACT.labNew = () => { const d = nurseDraft(); d.kind = 'lab'; saveDraft(); go('new'); };
+ACT.labRedo = el => {
+  const d = nurseDraft(); d.kind = 'lab'; saveDraft();
+  const l = labDraft(); l.mode = 'redo'; l.redoOf = el.dataset.id; l.redoItems = []; saveLabDraft();
+  closeAllModals(); go('new');
+};
+function closeAllModals() { while (MODALS.length) closeModal(topModal()); }
+ACT.labConfirm = el => {
+  busy(el, true);
+  call('confirmLabReceipt', el.dataset.id).then(c => {
+    busy(el, false); toast(t('lab_confirmed'), 'success');
+    const k = LAB.mine.findIndex(x => x.id === c.id); if (k !== -1) LAB.mine[k] = Object.assign(LAB.mine[k], c);
+    if (S.view === 'labmine') renderLabBoard(false);
+    if (MODALS.length && $('.modal #lcBody')) openLabCase(c.id, true);
+    loadAlerts();
+  }).catch(e => { busy(el, false); toast(errMsg(e), 'error'); });
+};
+VIEWS.labmine = labListView('nurse');
+VIEWS.labdoc = labListView('doctor');
+VIEWS.labboard = labListView('lab');
+
+/* ---------- تفاصيل الإرسالية ---------- */
+ACT.labOpen = el => openLabCase(el.dataset.id);
+function openLabCase(id, replace) {
+  const role = S.user.screen;
+  const render = c => {
+    const info = [[t('lab_patient'), c.patient], [t('lab_file'), c.fileNo], [t('doctor'), c.doctor], [t('clinic'), c.clinic || '—'], [t('branch'), c.branch || '—'],
+      [t('nurse'), c.nurse], [t('date'), fmtDateTime(c.date)], [t('lab_needed_by'), c.neededBy ? fmtDate(c.neededBy) : '—']];
+    return '<div id="lcBody" class="stack" style="gap:16px">' +
+      '<div class="row-wrap">' + labBadge(c.status) + (c.urgent ? typeTag('طارئ') : '') + (c.overdue ? '<span class="tag late">' + icon('alert') + esc(t('tag_overdue')) + '</span>' : '') + '</div>' +
+      (c.redoOf ? '<div class="reject-box">' + icon('refresh') + '<div><b>' + esc(t('lab_redo_of')) + ' <button class="btn btn-ghost btn-sm mono" data-act="labOpen" data-id="' + esc(c.redoOf) + '" style="min-height:22px;padding:0 6px">' + esc(c.redoOf) + '</button> — ' + esc(c.redoReason) + '</b><div>' + esc(c.redoNote) + '</div></div></div>' : '') +
+      (c.redoneBy && c.redoneBy.length ? '<div class="hint" style="color:var(--t-orange)">' + icon('refresh', 'i-sm') + ' ' + esc(t('lab_redone_by')) + ' ' + c.redoneBy.map(x => '<button class="btn btn-ghost btn-sm mono" data-act="labOpen" data-id="' + esc(x) + '" style="min-height:22px;padding:0 6px">' + esc(x) + '</button>').join(' ') + '</div>' : '') +
+      '<dl class="meta-grid">' + info.map(x => '<div><dt>' + esc(x[0]) + '</dt><dd>' + esc(x[1]) + '</dd></div>').join('') + '</dl>' +
+      (c.attachments.length ? '<div class="lab-photos">' + c.attachments.map(u => '<a class="lab-photo" href="' + esc(u) + '" target="_blank" rel="noopener">' + icon('image') + '<span>' + esc(t('lab_photo')) + '</span></a>').join('') + '</div>' : '') +
+      '<div class="table-wrap"><table class="table"><thead><tr><th>' + esc(t('lab_work')) + '</th><th>' + esc(t('lab_name')) + '</th><th>' + esc(t('lab_details')) + '</th><th>' + esc(t('status')) + '</th><th>' + esc(t('lab_timeline')) + '</th></tr></thead><tbody>' +
+        c.items.map(it => '<tr><td><b>' + esc(it.workType) + '</b></td><td>' + esc(it.lab) + (it.labType ? ' <span class="muted">(' + esc(it.labType) + ')</span>' : '') +
+          (it.cost ? '<div class="muted" style="font-size:12px">' + fmtNum(it.cost, 2) + ' ' + esc(t('currency')) + '</div>' : '') + '</td><td>' + esc(it.details || '—') + '</td><td>' + labBadge(it.status) +
+          (it.externalLate ? ' <span class="tag late">' + esc(t('lab_ext_late')) + '</span>' : '') + '</td><td class="lab-tl">' +
+          [['lst_received', it.receivedAt], ['lst_work', it.startedAt], ['lst_external', it.externalAt], ['lab_expected', it.expectedAt], ['lst_ready', it.readyAt], ['lst_sent', it.sentAt], ['lst_delivered', it.deliveredAt]]
+            .filter(x => x[1]).map(x => '<span><b>' + esc(t(x[0])) + ':</b> ' + esc(x[0] === 'lab_expected' ? fmtDate(x[1]) : fmtDateTime(x[1])) + '</span>').join('') + '</td></tr>').join('') +
+      '</tbody></table></div>' +
+      (role === 'lab' ? labItemActions(c) : '') +
+      '<div><div class="label">' + icon('msg', 'i-sm') + ' ' + esc(t('lab_notes')) + '</div><div class="thread" id="lcNotes">' +
+        (c.notes.length ? c.notes.map(n => '<div class="msg' + (n.author === S.user.name ? ' mine' : '') + '"><div class="bubble">' + esc(n.message) + '</div><div class="m-meta">' + esc(n.author) + ' · ' + esc(n.role) + ' · ' + esc(relTime(n.time)) + '</div></div>').join('') : '<div class="hint">' + esc(t('no_comments')) + '</div>') + '</div>' +
+        '<div class="row" style="gap:8px;margin-top:8px"><input class="input grow" id="lcNote" maxlength="1000" placeholder="' + esc(t('lab_note_ph')) + '"><button class="btn btn-primary" id="lcSend">' + icon('send', 'i-sm flip') + '</button></div></div>' +
+    '</div>';
+  };
+  const foot = c => '<span class="spacer"></span>' +
+    (role === 'nurse' && c.toReceive ? '<button class="btn btn-primary" data-act="labConfirm" data-id="' + esc(c.id) + '">' + icon('check', 'i-sm') + esc(t('lab_confirm')) + '</button>' : '') +
+    (role === 'nurse' && c.items.some(it => [LAB_ST.READY, LAB_ST.SENT, LAB_ST.DELIVERED].indexOf(it.status) !== -1) ? '<button class="btn btn-soft" data-act="labRedo" data-id="' + esc(c.id) + '">' + icon('refresh', 'i-sm') + esc(t('lab_mode_redo')) + '</button>' : '') +
+    (role !== 'lab' && role !== 'nurse' && role !== 'doctor' && c.overdue ? '<button class="btn btn-soft" data-act="labNudge" data-id="' + esc(c.id) + '">' + icon('bell', 'i-sm') + esc(t('mon_nudge')) + '</button>' : '') +
+    '<button class="btn" data-close>' + esc(t('close')) + '</button>';
+  const top = replace && MODALS.length ? topModal() : null;
+  const m = top || openModal({ title: esc(id), sub: esc(t('lab_case')), icon: 'flask', size: 'lg', body: skeletonList(2), foot: '<span class="spacer"></span><button class="btn" data-close>' + esc(t('close')) + '</button>' });
+  labCfg().then(() => call('getLabCase', id)).then(c => {
+    if (!document.contains(m.el)) return;
+    $('.modal-body', m.el).innerHTML = render(c);
+    $('.modal-foot', m.el).innerHTML = foot(c);
+    const send = () => {
+      const inp = $('#lcNote', m.el), v = inp.value.trim(); if (!v) return;
+      call('addLabNote', c.id, v).then(() => openLabCase(c.id, true)).catch(e => toast(errMsg(e), 'error'));
+    };
+    $('#lcSend', m.el).addEventListener('click', send);
+    $('#lcNote', m.el).addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); send(); } });
+  }).catch(e => { if (document.contains(m.el)) $('.modal-body', m.el).innerHTML = emptyState('alert', errMsg(e)); });
+}
+ACT.labNudge = el => {
+  busy(el, true);
+  call('nudgeLab', el.dataset.id, '').then(() => { busy(el, false); toast(t('lab_nudged')); }).catch(e => { busy(el, false); toast(errMsg(e), 'error'); });
+};
+
+/* ---------- مؤشرات المعمل ---------- */
+VIEWS.labkpi = {
+  title: 'nav_lab_kpi', sub: 'sub_lab_kpi',
+  render() {
+    if (!LAB.statsMonth) LAB.statsMonth = todayStr().slice(0, 7);
+    return '<div class="between"><div class="row-wrap">' + segmented('labStatsMode', [{ v: 'month', label: t('rep_mode_month'), icon: 'calendar' }, { v: 'all', label: t('all_time'), icon: 'clock' }], LAB.statsMode) +
+        '<input class="input" type="month" id="lkMonth" style="width:auto" value="' + esc(LAB.statsMonth) + '"' + (LAB.statsMode === 'all' ? ' disabled' : '') + '></div>' +
+        '<button class="btn btn-sm" data-act="labKpiCsv">' + icon('ext', 'i-sm') + esc(t('rp_export_stats')) + '</button></div>' +
+      '<div id="lkBody" class="stack" style="gap:18px">' + skeletonList(3) + '</div>';
+  },
+  mount(root) {
+    $$('.segmented', root).forEach(placeThumb);
+    $('#lkMonth').addEventListener('change', e => { LAB.statsMonth = e.target.value || todayStr().slice(0, 7); labStatsLoad(); });
+    labStatsLoad();
+  },
+  refresh() { labStatsLoad(true); }
+};
+SEG_HANDLERS.labStatsMode = v => { LAB.statsMode = v; const m = $('#lkMonth'); if (m) m.disabled = v === 'all'; labStatsLoad(); };
+function labStatsLoad(silent) {
+  const range = LAB.statsMode === 'month' ? monthRange(LAB.statsMonth || todayStr().slice(0, 7)) : { from: '', to: '' };
+  call('getLabStats', range).then(st => {
+    LAB.stats = st; LAB.statsRange = range;
+    if ($('#lkBody')) { $('#lkBody').innerHTML = labStatsHtml(st); CHARTS.lab = { canvas: 'labChart', tip: 'labTip', type: 'bar', unit: t('lab_unit_items'), labels: st.trend.map(x => monthLabel(x.month)), data: st.trend.map(x => x.items), extra: null }; drawChart(CHARTS.lab, !silent); }
+  }).catch(e => { if (!silent && $('#lkBody')) $('#lkBody').innerHTML = emptyState('alert', errMsg(e)); });
+}
+function labStatsHtml(st) {
+  const s = st.summary, pct = v => v === null || v === undefined ? '—' : v + '%', days = v => v === null || v === undefined ? '—' : fmtNum(v, 1) + ' ' + t('unit_d');
+  const tiles = [
+    ['clipboard', 'var(--t-blue)', t('lab_k_cases'), fmtNum(s.cases, 0)],
+    ['flask', 'var(--t-indigo)', t('lab_k_items'), fmtNum(s.items, 0)],
+    ['clock', 'var(--t-amber)', t('lab_k_avg'), days(s.avgDays)],
+    ['checkc', 'var(--t-green)', t('lab_k_ontime'), pct(s.onTimeRate)],
+    ['refresh', 'var(--t-orange)', t('lab_k_redo'), s.redoRate + '% · ' + t('lab_n_items', { n: s.redo })],
+    ['alert', 'var(--t-red)', t('lab_k_overdue'), fmtNum(st.overdueNow.length, 0)],
+    ['truck', 'var(--t-violet)', t('lab_k_external'), fmtNum((st.kinds[1] || {}).items || 0, 0)],
+    ['tag', 'var(--t-teal)', t('lab_k_cost'), fmtNum(s.cost, 2) + ' ' + t('currency')]
+  ];
+  const cols = k => [
+    { h: t(k), v: r => '<b>' + esc(r.name) + '</b>' + (r.type ? ' <span class="muted">(' + esc(r.type) + ')</span>' : '') },
+    { h: t('lab_k_items'), num: 1, v: r => fmtNum(r.items, 0) },
+    { h: t('lab_k_avg'), num: 1, v: r => days(r.avgDays) },
+    { h: t('lab_k_ontime'), num: 1, v: r => pct(r.onTimeRate) },
+    { h: t('lab_k_redo'), num: 1, v: r => r.redo ? '<b style="color:var(--t-orange)">' + r.redoRate + '%</b> <span class="muted">· ' + r.redo + '</span>' : '0' },
+    { h: t('lab_k_overdue'), num: 1, v: r => r.overdue ? '<b style="color:var(--t-red)">' + r.overdue + '</b>' : '0' },
+    { h: t('lab_k_cost'), num: 1, v: r => r.cost ? fmtNum(r.cost, 2) : '—' }
+  ];
+  const mg = isMgmt();
+  return '<div class="rp-tiles">' + tiles.map(x => '<div class="rp-tile" style="--tone:' + x[1] + '"><span class="ic">' + icon(x[0]) + '</span><div><span>' + esc(x[2]) + '</span><b>' + esc(x[3]) + '</b></div></div>').join('') + '</div>' +
+    '<section class="card"><div class="card-head"><div><h2>' + icon('alert') + esc(t('lab_overdue_title')) + ' <span class="count-pill">' + st.overdueNow.length + '</span></h2><div class="hint">' + esc(t('lab_overdue_sub')) + '</div></div></div><div class="card-body">' +
+      rpTable(st.overdueNow, [
+        { h: '#', v: r => '<button class="btn btn-ghost btn-sm mono" data-act="labOpen" data-id="' + esc(r.caseId) + '" style="min-height:26px;padding:2px 6px">' + esc(r.caseId) + '</button>' },
+        { h: t('lab_patient'), v: r => esc(r.patient) + ' <span class="muted">· ' + esc(r.fileNo) + '</span>' },
+        { h: t('doctor'), v: r => esc(r.doctor) },
+        { h: t('lab_work'), v: r => esc(r.workType) + ' · ' + esc(r.lab) },
+        { h: t('status'), v: r => labBadge(r.status) + (r.externalLate ? ' <span class="tag late">' + esc(t('lab_ext_late')) + '</span>' : '') },
+        { h: t('mon_late_by'), num: 1, v: r => '<b style="color:var(--t-red)">' + days(r.daysLate) + '</b>' },
+        { h: '', v: r => mg ? '<button class="btn btn-soft btn-sm" data-act="labNudge" data-id="' + esc(r.caseId) + '">' + icon('bell', 'i-sm') + esc(t('mon_nudge')) + '</button>' : '' }
+      ], t('mon_none_late')) + '</div></section>' +
+    '<section class="card"><div class="card-head"><h2>' + icon('building') + esc(t('lab_by_lab')) + '</h2></div><div class="card-body">' + rpTable(st.labs, cols('lab_name')) + '</div></section>' +
+    '<div class="grid-2">' +
+      '<section class="card"><div class="card-head"><h3>' + icon('layers') + esc(t('lab_by_type')) + '</h3></div><div class="card-body">' + rpTable(st.workTypes, cols('lab_work').filter((c, i) => i !== 6)) + '</div></section>' +
+      '<section class="card"><div class="card-head"><h3>' + icon('refresh') + esc(t('lab_reasons')) + '</h3></div><div class="card-body">' +
+        (st.reasons.length ? '<div class="hbars">' + st.reasons.map(r => '<div class="hbar"><span class="name">' + esc(r.reason) + '</span><span class="val">' + r.count + '</span><div class="track"><div class="fill" data-w="' + (r.count / st.reasons[0].count * 100) + '%" style="width:' + (r.count / st.reasons[0].count * 100) + '%"></div></div></div>').join('') + '</div>' : emptyState('checkc', t('lab_no_redo'))) +
+        '<div style="margin-top:14px">' + rpTable(st.kinds, cols('lab_kind').filter((c, i) => i !== 6)) + '</div></div></section>' +
+    '</div>' +
+    '<section class="card"><div class="card-head"><div><h3>' + icon('activity') + esc(t('lab_trend')) + '</h3><div class="hint">' + esc(t('lab_trend_sub')) + '</div></div></div><div class="card-body"><div class="chart-box"><canvas id="labChart"></canvas><div class="chart-tip" id="labTip"></div></div></div></section>';
+}
+ACT.labKpiCsv = () => {
+  const st = LAB.stats; if (!st) return;
+  const q = v => '"' + String(v === null || v === undefined ? '' : v).replace(/"/g, '""') + '"';
+  const lines = [[t('nav_lab_kpi'), periodLabel(LAB.statsRange)].map(q).join(',')];
+  const block = (title, rows) => {
+    lines.push('', q(title), [title, t('lab_k_items'), t('lab_k_avg'), t('lab_k_ontime'), t('lab_k_redo'), t('lab_k_overdue'), t('lab_k_cost')].map(q).join(','));
+    rows.forEach(r => lines.push([r.name + (r.type ? ' (' + r.type + ')' : ''), r.items, r.avgDays, r.onTimeRate, r.redo, r.overdue, r.cost].map(q).join(',')));
+  };
+  block(t('lab_by_lab'), st.labs); block(t('lab_by_type'), st.workTypes); block(t('lab_kind'), st.kinds);
+  lines.push('', q(t('lab_reasons'))); st.reasons.forEach(r => lines.push([r.reason, r.count].map(q).join(',')));
+  const blob = new Blob(['﻿' + lines.join('\r\n')], { type: 'text/csv;charset=utf-8' });
+  const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'lab-kpis.csv';
+  document.body.appendChild(a); a.click(); setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 500);
+};
+
+/* =====================================================================
    USERS & ROLES (admin)
    ===================================================================== */
-const SCREEN_OPTS = ['nurse', 'procurement', 'doctor', 'quality', 'executive', 'finance', 'admin', 'dashboard'];
-const SCREEN_TONE = { nurse: 'var(--t-blue)', procurement: 'var(--t-amber)', doctor: 'var(--t-violet)', quality: 'var(--t-teal)', executive: 'var(--t-indigo)', finance: 'var(--t-orange)', dashboard: 'var(--t-gray)', admin: 'var(--t-green)' };
+const SCREEN_OPTS = ['nurse', 'procurement', 'doctor', 'lab', 'quality', 'executive', 'finance', 'admin', 'dashboard'];
+const SCREEN_TONE = { lab: 'var(--t-violet)', nurse: 'var(--t-blue)', procurement: 'var(--t-amber)', doctor: 'var(--t-violet)', quality: 'var(--t-teal)', executive: 'var(--t-indigo)', finance: 'var(--t-orange)', dashboard: 'var(--t-gray)', admin: 'var(--t-green)' };
 /* الصلاحيات الافتراضية لكل شاشة إدارية (نفس Code.gs) — الأدمن يعدّلها لكل دور */
 const DEFAULT_PERMS = {
   admin: PERM_LIST,
-  executive: ['overview', 'reports', 'complaints', 'complaints_close', 'notices', 'monitor'],
-  quality: ['overview', 'reports', 'complaints', 'complaints_close', 'notices', 'monitor'],
+  executive: ['overview', 'reports', 'complaints', 'complaints_close', 'notices', 'monitor', 'lab_view'],
+  quality: ['overview', 'reports', 'complaints', 'complaints_close', 'notices', 'monitor', 'lab_view'],
   finance: ['finance', 'prices_edit', 'reports', 'monitor'],
   dashboard: ['overview', 'reports', 'complaints', 'notices']
 };
@@ -3446,10 +3966,10 @@ Object.assign(I18N.ar, {
   t_dash_kpis_t: 'مؤشرات الأداء', t_dash_kpis_b: 'إجمالي الطلبات، متوسط زمن التنفيذ، الطارئ، نسبة الاستلام، البلاغات المفتوحة، ونقص الاستلام.',
   t_dash_charts_t: 'الرسوم البيانية', t_dash_charts_b: 'اتجاه زمن التنفيذ لآخر 6 أشهر والمقارنة بين العيادات — مرّر المؤشر لرؤية التفاصيل.',
   t_notices_t: 'تنبيهات للإدارات', t_notices_b: 'أرسل تنبيهاً يظهر أعلى شاشة التموين أو التمريض أو الأطباء أو الجميع.',
-  t_users_t: 'المستخدمون والأدوار', t_monitor_t: 'متابعة المواعيد', t_monitor_b: 'الطلبات المتأخرة والقريبة من الموعد، العيادات التي لم ترفع طلبها الشهري، وأداء التموين — مع زر لتنبيه التموين.', t_finance_t: 'المالية', t_finance_b: 'الصرف والتكلفة حسب الفرع والعيادة والطبيب مع اتجاه 12 شهراً، وتعديل أسعار الكتالوج مباشرة.', t_users_b: 'أضف المستخدمين، عيّن أدوارهم وعياداتهم، وحدّد الشاشة لكل دور.',
+  t_users_t: 'المستخدمون والأدوار', t_lab_board_t: 'لوحة المعمل', t_lab_board_b: 'الإرساليات حسب المرحلة: جديد، قيد العمل، عند معمل خارجي، جاهز، متأخر، إعادات.', t_lab_card_t: 'إرسالية مريض', t_lab_card_b: 'كل عمل له أزرار مرحلته التالية: استلام، بدء العمل، معمل خارجي، جاهز، إرسال للعيادة.', t_lab_kpi_t: 'مؤشرات المعمل', t_lab_kpi_b: 'زمن الإنجاز والالتزام بالموعد ونسبة الإعادة لكل معمل ونوع عمل، والمتأخرات والتكلفة.', t_monitor_t: 'متابعة المواعيد', t_monitor_b: 'الطلبات المتأخرة والقريبة من الموعد، العيادات التي لم ترفع طلبها الشهري، وأداء التموين — مع زر لتنبيه التموين.', t_finance_t: 'المالية', t_finance_b: 'الصرف والتكلفة حسب الفرع والعيادة والطبيب مع اتجاه 12 شهراً، وتعديل أسعار الكتالوج مباشرة.', t_users_b: 'أضف المستخدمين، عيّن أدوارهم وعياداتهم، وحدّد الشاشة لكل دور.',
   nav_workflow: 'سير العمل', sub_workflow: 'مراحل الطلب من الرفع حتى الاستلام، ومن المسؤول عن كل مرحلة',
   wf_flow_title: 'مسار الطلب', wf_you: 'دورك',
-  wf_r_nurse: 'التمريض', wf_r_procurement: 'التموين', wf_r_doctor: 'الطبيب', wf_r_quality: 'الجودة', wf_r_exec: 'الإدارة التنفيذية',
+  wf_r_nurse: 'التمريض', wf_r_procurement: 'التموين', wf_r_doctor: 'الطبيب', wf_r_quality: 'الجودة', wf_r_exec: 'الإدارة التنفيذية', wf_r_lab: 'المعمل',
   wf_s1_t: 'رفع الطلب', wf_s1_d: 'اختيار الفرع والعيادة والطبيب والأصناف (شهري أو طارئ). يصل بريد للطبيب فوراً، وللتموين أيضاً إن كان طارئاً.',
   wf_s2_t: 'مراجعة الطبيب', wf_s2_d: 'يصله الطلب فور رفعه، فيراجع الأصناف والأسعار ويعدّل الكمية عند الحاجة ويضيف ملاحظاته.',
   wf_s3_t: 'اعتماد الطبيب', wf_s3_d: 'يعتمد الطلب فيصل للتموين بالكميات التي اعتمدها بالضبط، أو يرفضه مع السبب فيعود للممرضة.',
@@ -3465,7 +3985,7 @@ Object.assign(I18N.ar, {
   wf_do_procurement: 'متابعة الطلبات لحظة رفعها (بانتظار الطبيب)|تجهيز الطلبات بعد اعتماد الطبيب بكمياته|إدارة مسار المندوب عند الحاجة|الإرسال للفرع (كامل أو على شحنات)|متابعة البلاغات والتعليق عليها',
   wf_do_doctor: 'مراجعة طلبات العيادة فور رفعها|تعديل الكمية وإضافة ملاحظات على الأصناف|الاعتماد أو الرفض مع ذكر السبب|تقرير طلباته بالأسعار والإجمالي لشهر أو فترة',
   wf_do_quality: 'متابعة زمن التنفيذ ومؤشرات الأداء|مراجعة البلاغات وإغلاقها بعد الحل|تقارير الأطباء بالأسعار والإجمالي|إرسال تنبيهات للإدارات|إدارة المستخدمين والأدوار والصلاحيات',
-  wf_do_exec: 'نظرة شاملة على أداء كل العيادات|إدارة المستخدمين والأدوار والصلاحيات|متابعة البلاغات وإغلاقها والتصعيد عند الحاجة|توجيه الإدارات بالتنبيهات',
+  wf_do_exec: 'نظرة شاملة على أداء كل العيادات|إدارة المستخدمين والأدوار والصلاحيات|متابعة البلاغات وإغلاقها والتصعيد عند الحاجة|توجيه الإدارات بالتنبيهات', wf_do_lab: 'استلام إرساليات المرضى من العيادات|العمل داخلياً أو التحويل لمعمل خارجي بموعد رجوع وتكلفة|إرسال الجاهز للعيادة والممرضة تؤكد الاستلام|متابعة الإعادات وأسبابها ومؤشرات الأداء',
   wf_notif_title: 'الإشعارات التلقائية بالبريد', wf_event: 'الحدث', wf_to: 'يصل إلى',
   wf_n1: 'رفع طلب جديد|الطبيب (والتموين للطارئ أو إن لم يكن للطبيب حساب)', wf_n2: 'اعتماد الطبيب|التموين', wf_n3: 'رفض الطبيب|الممرضة (مع السبب)',
   wf_n4: 'إرسال شحنة أو الطلب للفرع|الممرضة', wf_n5: 'بلاغ جديد|التموين والجودة والإدارة',
@@ -3504,10 +4024,10 @@ Object.assign(I18N.en, {
   t_dash_kpis_t: 'Performance KPIs', t_dash_kpis_b: 'Total requests, average fulfilment time, emergencies, received rate, open issues and short receipts.',
   t_dash_charts_t: 'Charts', t_dash_charts_b: 'Fulfilment time trend over 6 months and clinic comparison — hover for details.',
   t_notices_t: 'Department notices', t_notices_b: 'Send a notice that appears at the top of procurement, nursing, doctors or everyone’s screen.',
-  t_users_t: 'Users & roles', t_monitor_t: 'Deadlines & follow-up', t_monitor_b: 'Overdue and due-soon requests, clinics that have not submitted their monthly request, and procurement performance — with a button to nudge procurement.', t_finance_t: 'Finance', t_finance_b: 'Spend by branch, clinic and doctor with a 12-month trend, and direct catalog price editing.', t_users_b: 'Add users, set their roles and clinics, and choose the screen for each role.',
+  t_users_t: 'Users & roles', t_lab_board_t: 'Lab board', t_lab_board_b: 'Cases by stage: new, in work, at an external lab, ready, overdue, redos.', t_lab_card_t: 'A patient case', t_lab_card_b: 'Each work item has its next-step buttons: receive, start, external lab, ready, send to clinic.', t_lab_kpi_t: 'Lab KPIs', t_lab_kpi_b: 'Turnaround, on-time rate and redo rate per lab and work type, plus overdue items and cost.', t_monitor_t: 'Deadlines & follow-up', t_monitor_b: 'Overdue and due-soon requests, clinics that have not submitted their monthly request, and procurement performance — with a button to nudge procurement.', t_finance_t: 'Finance', t_finance_b: 'Spend by branch, clinic and doctor with a 12-month trend, and direct catalog price editing.', t_users_b: 'Add users, set their roles and clinics, and choose the screen for each role.',
   nav_workflow: 'Workflow', sub_workflow: 'Request stages from submission to receipt, and who owns each one',
   wf_flow_title: 'Request flow', wf_you: 'You',
-  wf_r_nurse: 'Nursing', wf_r_procurement: 'Procurement', wf_r_doctor: 'Doctor', wf_r_quality: 'Quality', wf_r_exec: 'Executive management',
+  wf_r_nurse: 'Nursing', wf_r_procurement: 'Procurement', wf_r_doctor: 'Doctor', wf_r_quality: 'Quality', wf_r_exec: 'Executive management', wf_r_lab: 'Lab',
   wf_s1_t: 'Submit request', wf_s1_d: 'Pick branch, clinic, doctor and items (monthly or emergency). The doctor is emailed at once — procurement too for emergencies.',
   wf_s2_t: 'Doctor review', wf_s2_d: 'It reaches the doctor as soon as it is submitted; they review items and prices, adjust quantities if needed and add notes.',
   wf_s3_t: 'Doctor approval', wf_s3_d: 'Approves it (procurement receives exactly the approved quantities) or rejects it with a reason (it returns to the nurse).',
@@ -3523,7 +4043,7 @@ Object.assign(I18N.en, {
   wf_do_procurement: 'Follow requests as soon as they are submitted (awaiting doctor)|Prepare requests after doctor approval, at the approved quantities|Handle the vendor path when needed|Dispatch to the branch (full or in shipments)|Follow up and comment on issues',
   wf_do_doctor: 'Review clinic requests as soon as they’re submitted|Adjust quantities and add notes on items|Approve or reject with a reason|Report of their requests with prices and totals for a month or period',
   wf_do_quality: 'Monitor fulfilment time and KPIs|Review issues and close them when resolved|Doctor reports with prices and totals|Send department notices|Manage users, roles and permissions',
-  wf_do_exec: 'Full view of every clinic’s performance|Manage users, roles and permissions|Follow, close and escalate issues|Direct departments through notices',
+  wf_do_exec: 'Full view of every clinic’s performance|Manage users, roles and permissions|Follow, close and escalate issues|Direct departments through notices', wf_do_lab: 'Receive patient cases from clinics|Work in-house or send to an external lab with an expected return and cost|Send finished work to the clinic; the nurse confirms receipt|Track redos, their reasons and performance KPIs',
   wf_notif_title: 'Automatic email notifications', wf_event: 'Event', wf_to: 'Sent to',
   wf_n1: 'New request submitted|Doctor (plus procurement for emergencies or doctors without an account)', wf_n2: 'Doctor approved|Procurement', wf_n3: 'Doctor rejected|Nurse (with the reason)',
   wf_n4: 'Shipment or request dispatched|Nurse', wf_n5: 'New issue report|Procurement, quality & management',
@@ -3576,6 +4096,12 @@ const TOUR_STEPS = {
     { sel: NAV_SEL('notices'), t: 't_notices_t', b: 't_notices_b', icon: 'mega' }
   ]
 };
+TOUR_STEPS.lab = [
+  { sel: NAV_SEL('labboard'), t: 't_nav_t', b: 't_nav_b', icon: 'menu' },
+  { view: 'labboard', sel: '#labChips .chips', t: 't_lab_board_t', b: 't_lab_board_b', icon: 'flask' },
+  { view: 'labboard', sel: '#labList .req', t: 't_lab_card_t', b: 't_lab_card_b', icon: 'layers', optional: true },
+  { sel: NAV_SEL('labkpi'), t: 't_lab_kpi_t', b: 't_lab_kpi_b', icon: 'chart' }
+];
 TOUR_STEPS.admin = TOUR_STEPS.dashboard.concat([{ sel: NAV_SEL('users'), t: 't_users_t', b: 't_users_b', icon: 'users' }]);
 /* جولة الإدارة حسب الصلاحيات: خطوات الشاشات غير المتاحة تُحذف */
 function mgmtTourSteps() {
@@ -3748,7 +4274,8 @@ const WF_ROLE = {
   procurement: { k: 'wf_r_procurement', tone: 'var(--t-amber)', ic: 'package' },
   doctor: { k: 'wf_r_doctor', tone: 'var(--t-violet)', ic: 'steth' },
   quality: { k: 'wf_r_quality', tone: 'var(--t-teal)', ic: 'chart' },
-  exec: { k: 'wf_r_exec', tone: 'var(--t-green)', ic: 'shield' }
+  exec: { k: 'wf_r_exec', tone: 'var(--t-green)', ic: 'shield' },
+  lab: { k: 'wf_r_lab', tone: 'var(--t-violet)', ic: 'flask' }
 };
 function myWfRole() {
   const s = S.user.screen;
