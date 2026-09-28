@@ -272,12 +272,13 @@ test('full workflow: submit → doctor review → approve → prep → partial d
   // ممرضة أخرى لا تستطيع الاستلام
   const other = login('ريم', '2222');
   throwsCode(() => api(other, 'receiveShipment', id, 1, [], 'ريم', '', ''), 'ERR_FORBIDDEN');
-  throwsCode(() => api(n, 'receiveShipment', id, 1, [], '', '', ''), 'ERR_REQUIRED');
   throwsCode(() => api(n, 'receiveShipment', id, 9, [], 'سارة', '', ''), 'ERR_NOT_FOUND');
   assert.equal(api(n, 'getMyRequests')[0].pendingShipments, 2);
 
   // الشحنة 1: توقيع مستقل، والطلب لم يكتمل بعد (الأصناف خارج الشحنة تُتجاهل)
-  let rec = api(n, 'receiveShipment', id, 1, [{ name: 'PROPHY PASTE', qty: 4 }, { name: 'DENTAL FLOSS', qty: 99 }], 'سارة', PNG, PNG, PNG);
+  // اسم المستلم ثابت = الممرضة المسجّلة دخولها؛ أي اسم حر من الواجهة يُتجاهل
+  let rec = api(n, 'receiveShipment', id, 1, [{ name: 'PROPHY PASTE', qty: 4 }, { name: 'DENTAL FLOSS', qty: 99 }], 'اسم حر', PNG, PNG, PNG);
+  assert.equal(rows(gas, 'Shipments')[0].ReceiverName, 'سارة');
   assert.deepEqual([rec.complete, rec.pendingShipments, rec.mergedReceiptUrl], [false, 1, '']);
   assert.ok(rec.signatureUrl && rec.receiptUrl);
   assert.equal(gas.files.length, 2, 'merged receipt is not saved before the last shipment');
@@ -298,9 +299,9 @@ test('full workflow: submit → doctor review → approve → prep → partial d
 
   const det = api(n, 'getRequestDetail', id);
   assert.equal(det.status, 'تم الاستلام');
-  assert.equal(det.receiver, 'سارة، منيرة', 'all receivers are kept on the completed request');
+  assert.equal(det.receiver, 'سارة', 'receiver is always the logged-in nurse (free names ignored)');
   assert.equal(det.receiptUrl, rec.mergedReceiptUrl);
-  assert.deepEqual(det.shipments.map(g => [g.batch, g.received, g.receiver]), [[1, true, 'سارة'], [2, true, 'منيرة']]);
+  assert.deepEqual(det.shipments.map(g => [g.batch, g.received, g.receiver]), [[1, true, 'سارة'], [2, true, 'سارة']]);
   assert.ok(det.shipments[0].receiptUrl && det.shipments[0].signatureUrl);
   assert.equal(typeof det.submittedAt, 'string', 'dates are serialized');
   assert.equal(det.items.find(i => i.item === 'DENTAL FLOSS').receivedQty, 6);
@@ -716,6 +717,30 @@ test('quality/executive statistics: by doctor, branch, clinic, items, with perio
   for (const tok of [n, p, d]) throwsCode(() => api(tok, 'getStatsReport', {}), 'ERR_FORBIDDEN');
 });
 
+test('prices: a date in the Price cell (Sheets turns "3/8" into a date) is never read as a huge number', () => {
+  const { api, login } = boot(g => {
+    g.seed('ItemsCatalog', ['ItemName', 'CommercialName', 'Category', 'Price'], [
+      ['Itero Sleeve', 'Align', 'Scanner', new Date('2026-08-02T21:00:00Z')],  // = 1,785,704,400,000 لو قُرئ كرقم
+      ['PROPHY BRUSH', '', '', '27.5'],
+      ['MICRO BRUSH FINE', '', '', 4.95],
+      ['GLOVES', '', '', '1,250.50 ر.س'],
+      ['BAD', '', '', 5e9],
+      ['TXT', '', '', 'غالي']
+    ]);
+  });
+  const n = login('سارة', '1111'), d = login('د. خالد', '4444'), q = login('منى', '5555');
+  const id = api(n, 'createRequest', { clinic: 'عيادة الأسنان 1', doctor: 'د. خالد', type: 'شهري', items: [{ name: 'Itero Sleeve', qty: 1 }, { name: 'PROPHY BRUSH', qty: 1 }, { name: 'MICRO BRUSH FINE', qty: 1 }, { name: 'GLOVES', qty: 2 }] }).id;
+  const cat = api(d, 'getRequestItemsWithCatalog', id);
+  assert.deepEqual(cat.map(i => i.price), [0, 27.5, 4.95, 1250.5], 'dates become 0, text prices are parsed');
+  api(d, 'doctorReview', id, 'اعتمد', '', []);
+  const rep = api(d, 'getDoctorReport', {});
+  assert.equal(rep.summary.total, 2533.45, '27.5 + 4.95 + 2×1250.5 — no 1.7 trillion');
+  assert.deepEqual(rep.badPrices, [{ item: 'Itero Sleeve', issue: 'date' }]);
+  const st = api(q, 'getStatsReport', {});
+  assert.equal(st.summary.value, 2533.45);
+  assert.deepEqual(st.badPrices.map(b => b.item + ':' + b.issue).sort(), ['BAD:too_big', 'Itero Sleeve:date', 'TXT:text']);
+});
+
 test('doctor without an account: request can be dispatched without review', () => {
   const { api, login } = boot();
   const n = login('سارة', '1111'), p = login('علي', '3333');
@@ -943,4 +968,66 @@ test('setupSheets is idempotent and seeds defaults on an empty spreadsheet', () 
   assert.equal(gas.dump('ItemsCatalog').length, 18);
   const r = ctx.api(null, 'login', ['المدير', '1234']);
   assert.equal(r.user.screen, 'admin');
+});
+
+test('doctor-based request: clinic is optional (derived from the doctor); clinic consumables need a clinic and skip review', () => {
+  const { api, login, gas } = boot();
+  const n = login('سارة', '1111');
+  const items = [{ name: 'PROPHY PASTE', qty: 2 }];
+  // قائمة الأطباء بدون عيادة = أطباء عيادات الممرضة فقط
+  const docs = api(n, 'getDoctors', '').map(d => d.name).sort();
+  assert.deepEqual(docs, ['د. خالد', 'د. نورة', 'د. فهد'].sort());
+  const r1 = api(n, 'createRequest', { doctor: 'د. خالد', type: 'شهري', items });
+  const q1 = rows(gas, 'Requests').find(r => r.RequestID === r1.id);
+  assert.equal(q1.Clinic, 'عيادة الأسنان 1', 'clinic comes from the doctor');
+  assert.equal(q1.Branch, 'الرياض');
+  assert.equal(q1.Status, 'مراجعة الطبيب');
+  assert.equal(api(login('د. خالد', '4444'), 'getDoctorRequests').length, 1);
+  throwsCode(() => api(n, 'createRequest', { doctor: 'د. سعد', type: 'شهري', items }), 'ERR_BAD_DOCTOR');
+  // مستهلكات العيادة: بدون طبيب، العيادة إلزامية، وتذهب للتموين مباشرة
+  throwsCode(() => api(n, 'createRequest', { type: 'شهري', items }), 'ERR_REQUIRED');
+  throwsCode(() => api(n, 'createRequest', { clinic: 'عيادة الأسنان 2', type: 'شهري', items }), 'ERR_FORBIDDEN');
+  const r2 = api(n, 'createRequest', { clinic: 'عيادة الجلدية 1', type: 'شهري', items: [{ name: 'قفازات طبية M', qty: 5 }] });
+  const q2 = rows(gas, 'Requests').find(r => r.RequestID === r2.id);
+  assert.deepEqual([q2.Doctor, q2.Clinic, q2.Status], ['', 'عيادة الجلدية 1', 'جديد']);
+  const p = login('علي', '3333');
+  const all = api(p, 'getRequests', {});
+  const got = (all.rows || all).find(r => r.id === r2.id);
+  assert.ok(got && got.cleared, 'clinic consumables are ready for procurement right away');
+});
+
+test('doctor accounts with joined names (ZakhirRais) or an explicit link receive their requests', () => {
+  const { api, login } = boot(g => {
+    g.seed('Users', ['Name', 'Password', 'Role', 'Clinic', 'Email', 'DoctorName'], [
+      ['سارة', '1111', 'ممرضة', 'عيادة الأسنان 1', ''],
+      ['ZakhirRais', '7777', 'طبيب', '', ''],
+      ['نورة', '8888', 'طبيب', '', ''],
+      ['المدير', '1234', 'تنفيذي', '', '']
+    ]);
+    g.seed('Doctors', ['DoctorName', 'Clinic', 'NurseName'], [
+      ['Dr. Zakhir Rais', 'عيادة الأسنان 1', 'سارة'],
+      ['د. نورة العتيبي', 'عيادة الأسنان 1', 'سارة'],
+      ['Dr. Maha', 'عيادة الأسنان 1', 'سارة']
+    ]);
+  });
+  const n = login('سارة', '1111');
+  const items = [{ name: 'PROPHY PASTE', qty: 1 }];
+  const a = api(n, 'createRequest', { doctor: 'Dr. Zakhir Rais', type: 'شهري', items });
+  const z = login('ZakhirRais', '7777');
+  const mine = api(z, 'getDoctorRequests');
+  assert.deepEqual(mine.map(r => r.id), [a.id], 'the request reaches Dr. Zakhir Rais page');
+  assert.equal(mine[0].status, 'مراجعة الطبيب');
+  const admin = login('المدير', '1234');
+  let links = api(admin, 'getDoctorLinks');
+  assert.deepEqual(links.unlinked.sort(), ['Dr. Maha'], 'نورة matches د. نورة العتيبي by name tokens');
+  // ربط صريح من شاشة المستخدمين
+  api(admin, 'createUser', { name: 'maha', password: '9999', role: 'طبيب', clinic: '', email: '', doctorName: 'Dr. Maha' });
+  links = api(admin, 'getDoctorLinks');
+  assert.deepEqual(links.unlinked, []);
+  const users = api(admin, 'getUsers');
+  assert.deepEqual(users.find(u => u.name === 'maha').linked, ['Dr. Maha']);
+  assert.deepEqual(users.find(u => u.name === 'ZakhirRais').linked, ['Dr. Zakhir Rais']);
+  assert.deepEqual(users.find(u => u.name === 'نورة').linked, ['د. نورة العتيبي']);
+  const b = api(n, 'createRequest', { doctor: 'Dr. Maha', type: 'شهري', items: [{ name: 'DENTAL FLOSS', qty: 3 }] });
+  assert.deepEqual(api(login('maha', '9999'), 'getDoctorRequests').map(r => r.id), [b.id]);
 });

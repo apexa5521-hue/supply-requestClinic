@@ -152,7 +152,15 @@ function log(msg) { console.log('  ✔ ' + msg); }
   await login(page, 'سارة', '1111');
   expect(await page.isVisible('text=طلب جديد'), 'nurse lands on the new-request screen');
   await page.waitForSelector('#fDoctor option[value="د. خالد"]', { state: 'attached' });
-  expect(await page.inputValue('#fBranch') === 'الرياض', 'branch defaults to the clinic branch');
+  expect(!(await page.$('#fClinic')), 'doctor request: no clinic field (derived from the doctor)');
+  await page.click('[data-seg-name="reqKind"][data-v="clinic"]');
+  await page.waitForSelector('#fClinic');
+  expect(!(await page.$('#fDoctor')), 'clinic consumables: clinic instead of doctor');
+  await shot(page, 'new-clinic-consumables');
+  await page.click('[data-seg-name="reqKind"][data-v="doctor"]');
+  await page.waitForSelector('#fDoctor option[value="د. خالد"]', { state: 'attached' });
+  await page.waitForFunction(() => document.getElementById('fBranch').value === 'الرياض');
+  expect(await page.inputValue('#fBranch') === 'الرياض', 'branch defaults to the doctor clinic branch');
   await page.selectOption('#fBranch', 'جدة');
   expect((await page.textContent('#sumBox')).includes('جدة'), 'chosen branch shows in the summary');
   await page.click('[data-seg-name="reqType"][data-v="طارئ"]');
@@ -404,7 +412,7 @@ function log(msg) { console.log('  ✔ ' + msg); }
   await page.click(`.req:has-text("${newId}") [data-act="receive"]`);
   await page.waitForSelector('.rcv-note.last');
   expect(await page.locator('#rShip .chip').count() === 0, 'last shipment: no picker');
-  await page.fill('#rName', 'منيرة');
+  expect(await page.getAttribute('#rName', 'readonly') !== null && await page.inputValue('#rName') === 'سارة', 'receiver name is locked to the logged-in nurse');
   await sign(1.5);
   await shot(page, 'nurse-receive-last-shipment');
   await page.click('#rOk');

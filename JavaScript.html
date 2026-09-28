@@ -13,9 +13,9 @@ const SYNC_INTERVAL_MS = 60 * 1000;
    ===================================================================== */
 const I18N = {
   ar: {
-    lang_switch: 'English', theme_toggle: 'الوضع الليلي/النهاري', brand_tag: 'إدارة مستلزمات العيادات',
-    login_hero_title: 'دورة طلب المستلزمات كاملة، في مكان واحد',
-    login_hero_sub: 'من رفع الطلب في العيادة إلى اعتماد الطبيب ثم التجهيز والإرسال والاستلام بالتوقيع — مع متابعة لحظية ومؤشرات أداء.',
+    lang_switch: 'English', theme_toggle: 'الوضع الليلي/النهاري', brand_tag: 'إدارة مستلزمات العيادات', req_kind: 'الطلب لـ', kind_doctor: 'طلب طبيب', kind_clinic: 'مستهلكات عيادة', kind_doctor_hint: 'الطلب الاعتيادي: يُرفع باسم الطبيب ويصل لصفحته ليعتمده بنفسه قبل التجهيز.', kind_clinic_hint: 'لمستهلكات العيادة العامة فقط (بدون طبيب) — تذهب للتموين مباشرة.', linked_doctor: 'الطبيب المرتبط بالحساب', linked_doctor_hint: 'اسم الطبيب كما يظهر في قائمة الأطباء — لتصل طلباته لهذا الحساب', link_auto: 'تلقائي (حسب اسم الحساب)', linked_now: 'مرتبط حالياً بـ: {n}', not_linked: 'غير مرتبط بطبيب', unlinked_title: '{n} طبيب بلا حساب مرتبط:', unlinked_hint: 'طلباتهم لا تصل لصفحة أي طبيب وتذهب للتموين دون اعتماد. عدّل حساب الطبيب واختر اسمه من «الطبيب المرتبط».', built_by: 'Built & Developed by Ibrahim Alluhaydi',
+    login_hero_title: 'مسار',
+    login_hero_sub: 'مسار إمداد متكامل | نظام إدارة المستهلكات بذكاء وشفافية',
     flow_1: 'رفع الطلب', flow_2: 'التجهيز', flow_3: 'اعتماد الطبيب', flow_4: 'الإرسال', flow_5: 'الاستلام والتوقيع',
     login_title: 'مرحباً بعودتك', login_sub: 'سجّل الدخول بالاسم والرقم السري المسجّلين لدى الإدارة.',
     login_name_label: 'الاسم', login_name_ph: 'اكتب اسمك كما هو مسجّل', login_pass_label: 'الرقم السري', login_pass_ph: '••••••',
@@ -24,7 +24,7 @@ const I18N = {
     screen_nurse: 'تمريض', screen_procurement: 'تموين', screen_doctor: 'طبيب', screen_dashboard: 'جودة / إدارة', screen_admin: 'إدارة تنفيذية',
     nav_new: 'طلب جديد', nav_mine: 'طلباتي', nav_requests: 'الطلبات', nav_complaints: 'البلاغات', nav_reviews: 'المراجعات',
     nav_overview: 'نظرة عامة', nav_notices: 'التنبيهات', nav_users: 'المستخدمون',
-    sub_new: 'اختر العيادة والطبيب ثم أضف الأصناف المطلوبة', sub_mine: 'تابع حالة طلباتك وأكّد الاستلام',
+    sub_new: 'اختر الطبيب ثم أضف الأصناف المطلوبة', sub_mine: 'تابع حالة طلباتك وأكّد الاستلام',
     sub_requests: 'جهّز الطلبات المعتمدة ثم أرسلها للفرع', sub_complaints: 'بلاغات التأخير والنقص والزيادة',
     sub_reviews: 'راجع الطلبات واعتمدها أو ارفضها', sub_overview: 'مؤشرات الأداء وزمن التنفيذ', sub_notices: 'أرسل تنبيهات للإدارات',
     sub_users: 'إدارة الحسابات والأدوار والصلاحيات',
@@ -48,7 +48,7 @@ const I18N = {
     no_requests: 'لا توجد طلبات', no_requests_sub: 'ستظهر الطلبات هنا فور رفعها.', no_match: 'لا توجد نتائج مطابقة', no_match_sub: 'جرّب تغيير الفلاتر أو كلمة البحث.',
     items_count: '{n} صنف', dispatched_of: '{a}/{b} أُرسل',
     receive_title: 'تأكيد الاستلام', receive_sub: 'راجع الكميات المستلمة فعلياً ووقّع', sent_qty: 'المرسل', received_qty: 'المستلم فعلياً',
-    receiver_name: 'اسم المستلم', signature: 'التوقيع', signature_hint: 'وقّع هنا بالإصبع أو الفأرة', clear_sig: 'مسح',
+    receiver_name: 'اسم المستلم', receiver_locked: 'يُسجَّل الاستلام باسم حسابك تلقائياً ولا يمكن تغييره', signature: 'التوقيع', signature_hint: 'وقّع هنا بالإصبع أو الفأرة', clear_sig: 'مسح',
     confirm_receive: 'تأكيد الاستلام', received_ok: 'تم تأكيد استلام {id}', receiver_required: 'اسم المستلم إلزامي',
     cancel: 'إلغاء', close: 'إغلاق', save: 'حفظ', delete: 'حذف', edit: 'تعديل', send: 'إرسال', confirm: 'تأكيد', back: 'رجوع',
     select_all: 'تحديد الكل', selected: 'محدد', clear_selection: 'إلغاء التحديد',
@@ -95,7 +95,7 @@ const I18N = {
     confirm_delete_role: 'حذف الدور «{n}»؟', role_saved: 'تم حفظ الدور',
     alert_to_receive: 'لديك <b>{n}</b> طلب فيه شحنات بانتظار تأكيد الاستلام', alert_rejected: '<b>{n}</b> من طلباتك رُفض من الطبيب — راجع السبب وأعد الإرسال',
     alert_urgent_new: '<b>{n}</b> طلب طارئ معتمد بانتظار التجهيز', alert_new: '<b>{n}</b> طلب جاهز للتجهيز', alert_approved_ready: '<b>{n}</b> طلب مجهّز جاهز للإرسال للفرع',
-    alert_rejected_proc: '<b>{n}</b> طلب مرفوض من الطبيب يحتاج مراجعة', alert_stale: '<b>{n}</b> طلب متأخر أكثر من 72 ساعة', alert_pending_review: '<b>{n}</b> طلب بانتظار مراجعتك', alert_urgent_review: '<b>{n}</b> طلب طارئ ما زال لدى الطبيب للاعتماد', grp_wait_doctor: 'لدى الطبيب', grp_ready_prep: 'جاهز للتجهيز', resubmit: 'إعادة الإرسال للطبيب', this_shipment: 'كمية هذه الشحنة', total_units: 'إجمالي الكمية', sent_progress: 'الإرسال', sent_of: 'أُرسل {a} من {b}', left_n: 'باقي {n}', item_done: 'مكتمل', item_zero: 'لا يُرسل (الكمية 0)', partial_badge: 'جزئي {a}/{b}', ships_n: '{n} شحنات', units_sent_of: 'أُرسل {a} من {b} قطعة', remaining_list: 'المتبقي', ship_units: '{n} قطعة', items_done_of: 'أصناف مكتملة {a} من {b}', partial_items: '{n} صنف أُرسل جزئياً', alert_partial: '<b>{n}</b> طلب مُرسل جزئياً ما زال له أصناف أو كميات متبقية', ERR_QTY_EXCEEDS: 'الكمية أكبر من المتبقي لهذا الصنف', ERR_QTY_MIN1: 'لا يمكن طلب صفر — أقل كمية 1', nav_reports: 'التقارير والإحصائيات', sub_reports: 'إحصائيات الطلبات والقيمة لكل طبيب وفرع وعيادة، وتقرير أي طبيب بأسعاره', all_time: 'كل الفترات', rp_update: 'تحديث', rp_value: 'القيمة', rp_approved_rate: 'نسبة الاعتماد', rp_reject_rate: 'نسبة الرفض', rp_avg_approval: 'متوسط زمن اعتماد الطبيب', rp_avg_fulfil: 'متوسط زمن الإرسال', rp_pending_doc: 'بانتظار الطبيب', rp_approved: 'معتمد', rp_avg_request: 'متوسط قيمة الطلب', rp_report: 'تقرير', rp_received: 'نسبة الاستلام', rp_in_requests: 'في طلبات', rp_by_doctor: 'حسب الطبيب', rp_by_branch: 'حسب الفرع', rp_by_clinic: 'حسب العيادة', rp_export_stats: 'تصدير الإحصائيات (Excel)', rp_doc_title: 'تقرير طبيب — تاريخ طلباته بالأسعار', rp_doc_sub: 'اختر الطبيب من القائمة؛ يُستخدم نفس فلتر الفترة أعلاه', rp_doc_hint: 'اختر طبيباً ثم «إصدار التقرير» — أو اضغط «تقرير» بجانب أي طبيب في الجدول', t_reports_t: 'التقارير والإحصائيات', t_reports_b: 'إحصائيات كل طبيب وفرع وعيادة بالقيمة والأزمنة، وتقرير أي طبيب بأسعاره من قائمة منسدلة مع طباعة وتصدير.', stamp_submitted: 'رُفع', stamp_approved: 'اعتُمد', stamp_rejected: 'رُفض', stamp_prep: 'بدأ التجهيز', stamp_vendor_wait: 'طُلب من المندوب', stamp_vendor_recv: 'وصل من المندوب', stamp_sent: 'أُرسل', stamp_received: 'استُلم', stamp_shipment: 'آخر شحنة', approved_qty: 'الكمية المعتمدة', doctor_qty_hint: 'يمكنك تعديل الكمية قبل الاعتماد — تصل للتموين كما اعتمدتها بالضبط (0 = لا يُصرف الصنف)', qty_by_doctor: 'الكميات كما اعتمدها الطبيب — للنقص استخدم الإرسال الجزئي', ERR_DOCTOR_QTY: 'كميات هذا الطلب يحددها الطبيب عند الاعتماد', ERR_ALL_ZERO: 'لا يمكن اعتماد كل الأصناف بصفر — استخدم الرفض مع السبب', ERR_BUSY: 'النظام مشغول بطلبات كثيرة الآن — لم يُحفظ شيء، حاول بعد لحظات', busy_retry: 'ضغط عالٍ على النظام — نعيد المحاولة تلقائياً…', show_more: 'عرض المزيد ({n}) — باقي {left}', show_archive: 'عرض الأرشيف (الطلبات المكتملة الأقدم من 60 يوماً)', change_pw: 'تغيير الرقم السري', change_pw_sub: 'لكل مستخدم رقمه السري الخاص — لا تشاركه مع أحد', pw_current: 'الرقم السري الحالي', pw_new: 'الرقم السري الجديد', pw_confirm: 'تأكيد الرقم السري الجديد', pw_rules: '4 خانات على الأقل، ويختلف عن الحالي', pw_mismatch: 'التأكيد لا يطابق الرقم الجديد', pw_changed: 'تم تغيير الرقم السري — استخدمه في الدخول القادم', pw_save: 'حفظ الرقم الجديد', ERR_WRONG_PASSWORD: 'الرقم السري الحالي غير صحيح', ERR_SAME_PASSWORD: 'الرقم الجديد مطابق للحالي — اختر رقماً مختلفاً', ERR_PASSWORD_TOO_LONG: 'الرقم السري طويل جداً (64 خانة كحد أقصى)', ERR_QTY_MIN1_ITEM: 'لا يمكن طلب صفر من «{n}» — أقل كمية 1', qty_hint: 'اكتب الكمية المتوفرة الآن — الباقي يبقى مفتوحاً للشحنة القادمة', rep_btn: 'تقرير الطلبات', rep_btn_doc: 'تقرير طبيب', rep_title: 'تقرير طلبات الطبيب', rep_mode_month: 'شهر محدد', rep_mode_cum: 'تراكمي حتى تاريخ', rep_month: 'الشهر', rep_to: 'حتى تاريخ', rep_doctor: 'الطبيب', rep_generate: 'إصدار التقرير', rep_period: 'الفترة', rep_all_until: 'كل الطلبات حتى {d}', rep_generated: 'أُصدر في', rep_requests: 'عدد الطلبات', rep_lines: 'بنود الأصناف', rep_qty: 'إجمالي الكمية', rep_total: 'الإجمالي', rep_price: 'سعر الوحدة', rep_line_total: 'الإجمالي', rep_subtotal: 'إجمالي الطلب', rep_top: 'الأصناف الأعلى قيمة', rep_unpriced: '{n} بند بدون سعر في الكتالوج (محسوب بصفر)', rep_empty: 'لا توجد طلبات في هذه الفترة', rep_print: 'طباعة / PDF', rep_csv: 'تصدير Excel', rep_note: 'الكمية = المعتمدة (أو المطلوبة إن لم تُعدَّل) · السعر من الكتالوج · الطلبات المرفوضة غير محسوبة', ERR_BAD_RANGE: 'نطاق التاريخ غير صحيح', t_doc_report_t: 'تقرير طلباتك', t_doc_report_b: 'أصدر تقريراً مرتباً بطلباتك مع السعر والإجمالي لشهر محدد أو تراكمياً حتى تاريخ، واطبعه أو صدّره.', resubmit_title: 'إعادة إرسال الطلب للطبيب', resubmit_note: 'ملاحظة للطبيب (اختياري) — ماذا عدّلتِ؟', resubmitted_ok: 'أُعيد الطلب {id} للطبيب', ERR_NO_DOCTOR_ACCOUNT: 'الطبيب ليس له حساب في النظام — لا يحتاج مراجعة', close_mgmt_only: 'إغلاق البلاغات من الجودة والإدارة التنفيذية',
+    alert_rejected_proc: '<b>{n}</b> طلب مرفوض من الطبيب يحتاج مراجعة', alert_stale: '<b>{n}</b> طلب متأخر أكثر من 72 ساعة', alert_pending_review: '<b>{n}</b> طلب بانتظار مراجعتك', alert_urgent_review: '<b>{n}</b> طلب طارئ ما زال لدى الطبيب للاعتماد', grp_wait_doctor: 'لدى الطبيب', grp_ready_prep: 'جاهز للتجهيز', resubmit: 'إعادة الإرسال للطبيب', this_shipment: 'كمية هذه الشحنة', total_units: 'إجمالي الكمية', sent_progress: 'الإرسال', sent_of: 'أُرسل {a} من {b}', left_n: 'باقي {n}', item_done: 'مكتمل', item_zero: 'لا يُرسل (الكمية 0)', partial_badge: 'جزئي {a}/{b}', ships_n: '{n} شحنات', units_sent_of: 'أُرسل {a} من {b} قطعة', remaining_list: 'المتبقي', ship_units: '{n} قطعة', items_done_of: 'أصناف مكتملة {a} من {b}', partial_items: '{n} صنف أُرسل جزئياً', alert_partial: '<b>{n}</b> طلب مُرسل جزئياً ما زال له أصناف أو كميات متبقية', ERR_QTY_EXCEEDS: 'الكمية أكبر من المتبقي لهذا الصنف', ERR_QTY_MIN1: 'لا يمكن طلب صفر — أقل كمية 1', bad_prices_title: 'أسعار غير صالحة في الكتالوج (حُسبت صفراً حتى تُصحَّح):', bad_prices_fix: 'صحّح خلية السعر في تبويب ItemsCatalog واكتبها رقماً فقط (مثل 300 أو 27.5) — إن ظهرت كتاريخ غيّر تنسيق العمود إلى «رقم».', price_issue_date: 'مكتوب كتاريخ', price_issue_text: 'ليس رقماً', price_issue_too_big: 'قيمة غير منطقية', price_issue_negative: 'سالب', nav_reports: 'التقارير والإحصائيات', sub_reports: 'إحصائيات الطلبات والقيمة لكل طبيب وفرع وعيادة، وتقرير أي طبيب بأسعاره', all_time: 'كل الفترات', rp_update: 'تحديث', rp_value: 'القيمة', rp_approved_rate: 'نسبة الاعتماد', rp_reject_rate: 'نسبة الرفض', rp_avg_approval: 'متوسط زمن اعتماد الطبيب', rp_avg_fulfil: 'متوسط زمن الإرسال', rp_pending_doc: 'بانتظار الطبيب', rp_approved: 'معتمد', rp_avg_request: 'متوسط قيمة الطلب', rp_report: 'تقرير', rp_received: 'نسبة الاستلام', rp_in_requests: 'في طلبات', rp_by_doctor: 'حسب الطبيب', rp_by_branch: 'حسب الفرع', rp_by_clinic: 'حسب العيادة', rp_export_stats: 'تصدير الإحصائيات (Excel)', rp_doc_title: 'تقرير طبيب — تاريخ طلباته بالأسعار', rp_doc_sub: 'اختر الطبيب من القائمة؛ يُستخدم نفس فلتر الفترة أعلاه', rp_doc_hint: 'اختر طبيباً ثم «إصدار التقرير» — أو اضغط «تقرير» بجانب أي طبيب في الجدول', t_reports_t: 'التقارير والإحصائيات', t_reports_b: 'إحصائيات كل طبيب وفرع وعيادة بالقيمة والأزمنة، وتقرير أي طبيب بأسعاره من قائمة منسدلة مع طباعة وتصدير.', stamp_submitted: 'رُفع', stamp_approved: 'اعتُمد', stamp_rejected: 'رُفض', stamp_prep: 'بدأ التجهيز', stamp_vendor_wait: 'طُلب من المندوب', stamp_vendor_recv: 'وصل من المندوب', stamp_sent: 'أُرسل', stamp_received: 'استُلم', stamp_shipment: 'آخر شحنة', approved_qty: 'الكمية المعتمدة', doctor_qty_hint: 'يمكنك تعديل الكمية قبل الاعتماد — تصل للتموين كما اعتمدتها بالضبط (0 = لا يُصرف الصنف)', qty_by_doctor: 'الكميات كما اعتمدها الطبيب — للنقص استخدم الإرسال الجزئي', ERR_DOCTOR_QTY: 'كميات هذا الطلب يحددها الطبيب عند الاعتماد', ERR_ALL_ZERO: 'لا يمكن اعتماد كل الأصناف بصفر — استخدم الرفض مع السبب', ERR_BUSY: 'النظام مشغول بطلبات كثيرة الآن — لم يُحفظ شيء، حاول بعد لحظات', busy_retry: 'ضغط عالٍ على النظام — نعيد المحاولة تلقائياً…', show_more: 'عرض المزيد ({n}) — باقي {left}', show_archive: 'عرض الأرشيف (الطلبات المكتملة الأقدم من 60 يوماً)', change_pw: 'تغيير الرقم السري', change_pw_sub: 'لكل مستخدم رقمه السري الخاص — لا تشاركه مع أحد', pw_current: 'الرقم السري الحالي', pw_new: 'الرقم السري الجديد', pw_confirm: 'تأكيد الرقم السري الجديد', pw_rules: '4 خانات على الأقل، ويختلف عن الحالي', pw_mismatch: 'التأكيد لا يطابق الرقم الجديد', pw_changed: 'تم تغيير الرقم السري — استخدمه في الدخول القادم', pw_save: 'حفظ الرقم الجديد', ERR_WRONG_PASSWORD: 'الرقم السري الحالي غير صحيح', ERR_SAME_PASSWORD: 'الرقم الجديد مطابق للحالي — اختر رقماً مختلفاً', ERR_PASSWORD_TOO_LONG: 'الرقم السري طويل جداً (64 خانة كحد أقصى)', ERR_QTY_MIN1_ITEM: 'لا يمكن طلب صفر من «{n}» — أقل كمية 1', qty_hint: 'اكتب الكمية المتوفرة الآن — الباقي يبقى مفتوحاً للشحنة القادمة', rep_btn: 'تقرير الطلبات', rep_btn_doc: 'تقرير طبيب', rep_title: 'تقرير طلبات الطبيب', rep_mode_month: 'شهر محدد', rep_mode_cum: 'تراكمي حتى تاريخ', rep_month: 'الشهر', rep_to: 'حتى تاريخ', rep_doctor: 'الطبيب', rep_generate: 'إصدار التقرير', rep_period: 'الفترة', rep_all_until: 'كل الطلبات حتى {d}', rep_generated: 'أُصدر في', rep_requests: 'عدد الطلبات', rep_lines: 'بنود الأصناف', rep_qty: 'إجمالي الكمية', rep_total: 'الإجمالي', rep_price: 'سعر الوحدة', rep_line_total: 'الإجمالي', rep_subtotal: 'إجمالي الطلب', rep_top: 'الأصناف الأعلى قيمة', rep_unpriced: '{n} بند بدون سعر في الكتالوج (محسوب بصفر)', rep_empty: 'لا توجد طلبات في هذه الفترة', rep_print: 'طباعة / PDF', rep_csv: 'تصدير Excel', rep_note: 'الكمية = المعتمدة (أو المطلوبة إن لم تُعدَّل) · السعر من الكتالوج · الطلبات المرفوضة غير محسوبة', ERR_BAD_RANGE: 'نطاق التاريخ غير صحيح', t_doc_report_t: 'تقرير طلباتك', t_doc_report_b: 'أصدر تقريراً مرتباً بطلباتك مع السعر والإجمالي لشهر محدد أو تراكمياً حتى تاريخ، واطبعه أو صدّره.', resubmit_title: 'إعادة إرسال الطلب للطبيب', resubmit_note: 'ملاحظة للطبيب (اختياري) — ماذا عدّلتِ؟', resubmitted_ok: 'أُعيد الطلب {id} للطبيب', ERR_NO_DOCTOR_ACCOUNT: 'الطبيب ليس له حساب في النظام — لا يحتاج مراجعة', close_mgmt_only: 'إغلاق البلاغات من الجودة والإدارة التنفيذية',
     alert_open_complaints: '<b>{n}</b> بلاغ مفتوح', view: 'عرض',
     just_now: 'الآن', loading: 'جاري التحميل…', saving: 'جاري الحفظ…', sending: 'جاري الإرسال…', done: 'تم بنجاح', error_generic: 'حدث خطأ غير متوقع',
     ERR_SESSION: 'انتهت الجلسة — سجّل الدخول مجدداً', ERR_FORBIDDEN: 'ليست لديك صلاحية لهذا الإجراء', ERR_NOT_FOUND: 'العنصر غير موجود (ربما حُذف)',
@@ -110,9 +110,9 @@ const I18N = {
     ERR_BAD_RESPONSE: 'الخادم رجّع صفحة بدل بيانات — تأكد من إعدادات النشر', ERR_NETWORK: 'تعذّر الاتصال بالخادم — حاول مرة أخرى', ERR_BAD_BATCH: 'طلب غير صالح'
   },
   en: {
-    lang_switch: 'عربي', theme_toggle: 'Toggle dark mode', brand_tag: 'Clinic supply management',
-    login_hero_title: 'The whole supply request cycle, in one place',
-    login_hero_sub: 'From the clinic request to doctor approval, preparation, dispatch and signed receipt — with live tracking and KPIs.',
+    lang_switch: 'عربي', theme_toggle: 'Toggle dark mode', brand_tag: 'Clinic supply management', req_kind: 'Request for', kind_doctor: 'Doctor request', kind_clinic: 'Clinic consumables', kind_doctor_hint: 'The usual request: raised for a doctor and sent to their page for approval before preparation.', kind_clinic_hint: 'Only for general clinic consumables (no doctor) — goes straight to procurement.', linked_doctor: 'Linked doctor', linked_doctor_hint: 'The doctor name as in the doctors list — so their requests reach this account', link_auto: 'Automatic (by account name)', linked_now: 'Currently linked to: {n}', not_linked: 'Not linked to a doctor', unlinked_title: '{n} doctor(s) without a linked account:', unlinked_hint: 'Their requests reach no doctor page and go to procurement unapproved. Edit the doctor account and pick the name under "Linked doctor".', built_by: 'Built & Developed by Ibrahim Alluhaydi',
+    login_hero_title: 'Supply Flow',
+    login_hero_sub: 'Integrated Supply Chain | Smart & Transparent Consumable Management System',
     flow_1: 'Request', flow_2: 'Prepare', flow_3: 'Doctor approval', flow_4: 'Dispatch', flow_5: 'Receive & sign',
     login_title: 'Welcome back', login_sub: 'Sign in with the name and password registered by your admin.',
     login_name_label: 'Name', login_name_ph: 'Your registered name', login_pass_label: 'Password', login_pass_ph: '••••••',
@@ -121,7 +121,7 @@ const I18N = {
     screen_nurse: 'Nursing', screen_procurement: 'Procurement', screen_doctor: 'Doctor', screen_dashboard: 'Quality / Mgmt', screen_admin: 'Executive',
     nav_new: 'New request', nav_mine: 'My requests', nav_requests: 'Requests', nav_complaints: 'Issues', nav_reviews: 'Reviews',
     nav_overview: 'Overview', nav_notices: 'Notices', nav_users: 'Users',
-    sub_new: 'Pick clinic and doctor, then add the items you need', sub_mine: 'Track your requests and confirm receipt',
+    sub_new: 'Pick the doctor, then add the items you need', sub_mine: 'Track your requests and confirm receipt',
     sub_requests: 'Prepare approved requests, then dispatch them', sub_complaints: 'Delay, shortage and excess reports',
     sub_reviews: 'Review, approve or reject requests', sub_overview: 'Performance and fulfilment time', sub_notices: 'Send notices to departments',
     sub_users: 'Manage accounts, roles and access',
@@ -145,7 +145,7 @@ const I18N = {
     no_requests: 'No requests', no_requests_sub: 'Requests will appear here once submitted.', no_match: 'No matching results', no_match_sub: 'Try changing filters or search.',
     items_count: '{n} items', dispatched_of: '{a}/{b} sent',
     receive_title: 'Confirm receipt', receive_sub: 'Check the actually received quantities and sign', sent_qty: 'Sent', received_qty: 'Actually received',
-    receiver_name: 'Receiver name', signature: 'Signature', signature_hint: 'Sign here with finger or mouse', clear_sig: 'Clear',
+    receiver_name: 'Receiver name', receiver_locked: 'Receipt is recorded under your account name and cannot be changed', signature: 'Signature', signature_hint: 'Sign here with finger or mouse', clear_sig: 'Clear',
     confirm_receive: 'Confirm receipt', received_ok: 'Receipt of {id} confirmed', receiver_required: 'Receiver name is required',
     cancel: 'Cancel', close: 'Close', save: 'Save', delete: 'Delete', edit: 'Edit', send: 'Send', confirm: 'Confirm', back: 'Back',
     select_all: 'Select all', selected: 'selected', clear_selection: 'Clear',
@@ -192,7 +192,7 @@ const I18N = {
     confirm_delete_role: 'Delete role “{n}”?', role_saved: 'Role saved',
     alert_to_receive: 'You have <b>{n}</b> request(s) with shipments awaiting receipt', alert_rejected: '<b>{n}</b> of your requests were rejected — check the reason and resubmit',
     alert_urgent_new: '<b>{n}</b> approved emergency request(s) to prepare', alert_new: '<b>{n}</b> request(s) ready to prepare', alert_approved_ready: '<b>{n}</b> prepared request(s) ready to dispatch',
-    alert_rejected_proc: '<b>{n}</b> request(s) rejected by doctor need attention', alert_stale: '<b>{n}</b> request(s) older than 72h', alert_pending_review: '<b>{n}</b> request(s) awaiting your review', alert_urgent_review: '<b>{n}</b> emergency request(s) still awaiting doctor approval', grp_wait_doctor: 'With doctor', grp_ready_prep: 'Ready to prepare', resubmit: 'Resubmit to doctor', this_shipment: 'Qty this shipment', total_units: 'Total units', sent_progress: 'Dispatch', sent_of: '{a} of {b} sent', left_n: '{n} left', item_done: 'Complete', item_zero: 'Not sent (qty 0)', partial_badge: 'Partial {a}/{b}', ships_n: '{n} shipments', units_sent_of: '{a} of {b} units sent', remaining_list: 'Remaining', ship_units: '{n} units', items_done_of: '{a} of {b} items complete', partial_items: '{n} item(s) partially sent', alert_partial: '<b>{n}</b> partially-sent request(s) still have items or quantities left', ERR_QTY_EXCEEDS: 'Quantity exceeds what is left for this item', ERR_QTY_MIN1: 'Quantity can’t be zero — minimum is 1', nav_reports: 'Reports & statistics', sub_reports: 'Request and value statistics by doctor, branch and clinic, plus any doctor’s priced report', all_time: 'All time', rp_update: 'Update', rp_value: 'Value', rp_approved_rate: 'Approval rate', rp_reject_rate: 'Rejection rate', rp_avg_approval: 'Avg doctor approval time', rp_avg_fulfil: 'Avg time to dispatch', rp_pending_doc: 'Awaiting doctor', rp_approved: 'Approved', rp_avg_request: 'Avg request value', rp_report: 'Report', rp_received: 'Received', rp_in_requests: 'In requests', rp_by_doctor: 'By doctor', rp_by_branch: 'By branch', rp_by_clinic: 'By clinic', rp_export_stats: 'Export statistics (Excel)', rp_doc_title: 'Doctor report — request history with prices', rp_doc_sub: 'Pick the doctor; the period filter above applies', rp_doc_hint: 'Pick a doctor and press “Generate report” — or tap “Report” next to any doctor in the table', t_reports_t: 'Reports & statistics', t_reports_b: 'Statistics per doctor, branch and clinic with value and times, and any doctor’s priced report from a dropdown with print and export.', stamp_submitted: 'Submitted', stamp_approved: 'Approved', stamp_rejected: 'Rejected', stamp_prep: 'Prep started', stamp_vendor_wait: 'Vendor requested', stamp_vendor_recv: 'From vendor', stamp_sent: 'Sent', stamp_received: 'Received', stamp_shipment: 'Last shipment', approved_qty: 'Approved qty', doctor_qty_hint: 'You can adjust quantities before approving — procurement receives exactly what you approve (0 = not issued)', qty_by_doctor: 'Quantities as approved by the doctor — use partial dispatch for shortages', ERR_DOCTOR_QTY: 'This request’s quantities are set by the doctor on approval', ERR_ALL_ZERO: 'All items can’t be zero — reject with a reason instead', ERR_BUSY: 'The system is busy right now — nothing was saved, try again in a moment', busy_retry: 'High load — retrying automatically…', show_more: 'Show more ({n}) — {left} left', show_archive: 'Show archive (completed requests older than 60 days)', change_pw: 'Change password', change_pw_sub: 'Everyone has their own password — never share it', pw_current: 'Current password', pw_new: 'New password', pw_confirm: 'Confirm new password', pw_rules: 'At least 4 characters, different from the current one', pw_mismatch: 'Confirmation does not match the new password', pw_changed: 'Password changed — use it next time you sign in', pw_save: 'Save new password', ERR_WRONG_PASSWORD: 'Current password is incorrect', ERR_SAME_PASSWORD: 'The new password is the same as the current one', ERR_PASSWORD_TOO_LONG: 'Password is too long (max 64)', ERR_QTY_MIN1_ITEM: '“{n}” can’t be zero — minimum quantity is 1', qty_hint: 'Enter what is available now — the rest stays open for the next shipment', rep_btn: 'Requests report', rep_btn_doc: 'Doctor report', rep_title: 'Doctor requests report', rep_mode_month: 'A month', rep_mode_cum: 'Cumulative up to a date', rep_month: 'Month', rep_to: 'Up to', rep_doctor: 'Doctor', rep_generate: 'Generate report', rep_period: 'Period', rep_all_until: 'All requests up to {d}', rep_generated: 'Generated', rep_requests: 'Requests', rep_lines: 'Item lines', rep_qty: 'Total quantity', rep_total: 'Grand total', rep_price: 'Unit price', rep_line_total: 'Total', rep_subtotal: 'Request total', rep_top: 'Top items by value', rep_unpriced: '{n} line(s) have no catalog price (counted as 0)', rep_empty: 'No requests in this period', rep_print: 'Print / PDF', rep_csv: 'Export Excel', rep_note: 'Qty = approved (or requested if unchanged) · price from catalog · rejected requests excluded', ERR_BAD_RANGE: 'Invalid date range', t_doc_report_t: 'Your requests report', t_doc_report_b: 'Generate a tidy report of your requests with prices and totals for a month or cumulatively up to a date, then print or export it.', resubmit_title: 'Resubmit to the doctor', resubmit_note: 'Note to the doctor (optional) — what changed?', resubmitted_ok: 'Request {id} resubmitted to the doctor', ERR_NO_DOCTOR_ACCOUNT: 'The doctor has no account — no review needed', close_mgmt_only: 'Issues are closed by Quality and executive management',
+    alert_rejected_proc: '<b>{n}</b> request(s) rejected by doctor need attention', alert_stale: '<b>{n}</b> request(s) older than 72h', alert_pending_review: '<b>{n}</b> request(s) awaiting your review', alert_urgent_review: '<b>{n}</b> emergency request(s) still awaiting doctor approval', grp_wait_doctor: 'With doctor', grp_ready_prep: 'Ready to prepare', resubmit: 'Resubmit to doctor', this_shipment: 'Qty this shipment', total_units: 'Total units', sent_progress: 'Dispatch', sent_of: '{a} of {b} sent', left_n: '{n} left', item_done: 'Complete', item_zero: 'Not sent (qty 0)', partial_badge: 'Partial {a}/{b}', ships_n: '{n} shipments', units_sent_of: '{a} of {b} units sent', remaining_list: 'Remaining', ship_units: '{n} units', items_done_of: '{a} of {b} items complete', partial_items: '{n} item(s) partially sent', alert_partial: '<b>{n}</b> partially-sent request(s) still have items or quantities left', ERR_QTY_EXCEEDS: 'Quantity exceeds what is left for this item', ERR_QTY_MIN1: 'Quantity can’t be zero — minimum is 1', bad_prices_title: 'Invalid catalog prices (counted as 0 until fixed):', bad_prices_fix: 'Fix the Price cell in the ItemsCatalog tab as a plain number (e.g. 300 or 27.5) — if it shows as a date, format the column as Number.', price_issue_date: 'entered as a date', price_issue_text: 'not a number', price_issue_too_big: 'unrealistic value', price_issue_negative: 'negative', nav_reports: 'Reports & statistics', sub_reports: 'Request and value statistics by doctor, branch and clinic, plus any doctor’s priced report', all_time: 'All time', rp_update: 'Update', rp_value: 'Value', rp_approved_rate: 'Approval rate', rp_reject_rate: 'Rejection rate', rp_avg_approval: 'Avg doctor approval time', rp_avg_fulfil: 'Avg time to dispatch', rp_pending_doc: 'Awaiting doctor', rp_approved: 'Approved', rp_avg_request: 'Avg request value', rp_report: 'Report', rp_received: 'Received', rp_in_requests: 'In requests', rp_by_doctor: 'By doctor', rp_by_branch: 'By branch', rp_by_clinic: 'By clinic', rp_export_stats: 'Export statistics (Excel)', rp_doc_title: 'Doctor report — request history with prices', rp_doc_sub: 'Pick the doctor; the period filter above applies', rp_doc_hint: 'Pick a doctor and press “Generate report” — or tap “Report” next to any doctor in the table', t_reports_t: 'Reports & statistics', t_reports_b: 'Statistics per doctor, branch and clinic with value and times, and any doctor’s priced report from a dropdown with print and export.', stamp_submitted: 'Submitted', stamp_approved: 'Approved', stamp_rejected: 'Rejected', stamp_prep: 'Prep started', stamp_vendor_wait: 'Vendor requested', stamp_vendor_recv: 'From vendor', stamp_sent: 'Sent', stamp_received: 'Received', stamp_shipment: 'Last shipment', approved_qty: 'Approved qty', doctor_qty_hint: 'You can adjust quantities before approving — procurement receives exactly what you approve (0 = not issued)', qty_by_doctor: 'Quantities as approved by the doctor — use partial dispatch for shortages', ERR_DOCTOR_QTY: 'This request’s quantities are set by the doctor on approval', ERR_ALL_ZERO: 'All items can’t be zero — reject with a reason instead', ERR_BUSY: 'The system is busy right now — nothing was saved, try again in a moment', busy_retry: 'High load — retrying automatically…', show_more: 'Show more ({n}) — {left} left', show_archive: 'Show archive (completed requests older than 60 days)', change_pw: 'Change password', change_pw_sub: 'Everyone has their own password — never share it', pw_current: 'Current password', pw_new: 'New password', pw_confirm: 'Confirm new password', pw_rules: 'At least 4 characters, different from the current one', pw_mismatch: 'Confirmation does not match the new password', pw_changed: 'Password changed — use it next time you sign in', pw_save: 'Save new password', ERR_WRONG_PASSWORD: 'Current password is incorrect', ERR_SAME_PASSWORD: 'The new password is the same as the current one', ERR_PASSWORD_TOO_LONG: 'Password is too long (max 64)', ERR_QTY_MIN1_ITEM: '“{n}” can’t be zero — minimum quantity is 1', qty_hint: 'Enter what is available now — the rest stays open for the next shipment', rep_btn: 'Requests report', rep_btn_doc: 'Doctor report', rep_title: 'Doctor requests report', rep_mode_month: 'A month', rep_mode_cum: 'Cumulative up to a date', rep_month: 'Month', rep_to: 'Up to', rep_doctor: 'Doctor', rep_generate: 'Generate report', rep_period: 'Period', rep_all_until: 'All requests up to {d}', rep_generated: 'Generated', rep_requests: 'Requests', rep_lines: 'Item lines', rep_qty: 'Total quantity', rep_total: 'Grand total', rep_price: 'Unit price', rep_line_total: 'Total', rep_subtotal: 'Request total', rep_top: 'Top items by value', rep_unpriced: '{n} line(s) have no catalog price (counted as 0)', rep_empty: 'No requests in this period', rep_print: 'Print / PDF', rep_csv: 'Export Excel', rep_note: 'Qty = approved (or requested if unchanged) · price from catalog · rejected requests excluded', ERR_BAD_RANGE: 'Invalid date range', t_doc_report_t: 'Your requests report', t_doc_report_b: 'Generate a tidy report of your requests with prices and totals for a month or cumulatively up to a date, then print or export it.', resubmit_title: 'Resubmit to the doctor', resubmit_note: 'Note to the doctor (optional) — what changed?', resubmitted_ok: 'Request {id} resubmitted to the doctor', ERR_NO_DOCTOR_ACCOUNT: 'The doctor has no account — no review needed', close_mgmt_only: 'Issues are closed by Quality and executive management',
     alert_open_complaints: '<b>{n}</b> open issue(s)', view: 'View',
     just_now: 'just now', loading: 'Loading…', saving: 'Saving…', sending: 'Sending…', done: 'Done', error_generic: 'Something went wrong',
     ERR_SESSION: 'Session expired — please sign in again', ERR_FORBIDDEN: "You don't have permission for this", ERR_NOT_FOUND: 'Not found (maybe deleted)',
@@ -1147,8 +1147,8 @@ function renderDetail(m, d) {
       (d.rejectionReason ? '<div class="reject-box">' + icon('xc') + '<div><b>' + esc(t('rejection_reason')) + ':</b> ' + esc(d.rejectionReason) + '</div></div>' : '') +
       '<dl class="meta-grid">' +
         '<div><dt>' + esc(t('branch')) + '</dt><dd>' + esc(d.branch || '—') + '</dd></div>' +
-        '<div><dt>' + esc(t('clinic')) + '</dt><dd>' + esc(d.clinic) + '</dd></div>' +
-        '<div><dt>' + esc(t('doctor')) + '</dt><dd>' + esc(d.doctor) + '</dd></div>' +
+        '<div><dt>' + esc(t('clinic')) + '</dt><dd>' + esc(d.clinic || '—') + '</dd></div>' +
+        '<div><dt>' + esc(t('doctor')) + '</dt><dd>' + esc(docLabel(d)) + '</dd></div>' +
         '<div><dt>' + esc(t('nurse')) + '</dt><dd>' + esc(d.nurse) + '</dd></div>' +
         (d.receiver ? '<div><dt>' + esc(t('receiver')) + '</dt><dd>' + esc(d.receiver) + '</dd></div>' : '') +
       '</dl>' +
@@ -1242,10 +1242,13 @@ ACT.complaint = el => openComplaint(el.dataset.id);
 /* =====================================================================
    NURSE — new request
    ===================================================================== */
+/** الطبيب في بطاقة الطلب — أو «مستهلكات عيادة» للطلب بدون طبيب */
+function docLabel(r) { return r.doctor || t('kind_clinic'); }
 function nurseDraft() {
   if (!S.nurse.draft) {
     const saved = store.get('draft_' + S.user.name, null);
-    S.nurse.draft = saved && Array.isArray(saved.items) ? saved : { clinic: '', doctor: '', type: 'شهري', items: [] };
+    S.nurse.draft = saved && Array.isArray(saved.items) ? saved : { kind: 'doctor', clinic: '', doctor: '', type: 'شهري', items: [] };
+    if (S.nurse.draft.kind !== 'clinic') S.nurse.draft.kind = 'doctor';
     if (saved && saved.items && saved.items.length) setTimeout(() => toast(t('draft_restored'), 'info'), 400);
   }
   return S.nurse.draft;
@@ -1256,18 +1259,21 @@ VIEWS.new = {
   title: 'nav_new', sub: 'sub_new',
   render() {
     const d = nurseDraft();
-    if (!d.clinic || !S.clinics.some(c => c.name === d.clinic)) { d.clinic = S.clinics[0] ? S.clinics[0].name : ''; d.branch = ''; }
-    if (!d.branch || S.branches.indexOf(d.branch) === -1) d.branch = clinicBranch(d.clinic) || S.branches[0] || '';
+    const byClinic = d.kind === 'clinic';
+    if (byClinic && (!d.clinic || !S.clinics.some(c => c.name === d.clinic))) { d.clinic = S.clinics[0] ? S.clinics[0].name : ''; d.branch = ''; }
+    if (!d.branch || S.branches.indexOf(d.branch) === -1) d.branch = (byClinic && clinicBranch(d.clinic)) || S.branches[0] || '';
     return '<div id="nNotices"></div>' +
       '<div class="new-layout">' +
         '<div class="stack" style="gap:18px">' +
           '<section class="card"><div class="card-head"><h2>' + icon('building') + esc(t('req_details')) + '</h2></div><div class="card-body stack">' +
-            '<div class="form-grid">' +
-              '<div class="field"><label for="fClinic">' + esc(t('clinic')) + '</label><select class="select" id="fClinic" data-change="nClinic">' +
-                (S.clinics.length ? S.clinics.map(c => '<option' + (c.name === d.clinic ? ' selected' : '') + '>' + esc(c.name) + '</option>').join('') : '<option value="">' + esc(t('no_clinics')) + '</option>') +
-              '</select></div>' +
-              '<div class="field"><label for="fDoctor">' + esc(t('doctor')) + '</label><select class="select" id="fDoctor" data-change="nDoctor"><option>' + esc(t('loading')) + '</option></select></div>' +
-            '</div>' +
+            '<div class="field" id="fKind"><span class="label">' + esc(t('req_kind')) + '</span><div>' +
+              segmented('reqKind', [{ v: 'doctor', label: t('kind_doctor'), icon: 'steth' }, { v: 'clinic', label: t('kind_clinic'), icon: 'building' }], d.kind) +
+              '</div><div class="hint">' + icon('info', 'i-sm') + ' ' + esc(t(byClinic ? 'kind_clinic_hint' : 'kind_doctor_hint')) + '</div></div>' +
+            (byClinic
+              ? '<div class="field"><label for="fClinic">' + esc(t('clinic')) + '</label><select class="select" id="fClinic" data-change="nClinic">' +
+                  (S.clinics.length ? S.clinics.map(c => '<option' + (c.name === d.clinic ? ' selected' : '') + '>' + esc(c.name) + '</option>').join('') : '<option value="">' + esc(t('no_clinics')) + '</option>') +
+                '</select></div>'
+              : '<div class="field"><label for="fDoctor">' + esc(t('doctor')) + '</label><select class="select" id="fDoctor" data-change="nDoctor"><option>' + esc(t('loading')) + '</option></select></div>') +
             (S.branches.length ? '<div class="field"><label for="fBranch">' + icon('pin', 'i-sm') + ' ' + esc(t('branch')) + ' <span class="hint">· ' + esc(t('branch_hint')) + '</span></label>' +
               '<select class="select" id="fBranch" data-change="nBranch">' + S.branches.map(b => '<option' + (b === d.branch ? ' selected' : '') + '>' + esc(b) + '</option>').join('') + '</select></div>' : '') +
             '<div class="field"><span class="label">' + esc(t('type')) + '</span><div>' +
@@ -1300,6 +1306,12 @@ VIEWS.new = {
   },
   refresh() { loadNotices('nNotices'); }
 };
+SEG_HANDLERS.reqKind = v => {
+  const d = nurseDraft();
+  if (d.kind === v) return;
+  d.kind = v; d.doctor = ''; d.clinic = '';
+  saveDraft(); go('new', true);
+};
 SEG_HANDLERS.reqType = (v, seg) => {
   nurseDraft().type = v; saveDraft();
   seg.classList.toggle('emergency', v === 'طارئ');
@@ -1314,21 +1326,29 @@ ACT.nClinic = el => {
   saveDraft(); loadDoctors(); renderSummary();
 };
 ACT.nBranch = el => { nurseDraft().branch = el.value; saveDraft(); renderSummary(); };
-ACT.nDoctor = el => { nurseDraft().doctor = el.value; saveDraft(); loadProfile(); };
+ACT.nDoctor = el => { nurseDraft().doctor = el.value; syncDoctorBranch(); saveDraft(); loadProfile(); renderSummary(); };
+/* طلب الطبيب: الفرع الافتراضي = فرع عيادة الطبيب (إن عُرفت) */
+function syncDoctorBranch() {
+  const d = nurseDraft();
+  const doc = (S.nurse.doctors || []).find(x => x.name === d.doctor);
+  const c = doc && S.clinics.find(x => String(doc.clinic).split(/[,،]/).map(s => s.trim()).indexOf(x.name) !== -1);
+  const b = c && clinicBranch(c.name);
+  if (b && S.branches.indexOf(b) !== -1) { d.branch = b; const fb = $('#fBranch'); if (fb) fb.value = b; }
+}
 function loadDoctors() {
   const d = nurseDraft();
   const sel = $('#fDoctor');
-  if (!sel) return;
-  if (!d.clinic) { sel.innerHTML = '<option value="">' + esc(t('no_doctors')) + '</option>'; return; }
+  if (!sel) { if (d.kind === 'clinic') { const pc = $('#pkgCard'); if (pc) pc.classList.add('hidden'); } return; }
   sel.disabled = true;
-  call('getDoctors', d.clinic).then(list => {
+  call('getDoctors', '').then(list => {
     S.nurse.doctors = list || [];
     if (!document.contains(sel)) return; // المستخدم انتقل لشاشة أخرى قبل وصول الرد
     sel.disabled = false;
     if (!list.length) { sel.innerHTML = '<option value="">' + esc(t('no_doctors')) + '</option>'; d.doctor = ''; const pc = $('#pkgCard'); if (pc) pc.classList.add('hidden'); return; }
     if (!list.some(x => x.name === d.doctor)) d.doctor = list[0].name;
     sel.innerHTML = list.map(x => '<option value="' + esc(x.name) + '"' + (x.name === d.doctor ? ' selected' : '') + '>' + esc(x.name + (x.subspecialty ? ' — ' + x.subspecialty : '')) + '</option>').join('');
-    saveDraft();
+    syncDoctorBranch();
+    saveDraft(); renderSummary();
     loadProfile();
   }).catch(e => { if (document.contains(sel)) sel.disabled = false; toast(errMsg(e), 'error'); });
 }
@@ -1398,8 +1418,10 @@ function renderSummary() {
   const units = d.items.reduce((s, i) => s + (Number(i.qty) || 0), 0);
   $('#sumBox').innerHTML =
     (S.branches.length ? '<div class="sum-row"><span class="muted">' + esc(t('branch')) + '</span>' + (branchTag(d.branch) || '<b>—</b>') + '</div>' : '') +
-    '<div class="sum-row"><span class="muted">' + esc(t('clinic')) + '</span><b>' + esc(d.clinic || '—') + '</b></div>' +
-    '<div class="sum-row"><span class="muted">' + esc(t('doctor')) + '</span><b>' + esc(d.doctor || '—') + '</b></div>' +
+    (d.kind === 'clinic'
+      ? '<div class="sum-row"><span class="muted">' + esc(t('clinic')) + '</span><b>' + esc(d.clinic || '—') + '</b></div>' +
+        '<div class="sum-row"><span class="muted">' + esc(t('req_kind')) + '</span><b>' + esc(t('kind_clinic')) + '</b></div>'
+      : '<div class="sum-row"><span class="muted">' + esc(t('doctor')) + '</span><b>' + esc(d.doctor || '—') + '</b></div>') +
     '<div class="sum-row"><span class="muted">' + esc(t('type')) + '</span>' + typeTag(d.type) + '</div>' +
     '<div class="sum-row"><span class="muted">' + esc(t('sum_items')) + '</span><b>' + d.items.length + '</b></div>' +
     '<div class="sum-row"><span class="muted">' + esc(t('sum_units')) + '</span><b>' + fmtNum(units, 0) + '</b></div>';
@@ -1518,12 +1540,13 @@ ACT.submitRequest = el => {
     badQty.focus(); badQty.select();
     return;
   }
-  if (!d.clinic || !d.doctor || !d.items.length || (S.branches.length && !d.branch)) {
+  if ((d.kind === 'clinic' ? !d.clinic : !d.doctor) || !d.items.length || (S.branches.length && !d.branch)) {
     err.querySelector('span').textContent = t('err_fill_all'); err.classList.remove('hidden');
     return;
   }
   busy(el, true, t('sending'));
-  call('createRequest', { clinic: d.clinic, branch: d.branch || '', doctor: d.doctor, type: d.type, items: d.items.map(i => ({ name: i.name, qty: Number(i.qty) })) })
+  const byClinic = d.kind === 'clinic';
+  call('createRequest', { clinic: byClinic ? d.clinic : '', branch: d.branch || '', doctor: byClinic ? '' : d.doctor, type: d.type, items: d.items.map(i => ({ name: i.name, qty: Number(i.qty) })) })
     .then(res => {
       busy(el, false);
       if (res && res.duplicate) { toast(t('duplicate_request', { id: res.id }), 'warning', 5000); return; }
@@ -1580,7 +1603,7 @@ function renderMineList(animate) {
     '<article class="req' + (r.type === 'طارئ' ? ' urgent' : '') + '">' +
       '<div class="req-main clickable" data-act="detail" data-id="' + esc(r.id) + '">' +
         '<div class="grow"><div class="row-wrap"><span class="req-id">' + esc(r.id) + '</span>' + typeTag(r.type) + branchTag(r.branch) + '</div>' +
-          '<div class="req-sub"><span>' + icon('building') + esc(r.clinic) + '</span><span>' + icon('steth') + esc(r.doctor) + '</span>' + stageStamp(r) + '<span>' + icon('package') + esc(t('items_count', { n: r.itemCount || 0 })) + '</span></div>' + shipTrack(r) +
+          '<div class="req-sub"><span>' + icon('building') + esc(r.clinic || '—') + '</span><span>' + icon('steth') + esc(docLabel(r)) + '</span>' + stageStamp(r) + '<span>' + icon('package') + esc(t('items_count', { n: r.itemCount || 0 })) + '</span></div>' + shipTrack(r) +
           (r.status === ST.REJECTED && r.rejectionReason ? '<div class="reject-box" style="margin-top:8px">' + icon('xc') + '<div><b>' + esc(t('rejection_reason')) + ':</b> ' + esc(r.rejectionReason) + '</div></div>' : '') + '</div>' +
         '<div class="req-side">' + badge(r.status) + progressBar(r.status) + '</div>' +
       '</div>' +
@@ -1629,7 +1652,7 @@ function openReceive(id) {
   const m = openModal({
     title: esc(t('receive_title')) + ' · <span class="mono">' + esc(id) + '</span>', sub: esc(t('receive_sub')), icon: 'pen', size: 'lg',
     body: '<div id="rShip">' + skeletonList(1) + '</div>' +
-      '<div class="field"><label for="rName">' + esc(t('receiver_name')) + '</label><input class="input" id="rName" maxlength="120" value="' + esc(S.user.name) + '"></div>' +
+      '<div class="field"><label for="rName">' + esc(t('receiver_name')) + '</label><input class="input" id="rName" maxlength="120" value="' + esc(S.user.name) + '" readonly aria-readonly="true" title="' + esc(t('receiver_locked')) + '"><div class="hint">' + icon('lock', 'i-sm') + ' ' + esc(t('receiver_locked')) + '</div></div>' +
       '<div class="field"><div class="between"><span class="label">' + esc(t('signature')) + '</span><button type="button" class="btn btn-ghost btn-sm" id="sigClear">' + icon('refresh', 'i-sm') + esc(t('clear_sig')) + '</button></div>' +
         '<div class="sig-wrap" id="sigWrap"><canvas id="sigPad"></canvas><div class="sig-line"></div><div class="sig-hint">' + icon('pen') + '<span>' + esc(t('signature_hint')) + '</span></div></div></div>' +
       '<div class="field-error hidden" id="rErr">' + icon('alert', 'i-sm') + '<span></span></div>',
@@ -1666,7 +1689,7 @@ function openReceive(id) {
   call('getRequestDetail', id).then(apply).catch(e => { if (!d) $('#rShip', m.el).innerHTML = emptyState('alert', errMsg(e)); });
 
   $('#rOk', m.el).addEventListener('click', () => {
-    const name = $('#rName', m.el).value.trim();
+    const name = S.user.name; // المستلم = صاحب الحساب المسجّل فقط
     const err = $('#rErr', m.el);
     if (!name) { err.querySelector('span').textContent = t('receiver_required'); err.classList.remove('hidden'); $('#rName', m.el).focus(); return; }
     err.classList.add('hidden');
@@ -1734,20 +1757,20 @@ function drawReceipt(id, sections, combined) {
     const x = c.getContext('2d');
     const when = v => { const d = toDate(v) || new Date(); return d.toLocaleString('en-GB', { timeZone: 'Asia/Riyadh' }); };
     x.fillStyle = '#fff'; x.fillRect(0, 0, W, H);
-    x.fillStyle = '#0f7a5f'; x.fillRect(0, 0, W, 10);
-    x.textAlign = 'center'; x.fillStyle = '#0f7a5f'; x.font = 'bold 21px Arial, sans-serif';
+    x.fillStyle = '#3d8fc8'; x.fillRect(0, 0, W, 10);
+    x.textAlign = 'center'; x.fillStyle = '#3d8fc8'; x.font = 'bold 21px Arial, sans-serif';
     x.fillText('SupplyFlow — ApexCare · ' + (combined ? 'Combined receipt' : 'Receipt'), W / 2, 44);
     x.fillStyle = '#555'; x.font = '13px Arial, sans-serif';
     x.fillText(id + '   |   ' + when() + (combined ? '   |   ' + sections.length + ' shipment(s)' : ''), W / 2, 68);
     let y = 92;
     sections.forEach(s => {
-      x.fillStyle = '#0f7a5f'; x.font = 'bold 15px Arial, sans-serif'; x.textAlign = 'left';
+      x.fillStyle = '#3d8fc8'; x.font = 'bold 15px Arial, sans-serif'; x.textAlign = 'left';
       x.fillText('Shipment #' + s.batch, 20, y + 20);
       x.fillStyle = '#777'; x.font = '12px Arial, sans-serif'; x.textAlign = 'right';
       x.fillText('Received ' + when(s.at), W - 20, y + 20);
       y += 34;
       x.fillStyle = '#e8f4f0'; x.fillRect(20, y, W - 40, rowH);
-      x.fillStyle = '#0f7a5f'; x.font = 'bold 13px Arial, sans-serif';
+      x.fillStyle = '#3d8fc8'; x.font = 'bold 13px Arial, sans-serif';
       x.textAlign = 'left'; x.fillText('Item', 30, y + 19);
       x.textAlign = 'center'; x.fillText('Sent', W - 170, y + 19); x.fillText('Received', W - 70, y + 19);
       y += rowH;
@@ -1774,7 +1797,7 @@ function drawReceipt(id, sections, combined) {
       y += sigH + 32;
       if (combined) { x.strokeStyle = '#e5e9e7'; x.beginPath(); x.moveTo(20, y - 8); x.lineTo(W - 20, y - 8); x.stroke(); }
     });
-    x.fillStyle = '#0f7a5f'; x.fillRect(0, H - 8, W, 8);
+    x.fillStyle = '#3d8fc8'; x.fillRect(0, H - 8, W, 8);
     return c.toDataURL('image/png');
   } catch (e) { console.error(e); return ''; }
 }
@@ -1890,7 +1913,7 @@ function procCard(r) {
       '<input type="checkbox" class="check" data-change="procSel" data-id="' + esc(r.id) + '"' + (sel ? ' checked' : '') + ' aria-label="' + esc(r.id) + '">' +
       '<div class="grow clickable" data-act="procToggle" data-id="' + esc(r.id) + '" style="cursor:pointer"><div class="row-wrap"><span class="req-id">' + esc(r.id) + '</span>' + typeTag(r.type) + branchTag(r.branch) +
         '</div>' +
-        '<div class="req-sub"><span>' + icon('building') + esc(r.clinic) + '</span><span>' + icon('steth') + esc(r.doctor) + '</span><span>' + icon('user') + esc(r.nurse) + '</span>' + stageStamp(r) + '<span>' + icon('package') + esc(t('items_count', { n: r.itemCount || 0 })) + '</span></div>' + shipTrack(r) + '</div>' +
+        '<div class="req-sub"><span>' + icon('building') + esc(r.clinic || '—') + '</span><span>' + icon('steth') + esc(docLabel(r)) + '</span><span>' + icon('user') + esc(r.nurse) + '</span>' + stageStamp(r) + '<span>' + icon('package') + esc(t('items_count', { n: r.itemCount || 0 })) + '</span></div>' + shipTrack(r) + '</div>' +
       '<div class="req-side">' + badge(r.status) + progressBar(r.status) + '</div>' +
     '</div>' +
     '<div class="req-actions">' +
@@ -2144,6 +2167,12 @@ function periodLabel(range) {
   if (!range.to && !range.from) return t('all_time');
   return t('rep_all_until', { d: fmtDate(range.to + 'T12:00:00') });
 }
+function badPricesHtml(list) {
+  if (!list || !list.length) return '';
+  return '<div class="bad-prices" role="alert">' + icon('alert', 'i-sm') + '<div><b>' + esc(t('bad_prices_title')) + '</b> ' +
+    list.map(x => '<span>' + esc(x.item) + ' <small>(' + esc(t('price_issue_' + x.issue)) + ')</small></span>').join(' · ') +
+    '<div class="hint">' + esc(t('bad_prices_fix')) + '</div></div></div>';
+}
 function reportHtml(d, range) {
   const cur = ' ' + t('currency');
   const logo = $('#companyLogo') ? '<img class="rep-logo" src="' + $('#companyLogo').src + '" alt="ApexCare">' : '';
@@ -2167,6 +2196,7 @@ function reportHtml(d, range) {
   const top = d.top.length ? '<section class="rep-req"><div class="rep-req-head"><b>' + esc(t('rep_top')) + '</b></div><table class="table rep-table"><tbody>' +
     d.top.map((x, i) => '<tr><td class="muted" style="width:1%">' + (i + 1) + '</td><td style="font-weight:600">' + esc(x.item) + '</td><td class="num">' + fmtNum(x.qty, 0) + '</td><td class="num">' + fmtNum(x.total, 2) + cur + '</td></tr>').join('') + '</tbody></table></section>' : '';
   return '<div class="rep">' + head + tiles +
+    badPricesHtml(d.badPrices) +
     (sm.unpriced ? '<div class="hint rep-warn">' + icon('info', 'i-sm') + ' ' + esc(t('rep_unpriced', { n: sm.unpriced })) + '</div>' : '') +
     reqs +
     '<div class="rep-grand"><span>' + esc(t('rep_total')) + '</span><b>' + fmtNum(sm.total, 2) + cur + '</b></div>' + top +
@@ -2318,6 +2348,7 @@ function rpStatsHtml(st, range) {
   const statusRow = Object.keys(st.statuses).map(k => badge(k) + ' <b class="mono">' + st.statuses[k] + '</b>').join('<span class="sep-dot"></span>');
   return '<div class="between rp-head"><div class="hint">' + icon('calendar', 'i-sm') + ' ' + esc(periodLabel(range)) + (st.branch ? ' · ' + esc(st.branch) : '') + '</div>' +
       '<button class="btn btn-sm" data-act="rpCsv">' + icon('ext', 'i-sm') + esc(t('rp_export_stats')) + '</button></div>' +
+    badPricesHtml(st.badPrices) +
     '<div class="rp-tiles">' + tiles.map(x => '<div class="rp-tile" style="--tone:' + x[1] + '"><span class="ic">' + icon(x[0]) + '</span><div><span>' + esc(x[2]) + '</span><b>' + esc(x[3]) + '</b></div></div>').join('') + '</div>' +
     (statusRow ? '<div class="rp-status">' + statusRow + '</div>' : '') +
     '<section class="card"><div class="card-head"><h2>' + icon('steth') + esc(t('rp_by_doctor')) + '</h2></div><div class="card-body">' + rpTable(st.doctors, docCols) + '</div></section>' +
@@ -2656,7 +2687,7 @@ function renderDash(silent) {
   const rows = (rep && rep.rows) || [];
   $('#dashRows').innerHTML = rows.length
     ? '<div class="table-wrap" style="max-height:420px;overflow:auto"><table class="table"><thead><tr><th>#</th><th>' + esc(t('branch')) + '</th><th>' + esc(t('clinic')) + '</th><th>' + esc(t('doctor')) + '</th><th>' + esc(t('type')) + '</th><th class="num">' + esc(t('hours')) + '</th></tr></thead><tbody>' +
-      rows.map(r => '<tr><td><button class="btn btn-ghost btn-sm mono" data-act="detail" data-id="' + esc(r.id) + '" style="min-height:26px;padding:2px 6px">' + esc(r.id) + '</button></td><td>' + esc(r.branch || '—') + '</td><td>' + esc(r.clinic) + '</td><td>' + esc(r.doctor) + '</td><td>' + typeTag(r.type) + '</td><td class="num"' + (r.hours > (r.type === 'طارئ' ? 24 : 72) ? ' style="color:var(--t-red);font-weight:700"' : '') + '>' + fmtNum(r.hours) + '</td></tr>').join('') +
+      rows.map(r => '<tr><td><button class="btn btn-ghost btn-sm mono" data-act="detail" data-id="' + esc(r.id) + '" style="min-height:26px;padding:2px 6px">' + esc(r.id) + '</button></td><td>' + esc(r.branch || '—') + '</td><td>' + esc(r.clinic || '—') + '</td><td>' + esc(docLabel(r)) + '</td><td>' + typeTag(r.type) + '</td><td class="num"' + (r.hours > (r.type === 'طارئ' ? 24 : 72) ? ' style="color:var(--t-red);font-weight:700"' : '') + '>' + fmtNum(r.hours) + '</td></tr>').join('') +
       '</tbody></table></div>'
     : emptyState('clock', t('no_data'));
 
@@ -2845,7 +2876,7 @@ VIEWS.users = {
     return '<section class="card"><div class="card-head"><h2>' + icon('users') + esc(t('users_list')) + ' <span class="count-pill" id="uCount">…</span></h2>' +
       '<div class="row-wrap"><div class="input-icon" style="width:240px">' + icon('search') + '<input class="input" data-input="userQ" value="' + esc(S.admin.q) + '" placeholder="' + esc(t('search_users')) + '"></div>' +
       '<button class="btn btn-primary" data-act="userNew">' + icon('plus', 'i-sm') + esc(t('add_user')) + '</button></div></div>' +
-      '<div class="card-body"><div id="uTable"><div class="skel" style="height:120px"></div></div></div></section>' +
+      '<div class="card-body stack"><div id="uLinks"></div><div id="uTable"><div class="skel" style="height:120px"></div></div></div></section>' +
       '<section class="card"><div class="card-head"><div><h2>' + icon('shield') + esc(t('roles_title')) + '</h2><div class="hint">' + esc(t('roles_sub')) + '</div></div>' +
       '<button class="btn btn-soft" data-act="roleNew">' + icon('plus', 'i-sm') + esc(t('add_role')) + '</button></div><div class="card-body"><div id="rTable"></div></div></section>';
   },
@@ -2854,6 +2885,19 @@ VIEWS.users = {
 };
 function loadUsers(silent) {
   call('getUsers').then(u => { S.admin.users = u || []; if (S.view === 'users') renderUsers(); }).catch(e => { if (!silent) toast(errMsg(e), 'error'); });
+  loadDoctorLinks();
+}
+/* أطباء بلا حساب مرتبط: طلباتهم لا تصل لصفحة أي طبيب وتذهب للتموين مباشرة */
+function loadDoctorLinks() {
+  return call('getDoctorLinks').then(l => { S.admin.docLinks = l || { names: [], unlinked: [] }; renderDoctorLinks(); return S.admin.docLinks; }).catch(() => null);
+}
+function renderDoctorLinks() {
+  const box = $('#uLinks'); const l = S.admin.docLinks;
+  if (!box || !l) return;
+  box.innerHTML = l.unlinked.length
+    ? '<div class="alert warning"><span class="alert-ic">' + icon('alert') + '</span><span><b>' + esc(t('unlinked_title', { n: l.unlinked.length })) + '</b> ' + esc(t('unlinked_hint')) +
+      '<span class="chips" style="flex-wrap:wrap;margin-top:6px">' + l.unlinked.map(n => '<span class="chip">' + icon('steth', 'i-sm') + esc(n) + '</span>').join('') + '</span></span></div>'
+    : '';
 }
 ACT.userQ = debounce(el => { S.admin.q = el.value.trim().toLowerCase(); renderUsers(); }, 120);
 function renderUsers() {
@@ -2862,9 +2906,14 @@ function renderUsers() {
   $('#uTable').innerHTML = list.length ? '<div class="table-wrap"><table class="table"><thead><tr><th>' + esc(t('name')) + '</th><th>' + esc(t('role')) + '</th><th>' + esc(t('clinic')) + '</th><th>' + esc(t('email')) + '</th><th></th></tr></thead><tbody>' +
     list.map(u => '<tr><td><div class="row" style="gap:10px"><span class="avatar" style="width:30px;height:30px;border-radius:9px;font-size:12px">' + esc(initials(u.name)) + '</span><b>' + esc(u.name) + '</b></div></td>' +
       '<td><span class="badge" style="--tone:' + (SCREEN_TONE[u.screen] || 'var(--t-gray)') + '"><i class="dot"></i>' + esc(u.role) + '</span></td>' +
-      '<td style="max-width:240px">' + esc(u.clinic || '—') + '</td><td class="muted" style="font-size:12.5px">' + esc(u.email || '—') + '</td>' +
+      '<td style="max-width:240px">' + (u.screen === 'doctor' ? linkCell(u) : esc(u.clinic || '—')) + '</td><td class="muted" style="font-size:12.5px">' + esc(u.email || '—') + '</td>' +
       '<td class="num"><button class="btn btn-ghost btn-sm" data-act="userEdit" data-name="' + esc(u.name) + '">' + icon('edit', 'i-sm') + esc(t('edit')) + '</button></td></tr>').join('') +
     '</tbody></table></div>' : emptyState('users', t('no_match'));
+}
+function linkCell(u) {
+  const l = u.linked || [];
+  return l.length ? '<span class="muted" style="font-size:12.5px">' + icon('link', 'i-sm') + ' ' + esc(l.join('، ')) + '</span>'
+    : '<span class="badge" style="--tone:var(--t-red)"><i class="dot"></i>' + esc(t('not_linked')) + '</span>';
 }
 function renderRoles() {
   const box = $('#rTable'); if (!box) return;
@@ -2887,13 +2936,22 @@ function openUserModal(u) {
         '<div class="field"><label for="uRole">' + esc(t('role')) + '</label><select class="select" id="uRole">' + S.roles.map(r => '<option' + (r.name === u.role ? ' selected' : '') + '>' + esc(r.name) + '</option>').join('') + '</select></div>' +
         '<div class="field"><label for="uEmail">' + esc(t('email')) + '</label><input class="input" id="uEmail" type="email" value="' + esc(u.email) + '" placeholder="' + esc(t('email_ph')) + '"></div>' +
       '</div>' +
+      '<div class="field hidden" id="uDocWrap"><label for="uDoctor">' + esc(t('linked_doctor')) + ' <span class="hint">· ' + esc(t('linked_doctor_hint')) + '</span></label>' +
+        '<select class="select" id="uDoctor"><option value="">' + esc(t('link_auto')) + '</option>' +
+        ((S.admin.docLinks && S.admin.docLinks.names) || []).concat(u.doctorName && !((S.admin.docLinks && S.admin.docLinks.names) || []).includes(u.doctorName) ? [u.doctorName] : [])
+          .map(n => '<option' + (n === u.doctorName ? ' selected' : '') + '>' + esc(n) + '</option>').join('') + '</select>' +
+        (editing && u.linked ? '<div class="hint">' + esc(u.linked.length ? t('linked_now', { n: u.linked.join('، ') }) : t('not_linked')) + '</div>' : '') + '</div>' +
       '<div class="field" id="uClinicWrap"><span class="label">' + esc(t('clinic')) + ' <span class="hint">· ' + esc(t('clinics_hint')) + '</span></span><div class="chips" style="flex-wrap:wrap" id="uClinics">' +
         S.clinics.map(c => '<button type="button" class="chip" data-v="' + esc(c.name) + '" aria-pressed="' + (clinicsSel.indexOf(c.name) !== -1) + '">' + esc(c.name) + '</button>').join('') + '</div></div>' +
       '<div class="field-error hidden" id="uErr">' + icon('alert', 'i-sm') + '<span></span></div>',
     foot: (editing ? '<button class="btn btn-danger-soft" id="uDel">' + icon('trash', 'i-sm') + esc(t('delete')) + '</button>' : '') + '<span class="spacer"></span>' +
       '<button class="btn" data-close>' + esc(t('cancel')) + '</button><button class="btn btn-primary" id="uSave">' + icon('check', 'i-sm') + esc(t('save')) + '</button>'
   });
-  const toggleClinic = () => { $('#uClinicWrap', m.el).classList.toggle('hidden', roleScreenOf($('#uRole', m.el).value) !== 'nurse'); };
+  const toggleClinic = () => {
+    const sc = roleScreenOf($('#uRole', m.el).value);
+    $('#uClinicWrap', m.el).classList.toggle('hidden', sc !== 'nurse');
+    $('#uDocWrap', m.el).classList.toggle('hidden', sc !== 'doctor');
+  };
   toggleClinic();
   $('#uRole', m.el).addEventListener('change', toggleClinic);
   $('#uClinics', m.el).addEventListener('click', e => { const b = e.target.closest('.chip'); if (b) b.setAttribute('aria-pressed', String(b.getAttribute('aria-pressed') !== 'true')); });
@@ -2903,12 +2961,13 @@ function openUserModal(u) {
     const data = {
       name: $('#uName', m.el).value.trim(), password: $('#uPass', m.el).value.trim(), role: role,
       clinic: roleScreenOf(role) === 'nurse' ? $$('#uClinics [aria-pressed="true"]', m.el).map(b => b.dataset.v).join(', ') : '',
-      email: $('#uEmail', m.el).value.trim()
+      email: $('#uEmail', m.el).value.trim(),
+      doctorName: roleScreenOf(role) === 'doctor' ? $('#uDoctor', m.el).value : ''
     };
     if (!editing && (!data.name || !data.password)) { showErr(t('ERR_REQUIRED')); return; }
     const b = e.currentTarget; busy(b, true, t('saving'));
     (editing ? call('updateUser', u.name, data) : call('createUser', data))
-      .then(users => { S.admin.users = users; closeModal(m); renderUsers(); toast(t('user_saved')); })
+      .then(users => { S.admin.users = users; closeModal(m); renderUsers(); loadDoctorLinks(); toast(t('user_saved')); })
       .catch(err => { busy(b, false); showErr(errMsg(err)); });
   });
   if (editing) $('#uDel', m.el).addEventListener('click', e => {
@@ -2962,7 +3021,7 @@ Object.assign(I18N.ar, {
   tour_welcome_dashboard: 'جولة سريعة (أقل من دقيقة) تعرّفك على مؤشرات الأداء والبلاغات والتنبيهات.',
   tour_welcome_admin: 'جولة سريعة (أقل من دقيقة) تعرّفك على مؤشرات الأداء والبلاغات والتنبيهات وإدارة المستخدمين.',
   t_nav_t: 'القائمة', t_nav_b: 'من هنا تنتقل بين شاشاتك. الأرقام بجانب العناصر تنبهك لما ينتظر إجراءً منك.',
-  t_new_details_t: 'بيانات الطلب', t_new_details_b: 'اختر العيادة والطبيب ونوع الطلب. الطلب «الطارئ» يصل للتموين فوراً بتنبيه خاص.',
+  t_new_details_t: 'بيانات الطلب', t_new_details_b: 'اختر الطبيب (الطلب يصل لصفحته ليعتمده) أو «مستهلكات عيادة» للمستهلكات العامة، ثم نوع الطلب. الطلب «الطارئ» يصل للتموين فوراً بتنبيه خاص.',
   t_pkg_t: 'البكج المعتاد للطبيب', t_pkg_b: 'أصناف يطلبها هذا الطبيب عادةً — اضغط أي صنف لإضافته أو «إضافة الكل».',
   t_items_t: 'إضافة الأصناف', t_items_b: 'ابحث بالاسم أو الاسم التجاري واضغط Enter. إن لم تجد الصنف أضفه كصنف جديد، وعدّل الكمية بـ + و −.',
   t_summary_t: 'المراجعة والإرسال', t_summary_b: 'راجع الملخص ثم أرسل الطلب — يذهب أولاً للطبيب للمراجعة والاعتماد ثم للتموين. المسودة تُحفظ تلقائياً.',
@@ -3020,7 +3079,7 @@ Object.assign(I18N.en, {
   tour_welcome_dashboard: 'A quick (under a minute) tour of performance KPIs, issues and notices.',
   tour_welcome_admin: 'A quick (under a minute) tour of performance KPIs, issues, notices and user management.',
   t_nav_t: 'Menu', t_nav_b: 'Move between your screens here. Numbers next to items flag things waiting for you.',
-  t_new_details_t: 'Request details', t_new_details_b: 'Pick the clinic, doctor and request type. “Emergency” requests alert procurement immediately.',
+  t_new_details_t: 'Request details', t_new_details_b: 'Pick the doctor (the request goes to their page for approval) or “Clinic consumables” for general supplies, then the type. “Emergency” requests alert procurement immediately.',
   t_pkg_t: 'Doctor’s usual package', t_pkg_b: 'Items this doctor usually orders — tap one to add it, or “Add all”.',
   t_items_t: 'Adding items', t_items_b: 'Search by name or brand and press Enter. Not in the catalog? Add it as a new item, and adjust quantities with + and −.',
   t_summary_t: 'Review & send', t_summary_b: 'Check the summary, then submit — it goes to the doctor for approval first, then to procurement. Your draft is saved automatically.',
@@ -3083,7 +3142,7 @@ const TOUR_TAIL = [
 const TOUR_STEPS = {
   nurse: [
     { sel: NAV_SEL('new'), t: 't_nav_t', b: 't_nav_b', icon: 'menu' },
-    { view: 'new', sel: '#fClinic', up: '.card', t: 't_new_details_t', b: 't_new_details_b', icon: 'building' },
+    { view: 'new', sel: '#fKind', up: '.card', t: 't_new_details_t', b: 't_new_details_b', icon: 'building' },
     { view: 'new', sel: '#pkgCard:not(.hidden)', t: 't_pkg_t', b: 't_pkg_b', icon: 'layers', optional: true },
     { view: 'new', sel: '#combo', up: '.card', t: 't_items_t', b: 't_items_b', icon: 'search' },
     { view: 'new', sel: '.summary', t: 't_summary_t', b: 't_summary_b', icon: 'send' },
