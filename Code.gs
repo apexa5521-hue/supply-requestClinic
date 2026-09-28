@@ -1060,12 +1060,13 @@ function nextMonthStart_(ym) {
 function deadline_(r, nowMs) {
   const now = nowMs || Date.now();
   const sub = toMs_(r.submittedAt || r.date);
-  if (!sub) return { dueAt: '', overdue: false, atRisk: false, inWindow: true };
-  let due, inWindow = true;
+  if (!sub) return { dueAt: '', overdue: false, atRisk: false, lateSubmit: false };
+  // الرفع بعد يوم 20 مسموح عادي، لكنه يُعلَّم «رُفع متأخراً» (قبل 15 = مبكر، لا مشكلة)
+  let due, lateSubmit = false;
   if (r.type === 'طارئ') due = sub + EMERGENCY_DUE_HOURS * 36e5;
   else {
     const day = Number(Utilities.formatDate(new Date(sub), TZ, 'dd'));
-    inWindow = day >= MONTHLY_WINDOW[0] && day <= MONTHLY_WINDOW[1];
+    lateSubmit = day > MONTHLY_WINDOW[1];
     due = nextMonthStart_(Utilities.formatDate(new Date(sub), TZ, 'yyyy-MM')).getTime() + 864e5 - 1; // نهاية يوم 1
   }
   const done = r.status === ST.RECEIVED || r.status === ST.REJECTED;
@@ -1074,7 +1075,7 @@ function deadline_(r, nowMs) {
   // قريب من الموعد: لم يُرسل منه شيء بعد والمتبقي أقل من 5 أيام (أو نصف مهلة الطارئ)
   const window = r.type === 'طارئ' ? EMERGENCY_DUE_HOURS * 36e5 / 2 : AT_RISK_DAYS * 864e5;
   const atRisk = !done && !overdue && due - now < window && !(r.sentQty > 0) && !toMs_(r.sentAt);
-  return { dueAt: new Date(due), overdue: overdue, atRisk: atRisk, inWindow: inWindow,
+  return { dueAt: new Date(due), overdue: overdue, atRisk: atRisk, lateSubmit: lateSubmit,
     lateReceipt: r.status === ST.RECEIVED && recv > due };
 }
 
@@ -1100,7 +1101,7 @@ function getMonitor_(user, opts) {
   function row(r) {
     const s = stageOf_(r);
     return { id: r.id, type: r.type, branch: r.branch, clinic: r.clinic, doctor: r.doctor, nurse: r.nurse, status: r.status,
-      submittedAt: r.submittedAt || r.date, dueAt: r.dueAt, stage: s.stage, owner: s.owner, inWindow: r.inWindow,
+      submittedAt: r.submittedAt || r.date, dueAt: r.dueAt, stage: s.stage, owner: s.owner, lateSubmit: r.lateSubmit,
       hoursLate: r.overdue ? round1_((now - toMs_(r.dueAt)) / 36e5) : 0,
       hoursLeft: !r.overdue ? round1_((toMs_(r.dueAt) - now) / 36e5) : 0,
       remainingQty: r.remainingQty, sentQty: r.sentQty };
@@ -1114,7 +1115,7 @@ function getMonitor_(user, opts) {
   function avg(a) { return a.length ? round1_(a.reduce(function (x, y) { return x + y; }, 0) / a.length) : null; }
   const inMonth = all.filter(function (r) { return monthOf_(r.submittedAt || r.date) === month; });
   const toPrep = [], toSend = [], toRecv = [], emergencyHrs = [];
-  let received = 0, onTime = 0, outOfWindow = 0, monthly = 0, emergency = 0;
+  let received = 0, onTime = 0, lateSubmits = 0, monthly = 0, emergency = 0;
   inMonth.forEach(function (r) {
     const clearedAt = r.approvedAt || (!r.needsReview ? (r.submittedAt || r.date) : '');
     const sentAt = r.sentAt || r.lastShipAt;
@@ -1122,29 +1123,36 @@ function getMonitor_(user, opts) {
     const b = hrs(r.prepAt, sentAt); if (b !== null) toSend.push(b);
     const c = hrs(sentAt, r.receivedAt); if (c !== null) toRecv.push(c);
     if (r.type === 'طارئ') { emergency++; const e = hrs(r.submittedAt || r.date, sentAt); if (e !== null) emergencyHrs.push(e); }
-    else { monthly++; if (!r.inWindow) outOfWindow++; }
+    else { monthly++; if (r.lateSubmit) lateSubmits++; }
     if (r.status === ST.RECEIVED) { received++; if (!r.lateReceipt) onTime++; }
   });
   const kpis = {
     month: month, requests: inMonth.length, monthly: monthly, emergency: emergency, received: received,
     onTimeRate: received ? Math.round(onTime / received * 100) : null,
-    lateNow: late.length, atRisk: atRisk.length, outOfWindow: outOfWindow,
+    lateNow: late.length, atRisk: atRisk.length, lateSubmits: lateSubmits,
     lateProcurement: late.filter(function (x) { return x.owner === 'procurement'; }).length,
     avgClearToPrepHrs: avg(toPrep), avgPrepToSendHrs: avg(toSend), avgSendToReceiveHrs: avg(toRecv), avgEmergencyHrs: avg(emergencyHrs)
   };
 
-  // دورة الطلب الشهري: لكل عيادة هل رُفع طلبها الشهري لهذا الشهر وخلال الفترة؟
+  // دورة الطلب الشهري حسب الطبيب: هل رُفع طلبه الشهري لهذا الشهر؟ ومتى (في الفترة أو متأخراً)؟
   const cycleMonth = Utilities.formatDate(new Date(now), TZ, 'yyyy-MM');
   const today = Number(Utilities.formatDate(new Date(now), TZ, 'dd'));
-  const cycle = getClinics_().map(function (c) {
-    const rs = all.filter(function (r) { return r.clinic === c.name && r.type !== 'طارئ' && monthOf_(r.submittedAt || r.date) === cycleMonth; });
-    return { clinic: c.name, branch: c.branch, count: rs.length, inWindow: rs.filter(function (r) { return r.inWindow; }).length,
-      lastAt: rs.length ? rs[0].submittedAt || rs[0].date : '' };
+  const passed = today > MONTHLY_WINDOW[1];
+  const cycle = allDoctors_().map(function (d) {
+    const rs = all.filter(function (r) { return r.doctor === d.name && r.type !== 'طارئ' && monthOf_(r.submittedAt || r.date) === cycleMonth; });
+    const first = rs[rs.length - 1];
+    return { doctor: d.name, clinic: d.clinic, nurse: d.nurse, count: rs.length,
+      lateSubmit: !!first && first.lateSubmit, submittedAt: first ? first.submittedAt || first.date : '',
+      state: rs.length ? (first.lateSubmit ? 'late' : 'ok') : (passed ? 'missing' : 'pending') };
+  }).sort(function (a, b) {
+    const o = { missing: 0, late: 1, pending: 2, ok: 3 };
+    return o[a.state] - o[b.state] || a.doctor.localeCompare(b.doctor);
   });
   return {
     now: new Date(now), late: late, atRisk: atRisk, kpis: kpis,
     cycle: { month: cycleMonth, window: MONTHLY_WINDOW, today: today, open: today >= MONTHLY_WINDOW[0] && today <= MONTHLY_WINDOW[1],
-      due: nextMonthStart_(cycleMonth), clinics: cycle, missing: cycle.filter(function (c) { return !c.count; }).length },
+      due: nextMonthStart_(cycleMonth), doctors: cycle, missing: cycle.filter(function (c) { return !c.count; }).length,
+      lateSubmits: cycle.filter(function (c) { return c.state === 'late'; }).length, passed: passed },
     rules: { window: MONTHLY_WINDOW, emergencyHours: EMERGENCY_DUE_HOURS, atRiskDays: AT_RISK_DAYS }
   };
 }
