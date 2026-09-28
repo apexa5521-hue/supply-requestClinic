@@ -174,15 +174,20 @@ function log(msg) { console.log('  ✔ ' + msg); }
   await page.keyboard.press('Enter');
   await page.fill('#itemSearch', 'قفازات');
   await page.keyboard.press('Enter');
+  // الطلب من الكتالوج فقط: لا خيار لإضافة اسم حر
   await page.fill('#itemSearch', 'شاش معقم');
-  await page.waitForSelector('.combo-opt.new');
+  await page.waitForSelector('#comboList .combo-empty');
+  expect(await page.locator('#comboList .combo-opt').count() === 0 && (await page.textContent('#comboList')).includes('الكتالوج فقط'), 'no free-text item option — catalog items only');
+  await page.keyboard.press('Enter');
+  await page.fill('#itemSearch', 'etchant');
+  await page.waitForSelector('#comboList .combo-opt');
   await page.keyboard.press('Enter');
   await page.keyboard.press('Escape');
   await page.click('.item-line:nth-child(1) [data-d="1"]');
   await page.click('.item-line:nth-child(1) [data-d="1"]');
   await page.waitForSelector('#pkgCard:not(.hidden) .pkg-chip');
   await page.click('.pkg-chip >> nth=0');
-  expect(await page.locator('.item-line').count() >= 3, 'items added via search, new-item option and doctor package');
+  expect(await page.locator('.item-line').count() >= 3, 'items added via catalog search and doctor package');
   expect((await page.inputValue('.item-line:nth-child(1) input')) === '3', 'qty stepper increments');
   // الكمية صفر: خطأ واضح ويُمنع الإرسال
   await page.fill('.item-line:nth-child(1) input', '0');

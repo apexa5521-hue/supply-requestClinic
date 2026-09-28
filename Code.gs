@@ -823,9 +823,27 @@ function hasAdmin_() {
 /** صلاحيات المستخدم الحالي. قبل إنشاء أي حساب أدمن تبقى الإدارة التنفيذية بكل الصلاحيات (حتى لا يُقفل النظام) */
 function permsOf_(user) {
   if (MGMT_SCREENS.indexOf(user.screen) === -1) return [];
-  if (user.screen === 'executive' && !hasAdmin_()) return PERMS.slice();
+  // الإدارة التنفيذية (أو لوحة المؤشرات القديمة) بكل الصلاحيات ما دام لا يوجد أدمن
+  if ((user.screen === 'executive' || user.screen === 'dashboard') && !hasAdmin_()) return PERMS.slice();
   const r = read_('Roles').rows.filter(function (x) { return str_(x.RoleName) === str_(user.role); })[0];
   return rolePerms_(user.screen, r ? r.Permissions : '');
+}
+
+/** أدوار الإدارة الأساسية (جودة / مالية / تنفيذي / أدمن) تُضاف لتبويب Roles إن لم تكن موجودة، لتظهر عند إنشاء المستخدمين */
+function ensureMgmtRoles_() {
+  const have = {};
+  read_('Roles').rows.forEach(function (r) { if (str_(r.RoleName)) have[str_(r.RoleName)] = str_(r.Screen); });
+  const missing = [['جودة', 'quality'], ['مالية', 'finance'], ['تنفيذي', 'executive'], ['أدمن', 'admin']].filter(function (d) {
+    // لا نضيف «جودة» إن كان «جوده» موجوداً، ولا أي دور شاشته موجودة مسبقاً باسم آخر
+    if (have[d[0]] !== undefined || (d[0] === 'جودة' && have['جوده'] !== undefined) || (d[0] === 'مالية' && have['ماليه'] !== undefined)) return false;
+    return !Object.keys(have).some(function (n) { return have[n] === d[1]; });
+  });
+  if (!missing.length) return;
+  withLock_(function () {
+    const now = {};
+    read_('Roles').rows.forEach(function (r) { now[str_(r.RoleName)] = true; });
+    missing.forEach(function (d) { if (!now[d[0]]) append_('Roles', { RoleName: d[0], Screen: d[1] }); });
+  });
 }
 
 /**
@@ -834,9 +852,12 @@ function permsOf_(user) {
  * الصف الذي فيه Permissions محفوظة يُعتبر مقصوداً ولا يُمس.
  */
 const LEGACY_ROLE_MAP_ = { 'جودة|admin': 'quality', 'جوده|admin': 'quality', 'جودة|dashboard': 'quality', 'جوده|dashboard': 'quality',
-  'تنفيذي|admin': 'executive', 'مالية|dashboard': 'finance', 'ماليه|dashboard': 'finance' };
+  'تنفيذي|admin': 'executive', 'تنفيذي|dashboard': 'executive', 'إدارة تنفيذية|admin': 'executive', 'إدارة تنفيذية|dashboard': 'executive',
+  'ادارة تنفيذية|admin': 'executive', 'ادارة تنفيذية|dashboard': 'executive',
+  'مالية|dashboard': 'finance', 'ماليه|dashboard': 'finance', 'مالية|admin': 'finance', 'ماليه|admin': 'finance' };
 function migrateRoles_() {
   const legacy = function (r) { return !str_(r.Permissions) && LEGACY_ROLE_MAP_[str_(r.RoleName) + '|' + str_(r.Screen)]; };
+  ensureMgmtRoles_();
   if (!read_('Roles').rows.some(legacy)) return;
   withLock_(function () {
     const t = read_('Roles');
@@ -1377,6 +1398,14 @@ function createRequest_(user, payload) {
   });
   const items = order.map(function (k) { return merged[k]; });
   if (!items.length) throw new Error('ERR_NO_ITEMS');
+  // الطلب من الكتالوج فقط — لا أصناف بأسماء حرة (يُعتمد اسم الكتالوج بحروفه)
+  const catalog = {};
+  getCatalog_(false).forEach(function (c) { catalog[c.name.toLowerCase()] = c.name; });
+  items.forEach(function (it) {
+    const canon = catalog[it.name.toLowerCase()];
+    if (!canon) throw new Error('ERR_UNKNOWN_ITEM');
+    it.name = canon;
+  });
   if (items.length > 200) throw new Error('ERR_TOO_MANY_ITEMS');
 
   // منع الإرسال المزدوج لنفس الطلب خلال دقيقتين
@@ -1405,11 +1434,6 @@ function createRequest_(user, payload) {
     ri.getRange(ri.getLastRow() + 1, 1, rows.length, riHeaders.length).setValues(rows);
     markDirty_('RequestItems');
 
-    const known = {};
-    getCatalog_(false).forEach(function (c) { known[c.name.toLowerCase()] = true; });
-    items.forEach(function (it) {
-      if (!known[it.name.toLowerCase()]) { append_('ItemsCatalog', { ItemName: it.name }); known[it.name.toLowerCase()] = true; }
-    });
     cache.put(dupKey, newId, DUP_WINDOW_SECONDS);
     logAction_(newId, 'إنشاء طلب (' + type + ')', user.name);
     return newId;
