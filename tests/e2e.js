@@ -65,6 +65,7 @@ const initScript = [
           (g.__runs = g.__runs || []).push(a[1]);
           setTimeout(() => {
             let r;
+            if (g.__failWrites > 0 && !/^(get|batch|login|logout)/.test(a[1])) { g.__failWrites--; if (h.f) h.f(new Error('ERR_BUSY')); return; }
             try { r = g.__api.apply(null, a); } catch (e) { if (h.f) h.f(e); return; }
             if (h.s) h.s(r === undefined ? null : JSON.parse(JSON.stringify(r)));
           }, 90);
@@ -438,6 +439,26 @@ function log(msg) { console.log('  ✔ ' + msg); }
   expect(await page.locator('.step.done').count() === 6, 'detail stepper shows all 6 stages done');
   await shot(page, 'request-detail');
   await page.keyboard.press('Escape');
+  await logout(page);
+
+  // ---------- الخادم مشغول وقت الرفع: الطلب يُحفظ ويُرسل تلقائياً بلا تكرار ----------
+  await login(page, 'سارة', '1111');
+  await page.evaluate(() => { AUTO_SEND.delay = 600; const d = nurseDraft(); d.kind = 'doctor'; saveDraft(); go('new'); });
+  await page.waitForSelector('#fDoctor option[value="د. خالد"]', { state: 'attached' });
+  await page.click('#itemSearch');
+  await page.fill('#itemSearch', 'floss');
+  await page.keyboard.press('Enter');
+  await page.keyboard.press('Escape');
+  const before = await page.evaluate(() => __gas.dump('Requests').length);
+  await page.evaluate(() => { window.__failWrites = 6; }); // الإرسال + 3 إعادات تلقائية + محاولتان مجدولتان
+  await page.click('#submitBtn');
+  await page.waitForSelector('#submitErr:not(.hidden)', { timeout: 20000 });
+  expect((await page.textContent('#submitErr')).includes('تلقائياً'), 'busy server: the nurse is told the request is saved and will be sent automatically');
+  expect((await page.textContent('#draftState')).includes('بانتظار الإرسال'), 'draft marked as waiting to send');
+  expect(await toastHas(page, 'تم إرسال الطلب'), 'request sent automatically once the server is free');
+  await page.waitForTimeout(800);
+  expect(await page.evaluate(() => __gas.dump('Requests').length) === before + 1, 'exactly one request created (no duplicates)');
+  await shot(page, 'auto-resend');
   await logout(page);
 
   // ---------- Lab: nurse → lab (internal/external) → clinic → redo; doctor follows ----------

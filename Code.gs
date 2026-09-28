@@ -629,6 +629,41 @@ function withLock_(fn) {
   try { return fn(); } finally { flushDirty_(); CACHED_READS_ = cached; lock.releaseLock(); }
 }
 
+/**
+ * حجز رقم تسلسلي يومي (REQ-yyMMdd-NNN / LAB-…) بقفل قصير جداً ومنفصل عن قفل الكتابة العام:
+ * العدّاد في Script Properties (فوري ومتسق)، فرفع الطلبات لا ينتظر عمليات التموين والطبيب ولا يعطّلها.
+ * مع الحجز نفسه يُسجَّل مفتاح المسودة (clientKey) وبصمة الطلب — حماية من التكرار حتى مع الإرسال المتزامن.
+ * scanMax(prefix): أعلى رقم موجود في الشيت لهذا اليوم (يُقرأ مرة واحدة يومياً عند أول حجز).
+ * guard(): يُستدعى داخل القفل؛ إن أعاد قيمة فهي طلب مكرر ولا يُحجز رقم.
+ */
+function reserveId_(base, scanMax, guard) {
+  const lock = LockService.getDocumentLock() || LockService.getScriptLock();
+  if (!lock.tryLock(20000)) throw new Error('ERR_BUSY');
+  try {
+    const dup = guard ? guard() : null;
+    if (dup) return { duplicate: true, id: dup };
+    const day = Utilities.formatDate(new Date(), TZ, 'yyMMdd');
+    const prefix = base + day + '-';
+    const props = PropertiesService.getScriptProperties();
+    const key = 'seq:' + base + day;
+    let n = Number(props.getProperty(key));
+    if (!n) {
+      n = scanMax(prefix);
+      // تنظيف عدّادات الأيام السابقة
+      props.getKeys().forEach(function (k) { if (k.indexOf('seq:' + base) === 0 && k !== key) props.deleteProperty(k); });
+    }
+    n += 1;
+    props.setProperty(key, String(n));
+    const tail = String(n);
+    return { duplicate: false, id: prefix + (tail.length < 3 ? ('00' + tail).slice(-3) : tail) };
+  } finally { lock.releaseLock(); }
+}
+function maxSeq_(rows, col, prefix) {
+  let max = 0;
+  rows.forEach(function (r) { const id = str_(r[col]); if (id.indexOf(prefix) === 0) max = Math.max(max, Number(id.slice(prefix.length)) || 0); });
+  return max;
+}
+
 function logAction_(requestId, action, user) {
   append_('Log', { Timestamp: new Date(), RequestID: requestId, Action: action, User: user });
 }
@@ -1385,17 +1420,6 @@ function getRequestsApi_(user, filters) {
 function getMyRequests_(user, opts) { return queryRequests_(withArchive_({ nurse: user.name }, opts)); }
 function getDoctorRequests_(user, opts) { return queryRequests_(withArchive_({ doctorUser: user }, opts)); }
 
-function nextRequestId_() {
-  const prefix = 'REQ-' + Utilities.formatDate(new Date(), TZ, 'yyMMdd') + '-';
-  let max = 0;
-  requestRows_().forEach(function (r) {
-    const id = str_(r.RequestID);
-    if (id.indexOf(prefix) === 0) max = Math.max(max, Number(id.slice(prefix.length)) || 0);
-  });
-  // 3 خانات على الأقل (001…999)، ثم 1000 فما فوق بدون قص — القص كان يكرر الأرقام بعد 999 طلباً في اليوم
-  const next = String(max + 1);
-  return prefix + (next.length < 3 ? ('00' + next).slice(-3) : next);
-}
 
 function createRequest_(user, payload) {
   payload = payload || {};
@@ -1455,34 +1479,35 @@ function createRequest_(user, payload) {
   const needsReview = !clinicOnly && doctorHasAccount_(doctor);
   // مفتاح المسودة من الجهاز: إعادة إرسال نفس المسودة بعد انقطاع الاتصال لا تنشئ طلباً مكرراً أبداً
   const clientKey = /^[A-Za-z0-9-]{8,64}$/.test(str_(payload.clientKey)) ? str_(payload.clientKey) : '';
-  const id = withLock_(function () {
-    const prev = cache.get(dupKey);
-    if (prev) return { duplicate: true, id: prev };
-    if (clientKey) {
-      const same = requestRows_().filter(function (r) { return str_(r.ClientKey) === clientKey && str_(r.Nurse) === user.name; })[0];
-      if (same) return { duplicate: true, id: str_(same.RequestID) };
-    }
-    resetMemo_();
-    const newId = nextRequestId_();
+  // بدون قفل الكتابة العام: رقم الطلب يُحجز بقفل قصير (أجزاء من الثانية)، والكتابة إلحاق ذري (appendRow)
+  // لا يتعارض مع كتابات الآخرين — فلا ينتظر رفعُ الطلب التموينَ ولا يطلع «الخادم مشغول» وقت الذروة (15–20 من الشهر)
+  if (clientKey) {
+    const same = requestRows_().filter(function (r) { return str_(r.ClientKey) === clientKey && str_(r.Nurse) === user.name; })[0];
+    if (same) return { duplicate: true, id: str_(same.RequestID) };
+  }
+  const ckKey = clientKey ? 'ck:' + user.name + ':' + clientKey : '';
+  const res = reserveId_('REQ-', function (prefix) { return maxSeq_(freshTable_('Requests').rows, 'RequestID', prefix); }, function () {
+    const prev = cache.get(dupKey) || (ckKey && cache.get(ckKey));
+    if (prev) return prev;
+    return null;
+  });
+  if (res.duplicate) return res;
+  const id = res.id;
+  cache.put(dupKey, id, DUP_WINDOW_SECONDS);
+  if (ckKey) cache.put(ckKey, id, 21600);
+  try {
     const now = new Date();
     append_('Requests', {
-      RequestID: newId, Date: now, Clinic: clinic, Branch: branch, Doctor: doctor, Nurse: user.name,
+      RequestID: id, Date: now, Clinic: clinic, Branch: branch, Doctor: doctor, Nurse: user.name,
       Type: type, Status: needsReview ? ST.REVIEW : ST.NEW, SubmittedAt: now, ReviewAt: needsReview ? now : '', ClientKey: clientKey
     });
-    const ri = sheet_('RequestItems');
-    const riHeaders = headerRow_(ri);
-    const rows = items.map(function (it) {
-      const o = { RequestID: newId, ItemName: it.name, RequestedQty: it.qty };
-      return riHeaders.map(function (h) { return h in o ? o[h] : ''; });
-    });
-    ri.getRange(ri.getLastRow() + 1, 1, rows.length, riHeaders.length).setValues(rows);
-    markDirty_('RequestItems');
-
-    cache.put(dupKey, newId, DUP_WINDOW_SECONDS);
-    logAction_(newId, 'إنشاء طلب (' + type + ')', user.name);
-    return newId;
-  });
-  if (id && id.duplicate) return id;
+    items.forEach(function (it) { append_('RequestItems', { RequestID: id, ItemName: it.name, RequestedQty: it.qty }); });
+  } catch (e) {
+    // فشل الكتابة: نفك الحجز حتى تنجح إعادة الإرسال بنفس المسودة
+    cache.remove(dupKey); if (ckKey) cache.remove(ckKey);
+    throw e;
+  }
+  logAction_(id, 'إنشاء طلب (' + type + ')', user.name);
 
   const details = '\nرقم الطلب: ' + id + '\nالفرع: ' + (branch || '—') + '\nالعيادة: ' + (clinic || '—') + '\nالطبيب: ' + (doctor || 'مستهلكات عيادة') +
     '\nالممرضة: ' + user.name + '\nنوع الطلب: ' + type + '\nعدد الأصناف: ' + items.length;
@@ -2770,16 +2795,6 @@ function getLabConfig_() {
   return { labs: getLabs_(), workTypes: getLabWorkTypes_(), redoReasons: LAB_REDO_REASONS, statuses: LAB_ORDER };
 }
 
-function nextLabId_() {
-  const prefix = 'LAB-' + Utilities.formatDate(new Date(), TZ, 'yyMMdd') + '-';
-  let max = 0;
-  read_('LabCases').rows.forEach(function (r) {
-    const id = str_(r.CaseID);
-    if (id.indexOf(prefix) === 0) max = Math.max(max, Number(id.slice(prefix.length)) || 0);
-  });
-  const next = String(max + 1);
-  return prefix + (next.length < 3 ? ('00' + next).slice(-3) : next);
-}
 
 /** صورة مرفقة (PNG/JPEG) تُحفظ في Drive */
 function saveLabPhoto_(fileName, dataUrl) {
@@ -2835,28 +2850,34 @@ function createLabCase_(user, payload) {
   const clinic = doctorClinic_(user, doctor);
   const branch = clinic ? clinicBranch_(clinic) : '';
 
-  const res = withLock_(function () {
-    resetMemo_();
-    if (clientKey) {
-      const same = read_('LabCases').rows.filter(function (r) { return str_(r.ClientKey) === clientKey && str_(r.Nurse) === user.name; })[0];
-      if (same) return { duplicate: true, id: str_(same.CaseID) };
-    }
-    const id = nextLabId_();
-    const urls = [];
-    photos.forEach(function (ph, i) { try { urls.push(saveLabPhoto_(id + '-photo' + (i + 1), ph)); } catch (e) { console.error(e); } });
-    const now = new Date();
-    append_('LabCases', {
-      CaseID: id, Date: now, Nurse: user.name, Doctor: doctor, Clinic: clinic, Branch: branch, Patient: patient, FileNo: fileNo,
-      NeededBy: needed || '', Urgent: payload.urgent ? 'نعم' : '', RedoOf: redoOf, RedoReason: redoOf ? str_(payload.redoReason) : '',
-      RedoNote: redoOf ? clean_(payload.redoNote, 1000) : '', Attachments: urls.join(' '), ClientKey: clientKey
-    });
-    lines.forEach(function (l, i) {
-      append_('LabItems', { ItemID: id + '-' + (i + 1), CaseID: id, Lab: l.lab, LabType: (labs[l.lab] || {}).type || '', WorkType: l.workType,
-        Details: l.details, Status: LAB_ST.NEW, RedoOfItem: l.redoOfItem || '', RedoReason: l.redoOfItem ? str_(payload.redoReason) : '' });
-    });
+  // مثل الطلبات: حجز رقم بقفل قصير، ثم إلحاق ذري ورفع الصور خارج أي قفل
+  if (clientKey) {
+    const same = read_('LabCases').rows.filter(function (r) { return str_(r.ClientKey) === clientKey && str_(r.Nurse) === user.name; })[0];
+    if (same) return { duplicate: true, id: str_(same.CaseID) };
+  }
+  const cache = CacheService.getScriptCache();
+  const ckKey = clientKey ? 'lck:' + user.name + ':' + clientKey : '';
+  const res = reserveId_('LAB-', function (prefix) { return maxSeq_(freshTable_('LabCases').rows, 'CaseID', prefix); },
+    function () { return ckKey ? cache.get(ckKey) : null; });
+  if (!res.duplicate) {
+    const id = res.id;
+    if (ckKey) cache.put(ckKey, id, 21600);
+    try {
+      const urls = [];
+      photos.forEach(function (ph, i) { try { urls.push(saveLabPhoto_(id + '-photo' + (i + 1), ph)); } catch (e) { console.error(e); } });
+      const now = new Date();
+      append_('LabCases', {
+        CaseID: id, Date: now, Nurse: user.name, Doctor: doctor, Clinic: clinic, Branch: branch, Patient: patient, FileNo: fileNo,
+        NeededBy: needed || '', Urgent: payload.urgent ? 'نعم' : '', RedoOf: redoOf, RedoReason: redoOf ? str_(payload.redoReason) : '',
+        RedoNote: redoOf ? clean_(payload.redoNote, 1000) : '', Attachments: urls.join(' '), ClientKey: clientKey
+      });
+      lines.forEach(function (l, i) {
+        append_('LabItems', { ItemID: id + '-' + (i + 1), CaseID: id, Lab: l.lab, LabType: (labs[l.lab] || {}).type || '', WorkType: l.workType,
+          Details: l.details, Status: LAB_ST.NEW, RedoOfItem: l.redoOfItem || '', RedoReason: l.redoOfItem ? str_(payload.redoReason) : '' });
+      });
+    } catch (e) { if (ckKey) cache.remove(ckKey); throw e; }
     logAction_(id, redoOf ? 'إعادة للمعمل (' + redoOf + '): ' + payload.redoReason : 'إرسالية للمعمل', user.name);
-    return { duplicate: false, id: id };
-  });
+  }
   if (!res.duplicate) {
     const body = 'رقم الإرسالية: ' + res.id + '\nالمريض: ' + patient + ' — ملف ' + fileNo + '\nالطبيب: ' + doctor + (clinic ? '\nالعيادة: ' + clinic : '') +
       (needed ? '\nمطلوب قبل: ' + Utilities.formatDate(needed, TZ, 'yyyy-MM-dd') : '') + '\nالممرضة: ' + user.name +
