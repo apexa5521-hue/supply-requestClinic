@@ -239,6 +239,16 @@ button, input, select, textarea { font: inherit; color: inherit; }
 .perm-opt:has(input:disabled) { cursor: default; opacity: .85; }
 .perm-opt span { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
 .perm-opt small { color: var(--muted); font-size: 12px; line-height: 1.4; }
+.proc-grid { grid-template-columns: minmax(220px, 2fr) repeat(3, minmax(150px, 1fr)); }
+.menu-list { display: flex; flex-direction: column; gap: 4px; }
+.menu-item { position: relative; display: flex; align-items: center; gap: 12px; width: 100%; padding: 12px 12px; border: 0; border-radius: 12px; background: transparent; color: var(--text); font: inherit; font-size: 15px; font-weight: 600; cursor: pointer; text-align: start; min-height: 48px; }
+.menu-item:hover, .menu-item:active { background: var(--surface-2); }
+.menu-item[aria-current="page"] { background: var(--primary-soft); color: var(--primary-strong); }
+.menu-item .i { width: 20px; height: 20px; color: var(--muted); }
+.menu-item .count-pill { margin-inline-start: auto; background: var(--primary); color: var(--on-primary); }
+.menu-sep { height: 1px; background: var(--border); margin: 8px 0; }
+.draft-state { display: flex; align-items: center; gap: 6px; font-size: 12.5px; color: var(--t-green); background: color-mix(in srgb, var(--t-green) 8%, transparent); border-radius: 10px; padding: 7px 10px; }
+.draft-state.offline { color: var(--t-amber); background: color-mix(in srgb, var(--t-amber) 12%, transparent); }
 .price-in.invalid { border-color: var(--t-red); box-shadow: 0 0 0 3px color-mix(in srgb, var(--t-red) 18%, transparent); }
 
 .table-wrap { overflow-x: auto; border: 1px solid var(--border); border-radius: var(--r-md); }
@@ -785,7 +795,8 @@ button.kpi[aria-pressed="true"] { border-color: var(--tone); box-shadow: 0 0 0 3
   .topbar .title h1 { font-size: 18px; }
   .content { padding: 6px 16px 110px; gap: 14px; }
   .bottom-nav { display: flex; position: fixed; z-index: 45; bottom: 0; inset-inline: 0; padding: 6px 8px calc(6px + env(safe-area-inset-bottom)); background: color-mix(in srgb, var(--surface) 94%, transparent); backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px); border-top: 1px solid var(--border); }
-  .bottom-nav .nav-item { flex: 1; flex-direction: column; gap: 3px; padding: 7px 4px; font-size: 11.5px; text-align: center; justify-content: center; }
+  .bottom-nav .nav-item { flex: 1 1 0; min-width: 0; flex-direction: column; gap: 3px; padding: 7px 2px; font-size: 11px; line-height: 1.2; text-align: center; justify-content: center; }
+  .bottom-nav .nav-item > span:not(.count-pill) { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; max-width: 100%; overflow-wrap: anywhere; }
   .bottom-nav .nav-item::before { display: none; }
   .bottom-nav .nav-item .count-pill { position: absolute; top: 2px; inset-inline-start: 55%; margin: 0; height: 17px; min-width: 17px; font-size: 10px; }
   .bulkbar { inset-inline: 10px; bottom: 76px; }
@@ -803,6 +814,54 @@ button.kpi[aria-pressed="true"] { border-color: var(--tone); box-shadow: 0 0 0 3
   .kpi { padding: 14px; }
   .kpi .kpi-val { font-size: 24px; margin-top: 8px; }
   .card-head, .card-body { padding-inline: 16px; }
+}
+@media (max-width: 900px) {
+  .proc-grid { grid-template-columns: 1fr 1fr; gap: 10px; }
+  .proc-grid > :first-child { grid-column: 1 / -1; }
+  .topbar { gap: 10px; padding-top: calc(10px + env(safe-area-inset-top)); }
+  .topbar .title h1 { font-size: 17px; }
+  .topbar .title p { font-size: 12px; }
+  .bulkbar { padding: 10px; gap: 8px; border-radius: 16px; }
+  .bulkbar .btn { flex: 1 1 auto; }
+  .bulkbar .sep { display: none; }
+  .rp-tiles { gap: 10px; }
+  .rp-tile { padding: 12px; gap: 10px; }
+  .rp-tile .ic { width: 34px; height: 34px; border-radius: 10px; }
+  .rp-tile b { font-size: 17px; }
+  .between { flex-wrap: wrap; gap: 10px; }
+  .chips { overflow-x: auto; flex-wrap: nowrap; scrollbar-width: none; -webkit-overflow-scrolling: touch; min-width: 0; max-width: 100%; }
+  .card-head > *, .between > *, .row-wrap > * { min-width: 0; }
+  .main, .content, #view { min-width: 0; max-width: 100vw; }
+  .chips::-webkit-scrollbar { display: none; }
+  .chips[style*="wrap"] { flex-wrap: wrap !important; overflow: visible; }
+  input, select, textarea { font-size: 16px !important; } /* يمنع التكبير التلقائي في iPhone */
+  .btn { min-height: 40px; }
+  .btn-sm { min-height: 36px; }
+}
+@media (max-width: 640px) {
+  .table.stack thead { display: none; }
+  .table.stack, .table.stack tbody, .table.stack tr, .table.stack td { display: block; width: 100%; }
+  .table.stack tr { border: 1px solid var(--border); border-radius: 14px; padding: 6px 12px; margin-bottom: 10px; background: var(--surface); }
+  .table.stack tr:last-child td { border-bottom: 1px dashed var(--border); }
+  .table.stack td { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 7px 0; border-bottom: 1px dashed var(--border); text-align: end; min-width: 0; overflow-wrap: anywhere; }
+  .table.stack td:last-child { border-bottom: 0 !important; }
+  .table.stack td::before { content: attr(data-label); flex-shrink: 0; max-width: 45%; font-size: 12px; font-weight: 700; color: var(--muted); text-align: start; }
+  .table.stack td[data-label=""]::before { display: none; }
+  .table.stack td[data-label=""] { justify-content: flex-end; }
+  .table.stack td.num { text-align: end; }
+  .table-wrap:has(> .table.stack) { border: 0; border-radius: 0; overflow: visible; max-height: none !important; }
+  .table.stack tbody tr:hover { background: var(--surface); }
+  .rp-filters .field:first-child { grid-column: 1 / -1; }
+  .rp-filters { grid-template-columns: 1fr 1fr; }
+  .rp-filters > .btn { grid-column: 1 / -1; }
+  .card-head { flex-wrap: wrap; gap: 10px; }
+  .modal-body { padding-inline: 16px; }
+  /* أزرار الاختيار المتجاورة: تتقاسم العرض وتلتف نصوصها بدل أن تخرج عن الشاشة */
+  .segmented { display: flex; max-width: 100%; }
+  .segmented button, .rp-filters .segmented button { flex: 1 1 0; min-width: 0; padding: 7px 6px; font-size: 13px; white-space: normal; line-height: 1.25; justify-content: center; text-align: center; }
+  .segmented button .i { flex-shrink: 0; }
+  .wf-branch { grid-column: 1 / -1 !important; }
+  .rp-docbar > * { flex: 1 1 140px; }
 }
 @media (max-width: 520px) {
   .req-side .progress { display: none; }
@@ -834,6 +893,7 @@ button.kpi[aria-pressed="true"] { border-color: var(--tone); box-shadow: 0 0 0 3
     <symbol id="i-clipboard" viewBox="0 0 24 24"><rect x="8" y="2" width="8" height="4" rx="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2M12 11h4M12 16h4M8 11h.01M8 16h.01"/></symbol>
     <symbol id="i-inbox" viewBox="0 0 24 24"><path d="M22 12h-6l-2 3h-4l-2-3H2"/><path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/></symbol>
     <symbol id="i-steth" viewBox="0 0 24 24"><path d="M11 2v2M5 2v2M5 3H4a2 2 0 0 0-2 2v4a6 6 0 0 0 12 0V5a2 2 0 0 0-2-2h-1M8 15a6 6 0 0 0 12 0v-3"/><circle cx="20" cy="10" r="2"/></symbol>
+    <symbol id="i-save" viewBox="0 0 24 24"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><path d="M17 21v-8H7v8M7 3v5h8"/></symbol>
     <symbol id="i-tag" viewBox="0 0 24 24"><path d="M20.59 13.41 13.42 20.58a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><circle cx="7" cy="7" r="1.5"/></symbol>
     <symbol id="i-link" viewBox="0 0 24 24"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></symbol>
     <symbol id="i-chart" viewBox="0 0 24 24"><path d="M3 3v18h18M18 17V9M13 17V5M8 17v-3"/></symbol>
@@ -849,6 +909,7 @@ button.kpi[aria-pressed="true"] { border-color: var(--tone); box-shadow: 0 0 0 3
     <symbol id="i-calendar" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></symbol>
     <symbol id="i-pen" viewBox="0 0 24 24"><path d="M12 20h9M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></symbol>
     <symbol id="i-image" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.09-3.09a2 2 0 0 0-2.82 0L6 21"/></symbol>
+    <symbol id="i-dots" viewBox="0 0 24 24"><circle cx="12" cy="5" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="12" cy="19" r="1.6"/></symbol>
     <symbol id="i-menu" viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h16"/></symbol>
     <symbol id="i-eye" viewBox="0 0 24 24"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></symbol>
     <symbol id="i-eyeoff" viewBox="0 0 24 24"><path d="M9.88 9.88a3 3 0 1 0 4.24 4.24M10.73 5.08A10.43 10.43 0 0 1 12 5c7 0 10 7 10 7a13.16 13.16 0 0 1-1.67 2.68M6.61 6.61A13.53 13.53 0 0 0 2 12s3 7 10 7a9.74 9.74 0 0 0 5.39-1.61M2 2l20 20"/></symbol>
@@ -941,12 +1002,11 @@ button.kpi[aria-pressed="true"] { border-color: var(--tone); box-shadow: 0 0 0 3
       <div class="avatar mobile-only" id="userAvatarM" style="width:34px;height:34px"></div>
       <div class="title"><h1 id="pageTitle"></h1><p id="pageSub"></p></div>
       <div class="topbar-actions">
-        <button class="btn btn-ghost btn-icon btn-sm" id="tourBtn" data-act="startTour" data-i18n-title="tour_replay"><svg class="i i-sm"><use href="#i-info"/></svg></button>
+        <button class="btn btn-ghost btn-icon btn-sm desktop-only" id="tourBtn" data-act="startTour" data-i18n-title="tour_replay"><svg class="i i-sm"><use href="#i-info"/></svg></button>
         <button class="btn btn-ghost btn-sm sync-btn" id="syncBtn" data-act="sync" data-i18n-title="sync"><svg class="i i-sm"><use href="#i-refresh"/></svg><span class="sync-time" id="syncTime"></span></button>
-        <button class="btn btn-ghost btn-sm" data-act="toggleLang" data-i18n-title="lang_switch"><svg class="i i-sm"><use href="#i-globe"/></svg><span class="desktop-only" data-i18n="lang_switch"></span></button>
-        <button class="btn btn-ghost btn-icon btn-sm" data-act="toggleTheme" data-i18n-title="theme_toggle"><svg class="i i-sm theme-ic"><use href="#i-moon"/></svg></button>
-        <button class="btn btn-ghost btn-icon btn-sm mobile-only" data-act="changePassword" data-i18n-title="change_pw"><svg class="i i-sm"><use href="#i-lock"/></svg></button>
-        <button class="btn btn-ghost btn-icon btn-sm mobile-only" data-act="logout" data-i18n-title="logout"><svg class="i i-sm flip"><use href="#i-logout"/></svg></button>
+        <button class="btn btn-ghost btn-sm desktop-only" data-act="toggleLang" data-i18n-title="lang_switch"><svg class="i i-sm"><use href="#i-globe"/></svg><span class="desktop-only" data-i18n="lang_switch"></span></button>
+        <button class="btn btn-ghost btn-icon btn-sm desktop-only" data-act="toggleTheme" data-i18n-title="theme_toggle"><svg class="i i-sm theme-ic"><use href="#i-moon"/></svg></button>
+        <button class="btn btn-ghost btn-icon btn-sm mobile-only" data-act="mobileMenu" id="mobileMenuBtn" data-i18n-title="more"><svg class="i"><use href="#i-dots"/></svg></button>
       </div>
     </header>
     <div class="content" id="content">

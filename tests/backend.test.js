@@ -1227,3 +1227,29 @@ test('executive role mapped to the legacy dashboard screen migrates and can stil
   assert.equal(api(a2, 'getConfig').user.screen, 'admin');
   assert.ok(!api(login('سالم', '1111'), 'getConfig').user.perms.includes('users'), 'after an admin exists the legacy role gets its defaults');
 });
+
+test('draft resubmission after a lost connection never creates a duplicate request (client key)', () => {
+  const { api, login, gas, ctx } = boot();
+  const n = login('سارة', '1111');
+  const draft = { doctor: 'د. نورة', type: 'شهري', items: [{ name: 'DENTAL FLOSS', qty: 2 }], clientKey: 'draft-abc-12345' };
+  const first = api(n, 'createRequest', draft);
+  assert.equal(first.duplicate, false);
+  // الرد لم يصل للجهاز (انقطع الاتصال) → الممرضة تضغط «إرسال» مرة ثانية بعد انتهاء نافذة الدقيقتين
+  Object.keys(gas.cache).forEach(k => { if (k.indexOf('dup:') === 0) delete gas.cache[k]; });
+  const again = api(n, 'createRequest', draft);
+  assert.deepEqual([again.duplicate, again.id], [true, first.id], 'same draft → same request');
+  assert.equal(rows(gas, 'Requests').length, 1);
+  assert.equal(rows(gas, 'Requests')[0].ClientKey, 'draft-abc-12345');
+  // مسودة جديدة (مفتاح جديد) تُنشئ طلباً جديداً حتى لو نفس الأصناف
+  Object.keys(gas.cache).forEach(k => { if (k.indexOf('dup:') === 0) delete gas.cache[k]; });
+  const next = api(n, 'createRequest', Object.assign({}, draft, { clientKey: 'draft-xyz-67890' }));
+  assert.equal(next.duplicate, false);
+  assert.notEqual(next.id, first.id);
+  // مفتاح ممرضة أخرى لا يكشف طلبها
+  const r = login('ريم', '2222');
+  const other = api(r, 'createRequest', { doctor: 'د. سعد', type: 'شهري', items: [{ name: 'DENTAL FLOSS', qty: 1 }], clientKey: 'draft-abc-12345' });
+  assert.equal(other.duplicate, false);
+  // مفتاح غير صالح يُتجاهل
+  assert.equal(api(n, 'createRequest', Object.assign({}, draft, { items: [{ name: 'PROPHY PASTE', qty: 1 }], clientKey: '<bad>' })).duplicate, false);
+  assert.ok(ctx);
+});

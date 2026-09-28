@@ -230,7 +230,7 @@ function log(msg) { console.log('  ✔ ' + msg); }
   await page.waitForSelector('#procList .req');
   await page.waitForTimeout(600);
   const runs = await page.evaluate(() => __runs.slice());
-  const startup = runs.filter(f => f !== 'login' && f !== 'logout' && f !== 'getRequestItemsFull'); // الأخير = تحميل مسبق عند مرور المؤشر
+  const startup = runs.filter(f => f !== 'login' && f !== 'logout' && f !== 'getRequestItemsFull' && f !== 'getRequestDetail'); // الأخيران = تحميل مسبق عند مرور المؤشر
   expect(startup.length === 0, 'login brings the first screen data: no extra server calls after login (' + runs.join(', ') + ')');
   expect((await page.textContent(`.req[data-rid="${newId}"] .tag.branch`)).includes('جدة'), 'procurement sees the order branch');
   await page.selectOption('[data-change="procBranch"]', 'الرياض');
@@ -601,8 +601,9 @@ function log(msg) { console.log('  ✔ ' + msg); }
     expect(!(await gp.isVisible('.toast.error')), 'Pages mode: fallback shows no error');
     net.rejectBatch = false;
     // ضغط كتابة: الخادم يرد «مشغول» مرتين ثم ينجح — الواجهة تعيد المحاولة تلقائياً بلا خطأ
+    net.failNext = 0; // لا تبقى أخطاء 500 من اختبار القراءة السابق (تعتمد على عدد القراءات في المزامنة)
     net.busyWrites = 2;
-    const saved = await gp.evaluate(() => call('changePassword', '3333', 'busy-test-1').then(r => r, e => 'ERR ' + e.message));
+    const saved = await gp.evaluate(() => call('changePassword', '3333', 'busy-test-1').then(r => r, e => 'ERR ' + e.message + ' ' + (e.stack || '').split('\n').slice(0, 3).join(' | ')));
     expect(saved === true && net.busyServed === 2, 'Pages mode: writes retry automatically when the server is busy (' + saved + ')');
     // إعادة تحميل الصفحة مع خادم بطيء (ثانيتان): الواجهة تفتح فوراً بآخر بيانات معروفة
     net.delay = 2000;
@@ -690,6 +691,57 @@ function log(msg) { console.log('  ✔ ' + msg); }
   await shot(m, 'mobile-detail-sheet');
   const hScroll = await m.evaluate(() => document.documentElement.scrollWidth > window.innerWidth + 1);
   expect(!hScroll, 'no horizontal page scroll on mobile');
+
+  // ---------- Mobile: كل الشاشات لكل الأدوار — لا شيء يخرج عن حدود الشاشة ----------
+  // عنصر «يخرج» = حافته خارج عرض الشاشة وليس داخل حاوية تمرير أفقي مقصودة (جداول / شرائح)
+  const offenders = pg => pg.evaluate(() => {
+    const W = document.documentElement.clientWidth, out = [];
+    const scroller = el => { for (let p = el.parentElement; p && p !== document.body; p = p.parentElement) { const o = getComputedStyle(p).overflowX; if ((o === 'auto' || o === 'scroll' || o === 'hidden') && p.scrollWidth > p.clientWidth + 1) return true; } return false; };
+    document.querySelectorAll('body *').forEach(el => {
+      if (!el.getClientRects().length || getComputedStyle(el).visibility === 'hidden') return;
+      const r = el.getBoundingClientRect();
+      if (r.width && (r.right > W + 1 || r.left < -1) && !scroller(el) && !el.closest('#bottomNav,.tour-card,.chart-tip,.sidebar')) out.push((el.id ? '#' + el.id : el.className && typeof el.className === 'string' ? '.' + el.className.split(' ').join('.') : el.tagName) + ' [' + Math.round(r.left) + '..' + Math.round(r.right) + ']');
+    });
+    // أي عنصر أعرض من الشاشة (أعلى مستوى فقط) خارج حاويات التمرير المقصودة
+    Array.from(document.querySelectorAll('body *')).filter(el => el.getClientRects().length && el.getBoundingClientRect().width > W + 1 && !scroller(el) && !el.closest('#bottomNav,.sidebar,.table-wrap,.chips,.tour-card') && !Array.from(el.children).some(c => c.getBoundingClientRect().width > W + 1))
+      .slice(0, 5).forEach(el => out.unshift('WIDE ' + (el.id ? '#' + el.id : el.tagName) + ' w=' + Math.round(el.getBoundingClientRect().width)));
+    return { scroll: document.documentElement.scrollWidth > W + 1, out: out.slice(0, 8) };
+  });
+  const mCheck = async (pg, label) => {
+    await pg.waitForTimeout(500);
+    const o = await offenders(pg);
+    expect(!o.scroll && !o.out.length, 'mobile ' + label + ': fits the screen' + (o.out.length ? ' — overflow: ' + o.out.join(', ') : ''));
+  };
+  const mLogout = async pg => { await pg.click('#mobileMenuBtn'); await pg.click('.modal [data-menu="logout"]'); await pg.waitForSelector('#loginView:not(.hidden)'); };
+  await mCheck(m, 'request detail');
+  await m.keyboard.press('Escape');
+  await m.click('#mineList [data-act="receive"] >> nth=0').catch(() => {});
+  if (await m.$('.modal #rOk')) { await shot(m, 'mobile-receive'); await mCheck(m, 'receive & sign'); await m.keyboard.press('Escape'); }
+  const mRole = async (name, pass, views) => {
+    await mLogout(m);
+    await login(m, name, pass);
+    for (const v of views) {
+      await m.evaluate(v => go(v), v);
+      await m.waitForTimeout(900);
+      await shot(m, 'mobile-' + name + '-' + v, true);
+      await mCheck(m, name + ' / ' + v);
+    }
+  };
+  await mRole('علي', '3333', ['requests', 'complaints']);
+  await m.click('#procList .req-main >> nth=0').catch(() => {});
+  if (await m.$('.modal .stepper')) { await mCheck(m, 'procurement detail'); await m.keyboard.press('Escape'); }
+  await mRole('د. خالد', '4444', ['reviews']);
+  await mRole('منى', '5555', ['overview', 'monitor', 'reports', 'complaints', 'notices', 'workflow']);
+  await mRole('نواف', '7777', ['finance']);
+  await mRole('المدير', '1234', ['users']);
+  await m.click('[data-act="roleEdit"] >> nth=3');
+  await m.waitForSelector('.modal #rPerms');
+  await shot(m, 'mobile-role-modal');
+  await mCheck(m, 'role permissions modal');
+  await m.keyboard.press('Escape');
+  await m.click('[data-act="userNew"]');
+  await mCheck(m, 'new user modal');
+  await m.keyboard.press('Escape');
 
   await browser.close();
   if (errors.length) { console.error('\nBrowser errors:\n' + errors.join('\n')); process.exit(1); }
