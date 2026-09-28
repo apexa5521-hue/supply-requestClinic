@@ -175,7 +175,7 @@ test('config: nurse sees only her clinics and no prices', () => {
   const proc = api(login('علي', '3333'), 'getConfig');
   assert.equal(proc.catalog.find(c => c.name === 'PROPHY PASTE').price, 60);
   assert.equal(proc.roles.length, 0, 'roles only for admin');
-  assert.equal(api(login('المدير', '1234'), 'getConfig').roles.length, 5);
+  assert.equal(api(login('المدير', '1234'), 'getConfig').roles.length, 7);
 });
 
 test('createRequest: validation', () => {
@@ -837,7 +837,7 @@ test('admin: users & roles management with safety rails', () => {
   throwsCode(() => api(a, 'updateUser', 'المدير', { role: 'جودة' }), 'ERR_LAST_ADMIN');
   throwsCode(() => api(a, 'deleteUser', 'المدير'), 'ERR_DELETE_SELF');
   throwsCode(() => api(a, 'deleteRole', 'ممرضة'), 'ERR_ROLE_IN_USE');
-  throwsCode(() => api(a, 'saveRole', 'تنفيذي', 'dashboard'), 'ERR_LAST_ADMIN');
+  throwsCode(() => api(a, 'saveRole', 'أدمن', 'executive'), 'ERR_LAST_ADMIN');
   throwsCode(() => api(a, 'saveRole', 'مشرف', 'hacker'), 'ERR_BAD_SCREEN');
   assert.ok(api(a, 'saveRole', 'مشرف', 'dashboard').some(r => r.name === 'مشرف'));
   assert.ok(!api(a, 'deleteRole', 'مشرف').some(r => r.name === 'مشرف'));
@@ -964,7 +964,7 @@ test('setupSheets is idempotent and seeds defaults on an empty spreadsheet', () 
   ctx.setupSheets();
   ctx.setupSheets();
   assert.equal(gas.dump('Users').length, 2);
-  assert.equal(gas.dump('Roles').length, 8);
+  assert.equal(gas.dump('Roles').length, 9);
   assert.equal(gas.dump('ItemsCatalog').length, 18);
   const r = ctx.api(null, 'login', ['المدير', '1234']);
   assert.equal(r.user.screen, 'admin');
@@ -1030,4 +1030,140 @@ test('doctor accounts with joined names (ZakhirRais) or an explicit link receive
   assert.deepEqual(users.find(u => u.name === 'نورة').linked, ['د. نورة العتيبي']);
   const b = api(n, 'createRequest', { doctor: 'Dr. Maha', type: 'شهري', items: [{ name: 'DENTAL FLOSS', qty: 3 }] });
   assert.deepEqual(api(login('maha', '9999'), 'getDoctorRequests').map(r => r.id), [b.id]);
+});
+
+test('roles split: legacy quality/executive/finance migrate; executive keeps full access until an admin exists', () => {
+  const { api, login, gas } = boot(g => {
+    g.seed('Roles', ['RoleName', 'Screen'], [['ممرضة', 'nurse'], ['تموين', 'procurement'], ['جودة', 'admin'], ['تنفيذي', 'admin'], ['مالية', 'dashboard']]);
+    g.seed('Users', ['Name', 'Password', 'Role', 'Clinic', 'Email'], [
+      ['منى', '5555', 'جودة', '', ''], ['المدير', '1234', 'تنفيذي', '', ''], ['نواف', '7777', 'مالية', '', ''], ['علي', '3333', 'تموين', '', '']
+    ]);
+  });
+  const q = login('منى', '5555');
+  assert.deepEqual(rows(gas, 'Roles').map(r => [r.RoleName, r.Screen]).sort(), [
+    ['أدمن', 'admin'], ['ممرضة', 'nurse'], ['تموين', 'procurement'], ['جودة', 'quality'], ['تنفيذي', 'executive'], ['مالية', 'finance']].sort());
+  const qc = api(q, 'getConfig');
+  assert.equal(qc.user.screen, 'quality');
+  assert.ok(qc.user.perms.includes('monitor') && !qc.user.perms.includes('users') && !qc.user.perms.includes('finance'));
+  throwsCode(() => api(q, 'getUsers'), 'ERR_FORBIDDEN');
+  assert.ok(api(q, 'getMonitor'));
+  // لا يوجد أدمن بعد: التنفيذي يبقى بكل الصلاحيات حتى لا يُقفل النظام
+  const e = login('المدير', '1234');
+  assert.equal(api(e, 'getConfig').user.screen, 'executive');
+  assert.equal(api(e, 'getConfig').hasAdmin, false);
+  api(e, 'createUser', { name: 'admin', password: '9999', role: 'أدمن' });
+  throwsCode(() => api(e, 'getUsers'), 'ERR_FORBIDDEN'); // بعد وجود الأدمن: صلاحيات التنفيذي الافتراضية فقط (فوراً)
+  assert.ok(api(e, 'getExecutiveStats'));
+  const a = login('admin', '9999');
+  assert.equal(api(a, 'getConfig').user.perms.length, 9);
+  const f = login('نواف', '7777');
+  assert.ok(api(f, 'getFinance', {}).summary);
+  throwsCode(() => api(f, 'getComplaints'), 'ERR_FORBIDDEN');
+  throwsCode(() => api(f, 'getUsers'), 'ERR_FORBIDDEN');
+  // تسجيل دخول ثانٍ لا يعيد الترقية (الأدوار صارت بصيغتها الجديدة)
+  login('منى', '5555');
+  assert.equal(rows(gas, 'Roles').filter(r => r.RoleName === 'أدمن').length, 1);
+});
+
+test('permissions per role are editable by the admin and enforced on the server (also in batches)', () => {
+  const { api, login } = boot();
+  const a = login('المدير', '1234');
+  const q = login('منى', '5555');
+  assert.ok(api(q, 'getStatsReport', {}));
+  const roles = api(a, 'saveRole', 'جودة', 'quality', ['overview', 'monitor']);
+  const jr = roles.find(r => r.name === 'جودة');
+  assert.deepEqual([jr.custom, jr.perms], [true, ['overview', 'monitor']]);
+  throwsCode(() => api(q, 'getStatsReport', {}), 'ERR_FORBIDDEN');
+  assert.ok(api(q, 'getExecutiveStats'));
+  const b = JSON.parse(JSON.stringify(api(q, 'batch', [['getStatsReport', [{}]], ['getMonitor', []]])));
+  assert.deepEqual(b.map(x => x.ok), [false, true]);
+  api(a, 'saveRole', 'جودة', 'quality', []);
+  assert.deepEqual(api(q, 'getConfig').user.perms, []);
+  throwsCode(() => api(q, 'getMonitor'), 'ERR_FORBIDDEN');
+  // الرجوع للافتراضي (بدون قائمة)
+  api(a, 'saveRole', 'جودة', 'quality');
+  assert.ok(api(q, 'getStatsReport', {}));
+  throwsCode(() => api(a, 'saveRole', 'أدمن', 'quality', []), 'ERR_LAST_ADMIN');
+});
+
+test('monitor: monthly window 15–20 and due on the 1st, emergency within 24h; nudge + daily digest reach procurement and quality', () => {
+  const now = Date.now();
+  const H = 36e5;
+  const d = (ms) => new Date(ms);
+  const ym = (back) => { const x = new Date(now); x.setUTCDate(15); x.setUTCMonth(x.getUTCMonth() - back); return x.toISOString().slice(0, 7); };
+  const day = (back, dd) => new Date(ym(back) + '-' + String(dd).padStart(2, '0') + 'T10:00:00+03:00');
+  const { api, login, gas, ctx } = boot(g => {
+    g.seed('Requests', ['RequestID', 'Date', 'Clinic', 'Doctor', 'Nurse', 'Type', 'Status', 'SubmittedAt', 'Branch', 'ReceivedAt'], [
+      ['REQ-A', day(2, 17), 'عيادة الأسنان 1', 'د. نورة', 'سارة', 'شهري', 'جديد', day(2, 17), 'الرياض', ''],
+      ['REQ-B', d(now - 30 * H), 'عيادة الأسنان 1', 'د. نورة', 'سارة', 'طارئ', 'قيد التجهيز', d(now - 30 * H), 'الرياض', ''],
+      ['REQ-C', d(now - 15 * H), 'عيادة الجلدية 1', 'د. نورة', 'سارة', 'طارئ', 'جديد', d(now - 15 * H), 'الرياض', ''],
+      ['REQ-D', d(now - 2 * H), 'عيادة الأسنان 1', 'د. نورة', 'سارة', 'طارئ', 'جديد', d(now - 2 * H), 'الرياض', ''],
+      ['REQ-E', day(2, 3), 'عيادة الأسنان 2', 'د. سعد', 'ريم', 'شهري', 'تم الاستلام', day(2, 3), 'جدة', day(1, 5)]
+    ]);
+    g.seed('RequestItems', ['RequestID', 'ItemName', 'RequestedQty'], [['REQ-A', 'PROPHY PASTE', 2], ['REQ-B', 'DENTAL FLOSS', 1], ['REQ-C', 'DENTAL FLOSS', 1], ['REQ-D', 'DENTAL FLOSS', 1], ['REQ-E', 'DENTAL FLOSS', 1]]);
+  });
+  const q = login('منى', '5555');
+  const m = api(q, 'getMonitor');
+  assert.deepEqual(m.late.map(r => r.id).sort(), ['REQ-A', 'REQ-B']);
+  assert.deepEqual(m.atRisk.map(r => r.id), ['REQ-C']);
+  const A = m.late.find(r => r.id === 'REQ-A');
+  assert.deepEqual([A.stage, A.owner, A.inWindow], ['prep', 'procurement', true]);
+  assert.equal(m.late.find(r => r.id === 'REQ-B').stage, 'dispatch');
+  assert.equal(m.cycle.clinics.length, 3);
+  assert.deepEqual(m.rules.window, [15, 20]);
+  const k = api(q, 'getMonitor', { month: ym(2) }).kpis;
+  assert.deepEqual([k.requests, k.monthly, k.outOfWindow, k.received, k.onTimeRate], [2, 2, 1, 1, 0], 'REQ-E: out of window and received after the 1st');
+  // بطاقات التموين تحمل علامة التأخير + تنبيه أعلى الشاشة
+  const p = login('علي', '3333');
+  const reqs = api(p, 'getRequests', {});
+  const list = reqs.rows || reqs;
+  assert.equal(list.find(r => r.id === 'REQ-A').overdue, true);
+  assert.equal(list.find(r => r.id === 'REQ-D').overdue, false);
+  assert.ok(api(p, 'getAlerts').some(x => x.code === 'alert_overdue_proc' && x.n === 2));
+  assert.ok(api(q, 'getAlerts').some(x => x.code === 'alert_overdue' && x.n === 2));
+  // تنبيه التموين من الجودة
+  gas.mails.length = 0;
+  api(q, 'nudgeProcurement', 'REQ-A', 'أسرعوا لو سمحتم');
+  assert.ok(gas.mails.some(x => x.to.includes('ali@example.com') && /REQ-A/.test(x.subject)));
+  assert.ok(rows(gas, 'Comments').some(c => c.RequestID === 'REQ-A' && /أسرعوا/.test(c.Message)));
+  throwsCode(() => api(p, 'nudgeProcurement', 'REQ-A', 'x'), 'ERR_FORBIDDEN');
+  // الملخص اليومي: فقط من المشغّل الزمني
+  gas.mails.length = 0;
+  assert.equal(ctx.dailyDigest(), 0);
+  assert.equal(gas.mails.length, 0);
+  assert.equal(ctx.dailyDigest({ triggerUid: 't1' }), 3);
+  assert.ok(gas.mails.some(x => x.to.includes('ali@example.com')), 'procurement gets the digest');
+  assert.ok(gas.mails.some(x => x.to.includes('mona@example.com')), 'quality gets the digest');
+});
+
+test('finance: spend summary and price editing written back to the catalog sheet as a number', () => {
+  const { api, login, gas } = boot(g => {
+    g.seed('ItemsCatalog', ['ItemName', 'CommercialName', 'Category', 'Price'], [
+      ['PROPHY PASTE', 'Nupro', 'Hygiene', 60], ['Itero Sleeve', 'Align', 'Scanner', new Date('2026-08-03T00:00:00+03:00')], ['DENTAL FLOSS', '', '', 12.5]
+    ]);
+  });
+  const n = login('سارة', '1111');
+  api(n, 'createRequest', { doctor: 'د. نورة', type: 'شهري', items: [{ name: 'PROPHY PASTE', qty: 2 }, { name: 'Itero Sleeve', qty: 1 }] });
+  const f = login('نواف', '7777');
+  let prices = api(f, 'getPriceList');
+  assert.equal(prices.find(p => p.name === 'Itero Sleeve').issue, 'date');
+  throwsCode(() => api(f, 'setItemPrice', 'Itero Sleeve', 'abc'), 'ERR_BAD_PRICE');
+  throwsCode(() => api(f, 'setItemPrice', 'Itero Sleeve', 2e6), 'ERR_BAD_PRICE');
+  throwsCode(() => api(f, 'setItemPrice', 'غير موجود', 5), 'ERR_NOT_FOUND');
+  throwsCode(() => api(n, 'setItemPrice', 'Itero Sleeve', 5), 'ERR_FORBIDDEN');
+  assert.deepEqual(api(f, 'setItemPrice', 'itero sleeve', '٣٥٠'), { name: 'Itero Sleeve', price: 350, issue: '' });
+  assert.equal(rows(gas, 'ItemsCatalog').find(r => r.ItemName === 'Itero Sleeve').Price, 350);
+  assert.ok(rows(gas, 'Log').some(l => /تعديل سعر: Itero Sleeve/.test(l.Action) && l.User === 'نواف'));
+  prices = api(f, 'getPriceList');
+  assert.equal(prices.find(p => p.name === 'Itero Sleeve').issue, '');
+  const fin = api(f, 'getFinance', {});
+  assert.equal(fin.summary.approved, 470);
+  assert.equal(fin.summary.requested, 470);
+  assert.equal(fin.trend.length, 12);
+  assert.equal(fin.trend[11].value, 470);
+  assert.deepEqual(fin.badPrices, []);
+  // المالية لا تعدّل إن سُحبت الصلاحية
+  const a = login('المدير', '1234');
+  api(a, 'saveRole', 'مالية', 'finance', ['finance']);
+  throwsCode(() => api(f, 'setItemPrice', 'Itero Sleeve', 5), 'ERR_FORBIDDEN');
 });

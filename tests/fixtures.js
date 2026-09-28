@@ -3,7 +3,7 @@
   function seedFixtures(gas) {
     gas.seed('Roles', ['RoleName', 'Screen'], [
       ['ممرضة', 'nurse'], ['تموين', 'procurement'], ['طبيب', 'doctor'],
-      ['جودة', 'dashboard'], ['تنفيذي', 'admin']
+      ['جودة', 'quality'], ['تنفيذي', 'executive'], ['مالية', 'finance'], ['أدمن', 'admin']
     ]);
     // كلمات سر نصية قديمة (legacy) — يجب أن تُرقّى تلقائياً لمشفّرة بعد أول دخول
     gas.seed('Users', ['Name', 'Password', 'Role', 'Clinic', 'Email'], [
@@ -12,7 +12,9 @@
       ['علي', '3333', 'تموين', '', 'ali@example.com'],
       ['د. خالد', '4444', 'طبيب', '', 'khaled@example.com'],
       ['منى', '5555', 'جودة', '', 'mona@example.com'],
-      ['المدير', '1234', 'تنفيذي', '', 'boss@example.com']
+      ['المدير', '1234', 'أدمن', '', 'boss@example.com'],
+      ['فيصل', '6666', 'تنفيذي', '', 'exec@example.com'],
+      ['نواف', '7777', 'مالية', '', 'fin@example.com']
     ]);
     gas.seed('Clinics', ['ClinicName', 'Branch', 'Type'], [
       ['عيادة الأسنان 1', 'الرياض', 'أسنان'], ['عيادة الأسنان 2', 'جدة', 'أسنان'], ['عيادة الجلدية 1', 'الرياض', 'جلدية']

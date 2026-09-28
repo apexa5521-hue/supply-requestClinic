@@ -17,7 +17,7 @@ const DUP_WINDOW_SECONDS = 120;
 
 const SCHEMA = {
   Users:        ['Name', 'Password', 'Role', 'Clinic', 'Email', 'PasswordChangedAt', 'DoctorName'],
-  Roles:        ['RoleName', 'Screen'],
+  Roles:        ['RoleName', 'Screen', 'Permissions'],
   Clinics:      ['ClinicName', 'Branch', 'Type'],
   Doctors:      ['DoctorName', 'Clinic', 'NurseName', 'Subspecialty'],
   ItemsCatalog: ['ItemName', 'CommercialName', 'Category', 'Price'],
@@ -59,11 +59,31 @@ TRANSITIONS[ST.SENT]        = { from: [ST.APPROVED, ST.PREP, ST.VENDOR_RECV], st
 const DISPATCHABLE = [ST.APPROVED, ST.PREP, ST.VENDOR_WAIT, ST.VENDOR_RECV];
 
 const REQUEST_TYPES = ['شهري', 'طارئ'];
-const SCREENS = ['nurse', 'procurement', 'doctor', 'dashboard', 'admin'];
+const SCREENS = ['nurse', 'procurement', 'doctor', 'quality', 'executive', 'finance', 'dashboard', 'admin'];
+/** شاشات الإدارة: ما يظهر فيها تحدده صلاحيات الدور (Permissions في تبويب Roles) */
+const MGMT_SCREENS = ['quality', 'executive', 'finance', 'dashboard', 'admin'];
 const DEFAULT_ROLES = [
   ['ممرضة', 'nurse'], ['تموين', 'procurement'], ['طبيب', 'doctor'],
-  ['جودة', 'admin'], ['جوده', 'admin'], ['مالية', 'dashboard'], ['تنفيذي', 'admin']
+  ['جودة', 'quality'], ['جوده', 'quality'], ['مالية', 'finance'], ['تنفيذي', 'executive'], ['أدمن', 'admin']
 ];
+/**
+ * الصلاحيات القابلة للتحديد لكل دور إداري. الأدمن له كل شيء دائماً.
+ * overview: نظرة عامة · reports: التقارير والإحصائيات · complaints: عرض البلاغات · complaints_close: إغلاقها
+ * notices: إرسال التنبيهات · monitor: متابعة التموين والمواعيد · finance: شاشة المالية
+ * prices_edit: تعديل أسعار الكتالوج · users: المستخدمون والأدوار
+ */
+const PERMS = ['overview', 'reports', 'complaints', 'complaints_close', 'notices', 'monitor', 'finance', 'prices_edit', 'users'];
+const DEFAULT_PERMS = {
+  admin: PERMS,
+  executive: ['overview', 'reports', 'complaints', 'complaints_close', 'notices', 'monitor'],
+  quality: ['overview', 'reports', 'complaints', 'complaints_close', 'notices', 'monitor'],
+  finance: ['finance', 'prices_edit', 'reports', 'monitor'],
+  dashboard: ['overview', 'reports', 'complaints', 'notices']
+};
+/* الطلب الشهري يُرفع من يوم 15 إلى 20، ويجب أن يُستلم قبل يوم 1 من الشهر التالي؛ الطارئ خلال 24 ساعة */
+const MONTHLY_WINDOW = [15, 20];
+const EMERGENCY_DUE_HOURS = 24;
+const AT_RISK_DAYS = 5;
 const NOTICE_TARGET_BY_SCREEN = { nurse: 'ممرضة', procurement: 'تموين', doctor: 'طبيب' };
 const COMPLAINT_TYPES = ['تأخير', 'نقص', 'زيادة', 'أخرى'];
 
@@ -87,7 +107,7 @@ function setupSheets() {
     DEFAULT_ROLES.forEach(function (r) { append_('Roles', { RoleName: r[0], Screen: r[1] }); });
   }
   if (read_('Users').rows.length === 0) {
-    append_('Users', { Name: 'المدير', Password: '1234', Role: 'تنفيذي' });
+    append_('Users', { Name: 'المدير', Password: '1234', Role: 'أدمن' });
   }
   if (read_('ItemsCatalog').rows.length === 0) {
     [
@@ -99,6 +119,8 @@ function setupSheets() {
     ].forEach(function (i) { append_('ItemsCatalog', { ItemName: i }); });
   }
   flushDirty_(); // يُبطل كاش التبويبات التي أنشأناها/ملأناها
+  migrateRoles_();
+  try { installTriggers(); } catch (e) { console.error(e); } // يحتاج صلاحية المشغّلات
   try {
     SpreadsheetApp.getUi().alert('تم تجهيز التبويبات. غيّر كلمة سر "المدير" بعد أول دخول، ثم أضف العيادات والأطباء والمستخدمين.');
   } catch (e) { /* يعمل بدون واجهة (مثلاً من المشغّلات) */ }
@@ -150,7 +172,7 @@ function api(token, fn, args) {
     const def = API_[fn];
     if (!def) throw new Error('ERR_UNKNOWN_FN');
     const user = session_(token);
-    if (def.screens !== '*' && def.screens.indexOf(user.screen) === -1) throw new Error('ERR_FORBIDDEN');
+    if (!allowed_(def, user)) throw new Error('ERR_FORBIDDEN');
     return sanitize_(def.fn.apply(null, [user].concat(args)));
   } finally {
     flushDirty_();
@@ -163,6 +185,12 @@ function api(token, fn, args) {
  * calls = [[fn, args], ...] → [{ok, data} | {ok:false, error}, ...]
  */
 const BATCH_MAX = 12;
+/** يسمح بالدالة إن كانت شاشة المستخدم ضمن screens، أو لديه الصلاحية perm (للأدوار الإدارية) */
+function allowed_(def, user) {
+  if (def.screens === '*' || def.screens.indexOf(user.screen) !== -1) return true;
+  return !!def.perm && (user.perms || []).indexOf(def.perm) !== -1;
+}
+
 function batch_(token, calls) {
   if (!Array.isArray(calls) || !calls.length || calls.length > BATCH_MAX) throw new Error('ERR_BAD_BATCH');
   return runBatch_(session_(token), calls);
@@ -174,7 +202,7 @@ function runBatch_(user, calls) {
       const fn = String(c && c[0]);
       const def = API_[fn];
       if (!def || fn.indexOf('get') !== 0) throw new Error('ERR_UNKNOWN_FN'); // القراءة فقط
-      if (def.screens !== '*' && def.screens.indexOf(user.screen) === -1) throw new Error('ERR_FORBIDDEN');
+      if (!allowed_(def, user)) throw new Error('ERR_FORBIDDEN');
       return { ok: true, data: sanitize_(def.fn.apply(null, [user].concat(Array.isArray(c[1]) ? c[1] : []))) };
     } catch (e) {
       return { ok: false, error: String((e && e.message) || e) };
@@ -183,7 +211,7 @@ function runBatch_(user, calls) {
 }
 
 const ALL = '*';
-const MGMT = ['dashboard', 'admin'];
+const MGMT = MGMT_SCREENS;
 const API_ = {
   getConfig:                 { screens: ALL, fn: getConfig_ },
   changePassword:            { screens: ALL, fn: changePassword_ },
@@ -211,24 +239,29 @@ const API_ = {
   getItemNotes:              { screens: ALL, fn: getItemNotesApi_ },
   addItemNote:               { screens: ALL, fn: addItemNote_ },
   addComplaint:              { screens: ALL, fn: addComplaint_ },
-  getComplaints:             { screens: ['procurement'].concat(MGMT), fn: getComplaints_ },
+  getComplaints:             { screens: ['procurement'], perm: 'complaints', fn: getComplaints_ },
   // إغلاق البلاغات للجودة والإدارة التنفيذية فقط (التموين يطّلع ويعلّق)
-  resolveComplaint:          { screens: MGMT, fn: resolveComplaint_ },
-  getDoctorReport:           { screens: ['doctor'].concat(MGMT), fn: getDoctorReport_ },
-  getReportDoctors:          { screens: MGMT, fn: getReportDoctors_ },
-  getStatsReport:            { screens: MGMT, fn: getStatsReport_ },
-  addNotice:                 { screens: MGMT, fn: addNotice_ },
-  getExecutiveStats:         { screens: MGMT, fn: getExecutiveStats_ },
-  getQualityReport:          { screens: MGMT, fn: function (u, m) { return getQualityReport_(m); } },
-  getQualityTrend:           { screens: MGMT, fn: function (u, n) { return getQualityTrend_(n); } },
-  getUsers:                  { screens: ['admin'], fn: getUsers_ },
-  getDoctorLinks:            { screens: ['admin'], fn: getDoctorLinks_ },
-  createUser:                { screens: ['admin'], fn: createUser_ },
-  updateUser:                { screens: ['admin'], fn: updateUser_ },
-  deleteUser:                { screens: ['admin'], fn: deleteUser_ },
-  getRoles:                  { screens: ['admin'], fn: function () { return getRoles_(); } },
-  saveRole:                  { screens: ['admin'], fn: saveRole_ },
-  deleteRole:                { screens: ['admin'], fn: deleteRole_ }
+  resolveComplaint:          { screens: [], perm: 'complaints_close', fn: resolveComplaint_ },
+  getDoctorReport:           { screens: ['doctor'], perm: 'reports', fn: getDoctorReport_ },
+  getReportDoctors:          { screens: [], perm: 'reports', fn: getReportDoctors_ },
+  getStatsReport:            { screens: [], perm: 'reports', fn: getStatsReport_ },
+  addNotice:                 { screens: [], perm: 'notices', fn: addNotice_ },
+  getExecutiveStats:         { screens: [], perm: 'overview', fn: getExecutiveStats_ },
+  getQualityReport:          { screens: [], perm: 'overview', fn: function (u, m) { return getQualityReport_(m); } },
+  getQualityTrend:           { screens: [], perm: 'overview', fn: function (u, n) { return getQualityTrend_(n); } },
+  getUsers:                  { screens: [], perm: 'users', fn: getUsers_ },
+  getDoctorLinks:            { screens: [], perm: 'users', fn: getDoctorLinks_ },
+  createUser:                { screens: [], perm: 'users', fn: createUser_ },
+  updateUser:                { screens: [], perm: 'users', fn: updateUser_ },
+  deleteUser:                { screens: [], perm: 'users', fn: deleteUser_ },
+  getRoles:                  { screens: [], perm: 'users', fn: function () { return getRoles_(); } },
+  getMonitor:                { screens: [], perm: 'monitor', fn: getMonitor_ },
+  nudgeProcurement:          { screens: [], perm: 'monitor', fn: nudgeProcurement_ },
+  getFinance:                { screens: [], perm: 'finance', fn: getFinance_ },
+  getPriceList:              { screens: [], perm: 'prices_edit', fn: getPriceList_ },
+  setItemPrice:              { screens: [], perm: 'prices_edit', fn: setItemPrice_ },
+  saveRole:                  { screens: [], perm: 'users', fn: saveRole_ },
+  deleteRole:                { screens: [], perm: 'users', fn: deleteRole_ }
 };
 
 /* =====================================================================
@@ -646,6 +679,7 @@ function login_(name, password, preload) {
     } catch (e) { console.error(e); } // الترقية تحسين فقط — لا تمنع الدخول
   }
 
+  migrateRoles_();
   const screen = roleScreen_(row.Role);
   if (!screen) throw new Error('ERR_ROLE_UNMAPPED');
   const user = {
@@ -654,6 +688,7 @@ function login_(name, password, preload) {
   };
   const token = Utilities.getUuid() + Utilities.getUuid().replace(/-/g, '');
   cache.put('s:' + token, JSON.stringify(Object.assign({ _at: Date.now() }, user)), SESSION_TTL);
+  user.perms = permsOf_(user);
   const out = { success: true, token: token, user: user, config: getConfig_(user) };
   const calls = preload && typeof preload === 'object' ? preload[screen] : null;
   if (Array.isArray(calls) && calls.length && calls.length <= BATCH_MAX) out.preload = runBatch_(user, calls);
@@ -670,6 +705,11 @@ function session_(token) {
   const raw = cache.get('s:' + token);
   if (!raw) throw new Error('ERR_SESSION');
   const user = JSON.parse(raw);
+  // الدور وصلاحياته تُقرأ في كل طلب: تعديل الأدمن لدور ينعكس فوراً بدون إعادة دخول
+  const sc = roleScreen_(user.role);
+  if (!sc) throw new Error('ERR_SESSION');
+  user.screen = sc;
+  user.perms = permsOf_(user);
   // تمديد الجلسة مع النشاط — مرة كل 20 دقيقة تكفي (توفّر رحلة كاش في كل طلب)
   if (!(Date.now() - (user._at || 0) < 20 * 60 * 1000)) {
     user._at = Date.now();
@@ -754,7 +794,56 @@ function getCatalog_(withPrice) {
 
 function getRoles_() {
   return read_('Roles').rows.filter(function (r) { return str_(r.RoleName); })
-    .map(function (r) { return { name: str_(r.RoleName), screen: str_(r.Screen) }; });
+    .map(function (r) {
+      const screen = str_(r.Screen);
+      const o = { name: str_(r.RoleName), screen: screen };
+      if (MGMT_SCREENS.indexOf(screen) !== -1) {
+        o.custom = !!str_(r.Permissions) && screen !== 'admin';
+        o.perms = rolePerms_(screen, r.Permissions);
+      }
+      return o;
+    });
+}
+
+/** صلاحيات دور: الأدمن كل شيء؛ وإلا المحفوظ في عمود Permissions (أو «none»)، وإلا الافتراضي لشاشته */
+function rolePerms_(screen, stored) {
+  if (screen === 'admin') return PERMS.slice();
+  if (MGMT_SCREENS.indexOf(screen) === -1) return [];
+  const v = str_(stored);
+  if (v === 'none') return [];
+  if (!v || v === '*') return (DEFAULT_PERMS[screen] || []).slice();
+  return v.split(/[,،\s]+/).filter(function (p) { return PERMS.indexOf(p) !== -1; });
+}
+
+/** هل يوجد حساب واحد على الأقل بدور شاشته admin؟ */
+function hasAdmin_() {
+  return read_('Users').rows.some(function (u) { return str_(u.Name) && roleScreen_(u.Role) === 'admin'; });
+}
+
+/** صلاحيات المستخدم الحالي. قبل إنشاء أي حساب أدمن تبقى الإدارة التنفيذية بكل الصلاحيات (حتى لا يُقفل النظام) */
+function permsOf_(user) {
+  if (MGMT_SCREENS.indexOf(user.screen) === -1) return [];
+  if (user.screen === 'executive' && !hasAdmin_()) return PERMS.slice();
+  const r = read_('Roles').rows.filter(function (x) { return str_(x.RoleName) === str_(user.role); })[0];
+  return rolePerms_(user.screen, r ? r.Permissions : '');
+}
+
+/**
+ * ترقية الأدوار القديمة مرة واحدة: كانت الجودة والتنفيذي على شاشة admin والمالية على dashboard.
+ * تُفصل الآن (جودة ← quality، تنفيذي ← executive، مالية ← finance) ويُضاف دور «أدمن».
+ * الصف الذي فيه Permissions محفوظة يُعتبر مقصوداً ولا يُمس.
+ */
+const LEGACY_ROLE_MAP_ = { 'جودة|admin': 'quality', 'جوده|admin': 'quality', 'جودة|dashboard': 'quality', 'جوده|dashboard': 'quality',
+  'تنفيذي|admin': 'executive', 'مالية|dashboard': 'finance', 'ماليه|dashboard': 'finance' };
+function migrateRoles_() {
+  const legacy = function (r) { return !str_(r.Permissions) && LEGACY_ROLE_MAP_[str_(r.RoleName) + '|' + str_(r.Screen)]; };
+  if (!read_('Roles').rows.some(legacy)) return;
+  withLock_(function () {
+    const t = read_('Roles');
+    t.rows.forEach(function (r) { const to = legacy(r); if (to) setCells_(t, r, { Screen: to }); });
+    if (!read_('Roles').rows.some(function (r) { return str_(r.Screen) === 'admin'; })) append_('Roles', { RoleName: 'أدمن', Screen: 'admin', Permissions: '*' });
+    logAction_('', 'فصل الأدوار: الجودة / الإدارة التنفيذية / المالية / الأدمن', 'النظام');
+  });
 }
 
 function getConfig_(user) {
@@ -768,7 +857,8 @@ function getConfig_(user) {
     clinics: clinics,
     branches: getBranches_(),
     catalog: getCatalog_(user.screen !== 'nurse'),
-    roles: user.screen === 'admin' ? getRoles_() : [],
+    roles: (user.perms || []).indexOf('users') !== -1 ? getRoles_() : [],
+    hasAdmin: (user.perms || []).indexOf('users') !== -1 ? hasAdmin_() : true,
     serverTime: new Date()
   };
 }
@@ -949,9 +1039,239 @@ function queryRequests_(filters) {
     r.awaitingDoctor = r.needsReview && !r.cleared && AWAITING_DOCTOR.indexOf(r.status) !== -1;
     if (r.awaitingDoctor && r.status === ST.NEW) r.status = ST.REVIEW; // طلب قديم «جديد» = لدى الطبيب
     r.doctorApproved = r.needsReview && r.cleared;
+    Object.assign(r, deadline_(r));
     r._ms = toMs_(r.date);
     return r;
   }).sort(function (a, b) { return b._ms - a._ms; });
+}
+
+/* =====================================================================
+ *  مواعيد الطلبات: الشهري يُرفع 15–20 ويُستلم قبل نهاية يوم 1 من الشهر التالي؛ الطارئ خلال 24 ساعة
+ * ===================================================================== */
+
+/** بداية يوم 1 من الشهر التالي لـ 'yyyy-MM' بتوقيت الرياض */
+function nextMonthStart_(ym) {
+  const y = Number(ym.slice(0, 4)), m = Number(ym.slice(5, 7));
+  const ny = m === 12 ? y + 1 : y, nm = m === 12 ? 1 : m + 1;
+  return new Date(ny + '-' + ('0' + nm).slice(-2) + '-01T00:00:00+03:00');
+}
+
+/** موعد الاستلام المستحق وحالة التأخير لطلب (بعد mapRequest_) */
+function deadline_(r, nowMs) {
+  const now = nowMs || Date.now();
+  const sub = toMs_(r.submittedAt || r.date);
+  if (!sub) return { dueAt: '', overdue: false, atRisk: false, inWindow: true };
+  let due, inWindow = true;
+  if (r.type === 'طارئ') due = sub + EMERGENCY_DUE_HOURS * 36e5;
+  else {
+    const day = Number(Utilities.formatDate(new Date(sub), TZ, 'dd'));
+    inWindow = day >= MONTHLY_WINDOW[0] && day <= MONTHLY_WINDOW[1];
+    due = nextMonthStart_(Utilities.formatDate(new Date(sub), TZ, 'yyyy-MM')).getTime() + 864e5 - 1; // نهاية يوم 1
+  }
+  const done = r.status === ST.RECEIVED || r.status === ST.REJECTED;
+  const recv = toMs_(r.receivedAt);
+  const overdue = !done && now > due;
+  // قريب من الموعد: لم يُرسل منه شيء بعد والمتبقي أقل من 5 أيام (أو نصف مهلة الطارئ)
+  const window = r.type === 'طارئ' ? EMERGENCY_DUE_HOURS * 36e5 / 2 : AT_RISK_DAYS * 864e5;
+  const atRisk = !done && !overdue && due - now < window && !(r.sentQty > 0) && !toMs_(r.sentAt);
+  return { dueAt: new Date(due), overdue: overdue, atRisk: atRisk, inWindow: inWindow,
+    lateReceipt: r.status === ST.RECEIVED && recv > due };
+}
+
+/** أين يقف الطلب الآن ومن المسؤول عنه */
+function stageOf_(r) {
+  if (r.status === ST.REJECTED || r.status === ST.RECEIVED) return { stage: 'done', owner: '' };
+  if (r.awaitingDoctor) return { stage: 'doctor', owner: 'doctor' };
+  if (r.sentQty > 0 && r.remainingQty > 0) return { stage: 'partial', owner: 'procurement' };
+  if (r.status === ST.SENT || r.pendingShipments > 0) return { stage: 'receipt', owner: 'nurse' };
+  if ([ST.PREP, ST.VENDOR_WAIT, ST.VENDOR_RECV].indexOf(r.status) !== -1) return { stage: 'dispatch', owner: 'procurement' };
+  return { stage: 'prep', owner: 'procurement' };
+}
+
+/**
+ * متابعة التموين والمواعيد (للجودة ومن لديه صلاحية monitor):
+ * المتأخرات والقريبة من الموعد، أداء التموين للشهر، ودورة الطلب الشهري الحالية لكل عيادة.
+ */
+function getMonitor_(user, opts) {
+  opts = opts || {};
+  const now = Date.now();
+  const month = /^\d{4}-\d{2}$/.test(str_(opts.month)) ? str_(opts.month) : Utilities.formatDate(new Date(now), TZ, 'yyyy-MM');
+  const all = queryRequests_({}).filter(function (r) { return r.status !== ST.REJECTED; });
+  function row(r) {
+    const s = stageOf_(r);
+    return { id: r.id, type: r.type, branch: r.branch, clinic: r.clinic, doctor: r.doctor, nurse: r.nurse, status: r.status,
+      submittedAt: r.submittedAt || r.date, dueAt: r.dueAt, stage: s.stage, owner: s.owner, inWindow: r.inWindow,
+      hoursLate: r.overdue ? round1_((now - toMs_(r.dueAt)) / 36e5) : 0,
+      hoursLeft: !r.overdue ? round1_((toMs_(r.dueAt) - now) / 36e5) : 0,
+      remainingQty: r.remainingQty, sentQty: r.sentQty };
+  }
+  const late = all.filter(function (r) { return r.overdue; }).map(row).sort(function (a, b) { return b.hoursLate - a.hoursLate; });
+  const atRisk = all.filter(function (r) { return r.atRisk; }).map(row).sort(function (a, b) { return a.hoursLeft - b.hoursLeft; });
+
+  // أداء التموين للشهر المختار (حسب شهر الرفع)
+  const H = 36e5;
+  function hrs(a, b) { const x = toMs_(a), y = toMs_(b); return x && y && y >= x ? (y - x) / H : null; }
+  function avg(a) { return a.length ? round1_(a.reduce(function (x, y) { return x + y; }, 0) / a.length) : null; }
+  const inMonth = all.filter(function (r) { return monthOf_(r.submittedAt || r.date) === month; });
+  const toPrep = [], toSend = [], toRecv = [], emergencyHrs = [];
+  let received = 0, onTime = 0, outOfWindow = 0, monthly = 0, emergency = 0;
+  inMonth.forEach(function (r) {
+    const clearedAt = r.approvedAt || (!r.needsReview ? (r.submittedAt || r.date) : '');
+    const sentAt = r.sentAt || r.lastShipAt;
+    const a = hrs(clearedAt, r.prepAt || sentAt); if (a !== null) toPrep.push(a);
+    const b = hrs(r.prepAt, sentAt); if (b !== null) toSend.push(b);
+    const c = hrs(sentAt, r.receivedAt); if (c !== null) toRecv.push(c);
+    if (r.type === 'طارئ') { emergency++; const e = hrs(r.submittedAt || r.date, sentAt); if (e !== null) emergencyHrs.push(e); }
+    else { monthly++; if (!r.inWindow) outOfWindow++; }
+    if (r.status === ST.RECEIVED) { received++; if (!r.lateReceipt) onTime++; }
+  });
+  const kpis = {
+    month: month, requests: inMonth.length, monthly: monthly, emergency: emergency, received: received,
+    onTimeRate: received ? Math.round(onTime / received * 100) : null,
+    lateNow: late.length, atRisk: atRisk.length, outOfWindow: outOfWindow,
+    lateProcurement: late.filter(function (x) { return x.owner === 'procurement'; }).length,
+    avgClearToPrepHrs: avg(toPrep), avgPrepToSendHrs: avg(toSend), avgSendToReceiveHrs: avg(toRecv), avgEmergencyHrs: avg(emergencyHrs)
+  };
+
+  // دورة الطلب الشهري: لكل عيادة هل رُفع طلبها الشهري لهذا الشهر وخلال الفترة؟
+  const cycleMonth = Utilities.formatDate(new Date(now), TZ, 'yyyy-MM');
+  const today = Number(Utilities.formatDate(new Date(now), TZ, 'dd'));
+  const cycle = getClinics_().map(function (c) {
+    const rs = all.filter(function (r) { return r.clinic === c.name && r.type !== 'طارئ' && monthOf_(r.submittedAt || r.date) === cycleMonth; });
+    return { clinic: c.name, branch: c.branch, count: rs.length, inWindow: rs.filter(function (r) { return r.inWindow; }).length,
+      lastAt: rs.length ? rs[0].submittedAt || rs[0].date : '' };
+  });
+  return {
+    now: new Date(now), late: late, atRisk: atRisk, kpis: kpis,
+    cycle: { month: cycleMonth, window: MONTHLY_WINDOW, today: today, open: today >= MONTHLY_WINDOW[0] && today <= MONTHLY_WINDOW[1],
+      due: nextMonthStart_(cycleMonth), clinics: cycle, missing: cycle.filter(function (c) { return !c.count; }).length },
+    rules: { window: MONTHLY_WINDOW, emergencyHours: EMERGENCY_DUE_HOURS, atRiskDays: AT_RISK_DAYS }
+  };
+}
+
+/** تنبيه التموين على طلب متأخر: تعليق على الطلب + إيميل للتموين */
+function nudgeProcurement_(user, requestId, message) {
+  const g = guardSee_(user, requestId);
+  message = clean_(message, 500) || 'يرجى الإسراع في إنهاء هذا الطلب — تجاوز الموعد المحدد.';
+  append_('Comments', { Timestamp: new Date(), RequestID: g.req.id, Author: user.name, Role: user.role, Message: '⏰ ' + message });
+  logAction_(g.req.id, 'تنبيه التموين (متابعة)', user.name);
+  notifyRole_('procurement', '⏰ متابعة طلب متأخر - ' + g.req.id,
+    user.name + ' (' + user.role + ') يطلب الإسراع في الطلب ' + g.req.id + ' — ' + (g.req.doctor || g.req.clinic) +
+    (g.req.branch ? ' / فرع ' + g.req.branch : '') + '.\n\n' + message);
+  return comments_(g.req.id);
+}
+
+/**
+ * ملخص يومي بالمتأخرات للتموين ولمن لديه صلاحية المتابعة (الجودة…).
+ * يعمل من مشغّل زمني يومي (installTriggers). لا يرسل شيئاً إن لم يوجد تأخير.
+ * الاستدعاء اليدوي من المتصفح يُتجاهل (المشغّل يمرر triggerUid).
+ */
+function dailyDigest(e) {
+  if (!e || !e.triggerUid) return 0;
+  return sendDigest_();
+}
+function sendDigest_() {
+  const m = getMonitor_({}, {});
+  if (!m.late.length && !m.atRisk.length) return 0;
+  const line = function (r) {
+    return '- ' + r.id + ' · ' + (r.doctor || r.clinic) + (r.branch ? ' · ' + r.branch : '') + ' · ' + r.type +
+      ' · ' + (r.hoursLate ? 'متأخر ' + Math.round(r.hoursLate) + ' ساعة' : 'باقي ' + Math.round(r.hoursLeft) + ' ساعة') + ' (' + STAGE_AR_[r.stage] + ')';
+  };
+  const body = (m.late.length ? 'طلبات تجاوزت الموعد (' + m.late.length + '):\n' + m.late.map(line).join('\n') + '\n\n' : '') +
+    (m.atRisk.length ? 'قريبة من الموعد ولم تُرسل بعد (' + m.atRisk.length + '):\n' + m.atRisk.map(line).join('\n') : '');
+  const subject = '⏰ متابعة المواعيد: ' + m.late.length + ' متأخر · ' + m.atRisk.length + ' قريب من الموعد';
+  notifyRole_('procurement', subject, body);
+  notifyPerm_('monitor', subject, body);
+  return m.late.length + m.atRisk.length;
+}
+const STAGE_AR_ = { doctor: 'بانتظار اعتماد الطبيب', prep: 'بانتظار التجهيز', dispatch: 'بانتظار الإرسال', partial: 'متبقي من الإرسال', receipt: 'بانتظار استلام العيادة', done: 'مكتمل' };
+
+/** يثبّت المشغّل اليومي للملخص (مرة واحدة؛ يُستدعى من setupSheets أو يدوياً من المحرر) */
+function installTriggers() {
+  const has = ScriptApp.getProjectTriggers().some(function (t) { return t.getHandlerFunction() === 'dailyDigest'; });
+  if (!has) ScriptApp.newTrigger('dailyDigest').timeBased().everyDays(1).atHour(8).inTimezone(TZ).create();
+  return !has;
+}
+
+/* =====================================================================
+ *  المالية: الصرف والتكلفة + أسعار الكتالوج
+ * ===================================================================== */
+
+function getFinance_(user, opts) {
+  opts = opts || {};
+  const rep = getStatsReport_(user, opts);
+  const from = parseDay_(opts.from), to = parseDay_(opts.to, true);
+  const branch = str_(opts.branch);
+  const price = {};
+  getCatalog_(true).forEach(function (c) { price[c.name.toLowerCase()] = Number(c.price) || 0; });
+  const pr = function (n) { return price[str_(n).toLowerCase()] || 0; };
+  const all = queryRequests_({}).filter(function (r) { return r.status !== ST.REJECTED && (!branch || r.branch === branch); });
+  const inRange = {};
+  all.forEach(function (r) {
+    const ms = toMs_(r.submittedAt || r.date);
+    if ((!from || ms >= from.getTime()) && (!to || ms <= to.getTime())) inRange[r.id] = r;
+  });
+  let requested = 0, received = 0, dispatched = 0;
+  const byType = {};
+  read_('RequestItems').rows.forEach(function (it) {
+    const r = inRange[str_(it.RequestID)];
+    if (!r) return;
+    const p = pr(it.ItemName);
+    requested += (num_(it.RequestedQty) || 0) * p;
+    if (it.ReceivedQty !== '' && it.ReceivedQty !== null) received += (num_(it.ReceivedQty) || 0) * p;
+    const t = r.type || '—';
+    byType[t] = round2_((byType[t] || 0) + targetQty_(it) * p);
+  });
+  read_('ShipmentItems').rows.forEach(function (s) { if (inRange[str_(s.RequestID)]) dispatched += (num_(s.Qty) || 0) * pr(s.ItemName); });
+  // اتجاه 12 شهراً (قيمة المعتمد حسب شهر الرفع) — مستقل عن الفترة المختارة
+  const byMonth = {};
+  const items = itemsByRequest_();
+  all.forEach(function (r) {
+    const m = monthOf_(r.submittedAt || r.date);
+    (items[r.id] || []).forEach(function (it) { byMonth[m] = (byMonth[m] || 0) + targetQty_(it) * pr(it.ItemName); });
+  });
+  const now = new Date(), trend = [];
+  for (let i = 11; i >= 0; i--) {
+    const m = Utilities.formatDate(new Date(now.getFullYear(), now.getMonth() - i, 15), TZ, 'yyyy-MM');
+    trend.push({ month: m, value: round2_(byMonth[m] || 0) });
+  }
+  return {
+    from: rep.from, to: rep.to, branch: branch, generatedAt: new Date(),
+    summary: { requests: rep.summary.requests - rep.summary.rejected, requested: round2_(requested), approved: rep.summary.value,
+      dispatched: round2_(dispatched), received: round2_(received), reviewSaving: round2_(Math.max(0, requested - rep.summary.value)),
+      avgValue: rep.summary.avgValue, emergency: rep.summary.emergency },
+    byType: byType, branches: rep.branches, clinics: rep.clinics, doctors: rep.doctors, topItems: rep.topItems,
+    badPrices: rep.badPrices, trend: trend
+  };
+}
+
+/** قائمة الأسعار كما في تبويب ItemsCatalog (مع التنبيه على الخلايا الخاطئة) */
+function getPriceList_() {
+  return read_('ItemsCatalog').rows.filter(function (r) { return str_(r.ItemName); }).map(function (r) {
+    return { name: str_(r.ItemName), commercial: str_(r.CommercialName), category: str_(r.Category),
+      price: price_(r.Price), issue: priceProblem_(r.Price) };
+  });
+}
+
+/** تعديل سعر صنف: يُكتب مباشرة في عمود Price بتبويب ItemsCatalog (بتنسيق رقمي حتى لا يتحول لتاريخ) */
+function setItemPrice_(user, item, value) {
+  item = str_(item);
+  const n = num_(value);
+  if (!item) throw new Error('ERR_REQUIRED');
+  if (!(n >= 0 && n <= PRICE_MAX)) throw new Error('ERR_BAD_PRICE');
+  const v = round2_(n);
+  return withLock_(function () {
+    const t = read_('ItemsCatalog');
+    const row = t.rows.filter(function (r) { return str_(r.ItemName).toLowerCase() === item.toLowerCase(); })[0];
+    if (!row) throw new Error('ERR_NOT_FOUND');
+    const old = row.Price;
+    const sh = sheet_('ItemsCatalog');
+    sh.getRange(row._row, t.col.Price + 1).setNumberFormat('#,##0.00').setValue(v);
+    row.Price = v;
+    markDirty_('ItemsCatalog');
+    logAction_('', 'تعديل سعر: ' + str_(row.ItemName) + ' ' + (isDate_(old) ? '(خلية تاريخ)' : str_(old) || '—') + ' ← ' + v, user.name);
+    return { name: str_(row.ItemName), price: v, issue: '' };
+  });
 }
 
 function itemsByRequest_() {
@@ -1798,7 +2118,7 @@ function addComplaint_(user, requestId, type, message) {
   const subject = 'بلاغ جديد (' + type + ') على الطلب ' + requestId;
   const body = user.name + ' (' + user.role + '):\n' + message;
   notifyRole_('procurement', subject, body);
-  notifyRole_('dashboard', subject, body);
+  notifyPerm_('complaints_close', subject, body);
   notifyRole_('admin', subject, body);
   return { id: id };
 }
@@ -1839,7 +2159,7 @@ function addNotice_(user, toRole, message) {
 function getNotices_(user) {
   const target = NOTICE_TARGET_BY_SCREEN[user.screen];
   return read_('Notices').rows
-    .filter(function (r) { return str_(r.Message) && (str_(r.ToRole) === 'الكل' || (target && str_(r.ToRole) === target) || MGMT.indexOf(user.screen) !== -1); })
+    .filter(function (r) { return str_(r.Message) && (str_(r.ToRole) === 'الكل' || (target && str_(r.ToRole) === target) || MGMT_SCREENS.indexOf(user.screen) !== -1); })
     .map(function (r) { return { time: r.Timestamp, fromRole: str_(r.FromRole), fromName: str_(r.FromName), toRole: str_(r.ToRole), message: str_(r.Message) }; })
     .sort(function (a, b) { return toMs_(b.time) - toMs_(a.time); })
     .slice(0, 10);
@@ -1874,16 +2194,28 @@ function getAlerts_(user) {
     if (partial) alerts.push({ type: 'warning', code: 'alert_partial', n: partial });
     if (urgentReview) alerts.push({ type: 'warning', code: 'alert_urgent_review', n: urgentReview });
     if (stale) alerts.push({ type: 'warning', code: 'alert_stale', n: stale });
+    const overdue = all.filter(function (r) { return r.overdue && stageOf_(r).owner === 'procurement'; }).length;
+    if (overdue) alerts.push({ type: 'danger', code: 'alert_overdue_proc', n: overdue });
   } else if (user.screen === 'doctor') {
     const pending = queryRequests_({ doctorUser: user }).filter(function (r) { return r.awaitingDoctor; }).length;
     if (pending) alerts.push({ type: 'warning', code: 'alert_pending_review', n: pending });
   } else {
-    const open = getComplaints_(user, true).length;
-    const stale = reqs.filter(function (r) {
-      return [ST.RECEIVED, ST.REJECTED].indexOf(r.status) === -1 && hoursSince(r.submittedAt) > 72;
-    }).length;
+    const perms = user.perms || [];
+    const open = perms.indexOf('complaints') !== -1 ? getComplaints_(user, true).length : 0;
     if (open) alerts.push({ type: 'danger', code: 'alert_open_complaints', n: open });
-    if (stale) alerts.push({ type: 'warning', code: 'alert_stale', n: stale });
+    if (perms.indexOf('monitor') !== -1) {
+      // متأخر = تجاوز موعد الاستلام (الشهري: يوم 1 من الشهر التالي، الطارئ: 24 ساعة)
+      const q = queryRequests_({});
+      const late = q.filter(function (r) { return r.overdue; }).length;
+      const risk = q.filter(function (r) { return r.atRisk; }).length;
+      if (late) alerts.push({ type: 'danger', code: 'alert_overdue', n: late });
+      if (risk) alerts.push({ type: 'warning', code: 'alert_at_risk', n: risk });
+    } else if (perms.indexOf('overview') !== -1) {
+      const stale = reqs.filter(function (r) {
+        return [ST.RECEIVED, ST.REJECTED].indexOf(r.status) === -1 && hoursSince(r.submittedAt) > 72;
+      }).length;
+      if (stale) alerts.push({ type: 'warning', code: 'alert_stale', n: stale });
+    }
   }
   return alerts;
 }
@@ -1901,6 +2233,15 @@ function notifyRole_(screen, subject, body) {
   const emails = read_('Users').rows
     .filter(function (u) { return str_(u.Email) && roleScreen_(u.Role) === screen; })
     .map(function (u) { return str_(u.Email); });
+  if (emails.length) sendMail_(emails.join(','), subject, body);
+}
+
+/** إيميل لكل من لديه صلاحية معيّنة (مثلاً المتابعة أو إغلاق البلاغات) */
+function notifyPerm_(perm, subject, body) {
+  const emails = read_('Users').rows.filter(function (u) {
+    if (!str_(u.Email) || !str_(u.Name)) return false;
+    return permsOf_({ role: str_(u.Role), screen: roleScreen_(u.Role) }).indexOf(perm) !== -1;
+  }).map(function (u) { return str_(u.Email); });
   if (emails.length) sendMail_(emails.join(','), subject, body);
 }
 
@@ -2275,9 +2616,16 @@ function deleteUser_(user, name) {
   return getUsers_();
 }
 
-function saveRole_(user, name, screen) {
+function saveRole_(user, name, screen, perms) {
   name = clean_(name, 60);
   screen = str_(screen);
+  // صلاحيات الأدوار الإدارية: قائمة مختارة من PERMS (فارغة = لا شيء، غير مرسلة = الافتراضي). الأدمن «*» دائماً
+  let permCell = '';
+  if (screen === 'admin') permCell = '*';
+  else if (MGMT_SCREENS.indexOf(screen) !== -1 && Array.isArray(perms)) {
+    const list = perms.map(str_).filter(function (p, i, a) { return PERMS.indexOf(p) !== -1 && a.indexOf(p) === i; });
+    permCell = list.length ? list.join(',') : 'none';
+  }
   if (!name) throw new Error('ERR_REQUIRED');
   if (SCREENS.indexOf(screen) === -1) throw new Error('ERR_BAD_SCREEN');
   const t = read_('Roles');
@@ -2287,10 +2635,11 @@ function saveRole_(user, name, screen) {
       const others = getUsers_().filter(function (u) { return u.screen === 'admin' && u.role !== name; }).length;
       if (!others) throw new Error('ERR_LAST_ADMIN');
     }
-    setCells_(t, row, { Screen: screen });
+    setCells_(t, row, { Screen: screen, Permissions: permCell });
   } else {
-    append_('Roles', { RoleName: name, Screen: screen });
+    append_('Roles', { RoleName: name, Screen: screen, Permissions: permCell });
   }
+  logAction_('', 'حفظ دور: ' + name + ' (' + screen + (permCell ? ': ' + permCell : '') + ')', user.name);
   return getRoles_();
 }
 
