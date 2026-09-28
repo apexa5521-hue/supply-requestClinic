@@ -37,8 +37,8 @@ const I18N = {
     sort_new: 'الأحدث أولاً', sort_old: 'الأقدم أولاً', sort_urgent: 'الطارئ أولاً', sort_sent: 'تاريخ الإرسال', sort_received: 'تاريخ الاستلام',
     req_details: 'بيانات الطلب', no_doctors: 'لا يوجد أطباء لهذه العيادة', no_clinics: 'لا توجد عيادات مرتبطة بحسابك',
     pkg_title: 'البكج المعتاد للطبيب', pkg_hint: 'اضغط على صنف لإضافته', pkg_add_all: 'إضافة الكل', pkg_times: 'طُلب {n} مرة',
-    items: 'الأصناف', item_search_ph: 'ابحث عن صنف بالاسم أو الاسم التجاري…', add_new_item: 'إضافة «{q}» كصنف جديد',
-    new_item_hint: 'سيُضاف للكتالوج تلقائياً', no_items_match: 'لا توجد نتائج', items_all: 'كل الأصناف · {n} صنف — اكتب للتصفية', items_found: '{n} من {total} صنف', catalog_empty: 'الكتالوج فارغ — أضف أصنافاً في تبويب ItemsCatalog',
+    items: 'الأصناف', item_search_ph: 'ابحث عن صنف بالاسم أو الاسم التجاري…',
+    no_items_match: 'لا يوجد صنف بهذا الاسم في الكتالوج', catalog_only_hint: 'الطلب من الكتالوج فقط — إن احتجت صنفاً غير موجود تواصل مع التموين لإضافته', not_in_catalog: 'ليس في الكتالوج — احذفه من الطلب', ERR_UNKNOWN_ITEM: 'صنف غير موجود في الكتالوج — الطلب من الكتالوج فقط', ERR_UNKNOWN_ITEM_N: '«{n}» ليس في الكتالوج — احذفه من الطلب (الطلب من الكتالوج فقط)', items_all: 'كل الأصناف · {n} صنف — اكتب للتصفية', items_found: '{n} من {total} صنف', catalog_empty: 'الكتالوج فارغ — أضف أصنافاً في تبويب ItemsCatalog',
     items_empty_title: 'لم تُضف أصنافاً بعد', items_empty_sub: 'ابحث في الكتالوج أو اختر من البكج المعتاد للطبيب.',
     summary: 'ملخص الطلب', sum_items: 'عدد الأصناف', sum_units: 'إجمالي القطع', submit_request: 'إرسال الطلب',
     clear_items: 'مسح الأصناف', draft_restored: 'تمت استعادة المسودة غير المرسلة', err_fill_all: 'اختر العيادة والطبيب وأضف صنفاً واحداً على الأقل',
@@ -134,8 +134,8 @@ const I18N = {
     sort_new: 'Newest first', sort_old: 'Oldest first', sort_urgent: 'Emergency first', sort_sent: 'Sent date', sort_received: 'Received date',
     req_details: 'Request details', no_doctors: 'No doctors for this clinic', no_clinics: 'No clinics linked to your account',
     pkg_title: "Doctor's usual package", pkg_hint: 'Tap an item to add it', pkg_add_all: 'Add all', pkg_times: 'Requested {n}×',
-    items: 'Items', item_search_ph: 'Search items by name or brand…', add_new_item: 'Add “{q}” as a new item',
-    new_item_hint: 'Will be added to the catalog', no_items_match: 'No results', items_all: 'All items · {n} — type to filter', items_found: '{n} of {total} items', catalog_empty: 'Catalog is empty — add items to the ItemsCatalog sheet',
+    items: 'Items', item_search_ph: 'Search items by name or brand…',
+    no_items_match: 'No catalog item matches', catalog_only_hint: 'Requests use catalog items only — ask procurement to add a missing item', not_in_catalog: 'Not in the catalog — remove it', ERR_UNKNOWN_ITEM: 'Item not in the catalog — requests use catalog items only', ERR_UNKNOWN_ITEM_N: '“{n}” is not in the catalog — remove it (catalog items only)', items_all: 'All items · {n} — type to filter', items_found: '{n} of {total} items', catalog_empty: 'Catalog is empty — add items to the ItemsCatalog sheet',
     items_empty_title: 'No items yet', items_empty_sub: "Search the catalog or pick from the doctor's usual package.",
     summary: 'Summary', sum_items: 'Items', sum_units: 'Total units', submit_request: 'Submit request',
     clear_items: 'Clear items', draft_restored: 'Unsent draft restored', err_fill_all: 'Pick clinic and doctor and add at least one item',
@@ -1405,7 +1405,7 @@ function loadProfile() {
   if (!card) return;
   if (!d.doctor) { card.classList.add('hidden'); return; }
   call('getDoctorProfile', d.doctor).then(p => {
-    S.nurse.profile = p || [];
+    S.nurse.profile = (p || []).filter(x => catalogInfo(x.item));
     if (!document.contains(card)) return;
     if (!S.nurse.profile.length) { card.classList.add('hidden'); return; }
     card.classList.remove('hidden');
@@ -1447,7 +1447,7 @@ function renderItems() {
       const cls = it._new ? '' : (it._bump ? ' bump' : '');
       const html = '<div class="item-line' + cls + '" data-row="' + i + '"' + (it._new ? '' : ' style="animation:none"') + '>' +
         '<span class="idx">' + (i + 1) + '</span>' +
-        '<div class="grow"><div class="nm">' + esc(it.name) + '</div>' + (c && (c.commercial || c.category) ? '<div class="mt">' + esc([c.commercial, c.category].filter(Boolean).join(' · ')) + '</div>' : (!c ? '<div class="mt">' + esc(t('new_item_hint')) + '</div>' : '')) +
+        '<div class="grow"><div class="nm">' + esc(it.name) + '</div>' + (c && (c.commercial || c.category) ? '<div class="mt">' + esc([c.commercial, c.category].filter(Boolean).join(' · ')) + '</div>' : (!c ? '<div class="mt" style="color:var(--t-red)">' + esc(t('not_in_catalog')) + '</div>' : '')) +
           '<div class="qty-err hidden" role="alert">' + icon('alert', 'i-sm') + '<span>' + esc(t('ERR_QTY_MIN1')) + '</span></div></div>' +
         '<div class="qty"><button type="button" data-act="qtyStep" data-i="' + i + '" data-d="-1" aria-label="-">' + icon('minus', 'i-sm') + '</button>' +
           '<input type="number" inputmode="numeric" min="1" value="' + it.qty + '" data-input="qtySet" data-i="' + i + '" aria-label="' + esc(t('qty')) + '">' +
@@ -1531,18 +1531,16 @@ function setupCombo() {
     const matches = S.catalog.filter(c => !ql || c.name.toLowerCase().indexOf(ql) !== -1 || (c.commercial || '').toLowerCase().indexOf(ql) !== -1 || (c.category || '').toLowerCase().indexOf(ql) !== -1)
       .sort((a, b) => (a.name.toLowerCase().indexOf(ql) === 0 ? 0 : 1) - (b.name.toLowerCase().indexOf(ql) === 0 ? 0 : 1) || a.name.localeCompare(b.name));
     // كل الأصناف تظهر (بالتمرير)، والبحث يصفّيها — بلا حد أعلى
-    const exact = S.catalog.some(c => c.name.toLowerCase() === ql);
+    // الطلب من الكتالوج فقط — لا يمكن كتابة صنف جديد باسم حر
     opts = matches.map(c => ({ name: c.name, c: c }));
-    if (q && !exact) opts.push({ name: q, isNew: true });
     active = opts.length ? 0 : -1;
     if (!opts.length) {
-      list.innerHTML = '<div class="combo-empty">' + esc(S.catalog.length ? t('no_items_match') : t('catalog_empty')) + '</div>';
+      list.innerHTML = '<div class="combo-empty">' + esc(S.catalog.length ? t('no_items_match') : t('catalog_empty')) + (S.catalog.length ? '<div class="hint" style="margin-top:4px">' + esc(t('catalog_only_hint')) + '</div>' : '') + '</div>';
     } else {
       const added = {};
       nurseDraft().items.forEach(it => { added[it.name.toLowerCase()] = it.qty; });
-      list.innerHTML = '<div class="combo-head">' + esc(t(q ? 'items_found' : 'items_all', { n: matches.length, total: S.catalog.length })) + '</div>' + opts.map((o, i) => o.isNew
-        ? '<div class="combo-opt new" role="option" data-i="' + i + '" aria-selected="' + (i === active) + '"><span class="ic">' + icon('plus') + '</span><div><div class="nm">' + esc(t('add_new_item', { q: o.name })) + '</div><div class="mt">' + esc(t('new_item_hint')) + '</div></div></div>'
-        : '<div class="combo-opt" role="option" data-i="' + i + '" aria-selected="' + (i === active) + '"><span class="ic">' + icon('package') + '</span><div class="grow"><div class="nm">' + hl(o.name, q) + '</div>' +
+      list.innerHTML = '<div class="combo-head">' + esc(t(q ? 'items_found' : 'items_all', { n: matches.length, total: S.catalog.length })) + '</div>' + opts.map((o, i) =>
+        '<div class="combo-opt" role="option" data-i="' + i + '" aria-selected="' + (i === active) + '"><span class="ic">' + icon('package') + '</span><div class="grow"><div class="nm">' + hl(o.name, q) + '</div>' +
           ((o.c.commercial || o.c.category || o.c.price) ? '<div class="mt">' + esc([o.c.commercial, o.c.category].filter(Boolean).join(' · ')) + (o.c.price ? ' · ' + fmtNum(o.c.price, 2) + ' ' + esc(t('currency')) : '') + '</div>' : '') + '</div>' +
           (added[o.name.toLowerCase()] ? '<span class="combo-added">' + icon('check', 'i-sm') + '×' + added[o.name.toLowerCase()] + '</span>' : '') + '</div>').join('');
     }
@@ -1587,6 +1585,8 @@ ACT.submitRequest = el => {
     badQty.focus(); badQty.select();
     return;
   }
+  const unknown = d.items.find(i => !catalogInfo(i.name));
+  if (unknown) { err.querySelector('span').textContent = t('ERR_UNKNOWN_ITEM_N', { n: unknown.name }); err.classList.remove('hidden'); return; }
   if ((d.kind === 'clinic' ? !d.clinic : !d.doctor) || !d.items.length || (S.branches.length && !d.branch)) {
     err.querySelector('span').textContent = t('err_fill_all'); err.classList.remove('hidden');
     return;

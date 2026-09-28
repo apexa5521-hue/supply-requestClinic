@@ -195,14 +195,19 @@ test('createRequest: validation', () => {
   assert.ok((gas.dump('Requests') || [[]]).length <= 1, 'nothing is saved when a quantity is zero');
 });
 
-test('createRequest: success, merge duplicates, new catalog item, email, double-submit guard', () => {
+test('createRequest: success, merge duplicates, catalog items only, email, double-submit guard', () => {
   const { api, login, gas } = boot();
   const n = login('سارة', '1111');
   const payload = {
     clinic: 'عيادة الأسنان 1', doctor: 'د. خالد', type: 'طارئ',
-    items: [{ name: 'PROPHY PASTE', qty: 2 }, { name: 'prophy paste', qty: 3 }, { name: 'صنف جديد تماماً', qty: 1 }],
+    items: [{ name: 'PROPHY PASTE', qty: 2 }, { name: 'prophy paste', qty: 3 }, { name: 'itero sleeve', qty: 1 }],
     nurse: 'منتحل'
   };
+  // لا أصناف بأسماء حرة: صنف خارج الكتالوج يُرفض ولا يُضاف للكتالوج
+  const catalogBefore = rows(gas, 'ItemsCatalog').length;
+  throwsCode(() => api(n, 'createRequest', Object.assign({}, payload, { items: [{ name: 'PROPHY PASTE', qty: 1 }, { name: 'dw', qty: 1 }] })), 'ERR_UNKNOWN_ITEM');
+  assert.equal(rows(gas, 'ItemsCatalog').length, catalogBefore, 'catalog unchanged');
+  assert.equal((gas.dump('Requests') || [[]]).length <= 1, true, 'nothing saved');
   const res = api(n, 'createRequest', payload);
   assert.match(res.id, /^REQ-\d{6}-001$/);
   assert.equal(res.duplicate, false);
@@ -213,7 +218,8 @@ test('createRequest: success, merge duplicates, new catalog item, email, double-
   const items = rows(gas, 'RequestItems').filter(r => r.RequestID === res.id);
   assert.equal(items.length, 2);
   assert.equal(items.find(i => i.ItemName === 'PROPHY PASTE').RequestedQty, 5);
-  assert.ok(rows(gas, 'ItemsCatalog').some(c => c.ItemName === 'صنف جديد تماماً'));
+  assert.ok(items.some(i => i.ItemName === 'Itero Sleeve'), 'catalog spelling is used');
+  assert.equal(rows(gas, 'ItemsCatalog').length, catalogBefore);
   assert.ok(gas.mails.some(m => m.to === 'khaled@example.com' && /طارئ بانتظار مراجعتك/.test(m.subject)), 'doctor emailed on submit');
   assert.ok(gas.mails.some(m => m.to.indexOf('ali@example.com') !== -1 && /بانتظار اعتماد الطبيب/.test(m.subject)), 'procurement pre-alerted for emergencies');
   const again = api(n, 'createRequest', payload);
@@ -448,7 +454,7 @@ test('read cache: every write is visible immediately, cached reads equal fresh s
   const step = (label, fn, id) => { check('before ' + label, id); fn(); check('after ' + label, id); };
 
   let id;
-  step('createRequest', () => { id = api(n, 'createRequest', { clinic: 'عيادة الأسنان 1', doctor: 'د. خالد', type: 'طارئ', items: [{ name: 'PROPHY PASTE', qty: 2 }, { name: 'صنف جديد تماماً', qty: 1 }, { name: 'DENTAL FLOSS', qty: 3 }] }).id; });
+  step('createRequest', () => { id = api(n, 'createRequest', { clinic: 'عيادة الأسنان 1', doctor: 'د. خالد', type: 'طارئ', items: [{ name: 'PROPHY PASTE', qty: 2 }, { name: 'Itero Sleeve', qty: 1 }, { name: 'DENTAL FLOSS', qty: 3 }] }).id; });
   assert.equal(api(p, 'getRequests', {}).find(r => r.id === id).itemCount, 3, 'new request items visible right away');
   step('reject', () => api(d, 'doctorReview', id, 'رفض', 'راجعي الكميات', []), id);
   step('resubmit', () => api(n, 'resubmitRequest', id, 'تم التعديل'), id);
@@ -615,7 +621,7 @@ test('old requests not yet approved (new or prepared under the old order) appear
 });
 
 test('doctor report: priced items and totals for a month or a cumulative period', () => {
-  const { api, login, gas } = boot();
+  const { api, login, gas } = boot(g => { const d = g.dump('ItemsCatalog'); g.seed('ItemsCatalog', d[0], d.slice(1).concat([['صنف بلا سعر', '', '', '']])); });
   const n = login('سارة', '1111'), d = login('د. خالد', '4444'), q = login('منى', '5555'), p = login('علي', '3333');
   const mk = items => api(n, 'createRequest', { clinic: 'عيادة الأسنان 1', doctor: 'د. خالد', type: 'شهري', items }).id;
   const a = mk([{ name: 'PROPHY PASTE', qty: 2 }, { name: 'DENTAL FLOSS', qty: 4 }]);  // 2×60 + 4×12.5 = 170
@@ -755,7 +761,7 @@ test('doctor without an account: request can be dispatched without review', () =
 test('visibility: nurses and doctors only see their own requests', () => {
   const { api, login } = boot();
   const sara = login('سارة', '1111'), reem = login('ريم', '2222'), khaled = login('د. خالد', '4444');
-  const id = api(sara, 'createRequest', { clinic: 'عيادة الجلدية 1', doctor: 'د. فهد', type: 'شهري', items: [{ name: 'X', qty: 1 }] }).id;
+  const id = api(sara, 'createRequest', { clinic: 'عيادة الجلدية 1', doctor: 'د. فهد', type: 'شهري', items: [{ name: 'DENTAL FLOSS', qty: 1 }] }).id;
   throwsCode(() => api(reem, 'getRequestDetail', id), 'ERR_FORBIDDEN');
   throwsCode(() => api(reem, 'addComment', id, 'hi'), 'ERR_FORBIDDEN');
   throwsCode(() => api(khaled, 'getRequestDetail', id), 'ERR_FORBIDDEN');
@@ -865,8 +871,8 @@ test('doctors match clinics by name, list, specialty or branch; empty clinic = a
   assert.deepEqual(names('Dental Clinic 8 - Buraydah'), ['Dr Anywhere', 'Dr ArabicSpecialty', 'Dr Branch', 'Dr BySpecialty', 'Dr Exact']);
   assert.deepEqual(names('Derma Clinic 2 - Riyadh'), ['Dr Anywhere', 'Dr Derma', 'Dr List']);
   assert.deepEqual(names('عيادة الأسنان 1'), ['Dr Anywhere', 'Dr ArabicSpecialty', 'Dr BySpecialty', 'Dr List']);
-  assert.match(api(n, 'createRequest', { clinic: 'Dental Clinic 8 - Buraydah', doctor: 'Dr BySpecialty', type: 'شهري', items: [{ name: 'X', qty: 1 }] }).id, /^REQ-/);
-  throwsCode(() => api(n, 'createRequest', { clinic: 'Dental Clinic 8 - Buraydah', doctor: 'Dr Derma', type: 'شهري', items: [{ name: 'X', qty: 1 }] }), 'ERR_BAD_DOCTOR');
+  assert.match(api(n, 'createRequest', { clinic: 'Dental Clinic 8 - Buraydah', doctor: 'Dr BySpecialty', type: 'شهري', items: [{ name: 'DENTAL FLOSS', qty: 1 }] }).id, /^REQ-/);
+  throwsCode(() => api(n, 'createRequest', { clinic: 'Dental Clinic 8 - Buraydah', doctor: 'Dr Derma', type: 'شهري', items: [{ name: 'DENTAL FLOSS', qty: 1 }] }), 'ERR_BAD_DOCTOR');
 });
 
 test('batch runs several reads in one execution with per-call errors, and rejects writes', () => {
@@ -901,7 +907,7 @@ test('doctor account with a short name sees and reviews requests for the full do
     ]);
   });
   const n = login('Abhie', '1'), p = login('ahmed', '2'), sami = login('Dr.Sami', '3'), fahad = login('Dr.Fahad', '5');
-  const mk = doc => api(n, 'createRequest', { clinic: 'Dental Clinic 8 - Buraydah', doctor: doc, type: 'شهري', items: [{ name: 'X', qty: 1 }] }).id;
+  const mk = doc => api(n, 'createRequest', { clinic: 'Dental Clinic 8 - Buraydah', doctor: doc, type: 'شهري', items: [{ name: 'DENTAL FLOSS', qty: 1 }] }).id;
   const a = mk('Dr. Sami Al-Duwaihi'), b = mk('Dr. Turki Al-Mutairi'), c = mk('Dr. Fahad Al-Harbi');
   assert.ok(gas.mails.some(m => m.to === 'sami@example.com' && /بانتظار مراجعتك/.test(m.subject)), 'review email reaches the linked account on submission');
   assert.deepEqual(api(sami, 'getDoctorRequests').map(r => r.id), [a]);
@@ -1183,4 +1189,20 @@ test('monthly requests after the 20th are never blocked — they are accepted an
   assert.equal(dl(day('2026', '09', '21')).lateSubmit, true, 'after the 20th = submitted late');
   assert.equal(new Date(dl(day('2026', '09', '17')).dueAt).toISOString(), '2026-10-01T20:59:59.999Z', 'due by the end of the 1st (Riyadh)');
   assert.equal(new Date(dl(day('2026', '12', '18')).dueAt).toISOString(), '2027-01-01T20:59:59.999Z', 'December rolls over to January');
+});
+
+test('management roles (finance…) are added automatically when missing, so the admin can create a finance account', () => {
+  const { api, login, gas } = boot(g => {
+    g.seed('Roles', ['RoleName', 'Screen'], [['ممرضة', 'nurse'], ['تموين', 'procurement'], ['طبيب', 'doctor'], ['أدمن', 'admin']]);
+    g.seed('Users', ['Name', 'Password', 'Role', 'Clinic', 'Email'], [['المدير', '1234', 'أدمن', '', '']]);
+  });
+  const a = login('المدير', '1234');
+  const roles = api(a, 'getConfig').roles.map(r => r.name + ':' + r.screen).sort();
+  assert.deepEqual(roles, ['أدمن:admin', 'تموين:procurement', 'تنفيذي:executive', 'جودة:quality', 'طبيب:doctor', 'مالية:finance', 'ممرضة:nurse'].sort());
+  api(a, 'createUser', { name: 'المالية', password: '2468', role: 'مالية', email: 'finance@example.com' });
+  const f = api(null, 'login', 'المالية', '2468');
+  assert.equal(f.user.screen, 'finance');
+  assert.deepEqual(f.user.perms.slice().sort(), ['finance', 'monitor', 'prices_edit', 'reports'].sort());
+  login('المدير', '1234');
+  assert.equal(rows(gas, 'Roles').filter(r => r.RoleName === 'مالية').length, 1, 'added once only');
 });
