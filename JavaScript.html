@@ -41,8 +41,8 @@ const I18N = {
     no_items_match: 'لا يوجد صنف بهذا الاسم في الكتالوج', catalog_only_hint: 'الطلب من الكتالوج فقط — إن احتجت صنفاً غير موجود تواصل مع التموين لإضافته', not_in_catalog: 'ليس في الكتالوج — احذفه من الطلب', ERR_UNKNOWN_ITEM: 'صنف غير موجود في الكتالوج — الطلب من الكتالوج فقط', ERR_UNKNOWN_ITEM_N: '«{n}» ليس في الكتالوج — احذفه من الطلب (الطلب من الكتالوج فقط)', items_all: 'كل الأصناف · {n} صنف — اكتب للتصفية', items_found: '{n} من {total} صنف', catalog_empty: 'الكتالوج فارغ — أضف أصنافاً في تبويب ItemsCatalog',
     items_empty_title: 'لم تُضف أصنافاً بعد', items_empty_sub: 'ابحث في الكتالوج أو اختر من البكج المعتاد للطبيب.',
     summary: 'ملخص الطلب', sum_items: 'عدد الأصناف', sum_units: 'إجمالي القطع', submit_request: 'إرسال الطلب',
-    clear_items: 'مسح الأصناف', draft_restored: 'تمت استعادة المسودة غير المرسلة', err_fill_all: 'اختر العيادة والطبيب وأضف صنفاً واحداً على الأقل',
-    request_sent: 'تم إرسال الطلب {id}', duplicate_request: 'هذا الطلب أُرسل للتو برقم {id}',
+    clear_items: 'مسح الأصناف', draft_restored: 'تمت استعادة المسودة غير المرسلة', more: 'المزيد', save_draft: 'حفظ كمسودة', draft_saved: 'محفوظ كمسودة على هذا الجهاز · {t}', draft_offline: 'لا يوجد اتصال — طلبك محفوظ كمسودة ({t})، أرسله عند عودة الاتصال', draft_saved_toast: 'حُفظت المسودة — تجدها هنا حتى لو أغلقت الصفحة أو انتهت الجلسة', offline_kept: 'لا يوجد اتصال بالإنترنت — طلبك محفوظ كمسودة، أرسله عند عودة الاتصال', send_failed_kept: 'تعذّر الإرسال (انقطع الاتصال أو الخادم مشغول) — طلبك محفوظ كمسودة ولن يضيع، اضغط «إرسال» مرة أخرى', session_draft_kept: 'انتهت الجلسة — طلبك محفوظ كمسودة، سجّل الدخول وستجده كما هو', offline_now: 'انقطع الاتصال — تقدر تكمل تعبئة الطلب وسيُحفظ كمسودة', online_back: 'عاد الاتصال ✓', err_fill_all: 'اختر العيادة والطبيب وأضف صنفاً واحداً على الأقل',
+    request_sent: 'تم إرسال الطلب {id}', duplicate_request: 'هذه المسودة وصلت للخادم سابقاً برقم {id} — لم يُكرَّر الطلب',
     emergency_note: 'الطلبات الطارئة تُنبَّه لها إدارة التموين فوراً', remove: 'حذف', qty: 'الكمية',
     receive_btn: 'استلام وتوقيع', details: 'التفاصيل', notes: 'الملاحظات', report: 'إبلاغ عن مشكلة',
     no_requests: 'لا توجد طلبات', no_requests_sub: 'ستظهر الطلبات هنا فور رفعها.', no_match: 'لا توجد نتائج مطابقة', no_match_sub: 'جرّب تغيير الفلاتر أو كلمة البحث.',
@@ -138,8 +138,8 @@ const I18N = {
     no_items_match: 'No catalog item matches', catalog_only_hint: 'Requests use catalog items only — ask procurement to add a missing item', not_in_catalog: 'Not in the catalog — remove it', ERR_UNKNOWN_ITEM: 'Item not in the catalog — requests use catalog items only', ERR_UNKNOWN_ITEM_N: '“{n}” is not in the catalog — remove it (catalog items only)', items_all: 'All items · {n} — type to filter', items_found: '{n} of {total} items', catalog_empty: 'Catalog is empty — add items to the ItemsCatalog sheet',
     items_empty_title: 'No items yet', items_empty_sub: "Search the catalog or pick from the doctor's usual package.",
     summary: 'Summary', sum_items: 'Items', sum_units: 'Total units', submit_request: 'Submit request',
-    clear_items: 'Clear items', draft_restored: 'Unsent draft restored', err_fill_all: 'Pick clinic and doctor and add at least one item',
-    request_sent: 'Request {id} sent', duplicate_request: 'This request was just sent as {id}',
+    clear_items: 'Clear items', draft_restored: 'Unsent draft restored', more: 'More', save_draft: 'Save draft', draft_saved: 'Saved as a draft on this device · {t}', draft_offline: 'Offline — your request is saved as a draft ({t}); send it when you are back online', draft_saved_toast: 'Draft saved — it stays here even if you close the page or your session expires', offline_kept: 'No internet connection — your request is saved as a draft; send it when you are back online', send_failed_kept: 'Could not send (connection lost or server busy) — your request is kept as a draft; press “Send” again', session_draft_kept: 'Session expired — your request is saved as a draft; sign in again to continue', offline_now: 'You are offline — keep filling in the request; it is saved as a draft', online_back: 'Back online ✓', err_fill_all: 'Pick clinic and doctor and add at least one item',
+    request_sent: 'Request {id} sent', duplicate_request: 'This draft already reached the server as {id} — no duplicate was created',
     emergency_note: 'Procurement is alerted immediately for emergency requests', remove: 'Remove', qty: 'Qty',
     receive_btn: 'Receive & sign', details: 'Details', notes: 'Notes', report: 'Report issue',
     no_requests: 'No requests', no_requests_sub: 'Requests will appear here once submitted.', no_match: 'No matching results', no_match_sub: 'Try changing filters or search.',
@@ -823,7 +823,9 @@ function preloadPlan(name) {
 }
 function sessionExpired() {
   if (!S.user) return;
-  toast(t('ERR_SESSION'), 'warning');
+  const d = S.nurse.draft;
+  if (d && d.items.length) saveDraft();
+  toast(d && d.items.length ? t('session_draft_kept') : t('ERR_SESSION'), 'warning', 6000);
   resetApp();
 }
 function resetApp() {
@@ -832,7 +834,7 @@ function resetApp() {
   S.token = null; S.user = null; S.view = null; S.loaded = {};
   // لا يبقى أي بيانات من المستخدم السابق في الذاكرة (قوائم، أصناف، تحديد، صفحات)
   S.proc.list = []; S.proc.items = {}; S.proc.expanded.clear(); S.proc.selected.clear(); S.proc.archive = false;
-  S.nurse.mine = []; S.nurse.archive = false; S.doc.list = []; S.doc.archive = false;
+  S.nurse.mine = []; S.nurse.archive = false; S.nurse.draft = null; // المسودة محفوظة لكل مستخدم على حدة S.doc.list = []; S.doc.archive = false;
   Object.keys(SIGS).forEach(k => delete SIGS[k]); Object.keys(LIMITS).forEach(k => delete LIMITS[k]);
   session.clear(); RC.clear();
   try { sessionStorage.removeItem('sf_rc'); } catch (e) { /* ignore */ }
@@ -950,16 +952,68 @@ function renderShell() {
   $('#userAvatarM').textContent = initials(u.name);
   renderNav();
 }
+const BOTTOM_MAX = 5; // الجوال: 4 عناصر + «المزيد» إن زادت
+function navBtn(n) {
+  const c = navCount(n.id);
+  return '<button class="nav-item" data-act="nav" data-view="' + n.id + '"' + (S.view === n.id ? ' aria-current="page"' : '') + '>' +
+    icon(n.icon) + '<span>' + esc(t(n.k)) + '</span>' + (c ? '<span class="count-pill">' + c + '</span>' : '') + '</button>';
+}
+function bottomSplit() {
+  const items = navItems();
+  if (items.length <= BOTTOM_MAX) return { main: items, more: [] };
+  const main = items.slice(0, BOTTOM_MAX - 1);
+  const act = items.find(n => n.id === S.view);
+  if (act && main.indexOf(act) === -1) main[main.length - 1] = act; // الشاشة الحالية تظهر دائماً
+  return { main: main, more: items.filter(n => main.indexOf(n) === -1) };
+}
 function renderNav() {
   const items = navItems();
-  const html = items.map(n => {
-    const c = navCount(n.id);
-    return '<button class="nav-item" data-act="nav" data-view="' + n.id + '"' + (S.view === n.id ? ' aria-current="page"' : '') + '>' +
-      icon(n.icon) + '<span>' + esc(t(n.k)) + '</span>' + (c ? '<span class="count-pill">' + c + '</span>' : '') + '</button>';
-  }).join('');
-  $('#sideNav').innerHTML = html;
-  $('#bottomNav').innerHTML = html;
+  $('#sideNav').innerHTML = items.map(navBtn).join('');
+  const b = bottomSplit();
+  const moreCount = b.more.reduce((x, n) => x + navCount(n.id), 0);
+  $('#bottomNav').innerHTML = b.main.map(navBtn).join('') + (b.more.length
+    ? '<button class="nav-item" data-act="navMore">' + icon('menu') + '<span>' + esc(t('more')) + '</span>' + (moreCount ? '<span class="count-pill">' + moreCount + '</span>' : '') + '</button>' : '');
 }
+/* قائمة «المزيد» في الجوال: باقي الشاشات + إعدادات الحساب */
+ACT.navMore = () => openMobileMenu(true);
+ACT.mobileMenu = () => openMobileMenu(false);
+function openMobileMenu(withNav) {
+  const b = bottomSplit();
+  const item = (act, ic, label, extra) => '<button class="menu-item" data-menu="' + act + '"' + (extra || '') + '>' + icon(ic) + '<span>' + esc(label) + '</span></button>';
+  const m = openModal({
+    title: esc(S.user.name), sub: esc(S.user.role + ' · ' + t('screen_' + S.user.screen)), icon: 'user', size: 'sm',
+    body: (withNav && b.more.length ? '<div class="menu-list">' + b.more.map(n => { const c = navCount(n.id);
+        return '<button class="menu-item" data-menu="nav" data-view="' + n.id + '"' + (S.view === n.id ? ' aria-current="page"' : '') + '>' + icon(n.icon) + '<span>' + esc(t(n.k)) + '</span>' + (c ? '<span class="count-pill">' + c + '</span>' : '') + '</button>'; }).join('') + '</div><div class="menu-sep"></div>' : '') +
+      '<div class="menu-list">' +
+        item('toggleLang', 'globe', t('lang_switch')) +
+        item('toggleTheme', document.documentElement.dataset.theme === 'dark' ? 'sun' : 'moon', t('theme_toggle')) +
+        item('changePassword', 'lock', t('change_pw')) +
+        item('startTour', 'info', t('tour_replay')) +
+        item('logout', 'logout', t('logout'), ' style="color:var(--t-red)"') +
+      '</div>',
+    foot: '<span class="spacer"></span><button class="btn" data-close>' + esc(t('close')) + '</button>'
+  });
+  m.el.addEventListener('click', e => {
+    const btn = e.target.closest('[data-menu]'); if (!btn) return;
+    const a = btn.dataset.menu, v = btn.dataset.view;
+    closeModal(m);
+    setTimeout(() => { if (a === 'nav') go(v); else if (ACT[a]) ACT[a](btn); }, 60);
+  });
+}
+/* الجداول على الجوال تتحول لبطاقات: كل خلية تحمل عنوان عمودها */
+function stackTables(root) {
+  $$('table.table', root || document).forEach(tb => {
+    const heads = $$('thead th', tb).map(th => th.textContent.trim());
+    if (!heads.length || tb.classList.contains('no-stack')) return;
+    tb.classList.add('stack');
+    $$('tbody tr', tb).forEach(tr => { Array.from(tr.children).forEach((td, i) => { if (!td.hasAttribute('data-label')) td.setAttribute('data-label', heads[i] || ''); }); });
+  });
+}
+(function () {
+  let q = 0;
+  new MutationObserver(() => { if (q) return; q = requestAnimationFrame(() => { q = 0; stackTables(document); }); })
+    .observe(document.body, { childList: true, subtree: true });
+})();
 function navCount(id) {
   if (id === 'mine') return S.nurse.mine.filter(r => r.status === ST.SENT).length;
   if (id === 'reviews') return S.doc.list.filter(r => r.status === ST.REVIEW).length;
@@ -986,6 +1040,9 @@ function go(view, keepScroll) {
   }
   if (v.mount) v.mount(root);
 }
+/* انقطاع الاتصال: المسودة تبقى محفوظة، ونبلغ المستخدم */
+window.addEventListener('offline', () => { if (S.user) { toast(t('offline_now'), 'warning', 6000); renderDraftState(); } });
+window.addEventListener('online', () => { if (S.user) { toast(t('online_back'), 'success', 2500); renderDraftState(); } });
 window.addEventListener('scroll', () => { $('#topbar').classList.toggle('scrolled', window.scrollY > 4); }, { passive: true });
 
 /* =====================================================================
@@ -1294,11 +1351,31 @@ function nurseDraft() {
     const saved = store.get('draft_' + S.user.name, null);
     S.nurse.draft = saved && Array.isArray(saved.items) ? saved : { kind: 'doctor', clinic: '', doctor: '', type: 'شهري', items: [] };
     if (S.nurse.draft.kind !== 'clinic') S.nurse.draft.kind = 'doctor';
+    if (!S.nurse.draft.key) S.nurse.draft.key = uid();
     if (saved && saved.items && saved.items.length) setTimeout(() => toast(t('draft_restored'), 'info'), 400);
   }
   return S.nurse.draft;
 }
-function saveDraft() { const d = S.nurse.draft; if (d) store.set('draft_' + S.user.name, d); }
+/* المسودة تُحفظ على الجهاز مع كل تعديل — لا تضيع إن انقطع الاتصال أو انتهت الجلسة أو أُغلقت الصفحة.
+   key يميّز المسودة: إعادة إرسالها بعد انقطاع لا تنشئ طلباً مكرراً (الخادم يتعرف عليها) */
+function saveDraft() {
+  const d = S.nurse.draft; if (!d || !S.user) return;
+  d.savedAt = Date.now();
+  store.set('draft_' + S.user.name, d);
+  renderDraftState();
+}
+function uid() {
+  try { if (crypto.randomUUID) return crypto.randomUUID(); } catch (e) { /* ignore */ }
+  return 'd' + Date.now().toString(36) + Math.random().toString(36).slice(2, 12);
+}
+function renderDraftState() {
+  const box = $('#draftState'); const d = S.nurse.draft; if (!box || !d) return;
+  const has = d.items.length > 0;
+  box.classList.toggle('hidden', !has);
+  if (has) box.innerHTML = icon(navigator.onLine === false ? 'alert' : 'checkc', 'i-sm') + '<span>' + esc(t(navigator.onLine === false ? 'draft_offline' : 'draft_saved', { t: d.savedAt ? fmtTime(d.savedAt) : '' })) + '</span>';
+  box.classList.toggle('offline', navigator.onLine === false);
+}
+ACT.saveDraftNow = () => { saveDraft(); toast(t('draft_saved_toast'), 'info', 2500); };
 
 VIEWS.new = {
   title: 'nav_new', sub: 'sub_new',
@@ -1338,8 +1415,10 @@ VIEWS.new = {
         '<aside class="card summary"><div class="card-head"><h3>' + icon('clipboard') + esc(t('summary')) + '</h3></div><div class="card-body stack">' +
           '<div id="sumBox"></div>' +
           '<div class="field-error hidden" id="submitErr">' + icon('alert', 'i-sm') + '<span></span></div>' +
+          '<div class="draft-state hidden" id="draftState"></div>' +
           '<button class="btn btn-primary btn-lg btn-block" id="submitBtn" data-act="submitRequest">' + icon('send', 'flip') + '<span>' + esc(t('submit_request')) + '</span></button>' +
-          '<button class="btn btn-ghost btn-sm" data-act="clearItems" id="clearBtn">' + icon('trash', 'i-sm') + esc(t('clear_items')) + '</button>' +
+          '<div class="row" style="justify-content:space-between;gap:6px"><button class="btn btn-ghost btn-sm" data-act="saveDraftNow">' + icon('save', 'i-sm') + esc(t('save_draft')) + '</button>' +
+          '<button class="btn btn-ghost btn-sm" data-act="clearItems" id="clearBtn">' + icon('trash', 'i-sm') + esc(t('clear_items')) + '</button></div>' +
         '</div></aside>' +
       '</div>';
   },
@@ -1349,6 +1428,7 @@ VIEWS.new = {
     loadDoctors();
     renderItems();
     setupCombo();
+    renderDraftState();
   },
   refresh() { loadNotices('nNotices'); }
 };
@@ -1591,19 +1671,28 @@ ACT.submitRequest = el => {
     err.querySelector('span').textContent = t('err_fill_all'); err.classList.remove('hidden');
     return;
   }
+  saveDraft(); // قبل الإرسال: المسودة محفوظة على الجهاز مهما حدث
+  if (navigator.onLine === false) { err.querySelector('span').textContent = t('offline_kept'); err.classList.remove('hidden'); return; }
   busy(el, true, t('sending'));
   const byClinic = d.kind === 'clinic';
-  call('createRequest', { clinic: byClinic ? d.clinic : '', branch: d.branch || '', doctor: byClinic ? '' : d.doctor, type: d.type, items: d.items.map(i => ({ name: i.name, qty: Number(i.qty) })) })
+  call('createRequest', { clinic: byClinic ? d.clinic : '', branch: d.branch || '', doctor: byClinic ? '' : d.doctor, type: d.type, items: d.items.map(i => ({ name: i.name, qty: Number(i.qty) })), clientKey: d.key })
     .then(res => {
       busy(el, false);
-      if (res && res.duplicate) { toast(t('duplicate_request', { id: res.id }), 'warning', 5000); return; }
-      toast(t('request_sent', { id: res.id }));
-      d.items = []; saveDraft();
+      // duplicate = هذه المسودة وصلت الخادم سابقاً (مثلاً انقطع الاتصال قبل وصول الرد) — لا طلب مكرر
+      if (res && res.duplicate) toast(t('duplicate_request', { id: res.id }), 'info', 5000);
+      else toast(t('request_sent', { id: res.id }));
+      d.items = []; d.key = uid(); saveDraft();
       renderItems();
       S.loaded.mine = false;
       loadMine(true);
     })
-    .catch(e => { busy(el, false); err.querySelector('span').textContent = errMsg(e); err.classList.remove('hidden'); });
+    .catch(e => {
+      busy(el, false);
+      if (errCode(e) === 'ERR_SESSION') return; // تسجيل الدخول من جديد يستعيد المسودة كما هي
+      const lost = ['ERR_NETWORK', 'ERR_BAD_RESPONSE', 'ERR_BUSY', 'ERR_TIMEOUT'].indexOf(errCode(e)) !== -1;
+      err.querySelector('span').textContent = lost ? t('send_failed_kept') : errMsg(e);
+      err.classList.remove('hidden');
+    });
 };
 
 /* =====================================================================
@@ -1900,7 +1989,7 @@ VIEWS.requests = {
     const p = S.proc;
     return '<div id="pNotices"></div>' +
       '<div id="procChips"></div>' +
-      '<div class="card card-pad" id="procFilters" style="padding:14px"><div class="form-grid" style="grid-template-columns:minmax(220px,2fr) repeat(3,minmax(150px,1fr))">' +
+      '<div class="card card-pad" id="procFilters" style="padding:14px"><div class="form-grid proc-grid">' +
         '<div class="input-icon">' + icon('search') + '<input class="input" data-input="procQ" value="' + esc(p.q) + '" placeholder="' + esc(t('search_requests')) + '"></div>' +
         (S.branches.length ? '<select class="select" data-change="procBranch" aria-label="' + esc(t('branch')) + '"><option value="">' + esc(t('all_branches')) + '</option>' + S.branches.map(b => '<option' + (b === p.branch ? ' selected' : '') + '>' + esc(b) + '</option>').join('') + '</select>' : '') +
         '<select class="select" data-change="procClinic" aria-label="' + esc(t('clinic')) + '"><option value="">' + esc(t('all_clinics')) + '</option>' + S.clinics.map(c => '<option' + (c.name === p.clinic ? ' selected' : '') + '>' + esc(c.name) + '</option>').join('') + '</select>' +
@@ -3449,7 +3538,7 @@ const NAV_SEL = v => '.sidebar [data-view="' + v + '"], .bottom-nav [data-view="
 const TOUR_TAIL = [
   { sel: '#alerts .alert', t: 't_alerts_t', b: 't_alerts_b', icon: 'bell', optional: true },
   { sel: '#syncBtn', t: 't_sync_t', b: 't_sync_b', icon: 'refresh' },
-  { sel: '.topbar [data-act="toggleLang"]', t: 't_prefs_t', b: 't_prefs_b', icon: 'globe' },
+  { sel: '.topbar [data-act="toggleLang"], #mobileMenuBtn', t: 't_prefs_t', b: 't_prefs_b', icon: 'globe' },
   { sel: NAV_SEL('workflow'), t: 't_workflow_t', b: 't_workflow_b', icon: 'route' },
   { sel: '#tourBtn', t: 't_help_t', b: 't_help_b', icon: 'info' }
 ];

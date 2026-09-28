@@ -24,7 +24,7 @@ const SCHEMA = {
   Requests:     ['RequestID', 'Date', 'Clinic', 'Doctor', 'Nurse', 'Type', 'Status',
                  'SubmittedAt', 'SentAt', 'ReceivedAt', 'ReceiverName', 'SignatureURL',
                  'PrepAt', 'VendorWaitAt', 'VendorReceivedAt', 'ReviewAt', 'ReviewedAt',
-                 'RejectionReason', 'ReceiptURL', 'Branch', 'ApprovedAt'],
+                 'RejectionReason', 'ReceiptURL', 'Branch', 'ApprovedAt', 'ClientKey'],
   RequestItems: ['RequestID', 'ItemName', 'RequestedQty', 'ApprovedQty', 'ReceivedQty', 'DispatchedAt', 'DispatchBatch'],
   // كل سطر = كمية صنف واحد داخل شحنة واحدة (يسمح بإرسال جزء من كمية الصنف)
   ShipmentItems: ['RequestID', 'Batch', 'ItemName', 'Qty', 'DispatchedAt', 'DispatchedBy', 'ReceivedQty'],
@@ -1415,15 +1415,21 @@ function createRequest_(user, payload) {
 
   // الطبيب الذي له حساب يراجع الطلب أولاً؛ غير ذلك يذهب للتموين مباشرة
   const needsReview = !clinicOnly && doctorHasAccount_(doctor);
+  // مفتاح المسودة من الجهاز: إعادة إرسال نفس المسودة بعد انقطاع الاتصال لا تنشئ طلباً مكرراً أبداً
+  const clientKey = /^[A-Za-z0-9-]{8,64}$/.test(str_(payload.clientKey)) ? str_(payload.clientKey) : '';
   const id = withLock_(function () {
     const prev = cache.get(dupKey);
     if (prev) return { duplicate: true, id: prev };
+    if (clientKey) {
+      const same = requestRows_().filter(function (r) { return str_(r.ClientKey) === clientKey && str_(r.Nurse) === user.name; })[0];
+      if (same) return { duplicate: true, id: str_(same.RequestID) };
+    }
     resetMemo_();
     const newId = nextRequestId_();
     const now = new Date();
     append_('Requests', {
       RequestID: newId, Date: now, Clinic: clinic, Branch: branch, Doctor: doctor, Nurse: user.name,
-      Type: type, Status: needsReview ? ST.REVIEW : ST.NEW, SubmittedAt: now, ReviewAt: needsReview ? now : ''
+      Type: type, Status: needsReview ? ST.REVIEW : ST.NEW, SubmittedAt: now, ReviewAt: needsReview ? now : '', ClientKey: clientKey
     });
     const ri = sheet_('RequestItems');
     const riHeaders = headerRow_(ri);
