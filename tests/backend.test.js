@@ -1107,12 +1107,14 @@ test('monitor: monthly window 15–20 and due on the 1st, emergency within 24h; 
   assert.deepEqual(m.late.map(r => r.id).sort(), ['REQ-A', 'REQ-B']);
   assert.deepEqual(m.atRisk.map(r => r.id), ['REQ-C']);
   const A = m.late.find(r => r.id === 'REQ-A');
-  assert.deepEqual([A.stage, A.owner, A.inWindow], ['prep', 'procurement', true]);
+  assert.deepEqual([A.stage, A.owner, A.lateSubmit], ['prep', 'procurement', false]);
   assert.equal(m.late.find(r => r.id === 'REQ-B').stage, 'dispatch');
-  assert.equal(m.cycle.clinics.length, 3);
+  // دورة الشهر حسب الطبيب (وليس العيادة)
+  assert.deepEqual(m.cycle.doctors.map(x => x.doctor).sort(), ['د. خالد', 'د. سعد', 'د. فهد', 'د. نورة'].sort());
+  assert.ok(m.cycle.doctors.every(x => ['ok', 'late', 'pending', 'missing'].includes(x.state)));
   assert.deepEqual(m.rules.window, [15, 20]);
   const k = api(q, 'getMonitor', { month: ym(2) }).kpis;
-  assert.deepEqual([k.requests, k.monthly, k.outOfWindow, k.received, k.onTimeRate], [2, 2, 1, 1, 0], 'REQ-E: out of window and received after the 1st');
+  assert.deepEqual([k.requests, k.monthly, k.lateSubmits, k.received, k.onTimeRate], [2, 2, 0, 1, 0], 'REQ-E: submitted early (day 3 is fine), received after the 1st');
   // بطاقات التموين تحمل علامة التأخير + تنبيه أعلى الشاشة
   const p = login('علي', '3333');
   const reqs = api(p, 'getRequests', {});
@@ -1166,4 +1168,19 @@ test('finance: spend summary and price editing written back to the catalog sheet
   const a = login('المدير', '1234');
   api(a, 'saveRole', 'مالية', 'finance', ['finance']);
   throwsCode(() => api(f, 'setItemPrice', 'Itero Sleeve', 5), 'ERR_FORBIDDEN');
+});
+
+test('monthly requests after the 20th are never blocked — they are accepted and flagged as submitted late', () => {
+  const { api, login, ctx } = boot();
+  const n = login('سارة', '1111');
+  const r = api(n, 'createRequest', { doctor: 'د. نورة', type: 'شهري', items: [{ name: 'DENTAL FLOSS', qty: 1 }] });
+  assert.match(r.id, /^REQ-/, 'submission is accepted on any day');
+  const day = (y, m, d) => new Date(y + '-' + m + '-' + d + 'T10:00:00+03:00');
+  const dl = x => JSON.parse(JSON.stringify(ctx.deadline_({ type: 'شهري', status: 'جديد', submittedAt: x }, day('2026', '09', '10').getTime())));
+  assert.equal(dl(day('2026', '09', '14')).lateSubmit, false, 'early is fine');
+  assert.equal(dl(day('2026', '09', '17')).lateSubmit, false);
+  assert.equal(dl(day('2026', '09', '20')).lateSubmit, false);
+  assert.equal(dl(day('2026', '09', '21')).lateSubmit, true, 'after the 20th = submitted late');
+  assert.equal(new Date(dl(day('2026', '09', '17')).dueAt).toISOString(), '2026-10-01T20:59:59.999Z', 'due by the end of the 1st (Riyadh)');
+  assert.equal(new Date(dl(day('2026', '12', '18')).dueAt).toISOString(), '2027-01-01T20:59:59.999Z', 'December rolls over to January');
 });

@@ -472,7 +472,7 @@ function log(msg) { console.log('  ✔ ' + msg); }
   expect(qNav.includes('monitor') && !qNav.includes('users') && !qNav.includes('finance'), 'quality menu follows its permissions (follow-up yes, users/finance no): ' + qNav.join(','));
   await page.click('.sidebar [data-view="monitor"]');
   await page.waitForSelector('#monBody .rp-tile');
-  expect(await page.locator('#monBody .mon-clinic').count() === 3, 'monthly cycle lists every clinic');
+  expect(await page.locator('#monBody .mon-doc').count() === 4, 'monthly cycle is tracked per doctor (not per clinic)');
   expect(await page.locator('#monBody [data-act="monNudge"]').count() >= 1, 'overdue requests are listed with a nudge button');
   await shot(page, 'quality-monitor', true);
   await page.click('#monBody [data-act="monNudge"] >> nth=0');
