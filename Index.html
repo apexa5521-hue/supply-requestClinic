@@ -239,6 +239,36 @@ button, input, select, textarea { font: inherit; color: inherit; }
 .perm-opt:has(input:disabled) { cursor: default; opacity: .85; }
 .perm-opt span { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
 .perm-opt small { color: var(--muted); font-size: 12px; line-height: 1.4; }
+.lab-line { display: grid; grid-template-columns: 28px minmax(140px, 1fr) minmax(140px, 1fr) minmax(160px, 1.4fr) auto; gap: 8px; align-items: center; }
+.lab-line-n { width: 26px; height: 26px; border-radius: 8px; display: grid; place-items: center; font-weight: 700; font-size: 12.5px; background: var(--surface-2); color: var(--muted); }
+.lab-photos { display: flex; flex-wrap: wrap; gap: 10px; }
+.lab-photo { position: relative; width: 96px; height: 96px; border-radius: 12px; overflow: hidden; border: 1px solid var(--border); background: var(--surface-2); display: grid; place-items: center; gap: 4px; color: var(--muted); font-size: 12px; text-decoration: none; }
+.lab-photo img { width: 100%; height: 100%; object-fit: cover; }
+.lab-photo .btn { position: absolute; top: 4px; inset-inline-end: 4px; min-height: 26px; width: 26px; padding: 0; background: var(--surface); }
+.lab-items { display: flex; flex-direction: column; gap: 6px; margin-top: 10px; }
+.lab-item-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; font-size: 13.5px; padding: 6px 10px; border-radius: 10px; background: var(--surface-2); }
+.lab-item-row > span:first-child { display: inline-flex; align-items: center; gap: 6px; min-width: 0; overflow-wrap: anywhere; }
+.lab-card.redo { box-shadow: inset 4px 0 0 var(--t-orange), var(--shadow-sm); }
+[dir="rtl"] .lab-card.redo { box-shadow: inset -4px 0 0 var(--t-orange), var(--shadow-sm); }
+.lab-actions { display: flex; flex-direction: column; gap: 8px; padding: 10px 16px; border-top: 1px dashed var(--border); }
+.lab-act-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; font-size: 13px; }
+.lab-act-row.all { padding-top: 8px; border-top: 1px solid var(--border); }
+.lab-pick { display: flex; align-items: center; gap: 10px; padding: 8px 10px; border: 1px solid var(--border); border-radius: 10px; margin-top: 6px; cursor: pointer; flex-wrap: wrap; }
+.lab-pick > span { flex: 1; min-width: 0; }
+.lab-pick:has(input:checked) { border-color: var(--t-orange); background: color-mix(in srgb, var(--t-orange) 7%, var(--surface)); }
+.lab-redo-case { padding: 12px; border: 1px solid var(--border); border-radius: 14px; background: var(--surface-2); }
+.lab-tl { font-size: 12px; color: var(--muted); }
+.lab-tl span { display: block; white-space: nowrap; }
+.lab-filters .select { min-width: 150px; }
+@media (max-width: 900px) {
+  .lab-line { grid-template-columns: 28px minmax(0, 1fr) auto; }
+  .lab-line > *, .field, .form-grid > *, .new-layout > *, .stack > * { min-width: 0; }
+  .select, .input { max-width: 100%; min-width: 0; }
+  .form-grid { grid-template-columns: repeat(auto-fit, minmax(min(200px, 100%), 1fr)); }
+  .lab-line .select, .lab-line .input { grid-column: 2 / 3; }
+  .lab-line > .btn { grid-column: 3; grid-row: 1; }
+  .lab-tl span { white-space: normal; }
+}
 .proc-grid { grid-template-columns: minmax(220px, 2fr) repeat(3, minmax(150px, 1fr)); }
 .menu-list { display: flex; flex-direction: column; gap: 4px; }
 .menu-item { position: relative; display: flex; align-items: center; gap: 12px; width: 100%; padding: 12px 12px; border: 0; border-radius: 12px; background: transparent; color: var(--text); font: inherit; font-size: 15px; font-weight: 600; cursor: pointer; text-align: start; min-height: 48px; }
@@ -839,18 +869,18 @@ button.kpi[aria-pressed="true"] { border-color: var(--tone); box-shadow: 0 0 0 3
   .btn-sm { min-height: 36px; }
 }
 @media (max-width: 640px) {
-  .table.stack thead { display: none; }
-  .table.stack, .table.stack tbody, .table.stack tr, .table.stack td { display: block; width: 100%; }
-  .table.stack tr { border: 1px solid var(--border); border-radius: 14px; padding: 6px 12px; margin-bottom: 10px; background: var(--surface); }
-  .table.stack tr:last-child td { border-bottom: 1px dashed var(--border); }
-  .table.stack td { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 7px 0; border-bottom: 1px dashed var(--border); text-align: end; min-width: 0; overflow-wrap: anywhere; }
-  .table.stack td:last-child { border-bottom: 0 !important; }
-  .table.stack td::before { content: attr(data-label); flex-shrink: 0; max-width: 45%; font-size: 12px; font-weight: 700; color: var(--muted); text-align: start; }
-  .table.stack td[data-label=""]::before { display: none; }
-  .table.stack td[data-label=""] { justify-content: flex-end; }
-  .table.stack td.num { text-align: end; }
-  .table-wrap:has(> .table.stack) { border: 0; border-radius: 0; overflow: visible; max-height: none !important; }
-  .table.stack tbody tr:hover { background: var(--surface); }
+  .table.mstack thead { display: none; }
+  .table.mstack, .table.mstack tbody, .table.mstack tr, .table.mstack td { display: block; width: 100%; }
+  .table.mstack tr { border: 1px solid var(--border); border-radius: 14px; padding: 6px 12px; margin-bottom: 10px; background: var(--surface); }
+  .table.mstack tr:last-child td { border-bottom: 1px dashed var(--border); }
+  .table.mstack td { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 7px 0; border-bottom: 1px dashed var(--border); text-align: end; min-width: 0; overflow-wrap: anywhere; }
+  .table.mstack td:last-child { border-bottom: 0 !important; }
+  .table.mstack td::before { content: attr(data-label); flex-shrink: 0; max-width: 45%; font-size: 12px; font-weight: 700; color: var(--muted); text-align: start; }
+  .table.mstack td[data-label=""]::before { display: none; }
+  .table.mstack td[data-label=""] { justify-content: flex-end; }
+  .table.mstack td.num { text-align: end; }
+  .table-wrap:has(> .table.mstack) { border: 0; border-radius: 0; overflow: visible; max-height: none !important; }
+  .table.mstack tbody tr:hover { background: var(--surface); }
   .rp-filters .field:first-child { grid-column: 1 / -1; }
   .rp-filters { grid-template-columns: 1fr 1fr; }
   .rp-filters > .btn { grid-column: 1 / -1; }
@@ -893,6 +923,8 @@ button.kpi[aria-pressed="true"] { border-color: var(--tone); box-shadow: 0 0 0 3
     <symbol id="i-clipboard" viewBox="0 0 24 24"><rect x="8" y="2" width="8" height="4" rx="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2M12 11h4M12 16h4M8 11h.01M8 16h.01"/></symbol>
     <symbol id="i-inbox" viewBox="0 0 24 24"><path d="M22 12h-6l-2 3h-4l-2-3H2"/><path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/></symbol>
     <symbol id="i-steth" viewBox="0 0 24 24"><path d="M11 2v2M5 2v2M5 3H4a2 2 0 0 0-2 2v4a6 6 0 0 0 12 0V5a2 2 0 0 0-2-2h-1M8 15a6 6 0 0 0 12 0v-3"/><circle cx="20" cy="10" r="2"/></symbol>
+    <symbol id="i-flask" viewBox="0 0 24 24"><path d="M9 3h6M10 3v6.5L4.6 18.2A2 2 0 0 0 6.3 21h11.4a2 2 0 0 0 1.7-2.8L14 9.5V3"/><path d="M7.5 15h9"/></symbol>
+    <symbol id="i-play" viewBox="0 0 24 24"><path d="m7 4 13 8-13 8V4z"/></symbol>
     <symbol id="i-save" viewBox="0 0 24 24"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><path d="M17 21v-8H7v8M7 3v5h8"/></symbol>
     <symbol id="i-tag" viewBox="0 0 24 24"><path d="M20.59 13.41 13.42 20.58a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><circle cx="7" cy="7" r="1.5"/></symbol>
     <symbol id="i-link" viewBox="0 0 24 24"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></symbol>
