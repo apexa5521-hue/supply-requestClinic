@@ -523,6 +523,11 @@ function log(msg) { console.log('  ✔ ' + msg); }
   await page.click('.topbar [data-act="toggleTheme"]');
   // التقارير والإحصائيات + تقرير طبيب من قائمة منسدلة
   await page.click('.sidebar [data-view="reports"]');
+  // تم تحميلها مسبقاً في الخلفية بعد الدخول: تظهر فوراً بلا انتظار الخادم
+  expect(await page.waitForSelector('#rpStats .rp-tile', { timeout: 250 }).then(() => true, () => false), 'reports open instantly (preloaded in the background after login)');
+  await page.click('.sidebar [data-view="monitor"]');
+  expect(await page.waitForSelector('#monBody .rp-tile', { timeout: 250 }).then(() => true, () => false), 'follow-up screen opens instantly (preloaded)');
+  await page.click('.sidebar [data-view="reports"]');
   await page.click('[data-seg-name="rpMode"][data-v="all"]');
   await page.click('[data-act="rpGo"]');
   await page.waitForSelector('#rpStats .rp-tile');
