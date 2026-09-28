@@ -59,7 +59,9 @@ function run(N) {
   const plan = { procurement: [['getRequests', [{}]], ['getComplaints', [false]], ['getAlerts', []], ['getNotices', []]] };
   ctx.api(null, 'login', ['علي', '3333', plan]); // تسخين
   rows.push(measure(gas, ctx, 'login + preload (procurement)', null, 'login', ['علي', '3333', plan]));
-  const rv = 'REQ-25010006'; ctx.api(p, 'bulkUpdateStatus', [[rv], 'مراجعة الطبيب']);
+  // طلب بانتظار الطبيب (مباشرة في الشيت — لم يعد التموين يعيد الطلبات للطبيب)
+  const rv = 'REQ-25010006';
+  { const sh = gas.ss.getSheetByName('Requests'); const H = sh._data[0]; sh._data.find(r => r[0] === rv)[H.indexOf('Status')] = 'مراجعة الطبيب'; ctx.api(p, 'getRequests', [{}]); ctx.onEdit && ctx.onEdit({ range: { getSheet: () => sh } }); }
   const id = 'REQ-25010002'; // معتمد من الطبيب
   const m = (l, t, f, a) => rows.push(measure(gas, ctx, l, t, f, a || []));
   m('nurse getConfig (cold cache)', n, 'getConfig');
@@ -82,6 +84,15 @@ function run(N) {
   m('doctor approve (doctorReview)', d, 'doctorReview', [rv, 'اعتمد', '', []]);
   m('proc updateItemApproval', p, 'updateItemApproval', ['REQ-25010005', 'PROPHY PASTE', 2]);
   m('quality getExecutiveStats', q, 'getExecutiveStats', ['']);
+  m('quality getAlerts', q, 'getAlerts');
+  m('quality getMonitor', q, 'getMonitor');
+  m('quality getStatsReport (all)', q, 'getStatsReport', [{}]);
+  m('quality login + preload', null, 'login', ['منى', '5555', { quality: [['getExecutiveStats', ['']], ['getQualityReport', ['']], ['getQualityTrend', [6]], ['getComplaints', [false]], ['getAlerts', []]] }]);
+  const f = login('نواف', '7777');
+  m('finance getFinance (all)', f, 'getFinance', [{}]);
+  const L = login('فني المعمل', '8888');
+  m('lab getLabCases', L, 'getLabCases', [{}]);
+  m('lab getLabStats', L, 'getLabStats', [{}]);
   return rows;
 }
 

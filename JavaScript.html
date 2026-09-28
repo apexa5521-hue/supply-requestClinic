@@ -413,12 +413,40 @@ function peek(fn, args, maxAgeMs) {
   const e = RC.get(rkey(fn, args || []));
   return e && (!maxAgeMs || Date.now() - e.at < maxAgeMs) ? e.data : undefined;
 }
+/* بعد الدخول بلحظات: تحميل مسبق صامت لبيانات باقي الشاشات في رحلة واحدة (دفعة قراءات) —
+   فتح أي تبويب لأول مرة يظهر فوراً ثم يتحدث */
+function warmViews() {
+  if (!S.user || document.hidden) return;
+  const month = todayStr().slice(0, 7), mr = monthRange(month);
+  const plan = {
+    overview: [['getExecutiveStats', ['']], ['getQualityReport', ['']], ['getQualityTrend', [6]]],
+    reports: [['getStatsReport', [Object.assign({ branch: '' }, mr)]]],
+    monitor: [['getMonitor', [{ month: month }]]],
+    finance: hasPerm('finance') ? [['getFinance', [Object.assign({ branch: '' }, mr)]]] : [],
+    labkpi: [['getLabStats', [mr]]],
+    labboard: [['getLabCases', [{}]]], labmine: [['getMyLabCases', [{}]]], labdoc: [['getDoctorLabCases', [{}]]],
+    complaints: [['getComplaints', [false]]]
+  };
+  if (hasPerm('prices_edit')) plan.finance.push(['getPriceList', []]);
+  navItems().filter(n => n.id !== S.view).forEach(n => (plan[n.id] || []).forEach(c => {
+    if (peek(c[0], c[1]) === undefined) call.apply(null, [c[0]].concat(c[1])).catch(() => {});
+  }));
+}
+/* عرض فوري لآخر نسخة معروفة ثم تحديث صامت: render(data, fromCache) — لا يُعاد الرسم إن لم تتغير البيانات */
+function swr(fn, args, render, onErr) {
+  const hit = peek(fn, args);
+  let sig = '';
+  if (hit !== undefined) { sig = JSON.stringify(hit); render(hit, true); }
+  return call.apply(null, [fn].concat(args)).then(d => { const s2 = JSON.stringify(d); if (s2 !== sig) render(d, false); return d; })
+    .catch(e => { if (hit === undefined && onErr) onErr(e); });
+}
 /* بيانات جاهزة مسبقاً (مع الدخول أو من آخر زيارة للتبويب) تُقدَّم فوراً مرة واحدة */
 function seedRC(fn, args, data) {
   // بيانات جديدة من الخادم (مع الدخول): تُقدَّم لكل من يطلبها خلال 8 ثوانٍ
   RC.set(rkey(fn, args || []), { data: data, at: Date.now(), seedUntil: Date.now() + 8000 });
 }
-const PERSIST = ['getMyRequests', 'getRequests', 'getDoctorRequests', 'getAlerts', 'getNotices', 'getComplaints', 'getExecutiveStats', 'getQualityReport', 'getQualityTrend'];
+const PERSIST = ['getMyRequests', 'getRequests', 'getDoctorRequests', 'getAlerts', 'getNotices', 'getComplaints', 'getExecutiveStats', 'getQualityReport', 'getQualityTrend',
+  'getStatsReport', 'getMonitor', 'getFinance', 'getLabCases', 'getMyLabCases', 'getDoctorLabCases', 'getLabStats', 'getLabConfig', 'getPriceList'];
 let persistTimer = null;
 function persistRC() {
   clearTimeout(persistTimer);
@@ -948,6 +976,7 @@ function enterApp(cfg) {
   clearInterval(S.syncTimer);
   S.syncTimer = setInterval(() => { if (!document.hidden && S.user) sync(true); }, SYNC_INTERVAL_MS);
   if (!tourSeen()) setTimeout(() => { if (S.user && !MODALS.length) startTour(); }, 900);
+  setTimeout(warmViews, 1800);
 }
 function renderShell() {
   const u = S.user;
@@ -2443,11 +2472,12 @@ ACT.rpGo = () => { rpReadFilters(); rpLoad(); if (RP.doc) ACT.rpDoc(); };
 function rpLoad(silent) {
   const box = $('#rpStats'); if (!box) return;
   const range = rpRange();
-  if (!silent) box.innerHTML = skeletonList(2);
-  call('getStatsReport', Object.assign({ branch: RP.branch }, range)).then(st => {
+  const args = [Object.assign({ branch: RP.branch }, range)];
+  if (!silent && peek('getStatsReport', args) === undefined) box.innerHTML = skeletonList(2);
+  swr('getStatsReport', args, (st, cached) => {
     RP.stats = st; RP.range = range;
-    if ($('#rpStats')) { $('#rpStats').innerHTML = rpStatsHtml(st, range); countUp($('#rpStats'), silent); }
-  }).catch(e => { box.innerHTML = emptyState('alert', errMsg(e)); });
+    if ($('#rpStats')) { $('#rpStats').innerHTML = rpStatsHtml(st, range); countUp($('#rpStats'), silent || cached); }
+  }, e => { box.innerHTML = emptyState('alert', errMsg(e)); });
 }
 function rpTable(rows, cols, empty) {
   if (!rows.length) return emptyState('inbox', empty || t('no_data'));
@@ -2789,6 +2819,9 @@ ACT.dashMonth = el => { S.dash.month = el.value; go('overview', true); };
 ACT.dashAll = () => { S.dash.month = ''; go('overview', true); };
 function loadDash(silent) {
   const m = S.dash.month;
+  // عرض فوري من آخر زيارة (إن وُجدت) ثم تحديث
+  const c = [peek('getExecutiveStats', [m]), peek('getQualityReport', [m]), peek('getQualityTrend', [6])];
+  if (c.every(x => x !== undefined) && !S.dash.stats) { S.dash.stats = c[0]; S.dash.report = c[1]; S.dash.trend = c[2]; if (S.view === 'overview') renderDash(true); silent = true; }
   Promise.all([call('getExecutiveStats', m), call('getQualityReport', m), call('getQualityTrend', 6)]).then(res => {
     S.dash.stats = res[0]; S.dash.report = res[1]; S.dash.trend = res[2];
     if (S.view === 'overview') renderDash(silent);
@@ -3033,10 +3066,10 @@ VIEWS.monitor = {
 ACT.monMonth = el => { MON.month = el.value || todayStr().slice(0, 7); monLoad(); };
 function monLoad(silent) {
   const box = $('#monBody'); if (!box) return;
-  call('getMonitor', { month: MON.month }).then(m => {
+  swr('getMonitor', [{ month: MON.month }], m => {
     MON.data = m;
     if ($('#monBody')) $('#monBody').innerHTML = monHtml(m);
-  }).catch(e => { if (!silent && $('#monBody')) $('#monBody').innerHTML = emptyState('alert', errMsg(e)); });
+  }, e => { if (!silent && $('#monBody')) $('#monBody').innerHTML = emptyState('alert', errMsg(e)); });
 }
 function stageTag(r) {
   return '<span class="badge" style="--tone:' + (STAGE_TONE[r.stage] || 'var(--t-gray)') + '"><i class="dot"></i>' + esc(t('stage_' + r.stage)) + '</span>';
@@ -3152,14 +3185,15 @@ ACT.fnGo = () => {
 function fnLoad(silent) {
   const box = $('#fnBody'); if (!box) return;
   const range = fnRange();
-  if (!silent) box.innerHTML = skeletonList(2);
-  call('getFinance', Object.assign({ branch: FN.branch }, range)).then(d => {
+  const args = [Object.assign({ branch: FN.branch }, range)];
+  if (!silent && peek('getFinance', args) === undefined) box.innerHTML = skeletonList(2);
+  swr('getFinance', args, (d, cached) => {
     FN.data = d; FN.range = range;
     if (!$('#fnBody')) return;
     $('#fnBody').innerHTML = fnHtml(d, range);
     CHARTS.fin = { canvas: 'finChart', tip: 'finTip', type: 'bar', unit: t('currency'), labels: d.trend.map(x => monthLabel(x.month)), data: d.trend.map(x => x.value) };
-    drawChart(CHARTS.fin, !silent);
-  }).catch(e => { if ($('#fnBody')) $('#fnBody').innerHTML = emptyState('alert', errMsg(e)); });
+    drawChart(CHARTS.fin, !silent && !cached);
+  }, e => { if ($('#fnBody')) $('#fnBody').innerHTML = emptyState('alert', errMsg(e)); });
 }
 function fnHtml(d, range) {
   const s = d.summary, cur = ' ' + t('currency');
@@ -3216,8 +3250,8 @@ ACT.fnCsv = () => {
   document.body.appendChild(a); a.click(); setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 500);
 };
 function fnLoadPrices() {
-  call('getPriceList').then(list => { FN.prices = list || []; renderPrices(); })
-    .catch(e => { if ($('#fnPrices')) $('#fnPrices').innerHTML = emptyState('alert', errMsg(e)); });
+  swr('getPriceList', [], list => { FN.prices = list || []; renderPrices(); },
+    e => { if ($('#fnPrices')) $('#fnPrices').innerHTML = emptyState('alert', errMsg(e)); });
 }
 ACT.fnQ = debounce(el => { FN.q = el.value.trim().toLowerCase(); renderPrices(); }, 120);
 function renderPrices() {
@@ -3589,9 +3623,10 @@ function fillLabFilter() {
   sel.innerHTML = '<option value="">' + esc(t('lab_all_labs')) + '</option>' + LAB.cfg.labs.map(l => '<option' + (l.name === LAB.lab ? ' selected' : '') + '>' + esc(l.name) + '</option>').join('');
 }
 function labLoadList(silent) {
-  const fn = { mine: 'getMyLabCases', doc: 'getDoctorLabCases', board: 'getLabCases' }[LAB.key];
-  return call(fn, {}).then(list => { LAB[LAB.key] = list || []; LAB.loaded[LAB.key] = true; renderLabBoard(!silent); renderNav(); })
-    .catch(e => { if (!silent) { const b = $('#labList'); if (b) b.innerHTML = emptyState('alert', errMsg(e)); } });
+  const fn = { mine: 'getMyLabCases', doc: 'getDoctorLabCases', board: 'getLabCases' }[LAB.key], key = LAB.key;
+  if (LAB.loaded[key]) { renderLabBoard(!silent); silent = true; } // آخر نسخة فوراً
+  return swr(fn, [{}], (list, cached) => { LAB[key] = list || []; LAB.loaded[key] = true; if (LAB.key === key) renderLabBoard(!silent && !cached); renderNav(); },
+    e => { if (!silent) { const b = $('#labList'); if (b) b.innerHTML = emptyState('alert', errMsg(e)); } });
 }
 function renderLabBoard(animate) {
   const box = $('#labList'); if (!box) return;
@@ -3662,17 +3697,23 @@ function openLabCase(id, replace) {
     '<button class="btn" data-close>' + esc(t('close')) + '</button>';
   const top = replace && MODALS.length ? topModal() : null;
   const m = top || openModal({ title: esc(id), sub: esc(t('lab_case')), icon: 'flask', size: 'lg', body: skeletonList(2), foot: '<span class="spacer"></span><button class="btn" data-close>' + esc(t('close')) + '</button>' });
-  labCfg().then(() => call('getLabCase', id)).then(c => {
+  const apply = c => {
     if (!document.contains(m.el)) return;
+    const draft = $('#lcNote', m.el) ? $('#lcNote', m.el).value : '';
     $('.modal-body', m.el).innerHTML = render(c);
     $('.modal-foot', m.el).innerHTML = foot(c);
+    if (draft) $('#lcNote', m.el).value = draft;
     const send = () => {
       const inp = $('#lcNote', m.el), v = inp.value.trim(); if (!v) return;
       call('addLabNote', c.id, v).then(() => openLabCase(c.id, true)).catch(e => toast(errMsg(e), 'error'));
     };
     $('#lcSend', m.el).addEventListener('click', send);
     $('#lcNote', m.el).addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); send(); } });
-  }).catch(e => { if (document.contains(m.el)) $('.modal-body', m.el).innerHTML = emptyState('alert', errMsg(e)); });
+  };
+  // من القائمة فوراً (نفس البيانات تقريباً) ثم التفاصيل الكاملة مع الملاحظات
+  const fromList = [].concat(LAB.mine || [], LAB.doc || [], LAB.board || []).find(x => x.id === id);
+  if (!replace && fromList && peek('getLabCase', [id]) === undefined) apply(Object.assign({ notes: [] }, fromList));
+  labCfg().then(() => swr('getLabCase', [id], apply, e => { if (document.contains(m.el)) $('.modal-body', m.el).innerHTML = emptyState('alert', errMsg(e)); }));
 }
 ACT.labNudge = el => {
   busy(el, true);
@@ -3699,10 +3740,10 @@ VIEWS.labkpi = {
 SEG_HANDLERS.labStatsMode = v => { LAB.statsMode = v; const m = $('#lkMonth'); if (m) m.disabled = v === 'all'; labStatsLoad(); };
 function labStatsLoad(silent) {
   const range = LAB.statsMode === 'month' ? monthRange(LAB.statsMonth || todayStr().slice(0, 7)) : { from: '', to: '' };
-  call('getLabStats', range).then(st => {
+  swr('getLabStats', [range], (st, cached) => {
     LAB.stats = st; LAB.statsRange = range;
-    if ($('#lkBody')) { $('#lkBody').innerHTML = labStatsHtml(st); CHARTS.lab = { canvas: 'labChart', tip: 'labTip', type: 'bar', unit: t('lab_unit_items'), labels: st.trend.map(x => monthLabel(x.month)), data: st.trend.map(x => x.items), extra: null }; drawChart(CHARTS.lab, !silent); }
-  }).catch(e => { if (!silent && $('#lkBody')) $('#lkBody').innerHTML = emptyState('alert', errMsg(e)); });
+    if ($('#lkBody')) { $('#lkBody').innerHTML = labStatsHtml(st); CHARTS.lab = { canvas: 'labChart', tip: 'labTip', type: 'bar', unit: t('lab_unit_items'), labels: st.trend.map(x => monthLabel(x.month)), data: st.trend.map(x => x.items), extra: null }; drawChart(CHARTS.lab, !silent && !cached); }
+  }, e => { if (!silent && $('#lkBody')) $('#lkBody').innerHTML = emptyState('alert', errMsg(e)); });
 }
 function labStatsHtml(st) {
   const s = st.summary, pct = v => v === null || v === undefined ? '—' : v + '%', days = v => v === null || v === undefined ? '—' : fmtNum(v, 1) + ' ' + t('unit_d');

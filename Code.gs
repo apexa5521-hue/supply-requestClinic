@@ -333,6 +333,7 @@ function bumpVersion_(name) {
 function markDirty_(name) {
   invalidate_(name);
   (MEMO_.dirty = MEMO_.dirty || {})[name] = true;
+  delete MEMO_.qr; // الحسابات المشتقة من الطلبات تُعاد بعد أي كتابة
 }
 
 function flushDirty_() {
@@ -585,9 +586,12 @@ function toMs_(v) {
   const ms = d.getTime();
   return isNaN(ms) ? 0 : ms;
 }
+/** 'yyyy-MM-dd' بتوقيت الرياض بحساب مباشر (UTC+3 ثابت بلا توقيت صيفي) — أسرع بكثير من Utilities.formatDate في الحلقات */
+function riyadh_(ms) { return new Date(ms + 3 * 36e5).toISOString().slice(0, 10); }
+
 function monthOf_(v) {
   const ms = toMs_(v);
-  return ms ? Utilities.formatDate(new Date(ms), TZ, 'yyyy-MM') : '';
+  return ms ? riyadh_(ms).slice(0, 7) : '';
 }
 function round1_(n) { return Math.round(n * 10) / 10; }
 function round2_(n) { return Math.round(n * 100) / 100; }
@@ -1068,6 +1072,11 @@ function queryRequests_(filters) {
         (Date.now() - toMs_(r.receivedAt || r.reviewedAt || r.date)) > ARCHIVE_DAYS * 864e5) return false;
     return true;
   }).map(function (r) {
+    // الإثراء (الشحنات/المواعيد/حالة الطبيب) يُحسب مرة واحدة لكل طلب في نفس الاستدعاء —
+    // الدخول والمزامنة يطلبان عدة قوائم معاً (الطلبات، التنبيهات، الإحصائيات…) على نفس البيانات
+    const memo = MEMO_.qr || (MEMO_.qr = {});
+    if (memo[r.id]) return memo[r.id];
+    memo[r.id] = r;
     const st = shipState_(r, byReq[r.id] || []);
     r.itemCount = st.total;
     r.dispatchedCount = st.dispatched;
@@ -1110,9 +1119,10 @@ function deadline_(r, nowMs) {
   let due, lateSubmit = false;
   if (r.type === 'طارئ') due = sub + EMERGENCY_DUE_HOURS * 36e5;
   else {
-    const day = Number(Utilities.formatDate(new Date(sub), TZ, 'dd'));
+    const ymd = riyadh_(sub);
+    const day = Number(ymd.slice(8, 10));
     lateSubmit = day > MONTHLY_WINDOW[1];
-    due = nextMonthStart_(Utilities.formatDate(new Date(sub), TZ, 'yyyy-MM')).getTime() + 864e5 - 1; // نهاية يوم 1
+    due = nextMonthStart_(ymd.slice(0, 7)).getTime() + 864e5 - 1; // نهاية يوم 1
   }
   const done = r.status === ST.RECEIVED || r.status === ST.REJECTED;
   const recv = toMs_(r.receivedAt);
@@ -1183,8 +1193,12 @@ function getMonitor_(user, opts) {
   const cycleMonth = Utilities.formatDate(new Date(now), TZ, 'yyyy-MM');
   const today = Number(Utilities.formatDate(new Date(now), TZ, 'dd'));
   const passed = today > MONTHLY_WINDOW[1];
+  const byDoc = {};
+  all.forEach(function (r) {
+    if (r.type !== 'طارئ' && r.doctor && monthOf_(r.submittedAt || r.date) === cycleMonth) (byDoc[r.doctor] = byDoc[r.doctor] || []).push(r);
+  });
   const cycle = allDoctors_().map(function (d) {
-    const rs = all.filter(function (r) { return r.doctor === d.name && r.type !== 'طارئ' && monthOf_(r.submittedAt || r.date) === cycleMonth; });
+    const rs = byDoc[d.name] || [];
     const first = rs[rs.length - 1];
     return { doctor: d.name, clinic: d.clinic, nurse: d.nurse, count: rs.length,
       lateSubmit: !!first && first.lateSubmit, submittedAt: first ? first.submittedAt || first.date : '',
