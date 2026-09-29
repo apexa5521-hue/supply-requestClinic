@@ -921,6 +921,7 @@ test('batch runs several reads in one execution with per-call errors, and reject
   assert.match(res[3].error, /ERR_UNKNOWN_FN/, 'writes are not allowed in a batch');
   assert.match(res[4].error, /ERR_UNKNOWN_FN/);
   throwsCode(() => api('bad', 'batch', [['getConfig', []]]), 'ERR_SESSION');
+  assert.equal(api('', 'ping'), true, 'ping wakes the server without a session and returns no data');
   throwsCode(() => api(n, 'batch', []), 'ERR_BAD_BATCH');
 });
 

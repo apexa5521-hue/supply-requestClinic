@@ -676,8 +676,8 @@ function log(msg) { console.log('  ✔ ' + msg); }
     await ctx.route('http://pages.test/Index.html', r => r.fulfill({ contentType: 'text/html; charset=utf-8', body: fs.readFileSync(path.join(ROOT, 'Index.html'), 'utf8') }));
     await ctx.route('http://pages.test/JavaScript.html', r => r.fulfill({ contentType: 'text/html; charset=utf-8', body: fs.readFileSync(path.join(ROOT, 'JavaScript.html'), 'utf8') }));
     await ctx.route(/script\.google\.com\/macros/, r => {
-      net.posts++;
       const body = r.request().postData() || '{}';
+      if (JSON.parse(body).fn === 'ping') net.pings = (net.pings || 0) + 1; else net.posts++;
       if (JSON.parse(body).fn === 'batch') net.batches++;
       if (net.rejectBatch && JSON.parse(body).fn === 'batch') return r.fulfill({ contentType: 'application/json', headers: { 'Access-Control-Allow-Origin': '*' }, body: JSON.stringify({ ok: false, error: 'ERR_UNKNOWN_FN' }) });
       if (net.failNext > 0) { net.failNext--; return r.fulfill({ status: 500, body: '<html>Google error</html>' }); }
@@ -695,6 +695,7 @@ function log(msg) { console.log('  ✔ ' + msg); }
     await gp.waitForSelector('#procList .req, #procList .empty, #cList .req, #cList .empty');
     await gp.waitForTimeout(400);
     expect(net.posts === 1, 'Pages mode: login + first screen data in a single request (' + net.posts + ' posts)');
+    expect(net.pings >= 1, 'Pages mode: login screen wakes the server early (ping)');
     await gp.click('.topbar [data-act="sync"]');
     expect(await toastHas(gp, 'تم بنجاح'), 'Pages mode: sync done');
     expect(net.posts === 2 && net.batches === 1, 'Pages mode: sync sends all reads as one batch (' + net.posts + ' posts, ' + net.batches + ' batches)');

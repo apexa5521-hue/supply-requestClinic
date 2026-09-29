@@ -180,6 +180,8 @@ function api(token, fn, args) {
   try {
     if (fn === 'login') return sanitize_(login_(args[0], args[1], args[2]));
     if (fn === 'logout') { logout_(token); return true; }
+    // إيقاظ الخادم وتسخين كاش المستخدمين والأدوار أثناء كتابة بيانات الدخول (بدون جلسة، لا يُرجع بيانات)
+    if (fn === 'ping') { read_('Users'); getRoles_(); return true; }
     if (fn === 'batch') return batch_(token, args[0]);
     const def = API_[fn];
     if (!def) throw new Error('ERR_UNKNOWN_FN');

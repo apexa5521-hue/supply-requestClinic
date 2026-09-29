@@ -432,6 +432,22 @@ function warmViews() {
     if (peek(c[0], c[1]) === undefined) call.apply(null, [c[0]].concat(c[1])).catch(() => {});
   }));
 }
+/* تفاصيل أول الطلبات الظاهرة تُجلب مسبقاً في رحلة واحدة — فتح التفاصيل فوري حتى على الجوال (بلا تمرير مؤشر) */
+const DETAIL_PREFETCH = 8;
+function prefetchDetails() {
+  if (!S.user || document.hidden) return;
+  const ids = [];
+  $$('#view [data-act="detail"][data-id]').forEach(el => {
+    const id = el.dataset.id;
+    if (ids.length < DETAIL_PREFETCH && ids.indexOf(id) === -1 && peek('getRequestDetail', [id], 120000) === undefined) ids.push(id);
+  });
+  if (!ids.length) return;
+  call('batch', ids.map(id => ['getRequestDetail', [id]])).then(res => (res || []).forEach((r, i) => {
+    if (r && r.ok) RC.set(rkey('getRequestDetail', [ids[i]]), { data: r.data, at: Date.now() });
+  })).catch(() => {});
+}
+let pfTimer = 0;
+const schedulePrefetch = (ms) => { clearTimeout(pfTimer); pfTimer = setTimeout(prefetchDetails, ms || 1500); };
 /* عرض فوري لآخر نسخة معروفة ثم تحديث صامت: render(data, fromCache) — لا يُعاد الرسم إن لم تتغير البيانات */
 function swr(fn, args, render, onErr) {
   const hit = peek(fn, args);
@@ -806,7 +822,16 @@ ACT.togglePass = el => {
   inp.type = show ? 'text' : 'password';
   el.querySelector('use').setAttribute('href', show ? '#i-eyeoff' : '#i-eye');
 };
+/* شاشة الدخول: نوقظ الخادم مبكراً (أول طلب لـ Apps Script بعد خمول يأخذ ثوانٍ) فيكون جاهزاً لحظة الضغط على «دخول» */
+let pingAt = 0;
+function wakeServer() {
+  if (S.user || Date.now() - pingAt < 180000) return;
+  pingAt = Date.now();
+  call('ping').catch(() => { pingAt = 0; });
+}
+['focusin', 'input', 'pointerdown'].forEach(ev => $('#loginForm').addEventListener(ev, wakeServer, { passive: true }));
 function showLogin() {
+  wakeServer();
   $('#appShell').classList.add('hidden');
   $('#loginView').classList.remove('hidden');
   setTimeout(() => { // لا تسحب التركيز من حقل بدأ المستخدم الكتابة فيه
@@ -1084,6 +1109,7 @@ function go(view, keepScroll) {
     if (!keepScroll) window.scrollTo(0, 0);
   }
   if (v.mount) v.mount(root);
+  schedulePrefetch(2500);
 }
 /* انقطاع الاتصال: المسودة تبقى محفوظة، ونبلغ المستخدم */
 window.addEventListener('offline', () => { if (S.user) { toast(t('offline_now'), 'warning', 6000); renderDraftState(); } });
