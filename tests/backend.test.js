@@ -167,10 +167,14 @@ test('sessions & permissions: no token, bad token, wrong role', () => {
   throwsCode(() => api(nurse, 'getConfig'), 'ERR_SESSION');
 });
 
-test('config: nurse sees only her clinics and no prices', () => {
+test('config: nurse sees every clinic (own clinics flagged) and no prices; clinic consumables open to any clinic', () => {
   const { api, login } = boot();
-  const cfg = api(login('سارة', '1111'), 'getConfig');
-  assert.deepEqual(cfg.clinics.map(c => c.name).sort(), ['عيادة الأسنان 1', 'عيادة الجلدية 1'].sort());
+  const n = login('سارة', '1111');
+  const cfg = api(n, 'getConfig');
+  assert.ok(cfg.clinics.length >= 5 && cfg.clinics.some(c => c.name === 'Sterilization'));
+  assert.deepEqual(cfg.myClinics.sort(), ['عيادة الأسنان 1', 'عيادة الجلدية 1'].sort());
+  const r = api(n, 'createRequest', { clinic: 'عيادة الأسنان 2', type: 'شهري', items: [{ name: 'PROPHY PASTE', qty: 1 }] });
+  assert.match(r.id, /^REQ-/, 'clinic consumables for a clinic that is not hers');
   assert.ok(cfg.catalog.length >= 7);
   assert.ok(cfg.catalog.every(c => c.price === undefined));
   const proc = api(login('علي', '3333'), 'getConfig');
@@ -1028,7 +1032,7 @@ test('doctor-based request: clinic is optional (derived from the doctor); clinic
   throwsCode(() => api(n, 'createRequest', { doctor: 'د. سعد', type: 'شهري', items }), 'ERR_BAD_DOCTOR');
   // مستهلكات العيادة: بدون طبيب، العيادة إلزامية، وتذهب للتموين مباشرة
   throwsCode(() => api(n, 'createRequest', { type: 'شهري', items }), 'ERR_REQUIRED');
-  throwsCode(() => api(n, 'createRequest', { clinic: 'عيادة الأسنان 2', type: 'شهري', items }), 'ERR_FORBIDDEN');
+  assert.match(api(n, 'createRequest', { clinic: 'عيادة الأسنان 2', type: 'شهري', items }).id, /^REQ-/, 'clinic consumables are open to every clinic');
   const r2 = api(n, 'createRequest', { clinic: 'عيادة الجلدية 1', type: 'شهري', items: [{ name: 'قفازات طبية M', qty: 5 }] });
   const q2 = rows(gas, 'Requests').find(r => r.RequestID === r2.id);
   assert.deepEqual([q2.Doctor, q2.Clinic, q2.Status], ['', 'عيادة الجلدية 1', 'جديد']);
