@@ -639,6 +639,11 @@ button.kpi[aria-pressed="true"] { border-color: var(--tone); box-shadow: 0 0 0 3
 .bad-prices > .i { color: var(--t-red); margin-top: 2px; flex-shrink: 0; }
 .bad-prices small { color: var(--t-red); }
 .rep-note { margin: 0; }
+.rep-notes { display: grid; gap: 6px; padding: 10px 12px; font-size: 13px; }
+.rep-check { width: 34px; }
+.rep-sign { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin-top: 18px; }
+.rep-sign > div { display: grid; gap: 34px; padding-top: 8px; border-top: 1px dashed var(--border-strong, var(--border)); font-size: 13px; }
+.rep-sign span { color: var(--muted); font-size: 12px; border-top: 1px solid var(--border); padding-top: 4px; }
 @media (max-width: 640px) { .rep-tiles { grid-template-columns: repeat(2, 1fr); } .rep-head { flex-direction: column; align-items: flex-start; } }
 /* الطباعة: التقرير فقط */
 #printArea { display: none; }

@@ -438,7 +438,18 @@ function log(msg) { console.log('  ✔ ' + msg); }
   await page.waitForSelector('.msg.mine');
   expect(await page.locator('.step.done').count() === 6, 'detail stepper shows all 6 stages done');
   await shot(page, 'request-detail');
+  await page.evaluate(() => { window.print = () => {}; });
+  await page.click('#dPrint');
+  await page.emulateMedia({ media: 'print' });
+  expect(await page.isVisible('#printArea .rep-sign') && (await page.textContent('#printArea')).includes(newId) && await page.locator('#printArea .rep-table tbody tr').count() >= 1,
+    'request detail prints / saves as PDF (items table + signatures)');
+  await shot(page, 'request-detail-print', true);
+  await page.emulateMedia({ media: 'screen' });
+  await page.waitForTimeout(1600);
   await page.keyboard.press('Escape');
+  const lbl = await page.evaluate(() => { const old = S.clinics; S.clinics = [{ name: 'Sterilization', branch: 'بريدة' }, { name: 'Sterilization', branch: 'عنيزة' }, { name: 'A', branch: 'بريدة' }];
+    const r = [clinicLabel(S.clinics[0]), clinicLabel(S.clinics[1]), clinicLabel(S.clinics[2]), clinicNames().join('|'), clinicBranch('Sterilization', 'عنيزة')]; S.clinics = old; return r; });
+  expect(lbl.join(',') === 'Sterilization — بريدة,Sterilization — عنيزة,A,Sterilization|A,عنيزة', 'same clinic in two branches is labelled by branch: ' + lbl.join(','));
   await logout(page);
 
   // ---------- الخادم مشغول وقت الرفع: الطلب يُحفظ ويُرسل تلقائياً بلا تكرار ----------
@@ -665,8 +676,8 @@ function log(msg) { console.log('  ✔ ' + msg); }
     await ctx.route('http://pages.test/Index.html', r => r.fulfill({ contentType: 'text/html; charset=utf-8', body: fs.readFileSync(path.join(ROOT, 'Index.html'), 'utf8') }));
     await ctx.route('http://pages.test/JavaScript.html', r => r.fulfill({ contentType: 'text/html; charset=utf-8', body: fs.readFileSync(path.join(ROOT, 'JavaScript.html'), 'utf8') }));
     await ctx.route(/script\.google\.com\/macros/, r => {
-      net.posts++;
       const body = r.request().postData() || '{}';
+      if (JSON.parse(body).fn === 'ping') net.pings = (net.pings || 0) + 1; else net.posts++;
       if (JSON.parse(body).fn === 'batch') net.batches++;
       if (net.rejectBatch && JSON.parse(body).fn === 'batch') return r.fulfill({ contentType: 'application/json', headers: { 'Access-Control-Allow-Origin': '*' }, body: JSON.stringify({ ok: false, error: 'ERR_UNKNOWN_FN' }) });
       if (net.failNext > 0) { net.failNext--; return r.fulfill({ status: 500, body: '<html>Google error</html>' }); }
@@ -684,6 +695,7 @@ function log(msg) { console.log('  ✔ ' + msg); }
     await gp.waitForSelector('#procList .req, #procList .empty, #cList .req, #cList .empty');
     await gp.waitForTimeout(400);
     expect(net.posts === 1, 'Pages mode: login + first screen data in a single request (' + net.posts + ' posts)');
+    expect(net.pings >= 1, 'Pages mode: login screen wakes the server early (ping)');
     await gp.click('.topbar [data-act="sync"]');
     expect(await toastHas(gp, 'تم بنجاح'), 'Pages mode: sync done');
     expect(net.posts === 2 && net.batches === 1, 'Pages mode: sync sends all reads as one batch (' + net.posts + ' posts, ' + net.batches + ' batches)');

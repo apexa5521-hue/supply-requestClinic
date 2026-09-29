@@ -895,6 +895,21 @@ test('doctors match clinics by name, list, specialty or branch; empty clinic = a
   throwsCode(() => api(n, 'createRequest', { clinic: 'Dental Clinic 8 - Buraydah', doctor: 'Dr Derma', type: 'شهري', items: [{ name: 'DENTAL FLOSS', qty: 1 }] }), 'ERR_BAD_DOCTOR');
 });
 
+test('same clinic name in two branches (Sterilization): each request keeps its branch and reports split them', () => {
+  const { api, login } = boot(g => {
+    g.seed('Users', ['Name', 'Password', 'Role', 'Clinic', 'Email'], [['هند', '1111', 'ممرضة', 'Sterilization', ''], ['المدير', '1234', 'أدمن', '', '']]);
+  });
+  const n = login('هند', '1111'), a = login('المدير', '1234');
+  const cfg = api(n, 'getConfig');
+  assert.deepEqual(cfg.clinics.filter(c => c.name === 'Sterilization').map(c => c.branch), ['الرياض', 'جدة']);
+  const mk = branch => api(n, 'createRequest', { clinic: 'Sterilization', branch: branch, type: 'شهري', items: [{ name: 'DENTAL FLOSS', qty: 2 }] }).id;
+  const r1 = mk('الرياض'), r2 = mk('جدة');
+  assert.equal(api(a, 'getRequestDetail', r1).branch, 'الرياض');
+  assert.equal(api(a, 'getRequestDetail', r2).branch, 'جدة');
+  const names = api(a, 'getStatsReport', {}).clinics.map(c => c.name);
+  assert.ok(names.includes('Sterilization — الرياض') && names.includes('Sterilization — جدة'), names.join(','));
+});
+
 test('batch runs several reads in one execution with per-call errors, and rejects writes', () => {
   const { api, login } = boot();
   const n = login('سارة', '1111');
@@ -906,6 +921,7 @@ test('batch runs several reads in one execution with per-call errors, and reject
   assert.match(res[3].error, /ERR_UNKNOWN_FN/, 'writes are not allowed in a batch');
   assert.match(res[4].error, /ERR_UNKNOWN_FN/);
   throwsCode(() => api('bad', 'batch', [['getConfig', []]]), 'ERR_SESSION');
+  assert.equal(api('', 'ping'), true, 'ping wakes the server without a session and returns no data');
   throwsCode(() => api(n, 'batch', []), 'ERR_BAD_BATCH');
 });
 
