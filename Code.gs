@@ -801,6 +801,17 @@ function getBranches_() {
   return out;
 }
 
+/** اسم العرض في التقارير: العيادة المتكررة بنفس الاسم في أكثر من فرع تُميَّز بفرعها (مثل «Sterilization — بريدة») */
+function clinicKey_(clinic, branch) {
+  if (!MEMO_.cDup) {
+    MEMO_.cDup = {};
+    const seen = {};
+    getClinics_().forEach(function (c) { if (seen[c.name] !== undefined && seen[c.name] !== c.branch) MEMO_.cDup[c.name] = true; seen[c.name] = c.branch; });
+  }
+  clinic = str_(clinic);
+  return clinic && branch && MEMO_.cDup[clinic] ? clinic + ' — ' + branch : clinic;
+}
+
 /** فرع العيادة الافتراضي (للطلبات القديمة التي لم يُحفظ فيها فرع) */
 function clinicBranch_(clinic) {
   if (!MEMO_.cBranch) {
@@ -2481,7 +2492,7 @@ function getStatsReport_(user, opts) {
     if (r.sentQty > 0 && r.remainingQty > 0) partial++;
     statuses[r.status] = (statuses[r.status] || 0) + 1;
     [sum, byDoc[r.doctor || CLINIC_ONLY_LABEL] = byDoc[r.doctor || CLINIC_ONLY_LABEL] || bucket(), byBranch[r.branch || '—'] = byBranch[r.branch || '—'] || bucket(),
-      byClinic[r.clinic] = byClinic[r.clinic] || bucket()].forEach(function (b) {
+      byClinic[clinicKey_(r.clinic, r.branch)] = byClinic[clinicKey_(r.clinic, r.branch)] || bucket()].forEach(function (b) {
       b.requests++;
       if (r.status === ST.REJECTED) b.rejected++;
       else if (r.cleared && r.needsReview) b.approved++;
@@ -2529,7 +2540,7 @@ function getQualityReport_(month) {
         hours: round1_((toMs_(r.sentAt) - toMs_(r.submittedAt)) / 36e5) };
     });
   const byClinic = {};
-  rows.forEach(function (r) { (byClinic[r.clinic] = byClinic[r.clinic] || []).push(r.hours); });
+  rows.forEach(function (r) { const k = clinicKey_(r.clinic, r.branch); (byClinic[k] = byClinic[k] || []).push(r.hours); });
   const averages = Object.keys(byClinic).map(function (c) {
     const arr = byClinic[c];
     return { clinic: c, avgHours: round1_(arr.reduce(function (a, b) { return a + b; }, 0) / arr.length), count: arr.length };

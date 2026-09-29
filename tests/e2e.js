@@ -438,7 +438,18 @@ function log(msg) { console.log('  ✔ ' + msg); }
   await page.waitForSelector('.msg.mine');
   expect(await page.locator('.step.done').count() === 6, 'detail stepper shows all 6 stages done');
   await shot(page, 'request-detail');
+  await page.evaluate(() => { window.print = () => {}; });
+  await page.click('#dPrint');
+  await page.emulateMedia({ media: 'print' });
+  expect(await page.isVisible('#printArea .rep-sign') && (await page.textContent('#printArea')).includes(newId) && await page.locator('#printArea .rep-table tbody tr').count() >= 1,
+    'request detail prints / saves as PDF (items table + signatures)');
+  await shot(page, 'request-detail-print', true);
+  await page.emulateMedia({ media: 'screen' });
+  await page.waitForTimeout(1600);
   await page.keyboard.press('Escape');
+  const lbl = await page.evaluate(() => { const old = S.clinics; S.clinics = [{ name: 'Sterilization', branch: 'بريدة' }, { name: 'Sterilization', branch: 'عنيزة' }, { name: 'A', branch: 'بريدة' }];
+    const r = [clinicLabel(S.clinics[0]), clinicLabel(S.clinics[1]), clinicLabel(S.clinics[2]), clinicNames().join('|'), clinicBranch('Sterilization', 'عنيزة')]; S.clinics = old; return r; });
+  expect(lbl.join(',') === 'Sterilization — بريدة,Sterilization — عنيزة,A,Sterilization|A,عنيزة', 'same clinic in two branches is labelled by branch: ' + lbl.join(','));
   await logout(page);
 
   // ---------- الخادم مشغول وقت الرفع: الطلب يُحفظ ويُرسل تلقائياً بلا تكرار ----------
