@@ -103,6 +103,16 @@ const COMPLAINT_TYPES = ['تأخير', 'نقص', 'زيادة', 'أخرى'];
  * شغّل هذه الدالة مرة واحدة من محرر Apps Script. آمنة للتشغيل أكثر من مرة:
  * تضيف التبويبات/الأعمدة الناقصة فقط ولا تمسح أي بيانات.
  */
+/** العيادات الافتراضية لتجهيز نظام جديد فقط — بعدها تبويب Clinics هو المرجع (أضف/احذف صفوفاً منه مباشرة) */
+const DEFAULT_CLINICS_ = (function () {
+  const out = [];
+  for (let i = 1; i <= 12; i++) out.push(['Dental Clinic ' + i + ' - Buraydah', 'Buraydah', 'Dentistry']);
+  ['Derma Hydrafacial', 'Derma Clarity', 'Derma Gentle Pro', 'Derma CLINIC'].forEach(function (n) { out.push([n, 'Buraydah', 'Dermatology']); });
+  for (let j = 1; j <= 4; j++) out.push(['Dental Clinic ' + j + ' - Unayzah', 'Unayzah', 'Dentistry']);
+  out.push(['Sterilization - Buraydah', 'Buraydah', 'Sterilization'], ['Sterilization - Unayzah', 'Unayzah', 'Sterilization']);
+  return out;
+})();
+
 function setupSheets() {
   const ss = ss_();
   Object.keys(SCHEMA).forEach(function (name) { sheet_(name); });
@@ -116,6 +126,9 @@ function setupSheets() {
   }
   if (read_('Users').rows.length === 0) {
     append_('Users', { Name: 'المدير', Password: '1234', Role: 'أدمن' });
+  }
+  if (read_('Clinics').rows.length === 0) {
+    DEFAULT_CLINICS_.forEach(function (c) { append_('Clinics', { ClinicName: c[0], Branch: c[1], Type: c[2] }); });
   }
   if (read_('LabWorkTypes').rows.length === 0) {
     LAB_WORK_TYPES_DEFAULT.forEach(function (w) { append_('LabWorkTypes', { WorkType: w }); });
@@ -1300,9 +1313,21 @@ const STAGE_AR_ = { doctor: 'بانتظار اعتماد الطبيب', prep: '�
 
 /** يثبّت المشغّل اليومي للملخص (مرة واحدة؛ يُستدعى من setupSheets أو يدوياً من المحرر) */
 function installTriggers() {
-  const has = ScriptApp.getProjectTriggers().some(function (t) { return t.getHandlerFunction() === 'dailyDigest'; });
-  if (!has) ScriptApp.newTrigger('dailyDigest').timeBased().everyDays(1).atHour(8).inTimezone(TZ).create();
-  return !has;
+  const names = ScriptApp.getProjectTriggers().map(function (t) { return t.getHandlerFunction(); });
+  const hasDigest = names.indexOf('dailyDigest') !== -1, hasChange = names.indexOf('onSheetChange') !== -1;
+  if (!hasDigest) ScriptApp.newTrigger('dailyDigest').timeBased().everyDays(1).atHour(8).inTimezone(TZ).create();
+  // حذف/إدراج صفوف يدوياً (مثل حذف عيادة) لا يُطلق onEdit — هذا المشغّل يلتقطه فيظهر التغيير فوراً
+  if (!hasChange) ScriptApp.newTrigger('onSheetChange').forSpreadsheet(ss_()).onChange().create();
+  return !hasDigest || !hasChange;
+}
+
+/** مشغّل onChange: أي تغيير بنيوي (حذف/إدراج صفوف أو أعمدة) يُبطل كاش تبويبات الإعداد والتبويب النشط */
+function onSheetChange(e) {
+  try {
+    LOOKUP_SHEETS_.forEach(bumpVersion_);
+    const sh = e && e.source && e.source.getActiveSheet && e.source.getActiveSheet();
+    if (sh && LOOKUP_SHEETS_.indexOf(sh.getName()) === -1) bumpVersion_(sh.getName());
+  } catch (err) { /* تجاهل */ }
 }
 
 /* =====================================================================
