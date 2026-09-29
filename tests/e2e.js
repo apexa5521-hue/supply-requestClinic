@@ -157,6 +157,12 @@ function log(msg) { console.log('  ✔ ' + msg); }
   await page.click('[data-seg-name="reqKind"][data-v="clinic"]');
   await page.waitForSelector('#fClinic');
   expect(!(await page.$('#fDoctor')), 'clinic consumables: clinic instead of doctor');
+  const groups = await page.$$eval('#fClinic optgroup', gs => gs.map(g => g.label + ':' + g.children.length));
+  expect(groups[0] === 'قسم التعقيم:2' && groups[1] === 'عياداتي:2' && groups.length >= 3, 'every clinic is open, grouped: sterilization first, then mine, then by branch — ' + groups.join(' | '));
+  expect(await page.inputValue('#fClinic') !== '' && !(await page.textContent('#sterilNote')), 'defaults to her own clinic');
+  await page.selectOption('#fClinic', await page.$eval('#fClinic optgroup option:nth-child(2)', o => o.value));
+  expect((await page.textContent('#sterilNote')).includes('جدة') && await page.inputValue('#fBranch') === 'جدة', 'choosing sterilization shows where it is (branch) and sets the branch');
+  await shot(page, 'new-sterilization');
   await shot(page, 'new-clinic-consumables');
   await page.click('[data-seg-name="reqKind"][data-v="doctor"]');
   await page.waitForSelector('#fDoctor option[value="د. خالد"]', { state: 'attached' });

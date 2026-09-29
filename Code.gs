@@ -944,14 +944,11 @@ function migrateRoles_() {
 }
 
 function getConfig_(user) {
-  let clinics = getClinics_();
-  if (user.screen === 'nurse') {
-    const mine = userClinics_(user);
-    if (mine.length) clinics = clinics.filter(function (c) { return mine.indexOf(c.name) !== -1; });
-  }
+  // كل العيادات متاحة للجميع في «مستهلكات عيادة» (مثل طلبات التعقيم لأي فرع)؛ عيادات المستخدم تُعرض أولاً
   return {
     user: user,
-    clinics: clinics,
+    clinics: getClinics_(),
+    myClinics: userClinics_(user),
     branches: getBranches_(),
     catalog: getCatalog_(user.screen !== 'nurse'),
     roles: (user.perms || []).indexOf('users') !== -1 ? getRoles_() : [],
@@ -1446,7 +1443,8 @@ function createRequest_(user, payload) {
   if (REQUEST_TYPES.indexOf(type) === -1) throw new Error('ERR_BAD_TYPE');
   const mine = userClinics_(user);
   if (clinic) {
-    if (mine.length && mine.indexOf(clinic) === -1) throw new Error('ERR_FORBIDDEN');
+    // مستهلكات العيادة مفتوحة لكل العيادات؛ طلب الطبيب يبقى ضمن عيادات الممرضة
+    if (!clinicOnly && mine.length && mine.indexOf(clinic) === -1) throw new Error('ERR_FORBIDDEN');
     if (!getClinics_().some(function (c) { return c.name === clinic; })) throw new Error('ERR_BAD_CLINIC');
   }
   if (!clinicOnly) {
