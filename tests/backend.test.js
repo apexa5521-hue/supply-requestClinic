@@ -968,6 +968,99 @@ test('auto setup: the clinic sheet (Buraydah/Unayzah) becomes the approved 22 cl
   assert.equal(gas.globals.DriveApp.createFolder._folder.copies.length, 1);
 });
 
+test('custody: standard per clinic, issue with serial numbers, nurse report with photo, procurement inspect → repair/return or damaged → replacement; finance sees cost', () => {
+  const { api, login, gas } = boot(g => {
+    g.seed('ItemsCatalog', ['ItemName', 'CommercialName', 'Category', 'Price', 'Ownership', 'Serialized'], [
+      ['DENTAL FLOSS', 'Oral-B', 'Hygiene', 12.5, '', ''],
+      ['Handpiece Low Speed', 'NSK', 'Handpiece', 1500, 'عهدة', 'نعم'],
+      ['Handpiece High Speed', 'NSK', 'Handpiece', 2200, 'عهدة', 'نعم'],
+      ['Curing Light', 'Woodpecker', 'Equipment', 800, 'عهدة', '']
+    ]);
+  });
+  const n = login('سارة', '1111'), p = login('علي', '3333'), a = login('المدير', '1234'), f = login('نواف', '7777');
+  const PNG = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==';
+  const cfg = api(n, 'getAssetConfig');
+  assert.deepEqual(cfg.items.map(i => [i.name, i.serialized]), [['Handpiece Low Speed', true], ['Handpiece High Speed', true], ['Curing Light', false]]);
+  assert.deepEqual(cfg.clinics.sort(), ['عيادة الأسنان 1', 'عيادة الجلدية 1'].sort(), 'nurse sees her clinics only');
+  // المعيار (التموين/الأدمن فقط)
+  throwsCode(() => api(n, 'setClinicStandard', 'عيادة الأسنان 1', 'Handpiece Low Speed', 5), 'ERR_FORBIDDEN');
+  throwsCode(() => api(p, 'setClinicStandard', 'عيادة الأسنان 1', 'DENTAL FLOSS', 5), 'ERR_NOT_ASSET');
+  api(p, 'setClinicStandard', 'عيادة الأسنان 1', 'Handpiece Low Speed', 5);
+  api(a, 'setClinicStandard', 'عيادة الأسنان 1', 'Curing Light', 1);
+  // الصرف بالأرقام التسلسلية
+  throwsCode(() => api(p, 'issueAssets', { clinic: 'عيادة الأسنان 1', item: 'Handpiece Low Speed', qty: 5 }), 'ERR_SERIAL_REQUIRED');
+  throwsCode(() => api(p, 'issueAssets', { clinic: 'عيادة الأسنان 1', item: 'Handpiece Low Speed', serials: ['A1', 'A1'] }), 'ERR_SERIAL_DUP');
+  const iss = api(p, 'issueAssets', { clinic: 'عيادة الأسنان 1', item: 'Handpiece Low Speed', serials: ['LS-001', 'LS-002', 'LS-003', 'LS-004'] });
+  assert.equal(iss.ids.length, 4);
+  throwsCode(() => api(p, 'issueAssets', { clinic: 'عيادة الجلدية 1', item: 'Handpiece Low Speed', serials: ['LS-002'] }), 'ERR_SERIAL_EXISTS:LS-002');
+  api(p, 'issueAssets', { clinic: 'عيادة الأسنان 1', item: 'Curing Light', qty: 2, cost: 750 });
+  let ca = api(n, 'getClinicAssets', { clinic: 'عيادة الأسنان 1' })[0];
+  const ls = ca.items.find(i => i.item === 'Handpiece Low Speed');
+  assert.deepEqual([ls.standard, ls.inClinic, ls.shortage], [5, 4, 1], 'standard vs actual: 1 short');
+  assert.deepEqual(ls.assets.map(x => x.serial), ['LS-001', 'LS-002', 'LS-003', 'LS-004']);
+  // بلاغ الممرضة
+  const lsAsset = ls.assets.find(x => x.serial === 'LS-002');
+  throwsCode(() => api(n, 'reportAsset', { assetId: lsAsset.id, problem: 'خربانة' }), 'ERR_PHOTO_REQUIRED');
+  throwsCode(() => api(login('ريم', '2222'), 'reportAsset', { assetId: lsAsset.id, problem: 'خربانة', photo: PNG }), 'ERR_FORBIDDEN');
+  gas.mails.length = 0;
+  const t1 = api(n, 'reportAsset', { assetId: lsAsset.id, problem: 'خربانة', description: 'صوت عالي ويسخن', photo: PNG, clientKey: 'asset-report-001' });
+  assert.match(t1.id, /^TKT-\d{6}-001$/);
+  assert.equal(api(n, 'reportAsset', { assetId: lsAsset.id, problem: 'خربانة', photo: PNG, clientKey: 'asset-report-001' }).id, t1.id, 'no duplicate on resend');
+  assert.ok(gas.mails.some(m => m.to.includes('ali@example.com') && /بلاغ أداة/.test(m.subject) && /LS-002/.test(m.body)), 'procurement notified with the serial');
+  throwsCode(() => api(n, 'reportAsset', { assetId: lsAsset.id, problem: 'خربانة', photo: PNG }), 'ERR_ASSET_BUSY');
+  ca = api(n, 'getClinicAssets', { clinic: 'عيادة الأسنان 1' })[0];
+  assert.deepEqual((x => [x.inClinic, x.away, x.shortage])(ca.items.find(i => i.item === 'Handpiece Low Speed')), [3, 1, 2], 'sent tool leaves the clinic count');
+  assert.ok(api(p, 'getAlerts').some(al => al.code === 'alert_asset_new'));
+  // أداة بكمية بدون رقم تسلسلي: قطعة تُفصل
+  const cl = ca.items.find(i => i.item === 'Curing Light').assets[0];
+  const t2 = api(n, 'reportAsset', { assetId: cl.id, problem: 'كفاءتها متدنية', description: 'الضوء ضعيف' });
+  ca = api(n, 'getClinicAssets', { clinic: 'عيادة الأسنان 1' })[0];
+  assert.deepEqual((x => [x.inClinic, x.away])(ca.items.find(i => i.item === 'Curing Light')), [1, 1]);
+  // التموين: استلام بصورة الحالة ← قابلة للتصليح ← رجعت
+  throwsCode(() => api(p, 'updateAssetTicket', t1.id, 'receive', {}), 'ERR_PHOTO_REQUIRED');
+  throwsCode(() => api(p, 'updateAssetTicket', t1.id, 'repair', {}), 'ERR_BAD_TRANSITION');
+  let tk = api(p, 'updateAssetTicket', t1.id, 'receive', { photo: PNG, note: 'التوربين تالف' });
+  assert.deepEqual([tk.status, !!tk.inspectPhoto, tk.inspectNote], ['استلمها التموين', true, 'التوربين تالف']);
+  tk = api(p, 'updateAssetTicket', t1.id, 'repair', { vendor: 'وكيل NSK', cost: 350 });
+  assert.deepEqual([tk.status, tk.decision, tk.repairCost], ['قيد الصيانة', 'قابلة للتصليح', 350]);
+  tk = api(p, 'updateAssetTicket', t1.id, 'return', { cost: 400 });
+  assert.equal(tk.status, 'رجعت للعيادة');
+  ca = api(n, 'getClinicAssets', { clinic: 'عيادة الأسنان 1' })[0];
+  assert.equal(ca.items.find(i => i.item === 'Handpiece Low Speed').inClinic, 4, 'repaired tool is back in the clinic');
+  // تالفة ← بديل يدوي برقم تسلسلي جديد
+  const t3 = api(n, 'reportAsset', { assetId: lsAsset.id, problem: 'خربانة', photo: PNG });
+  api(p, 'updateAssetTicket', t3.id, 'receive', { photo: PNG });
+  tk = api(p, 'updateAssetTicket', t3.id, 'damaged', {});
+  assert.deepEqual([tk.status, tk.lossValue], ['تالفة', 1500], 'loss = the tool cost');
+  api(p, 'issueAssets', { clinic: 'عيادة الأسنان 1', item: 'Handpiece Low Speed', serials: ['LS-002'], ticketId: t3.id });
+  assert.equal(api(p, 'getAssetTicket', t3.id).replacement.split(',').length, 1, 'replacement linked to the ticket');
+  throwsCode(() => api(p, 'issueAssets', { clinic: 'عيادة الأسنان 1', item: 'Handpiece Low Speed', serials: ['LS-009'], ticketId: t3.id }), 'ERR_BAD_TRANSITION');
+  // سجل الرقم التسلسلي: بلاغان على القطعة القديمة
+  const found = api(p, 'findAsset', 'LS-002');
+  assert.equal(found.length, 2, 'old damaged + new replacement share the serial');
+  assert.equal(found.find(x => x.status === 'تالفة').tickets.length, 2);
+  // المالية: ترى وتعدّل التكلفة؛ الممرضة لا
+  throwsCode(() => api(n, 'setAssetTicketCost', t1.id, { repairCost: 1 }), 'ERR_FORBIDDEN');
+  api(f, 'setAssetTicketCost', t1.id, { repairCost: 420 });
+  const st = api(f, 'getAssetStats', {});
+  assert.deepEqual([st.summary.tickets, st.summary.open, st.summary.damaged, st.summary.repairCost, st.summary.lossValue, st.summary.total], [3, 1, 1, 420, 1500, 1920]);
+  assert.equal(st.byClinic[0].name, 'عيادة الأسنان 1');
+  assert.deepEqual(st.serials.map(x => [x.serial, x.count]), [['LS-002', 2]], 'repeatedly failing serial');
+  assert.ok(st.shortages.some(x => x.item === 'Curing Light' && x.shortage === 0) === false);
+  assert.ok(api(login('منى', '5555'), 'getAssetStats', {}).summary, 'quality sees it');
+  throwsCode(() => api(n, 'getAssetStats', {}), 'ERR_FORBIDDEN');
+  // الطبيب يطّلع على عهدة عيادته فقط
+  const d = login('د. خالد', '4444');
+  assert.deepEqual(api(d, 'getClinicAssets', {}).map(c => c.clinic), ['عيادة الأسنان 1']);
+  throwsCode(() => api(d, 'reportAsset', { assetId: cl.id, problem: 'أخرى', description: 'x' }), 'ERR_FORBIDDEN');
+  // أصناف العهدة لا تُحسب على الطبيب
+  const req = api(n, 'createRequest', { doctor: 'د. خالد', type: 'شهري', items: [{ name: 'DENTAL FLOSS', qty: 2 }, { name: 'Curing Light', qty: 1 }] });
+  const rep = api(a, 'getDoctorReport', { doctor: 'د. خالد' });
+  const row = rep.rows.find(r => r.id === req.id);
+  assert.deepEqual(row.items.map(i => [i.item, i.total, i.company]), [['DENTAL FLOSS', 25, false], ['Curing Light', 0, true]]);
+  assert.ok(t2.id);
+});
+
 test('batch runs several reads in one execution with per-call errors, and rejects writes', () => {
   const { api, login } = boot();
   const n = login('سارة', '1111');
@@ -1155,7 +1248,7 @@ test('roles split: legacy quality/executive/finance migrate; executive keeps ful
   throwsCode(() => api(e, 'getUsers'), 'ERR_FORBIDDEN'); // بعد وجود الأدمن: صلاحيات التنفيذي الافتراضية فقط (فوراً)
   assert.ok(api(e, 'getExecutiveStats'));
   const a = login('admin', '9999');
-  assert.equal(api(a, 'getConfig').user.perms.length, 10);
+  assert.equal(api(a, 'getConfig').user.perms.length, 11);
   const f = login('نواف', '7777');
   assert.ok(api(f, 'getFinance', {}).summary);
   throwsCode(() => api(f, 'getComplaints'), 'ERR_FORBIDDEN');
@@ -1296,7 +1389,7 @@ test('management roles (finance…) are added automatically when missing, so the
   api(a, 'createUser', { name: 'المالية', password: '2468', role: 'مالية', email: 'finance@example.com' });
   const f = api(null, 'login', 'المالية', '2468');
   assert.equal(f.user.screen, 'finance');
-  assert.deepEqual(f.user.perms.slice().sort(), ['finance', 'monitor', 'prices_edit', 'reports'].sort());
+  assert.deepEqual(f.user.perms.slice().sort(), ['assets', 'finance', 'monitor', 'prices_edit', 'reports'].sort());
   login('المدير', '1234');
   assert.equal(rows(gas, 'Roles').filter(r => r.RoleName === 'مالية').length, 1, 'added once only');
 });
