@@ -40,6 +40,7 @@
         },
         setValue(v) { op('write', 1); sh._set(row, col, v); return this; },
         setNumberFormat() { return this; },
+        setBackground(c) { (sh._bg = sh._bg || {})[row] = c; return this; },
         setFontWeight() { return this; }
       };
     }
