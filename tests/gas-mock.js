@@ -75,6 +75,7 @@
     }
 
     const ss = {
+      getId() { return 'ss1'; },
       getSheetByName(n) { op('meta'); return sheets[n] || null; },
       insertSheet(n) { sheets[n] = Sheet(n); order.push(n); return sheets[n]; },
       getSheets() { return order.map(n => sheets[n]); },
@@ -152,6 +153,7 @@
         getFoldersByName() { op('drive'); return { hasNext() { return false; } }; },
         getFileById(id) {
           op('drive');
+          if (id === 'ss1') return { makeCopy(name, folder) { return folder.addCopy(name); } };
           const f = files.find(x => x.id === id);
           if (!f) throw new Error('No item with the given ID could be found');
           return { getBlob() { return { getBytes() { return f.bytes.slice(); } }; } };
@@ -161,6 +163,16 @@
           if (globals.DriveApp.createFolder._folder) return globals.DriveApp.createFolder._folder;
           return globals.DriveApp.createFolder._folder = {
             getId() { return 'folder1'; },
+            copies: [],
+            addCopy(name) {
+              const c = { name, at: Date.now() + this.copies.length, trashed: false };
+              this.copies.push(c);
+              return { getUrl() { return 'https://docs.example/' + encodeURIComponent(name); } };
+            },
+            getFiles() {
+              const live = this.copies.filter(c => !c.trashed); let i = 0;
+              return { hasNext: () => i < live.length, next: () => { const c = live[i++]; return { getName: () => c.name, getDateCreated: () => new Date(c.at), setTrashed(v) { c.trashed = v; } }; } };
+            },
             createFile(blob) {
               op('drive');
               const id = 'file' + (files.length + 1);

@@ -914,6 +914,25 @@ test('same clinic name in two branches (Sterilization): each request keeps its b
   assert.ok(names.includes('Sterilization — الرياض') && names.includes('Sterilization — جدة'), names.join(','));
 });
 
+test('backup: full copy of the spreadsheet into its own Drive folder, keeps the latest 30, admin only', () => {
+  const { api, login, gas, ctx } = boot();
+  const a = login('المدير', '1234'), n = login('سارة', '1111');
+  assert.equal(api(a, 'getBackupStatus').last, null);
+  throwsCode(() => api(n, 'backupNow'), 'ERR_FORBIDDEN');
+  let st;
+  for (let i = 0; i < 32; i++) st = api(a, 'backupNow');
+  const folder = gas.globals.DriveApp.createFolder._folder;
+  assert.equal(folder.copies.length, 32);
+  assert.equal(folder.copies.filter(c => !c.trashed).length, 30, 'older copies go to the Drive trash');
+  assert.ok(folder.copies[0].trashed && folder.copies[1].trashed && !folder.copies[31].trashed, 'the oldest are removed first');
+  assert.match(st.last.name, /^مسار — نسخة \d{4}-\d{2}-\d{2} \d{2}:\d{2}$/);
+  assert.equal(st.last.by, 'المدير');
+  assert.equal(st.folderUrl, 'https://drive.google.com/drive/folders/folder1');
+  ctx.dailyBackup();
+  assert.equal(api(a, 'getBackupStatus').last.by, 'النظام (تلقائي)');
+  assert.ok(rows(gas, 'Log').some(r => String(r.Action).indexOf('نسخة احتياطية') === 0), 'logged');
+});
+
 test('batch runs several reads in one execution with per-call errors, and rejects writes', () => {
   const { api, login } = boot();
   const n = login('سارة', '1111');

@@ -628,6 +628,13 @@ function log(msg) { console.log('  ✔ ' + msg); }
   await shot(page, 'admin-new-user');
   await page.click('#uSave');
   expect(await toastHas(page, 'تم حفظ المستخدم'), 'admin created a user');
+  await page.waitForSelector('#bkBox');
+  await page.waitForFunction(() => /لم تُؤخذ|آخر نسخة/.test(document.getElementById('bkBox').textContent));
+  await page.click('#bkBtn');
+  await page.waitForFunction(() => /آخر نسخة/.test(document.getElementById('bkBox').textContent));
+  expect(await toastHas(page, 'تم أخذ نسخة احتياطية') && await page.isVisible('#bkBox a:has-text("فتح آخر نسخة")'), 'admin takes a backup now and can open it');
+  await page.locator('#bkBox').scrollIntoViewIfNeeded();
+  await shot(page, 'admin-backup');
   // صلاحيات الدور: الأدمن يحدد ما يظهر لكل دور
   await page.click('[data-act="roleEdit"][data-name="جودة"]');
   await page.waitForSelector('#rPermWrap:not(.hidden)');

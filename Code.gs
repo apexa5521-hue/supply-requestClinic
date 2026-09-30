@@ -277,6 +277,8 @@ const API_ = {
   getQualityReport:          { screens: [], perm: 'overview', fn: function (u, m) { return getQualityReport_(m); } },
   getQualityTrend:           { screens: [], perm: 'overview', fn: function (u, n) { return getQualityTrend_(n); } },
   getUsers:                  { screens: [], perm: 'users', fn: getUsers_ },
+  getBackupStatus:           { screens: [], perm: 'users', fn: function () { return backupStatus_(); } },
+  backupNow:                 { screens: [], perm: 'users', fn: function (user) { return runBackup_(user.name); } },
   getDoctorLinks:            { screens: [], perm: 'users', fn: getDoctorLinks_ },
   createUser:                { screens: [], perm: 'users', fn: createUser_ },
   updateUser:                { screens: [], perm: 'users', fn: updateUser_ },
@@ -1315,10 +1317,61 @@ const STAGE_AR_ = { doctor: 'بانتظار اعتماد الطبيب', prep: '�
 function installTriggers() {
   const names = ScriptApp.getProjectTriggers().map(function (t) { return t.getHandlerFunction(); });
   const hasDigest = names.indexOf('dailyDigest') !== -1, hasChange = names.indexOf('onSheetChange') !== -1;
+  const hasBackup = names.indexOf('dailyBackup') !== -1;
   if (!hasDigest) ScriptApp.newTrigger('dailyDigest').timeBased().everyDays(1).atHour(8).inTimezone(TZ).create();
+  if (!hasBackup) ScriptApp.newTrigger('dailyBackup').timeBased().everyDays(1).atHour(2).inTimezone(TZ).create();
   // حذف/إدراج صفوف يدوياً (مثل حذف عيادة) لا يُطلق onEdit — هذا المشغّل يلتقطه فيظهر التغيير فوراً
   if (!hasChange) ScriptApp.newTrigger('onSheetChange').forSpreadsheet(ss_()).onChange().create();
-  return !hasDigest || !hasChange;
+  return !hasDigest || !hasChange || !hasBackup;
+}
+
+/* =====================================================================
+ *  النسخ الاحتياطي: نسخة كاملة من الشيت كل ليلة في مجلد Drive مستقل (آخر 30 نسخة)
+ * ===================================================================== */
+const BACKUP_FOLDER_ = 'مسار — نسخ احتياطية';
+const BACKUP_PREFIX_ = 'مسار — نسخة ';
+const BACKUP_KEEP_ = 30;
+
+function backupFolder_() {
+  const props = PropertiesService.getScriptProperties();
+  const id = props.getProperty('backup:folder');
+  if (id) {
+    try { const f = DriveApp.getFolderById(id); if (!(f.isTrashed && f.isTrashed())) return f; } catch (e) { /* حُذف؟ ننشئه من جديد */ }
+  }
+  const it = DriveApp.getFoldersByName(BACKUP_FOLDER_);
+  const folder = it.hasNext() ? it.next() : DriveApp.createFolder(BACKUP_FOLDER_);
+  props.setProperty('backup:folder', folder.getId());
+  return folder;
+}
+
+/** مشغّل ليلي (الساعة 2 فجراً) — يُثبَّت عبر installTriggers */
+function dailyBackup() { return runBackup_('النظام (تلقائي)'); }
+
+function runBackup_(by) {
+  const props = PropertiesService.getScriptProperties();
+  const folder = backupFolder_();
+  const name = BACKUP_PREFIX_ + Utilities.formatDate(new Date(), TZ, 'yyyy-MM-dd HH:mm');
+  const copy = DriveApp.getFileById(ss_().getId()).makeCopy(name, folder);
+  // الاحتفاظ بآخر 30 نسخة فقط (الأقدم تذهب لسلة Drive وتبقى فيها 30 يوماً)
+  const list = [];
+  const it = folder.getFiles();
+  while (it.hasNext()) { const f = it.next(); if (String(f.getName()).indexOf(BACKUP_PREFIX_) === 0) list.push(f); }
+  list.sort(function (a, b) { return toMs_(b.getDateCreated()) - toMs_(a.getDateCreated()); });
+  list.slice(BACKUP_KEEP_).forEach(function (f) { try { f.setTrashed(true); } catch (e) { console.error(e); } });
+  const last = { at: new Date().toISOString(), name: name, url: copy.getUrl(), by: str_(by), kept: Math.min(list.length, BACKUP_KEEP_) };
+  props.setProperty('backup:last', JSON.stringify(last));
+  logAction_('', 'نسخة احتياطية: ' + name, str_(by));
+  flushDirty_();
+  return backupStatus_();
+}
+
+function backupStatus_() {
+  const props = PropertiesService.getScriptProperties();
+  let last = null;
+  try { last = JSON.parse(props.getProperty('backup:last') || 'null'); } catch (e) { last = null; }
+  const folderId = props.getProperty('backup:folder');
+  const auto = (function () { try { return ScriptApp.getProjectTriggers().some(function (t) { return t.getHandlerFunction() === 'dailyBackup'; }); } catch (e) { return null; } })();
+  return { last: last, keep: BACKUP_KEEP_, auto: auto, folderUrl: folderId ? 'https://drive.google.com/drive/folders/' + folderId : '' };
 }
 
 /** مشغّل onChange: أي تغيير بنيوي (حذف/إدراج صفوف أو أعمدة) يُبطل كاش تبويبات الإعداد والتبويب النشط */
