@@ -36,12 +36,16 @@ const SCHEMA = {
   Complaints:   ['ComplaintID', 'Timestamp', 'RequestID', 'Author', 'Role', 'Type', 'Message',
                  'Resolved', 'ResolvedBy', 'ResolvedAt'],
   // المعمل: المعامل وأنواع الأعمال تُعبّأ يدوياً؛ الإرساليات وأسطرها وملاحظاتها تُنشأ من النظام
-  Labs:         ['LabName', 'Type', 'Email', 'Phone', 'Active'],
+  Labs:         ['LabName', 'Type', 'Email', 'Phone', 'Active', 'TurnaroundDays'],
   LabWorkTypes: ['WorkType'],
+  LabMaterials: ['Material'],
+  // إعدادات عامة قابلة للتعديل من الشيت (مثل LabTurnaroundDays = أيام تنفيذ المعمل الافتراضية)
+  Settings:     ['Key', 'Value', 'Notes'],
   LabCases:     ['CaseID', 'Date', 'Nurse', 'Doctor', 'Clinic', 'Branch', 'Patient', 'FileNo', 'NeededBy', 'Urgent',
-                 'RedoOf', 'RedoReason', 'RedoNote', 'Attachments', 'ClientKey'],
+                 'RedoOf', 'RedoReason', 'RedoNote', 'Attachments', 'ClientKey', 'ScanDate', 'Notes', 'Source'],
   LabItems:     ['ItemID', 'CaseID', 'Lab', 'LabType', 'WorkType', 'Details', 'Status', 'ReceivedAt', 'StartedAt',
-                 'ExternalLab', 'ExternalAt', 'ExpectedAt', 'ReadyAt', 'SentAt', 'DeliveredAt', 'Cost', 'RedoOfItem', 'RedoReason', 'UpdatedBy'],
+                 'ExternalLab', 'ExternalAt', 'ExpectedAt', 'ReadyAt', 'SentAt', 'DeliveredAt', 'Cost', 'RedoOfItem', 'RedoReason', 'UpdatedBy',
+                 'Material', 'PatientAt'],
   LabNotes:     ['Timestamp', 'CaseID', 'ItemID', 'Author', 'Role', 'Message']
 };
 
@@ -103,6 +107,16 @@ const COMPLAINT_TYPES = ['تأخير', 'نقص', 'زيادة', 'أخرى'];
  * شغّل هذه الدالة مرة واحدة من محرر Apps Script. آمنة للتشغيل أكثر من مرة:
  * تضيف التبويبات/الأعمدة الناقصة فقط ولا تمسح أي بيانات.
  */
+/** العيادات الافتراضية لتجهيز نظام جديد فقط — بعدها تبويب Clinics هو المرجع (أضف/احذف صفوفاً منه مباشرة) */
+const DEFAULT_CLINICS_ = (function () {
+  const out = [];
+  for (let i = 1; i <= 12; i++) out.push(['Dental Clinic ' + i + ' - Buraydah', 'Buraydah', 'Dentistry']);
+  ['Derma Hydrafacial', 'Derma Clarity', 'Derma Gentle Pro', 'Derma CLINIC'].forEach(function (n) { out.push([n, 'Buraydah', 'Dermatology']); });
+  for (let j = 1; j <= 4; j++) out.push(['Dental Clinic ' + j + ' - Unayzah', 'Unayzah', 'Dentistry']);
+  out.push(['Sterilization - Buraydah', 'Buraydah', 'Sterilization'], ['Sterilization - Unayzah', 'Unayzah', 'Sterilization']);
+  return out;
+})();
+
 function setupSheets() {
   const ss = ss_();
   Object.keys(SCHEMA).forEach(function (name) { sheet_(name); });
@@ -117,10 +131,17 @@ function setupSheets() {
   if (read_('Users').rows.length === 0) {
     append_('Users', { Name: 'المدير', Password: '1234', Role: 'أدمن' });
   }
+  if (read_('Clinics').rows.length === 0) {
+    DEFAULT_CLINICS_.forEach(function (c) { append_('Clinics', { ClinicName: c[0], Branch: c[1], Type: c[2] }); });
+  }
   if (read_('LabWorkTypes').rows.length === 0) {
     LAB_WORK_TYPES_DEFAULT.forEach(function (w) { append_('LabWorkTypes', { WorkType: w }); });
   }
   if (read_('Labs').rows.length === 0) append_('Labs', { LabName: 'المعمل الداخلي', Type: 'داخلي', Active: 'نعم' });
+  if (read_('LabMaterials').rows.length === 0) LAB_MATERIALS_DEFAULT.forEach(function (m) { append_('LabMaterials', { Material: m }); });
+  if (!read_('Settings').rows.some(function (r) { return str_(r.Key) === 'LabTurnaroundDays'; })) {
+    append_('Settings', { Key: 'LabTurnaroundDays', Value: LAB_TURNAROUND_DEFAULT, Notes: 'أيام تنفيذ المعمل الافتراضية: موعد المعمل = تاريخ السكان + هذا العدد (ولكل معمل عمود TurnaroundDays في تبويب Labs)' });
+  }
   if (read_('ItemsCatalog').rows.length === 0) {
     [
       'MICRO BRUSH FINE', 'MICRO BRUSH SUPER FINE', 'PROPHY PASTE', 'PROPHY BRUSH',
@@ -264,6 +285,8 @@ const API_ = {
   getQualityReport:          { screens: [], perm: 'overview', fn: function (u, m) { return getQualityReport_(m); } },
   getQualityTrend:           { screens: [], perm: 'overview', fn: function (u, n) { return getQualityTrend_(n); } },
   getUsers:                  { screens: [], perm: 'users', fn: getUsers_ },
+  getBackupStatus:           { screens: [], perm: 'users', fn: function () { return backupStatus_(); } },
+  backupNow:                 { screens: [], perm: 'users', fn: function (user) { return runBackup_(user.name); } },
   getDoctorLinks:            { screens: [], perm: 'users', fn: getDoctorLinks_ },
   createUser:                { screens: [], perm: 'users', fn: createUser_ },
   updateUser:                { screens: [], perm: 'users', fn: updateUser_ },
@@ -279,6 +302,7 @@ const API_ = {
   getLabCase:                { screens: ['nurse', 'doctor', 'lab'], perm: 'lab_view', fn: getLabCase_ },
   addLabNote:                { screens: ['nurse', 'doctor', 'lab'], perm: 'lab_view', fn: addLabNote_ },
   updateLabItems:            { screens: ['lab'], fn: updateLabItems_ },
+  findLabCases:              { screens: ['nurse', 'lab'], perm: 'lab_view', fn: findLabCases_ },
   confirmLabReceipt:         { screens: ['nurse'], fn: confirmLabReceipt_ },
   getLabStats:               { screens: ['lab'], perm: 'lab_view', fn: getLabStats_ },
   nudgeLab:                  { screens: [], perm: 'lab_view', fn: nudgeLab_ },
@@ -311,7 +335,7 @@ function ss_() { return SpreadsheetApp.getActiveSpreadsheet(); }
 const READ_CACHE_TTL = 600;      // ثوانٍ — حد أعلى للتغييرات اليدوية البنيوية (إضافة صفوف/أعمدة)
 const READ_CACHE_CHUNK = 45000;  // حروف لكل جزء (حد CacheService ‏100KB، والعربي بايتان)
 let CACHED_READS_ = false;
-const LOOKUP_SHEETS_ = ['Users', 'Roles', 'Clinics', 'Doctors', 'ItemsCatalog'];
+const LOOKUP_SHEETS_ = ['Users', 'Roles', 'Clinics', 'Doctors', 'ItemsCatalog', 'Settings', 'Labs', 'LabWorkTypes', 'LabMaterials'];
 
 function cache_() { return CacheService.getScriptCache(); }
 
@@ -1300,9 +1324,72 @@ const STAGE_AR_ = { doctor: 'بانتظار اعتماد الطبيب', prep: '�
 
 /** يثبّت المشغّل اليومي للملخص (مرة واحدة؛ يُستدعى من setupSheets أو يدوياً من المحرر) */
 function installTriggers() {
-  const has = ScriptApp.getProjectTriggers().some(function (t) { return t.getHandlerFunction() === 'dailyDigest'; });
-  if (!has) ScriptApp.newTrigger('dailyDigest').timeBased().everyDays(1).atHour(8).inTimezone(TZ).create();
-  return !has;
+  const names = ScriptApp.getProjectTriggers().map(function (t) { return t.getHandlerFunction(); });
+  const hasDigest = names.indexOf('dailyDigest') !== -1, hasChange = names.indexOf('onSheetChange') !== -1;
+  const hasBackup = names.indexOf('dailyBackup') !== -1;
+  if (!hasDigest) ScriptApp.newTrigger('dailyDigest').timeBased().everyDays(1).atHour(8).inTimezone(TZ).create();
+  if (!hasBackup) ScriptApp.newTrigger('dailyBackup').timeBased().everyDays(1).atHour(2).inTimezone(TZ).create();
+  // حذف/إدراج صفوف يدوياً (مثل حذف عيادة) لا يُطلق onEdit — هذا المشغّل يلتقطه فيظهر التغيير فوراً
+  if (!hasChange) ScriptApp.newTrigger('onSheetChange').forSpreadsheet(ss_()).onChange().create();
+  return !hasDigest || !hasChange || !hasBackup;
+}
+
+/* =====================================================================
+ *  النسخ الاحتياطي: نسخة كاملة من الشيت كل ليلة في مجلد Drive مستقل (آخر 30 نسخة)
+ * ===================================================================== */
+const BACKUP_FOLDER_ = 'مسار — نسخ احتياطية';
+const BACKUP_PREFIX_ = 'مسار — نسخة ';
+const BACKUP_KEEP_ = 30;
+
+function backupFolder_() {
+  const props = PropertiesService.getScriptProperties();
+  const id = props.getProperty('backup:folder');
+  if (id) {
+    try { const f = DriveApp.getFolderById(id); if (!(f.isTrashed && f.isTrashed())) return f; } catch (e) { /* حُذف؟ ننشئه من جديد */ }
+  }
+  const it = DriveApp.getFoldersByName(BACKUP_FOLDER_);
+  const folder = it.hasNext() ? it.next() : DriveApp.createFolder(BACKUP_FOLDER_);
+  props.setProperty('backup:folder', folder.getId());
+  return folder;
+}
+
+/** مشغّل ليلي (الساعة 2 فجراً) — يُثبَّت عبر installTriggers */
+function dailyBackup() { return runBackup_('النظام (تلقائي)'); }
+
+function runBackup_(by) {
+  const props = PropertiesService.getScriptProperties();
+  const folder = backupFolder_();
+  const name = BACKUP_PREFIX_ + Utilities.formatDate(new Date(), TZ, 'yyyy-MM-dd HH:mm');
+  const copy = DriveApp.getFileById(ss_().getId()).makeCopy(name, folder);
+  // الاحتفاظ بآخر 30 نسخة فقط (الأقدم تذهب لسلة Drive وتبقى فيها 30 يوماً)
+  const list = [];
+  const it = folder.getFiles();
+  while (it.hasNext()) { const f = it.next(); if (String(f.getName()).indexOf(BACKUP_PREFIX_) === 0) list.push(f); }
+  list.sort(function (a, b) { return toMs_(b.getDateCreated()) - toMs_(a.getDateCreated()); });
+  list.slice(BACKUP_KEEP_).forEach(function (f) { try { f.setTrashed(true); } catch (e) { console.error(e); } });
+  const last = { at: new Date().toISOString(), name: name, url: copy.getUrl(), by: str_(by), kept: Math.min(list.length, BACKUP_KEEP_) };
+  props.setProperty('backup:last', JSON.stringify(last));
+  logAction_('', 'نسخة احتياطية: ' + name, str_(by));
+  flushDirty_();
+  return backupStatus_();
+}
+
+function backupStatus_() {
+  const props = PropertiesService.getScriptProperties();
+  let last = null;
+  try { last = JSON.parse(props.getProperty('backup:last') || 'null'); } catch (e) { last = null; }
+  const folderId = props.getProperty('backup:folder');
+  const auto = (function () { try { return ScriptApp.getProjectTriggers().some(function (t) { return t.getHandlerFunction() === 'dailyBackup'; }); } catch (e) { return null; } })();
+  return { last: last, keep: BACKUP_KEEP_, auto: auto, folderUrl: folderId ? 'https://drive.google.com/drive/folders/' + folderId : '' };
+}
+
+/** مشغّل onChange: أي تغيير بنيوي (حذف/إدراج صفوف أو أعمدة) يُبطل كاش تبويبات الإعداد والتبويب النشط */
+function onSheetChange(e) {
+  try {
+    LOOKUP_SHEETS_.forEach(bumpVersion_);
+    const sh = e && e.source && e.source.getActiveSheet && e.source.getActiveSheet();
+    if (sh && LOOKUP_SHEETS_.indexOf(sh.getName()) === -1) bumpVersion_(sh.getName());
+  } catch (err) { /* تجاهل */ }
 }
 
 /* =====================================================================
@@ -2784,26 +2871,59 @@ function deleteRole_(user, name) {
 
 const LAB_ST = {
   NEW: 'أُرسل من العيادة', RECEIVED: 'استلمه المعمل', WORK: 'قيد العمل', EXTERNAL: 'عند معمل خارجي',
-  READY: 'جاهز', SENT: 'أُرسل للعيادة', DELIVERED: 'استلمته العيادة'
+  READY: 'جاهز', SENT: 'أُرسل للعيادة', DELIVERED: 'استلمته العيادة', PATIENT: 'سُلِّم للمريض'
 };
-const LAB_ORDER = [LAB_ST.NEW, LAB_ST.RECEIVED, LAB_ST.WORK, LAB_ST.EXTERNAL, LAB_ST.READY, LAB_ST.SENT, LAB_ST.DELIVERED];
-const LAB_DONE = [LAB_ST.READY, LAB_ST.SENT, LAB_ST.DELIVERED];
+const LAB_ORDER = [LAB_ST.NEW, LAB_ST.RECEIVED, LAB_ST.WORK, LAB_ST.EXTERNAL, LAB_ST.READY, LAB_ST.SENT, LAB_ST.DELIVERED, LAB_ST.PATIENT];
+const LAB_DONE = [LAB_ST.READY, LAB_ST.SENT, LAB_ST.DELIVERED, LAB_ST.PATIENT];
+const LAB_CLOSED = [LAB_ST.DELIVERED, LAB_ST.PATIENT]; // وصلت العيادة (أو المريض) — تُؤرشف بعد 60 يوماً
 const LAB_REDO_REASONS = ['مقاس', 'لون', 'كسر', 'خطأ تصميم', 'تأخير', 'أخرى'];
-const LAB_WORK_TYPES_DEFAULT = ['تاج', 'جسر', 'طقم كامل', 'طقم جزئي', 'حافظ مسافة', 'واقي ليلي', 'تقويم متحرك', 'قشور (فينير)', 'حشوة خزفية (إنلاي/أونلاي)', 'زراعة — تاج على زرعة', 'أخرى'];
+const LAB_WORK_TYPES_DEFAULT = ['Crown', 'Veneer', 'Bridge', 'Inlay', 'Onlay', 'Denture', 'Night Guard', 'Implant Crown', 'Temporary', 'Surgical Guide'];
+const LAB_WORK_TYPES_OLD_ = ['تاج', 'جسر', 'طقم كامل', 'طقم جزئي', 'حافظ مسافة', 'واقي ليلي', 'تقويم متحرك', 'قشور (فينير)', 'حشوة خزفية (إنلاي/أونلاي)', 'زراعة — تاج على زرعة', 'أخرى'];
+const LAB_MATERIALS_DEFAULT = ['Zirconia', 'Emax', 'PFM', 'PMMA', 'Composite', 'Acrylic', 'Metal', 'Other'];
+const LAB_TURNAROUND_DEFAULT = 10;
 const LAB_MAX_ITEMS = 20, LAB_MAX_PHOTOS = 3;
 
 function isYes_(v) { return v === true || /^(نعم|yes|true|1|y|✓)$/i.test(str_(v)); }
 
 function getLabs_() {
   return read_('Labs').rows.filter(function (r) { return str_(r.LabName) && (str_(r.Active) === '' || isYes_(r.Active)); })
-    .map(function (r) { return { name: str_(r.LabName), type: /خارج|external/i.test(str_(r.Type)) ? 'خارجي' : 'داخلي', email: str_(r.Email), phone: str_(r.Phone) }; });
+    .map(function (r) {
+      const days = Math.floor(num_(r.TurnaroundDays));
+      return { name: str_(r.LabName), type: /خارج|external/i.test(str_(r.Type)) ? 'خارجي' : 'داخلي', email: str_(r.Email), phone: str_(r.Phone),
+        turnaround: days >= 1 && days <= 120 ? days : null };
+    });
 }
 function getLabWorkTypes_() {
   const list = read_('LabWorkTypes').rows.map(function (r) { return str_(r.WorkType); }).filter(String);
-  return list.length ? list : LAB_WORK_TYPES_DEFAULT.slice();
+  // القائمة العربية القديمة التلقائية (لم يعدّلها أحد) تُستبدل بقائمة العيادة
+  if (!list.length || list.join('|') === LAB_WORK_TYPES_OLD_.join('|')) return LAB_WORK_TYPES_DEFAULT.slice();
+  return list;
+}
+function getLabMaterials_() {
+  const list = read_('LabMaterials').rows.map(function (r) { return str_(r.Material); }).filter(String);
+  return list.length ? list : LAB_MATERIALS_DEFAULT.slice();
+}
+/** قيمة من تبويب Settings (Key / Value) */
+function getSetting_(key, def) {
+  const r = read_('Settings').rows.filter(function (x) { return str_(x.Key) === key; })[0];
+  return r && str_(r.Value) !== '' ? r.Value : def;
+}
+function labTurnaroundDefault_() {
+  const d = Math.floor(num_(getSetting_('LabTurnaroundDays', LAB_TURNAROUND_DEFAULT)));
+  return d >= 1 && d <= 120 ? d : LAB_TURNAROUND_DEFAULT;
+}
+/** موعد المعمل = تاريخ السكان + أيام التنفيذ (الأطول بين معامل الأعمال، أو الافتراضي من Settings) — نهاية اليوم */
+function labDueFrom_(scanDate, labNames, labs) {
+  const def = labTurnaroundDefault_();
+  let days = 0;
+  (labNames || []).forEach(function (n) { const l = labs[n]; days = Math.max(days, (l && l.turnaround) || def); });
+  if (!days) days = def;
+  const d = new Date(scanDate.getTime() + days * 864e5);
+  return parseDay_(Utilities.formatDate(d, TZ, 'yyyy-MM-dd'), true);
 }
 function getLabConfig_() {
-  return { labs: getLabs_(), workTypes: getLabWorkTypes_(), redoReasons: LAB_REDO_REASONS, statuses: LAB_ORDER };
+  return { labs: getLabs_(), workTypes: getLabWorkTypes_(), materials: getLabMaterials_(), redoReasons: LAB_REDO_REASONS,
+    statuses: LAB_ORDER, turnaround: labTurnaroundDefault_() };
 }
 
 
@@ -2819,47 +2939,65 @@ function saveLabPhoto_(fileName, dataUrl) {
 }
 
 /**
- * رفع إرسالية للمعمل (أو إعادة لإرسالية سابقة).
- * payload = { doctor, patient, fileNo, neededBy:'YYYY-MM-DD', urgent, lines:[{lab, workType, details}],
- *             redoOf, redoItems:[ItemID], redoReason, redoNote, photos:[dataUrl], clientKey }
+ * رفع حالة للمعمل (New Case) أو إعادة عمل (Remake).
+ * payload = { doctor, fileNo, patient?, branch?, scanDate:'YYYY-MM-DD', urgent, notes, delivered (حالة قديمة مسلّمة),
+ *             lines:[{lab, workType, material, details}],
+ *             redoOf, redoItems:[ItemID], redoReason, redoNote, redoScanDate, redoLab, photos:[dataUrl], clientKey }
+ * موعد المعمل يُحسب تلقائياً: تاريخ السكان + أيام التنفيذ (Settings / Labs.TurnaroundDays).
  */
 function createLabCase_(user, payload) {
   payload = payload || {};
   const doctor = str_(payload.doctor);
   const patient = clean_(payload.patient, 120);
   const fileNo = clean_(payload.fileNo, 40);
-  const needed = parseDay_(payload.neededBy, true);
-  if (!doctor || !patient || !fileNo) throw new Error('ERR_REQUIRED');
-  if (!getDoctors_(user, '').some(function (d) { return d.name === doctor; })) throw new Error('ERR_BAD_DOCTOR');
   const labs = {};
   getLabs_().forEach(function (l) { labs[l.name] = l; });
-  const types = getLabWorkTypes_();
+  const types = getLabWorkTypes_(), materials = getLabMaterials_();
+  const today = parseDay_(Utilities.formatDate(new Date(), TZ, 'yyyy-MM-dd'), true);
 
-  // إعادة: الإرسالية الأصلية للممرضة نفسها، والأسطر المختارة منها، وسبب واضح
+  // إعادة: أي حالة موجودة (يُوصَل لها برقم الملف)، والأعمال المختارة منها، وسبب وتاريخ سكان جديد
   const redoOf = str_(payload.redoOf);
   let origin = null, redoLines = [];
   if (redoOf) {
     origin = labCaseRow_(redoOf);
-    if (!origin || str_(origin.Nurse) !== user.name) throw new Error('ERR_NOT_FOUND');
+    if (!origin) throw new Error('ERR_NOT_FOUND');
     if (LAB_REDO_REASONS.indexOf(str_(payload.redoReason)) === -1) throw new Error('ERR_REDO_REASON');
     const want = (payload.redoItems || []).map(str_);
     redoLines = labItemsOf_(redoOf).filter(function (it) { return want.indexOf(str_(it.ItemID)) !== -1; });
     if (!redoLines.length) throw new Error('ERR_NO_ITEMS');
+    if (str_(payload.redoLab) && !labs[str_(payload.redoLab)]) throw new Error('ERR_BAD_LAB');
   }
+  const doctorName = redoOf ? str_(origin.Doctor) : doctor;
+  const fileNum = redoOf ? str_(origin.FileNo) : fileNo;
+  if (!doctorName || !fileNum) throw new Error('ERR_REQUIRED');
+  if (!redoOf && !getDoctors_(user, '').some(function (d) { return d.name === doctor; })) throw new Error('ERR_BAD_DOCTOR');
+  const scan = parseDay_(redoOf ? payload.redoScanDate : payload.scanDate);
+  if (!scan) throw new Error('ERR_SCAN_DATE');
+  if (scan.getTime() > today.getTime()) throw new Error('ERR_SCAN_FUTURE');
+
   const lines = redoOf
-    ? redoLines.map(function (it) { return { lab: str_(it.Lab), workType: str_(it.WorkType), details: str_(it.Details), redoOfItem: str_(it.ItemID) }; })
-    : (payload.lines || []).map(function (l) { return { lab: str_(l && l.lab), workType: str_(l && l.workType), details: clean_(l && l.details, 500) }; })
+    ? redoLines.map(function (it) {
+        return { lab: str_(payload.redoLab) || str_(it.Lab), workType: str_(it.WorkType), material: str_(it.Material), details: str_(it.Details), redoOfItem: str_(it.ItemID) };
+      })
+    : (payload.lines || []).map(function (l) { return { lab: str_(l && l.lab), workType: str_(l && l.workType), material: str_(l && l.material), details: clean_(l && l.details, 500) }; })
         .filter(function (l) { return l.lab || l.workType || l.details; });
   if (!lines.length) throw new Error('ERR_NO_ITEMS');
   if (lines.length > LAB_MAX_ITEMS) throw new Error('ERR_TOO_MANY_ITEMS');
   lines.forEach(function (l) {
-    if (!labs[l.lab] && !redoOf) throw new Error('ERR_BAD_LAB');
+    if (!labs[l.lab] && !(redoOf && !str_(payload.redoLab))) throw new Error('ERR_BAD_LAB');
     if (!l.workType || (types.indexOf(l.workType) === -1 && !redoOf)) throw new Error('ERR_BAD_WORKTYPE');
+    if (!redoOf && materials.indexOf(l.material) === -1) throw new Error('ERR_BAD_MATERIAL');
   });
+  const needed = labDueFrom_(scan, lines.map(function (l) { return l.lab; }), labs);
+  const delivered = !redoOf && !!payload.delivered; // إدخال حالة قديمة سُلّمت للمريض
   const photos = (payload.photos || []).slice(0, LAB_MAX_PHOTOS);
   const clientKey = /^[A-Za-z0-9-]{8,64}$/.test(str_(payload.clientKey)) ? str_(payload.clientKey) : '';
-  const clinic = doctorClinic_(user, doctor);
-  const branch = clinic ? clinicBranch_(clinic) : '';
+  const clinic = redoOf ? str_(origin.Clinic) : doctorClinic_(user, doctor);
+  const branches = getBranches_();
+  let branch = redoOf ? str_(origin.Branch) : str_(payload.branch);
+  if (branch && branches.length && branches.indexOf(branch) === -1) throw new Error('ERR_BAD_BRANCH');
+  if (!branch) branch = clinic ? clinicBranch_(clinic) : '';
+  const pName = redoOf ? str_(origin.Patient) : patient;
 
   // مثل الطلبات: حجز رقم بقفل قصير، ثم إلحاق ذري ورفع الصور خارج أي قفل
   if (clientKey) {
@@ -2878,26 +3016,140 @@ function createLabCase_(user, payload) {
       photos.forEach(function (ph, i) { try { urls.push(saveLabPhoto_(id + '-photo' + (i + 1), ph)); } catch (e) { console.error(e); } });
       const now = new Date();
       append_('LabCases', {
-        CaseID: id, Date: now, Nurse: user.name, Doctor: doctor, Clinic: clinic, Branch: branch, Patient: patient, FileNo: fileNo,
-        NeededBy: needed || '', Urgent: payload.urgent ? 'نعم' : '', RedoOf: redoOf, RedoReason: redoOf ? str_(payload.redoReason) : '',
-        RedoNote: redoOf ? clean_(payload.redoNote, 1000) : '', Attachments: urls.join(' '), ClientKey: clientKey
+        CaseID: id, Date: now, Nurse: user.name, Doctor: doctorName, Clinic: clinic, Branch: branch, Patient: pName, FileNo: fileNum,
+        NeededBy: needed, Urgent: payload.urgent ? 'نعم' : '', RedoOf: redoOf, RedoReason: redoOf ? str_(payload.redoReason) : '',
+        RedoNote: redoOf ? clean_(payload.redoNote, 1000) : '', Attachments: urls.join(' '), ClientKey: clientKey,
+        ScanDate: scan, Notes: clean_(payload.notes, 1000), Source: delivered ? 'إدخال سابق' : ''
       });
+      if (redoOf) highlightLastRow_('LabCases', id, '#FFE0B2'); // الإعادة برتقالية في الشيت
       lines.forEach(function (l, i) {
         append_('LabItems', { ItemID: id + '-' + (i + 1), CaseID: id, Lab: l.lab, LabType: (labs[l.lab] || {}).type || '', WorkType: l.workType,
-          Details: l.details, Status: LAB_ST.NEW, RedoOfItem: l.redoOfItem || '', RedoReason: l.redoOfItem ? str_(payload.redoReason) : '' });
+          Material: l.material, Details: l.details, Status: delivered ? LAB_ST.PATIENT : LAB_ST.NEW, PatientAt: delivered ? now : '',
+          RedoOfItem: l.redoOfItem || '', RedoReason: l.redoOfItem ? str_(payload.redoReason) : '' });
       });
     } catch (e) { if (ckKey) cache.remove(ckKey); throw e; }
-    logAction_(id, redoOf ? 'إعادة للمعمل (' + redoOf + '): ' + payload.redoReason : 'إرسالية للمعمل', user.name);
+    logAction_(id, redoOf ? 'إعادة للمعمل (' + redoOf + '): ' + payload.redoReason : (delivered ? 'حالة معمل سابقة (مسلّمة)' : 'حالة جديدة للمعمل'), user.name);
   }
-  if (!res.duplicate) {
-    const body = 'رقم الإرسالية: ' + res.id + '\nالمريض: ' + patient + ' — ملف ' + fileNo + '\nالطبيب: ' + doctor + (clinic ? '\nالعيادة: ' + clinic : '') +
-      (needed ? '\nمطلوب قبل: ' + Utilities.formatDate(needed, TZ, 'yyyy-MM-dd') : '') + '\nالممرضة: ' + user.name +
-      '\n\nالأعمال:\n- ' + lines.map(function (l) { return l.workType + ' · ' + l.lab + (l.details ? ' · ' + l.details : ''); }).join('\n- ') +
-      (redoOf ? '\n\n⚠️ إعادة للإرسالية ' + redoOf + '\nالسبب: ' + payload.redoReason + (payload.redoNote ? '\nالمشكلة: ' + payload.redoNote : '') : '');
-    notifyRole_('lab', (redoOf ? '⚠️ إعادة للمعمل - ' : (payload.urgent ? '🚨 إرسالية عاجلة للمعمل - ' : 'إرسالية جديدة للمعمل - ')) + res.id, body);
-    if (redoOf) notifyUser_(doctorAccounts_()[doctor], '⚠️ إعادة عمل معمل لمريضك - ' + res.id, body);
+  if (!res.duplicate && !delivered) {
+    const body = 'رقم الحالة: ' + res.id + '\nرقم الملف: ' + fileNum + (pName ? ' — ' + pName : '') + '\nالطبيب: ' + doctorName + (clinic ? '\nالعيادة: ' + clinic : '') +
+      (branch ? '\nالفرع: ' + branch : '') + '\nتاريخ السكان: ' + Utilities.formatDate(scan, TZ, 'yyyy-MM-dd') +
+      '\nموعد المعمل: ' + Utilities.formatDate(needed, TZ, 'yyyy-MM-dd') + '\nبواسطة: ' + user.name +
+      '\n\nالأعمال:\n- ' + lines.map(function (l) { return l.workType + (l.material ? ' (' + l.material + ')' : '') + ' · ' + l.lab + (l.details ? ' · ' + l.details : ''); }).join('\n- ') +
+      (payload.notes ? '\n\nملاحظات: ' + str_(payload.notes) : '') +
+      (redoOf ? '\n\n⚠️ إعادة (Remake) للحالة ' + redoOf + '\nالسبب: ' + payload.redoReason + (payload.redoNote ? '\nالمشكلة: ' + payload.redoNote : '') : '');
+    notifyRole_('lab', (redoOf ? '⚠️ Remake - ' : (payload.urgent ? '🚨 حالة عاجلة للمعمل - ' : 'حالة جديدة للمعمل - ')) + res.id, body);
+    if (redoOf) notifyUser_(doctorAccounts_()[doctorName], '⚠️ إعادة عمل معمل لمريضك - ' + res.id, body);
   }
   return res;
+}
+
+/* =====================================================================
+ *  استيراد حالات فورم قوقل القديمة (مرة واحدة) — شغّل importLabCases من محرر Apps Script
+ *  1) انسخ تبويب الحالات من شيت الفورم إلى تبويب جديد هنا اسمه LabImport (الصف الأول = العناوين)
+ *  2) شغّل importLabCases — الحالات تُضاف برقمها القديم (مثل CASE-00012) وتُتخطى الموجودة (آمن للتكرار)
+ * ===================================================================== */
+const LAB_IMPORT_SHEET_ = 'LabImport';
+function importLabCases() {
+  const res = importLabCases_();
+  try { SpreadsheetApp.getUi().alert('استيراد حالات المعمل: أُضيفت ' + res.added + ' حالة، وتُخطيت ' + res.skipped + (res.errors.length ? '\n\nملاحظات:\n' + res.errors.slice(0, 15).join('\n') : '')); } catch (e) { /* بدون واجهة */ }
+  return res;
+}
+function importLabCases_() {
+  const sh = ss_().getSheetByName(LAB_IMPORT_SHEET_);
+  if (!sh) throw new Error('أنشئ تبويب ' + LAB_IMPORT_SHEET_ + ' والصق فيه حالات الفورم أولاً');
+  const values = sh.getDataRange().getValues();
+  if (values.length < 2) return { added: 0, skipped: 0, errors: [] };
+  const head = values[0].map(function (h) { return str_(h).toLowerCase(); });
+  const col = function (re, not) { for (let i = 0; i < head.length; i++) if (re.test(head[i]) && !(not && not.test(head[i]))) return i; return -1; };
+  const C = {
+    id: col(/case\s*id|رقم الحالة/), file: col(/file|ملف/), branch: col(/branch|فرع/), doctor: col(/doctor|طبيب/),
+    work: col(/work\s*type|نوع العمل/), material: col(/material|مادة|خامة/), lab: col(/\blab\b|معمل/, /due|date|status|remake|تاريخ|موعد|حالة/),
+    scan: col(/scan|سكان/, /remake/), due: col(/due|موعد/), status: col(/status|حالة/, /remake|\bid\b|رقم/), delivered: col(/deliver|سُلِّم|تسليم/),
+    notes: col(/note|ملاحظ/, /remake/), time: col(/timestamp|created|تاريخ الإنشاء|الطابع/), remake: col(/remake\s*reason|سبب الإعادة|remake/, /date|scan|note|to\b/)
+  };
+  if (C.file === -1) throw new Error('لم أجد عمود رقم الملف (File No.) في ' + LAB_IMPORT_SHEET_);
+  const cell = function (r, k) { return C[k] === -1 ? '' : r[C[k]]; };
+  const asDate = function (v) {
+    if (isDate_(v)) return v;
+    const t = str_(v); if (!t) return '';
+    const m = /^(\d{1,2})\/(\d{1,2})\/(\d{4})/.exec(t); // mm/dd/yyyy (فورم قوقل)
+    const d = m ? new Date(Number(m[3]), Number(m[1]) - 1, Number(m[2]), 12) : new Date(t);
+    return isNaN(d.getTime()) ? '' : d;
+  };
+  const labs = {};
+  getLabs_().forEach(function (l) { labs[l.name] = l; });
+  const existing = {};
+  read_('LabCases').rows.forEach(function (c) { existing[str_(c.CaseID).toLowerCase()] = true; });
+  const cases = [], items = [], errors = [];
+  let skipped = 0, seq = 0;
+  const stamp = Utilities.formatDate(new Date(), TZ, 'yyMMdd');
+  values.slice(1).forEach(function (r, k) {
+    const fileNo = clean_(cell(r, 'file'), 40);
+    if (!fileNo) { if (r.some(function (v) { return str_(v); })) skipped++; return; }
+    let id = clean_(cell(r, 'id'), 40);
+    if (!id) id = 'IMP-' + stamp + '-' + ('000' + (++seq)).slice(-4);
+    if (existing[id.toLowerCase()]) { skipped++; return; }
+    existing[id.toLowerCase()] = true;
+    const st = str_(cell(r, 'status')).toLowerCase(), dl = str_(cell(r, 'delivered')).toLowerCase();
+    const status = /deliver.*patient|سُلِّم|للمريض/.test(st) || /^(yes|نعم|true)$/.test(dl) ? LAB_ST.PATIENT
+      : /received|استلم|العيادة/.test(st) ? LAB_ST.DELIVERED
+      : /still|at lab|المعمل/.test(st) ? LAB_ST.RECEIVED : LAB_ST.NEW;
+    const scan = asDate(cell(r, 'scan')), created = asDate(cell(r, 'time')) || scan || new Date();
+    const lab = str_(cell(r, 'lab'));
+    let due = asDate(cell(r, 'due'));
+    if (!due && scan) due = labDueFrom_(scan, [lab], labs);
+    const remake = str_(cell(r, 'remake'));
+    const doctor = str_(cell(r, 'doctor'));
+    let clinic = '';
+    try { clinic = doctor ? doctorClinic_({ name: '', clinic: '' }, doctor) : ''; } catch (e) { clinic = ''; }
+    cases.push({ CaseID: id, Date: created, Nurse: 'استيراد الفورم', Doctor: doctor, Clinic: clinic, Branch: str_(cell(r, 'branch')) || (clinic ? clinicBranch_(clinic) : ''),
+      Patient: '', FileNo: fileNo, NeededBy: due, ScanDate: scan, Notes: clean_(cell(r, 'notes'), 1000), Source: 'فورم قوقل',
+      RedoReason: remake ? clean_(remake, 100) : '', RedoNote: remake ? 'Remake (من الفورم)' : '' });
+    const now = new Date();
+    items.push({ ItemID: id + '-1', CaseID: id, Lab: lab, LabType: (labs[lab] || {}).type || '', WorkType: str_(cell(r, 'work')), Material: str_(cell(r, 'material')),
+      Details: '', Status: status, ReceivedAt: status !== LAB_ST.NEW ? created : '',
+      DeliveredAt: status === LAB_ST.DELIVERED || status === LAB_ST.PATIENT ? now : '', PatientAt: status === LAB_ST.PATIENT ? now : '',
+      RedoReason: remake ? clean_(remake, 100) : '', UpdatedBy: 'استيراد' });
+    if (!doctor) errors.push('صف ' + (k + 2) + ': بدون طبيب (' + id + ')');
+  });
+  appendMany_('LabCases', cases);
+  appendMany_('LabItems', items);
+  if (cases.length) logAction_('', 'استيراد ' + cases.length + ' حالة معمل من الفورم', 'النظام');
+  flushDirty_();
+  return { added: cases.length, skipped: skipped, errors: errors };
+}
+/** إلحاق عدة صفوف دفعة واحدة (setValues) — أسرع بكثير من appendRow لكل صف */
+function appendMany_(name, objs) {
+  if (!objs.length) return;
+  const sh = sheet_(name);
+  const vals = [headerRow_(sh)];
+  ensureHeaders_(sh, vals, SCHEMA[name]);
+  const headers = vals[0];
+  const rows = objs.map(function (o) { return headers.map(function (h) { return Object.prototype.hasOwnProperty.call(o, h) ? o[h] : ''; }); });
+  sh.getRange(sh.getLastRow() + 1, 1, rows.length, headers.length).setValues(rows);
+  markDirty_(name);
+}
+
+/** تلوين آخر صف مُلحق (إن كان هو صف المعرّف) — تمييز بصري في الشيت فقط */
+function highlightLastRow_(name, id, color) {
+  try {
+    const sh = sheet_(name);
+    const r = sh.getLastRow();
+    if (r > 1 && str_(sh.getRange(r, 1).getValue()) === str_(id)) sh.getRange(r, 1, 1, sh.getLastColumn()).setBackground(color);
+  } catch (e) { console.error(e); }
+}
+
+/** بحث بالرقم: رقم الملف (مطابق) أو رقم الحالة — للمعمل (التحديث) وللممرضة (الإعادة) من أي ممرضة */
+function findLabCases_(user, q) {
+  q = str_(q).toLowerCase();
+  if (q.length < 2) return [];
+  const now = Date.now();
+  const byCase = {};
+  read_('LabItems').rows.forEach(function (it) { (byCase[str_(it.CaseID)] = byCase[str_(it.CaseID)] || []).push(it); });
+  return read_('LabCases').rows.filter(function (c) {
+    return str_(c.CaseID) && (str_(c.FileNo).toLowerCase() === q || str_(c.CaseID).toLowerCase() === q);
+  }).map(function (c) { return mapLabCase_(c, byCase[str_(c.CaseID)] || [], now); })
+    .sort(function (a, b) { return toMs_(b.date) - toMs_(a.date); }).slice(0, 30);
 }
 
 function labCaseRow_(id) {
@@ -2920,7 +3172,8 @@ function mapLabItem_(it, c, now) {
   const done = LAB_DONE.indexOf(str_(it.Status)) !== -1;
   const exp = toMs_(it.ExpectedAt);
   return {
-    id: str_(it.ItemID), caseId: str_(it.CaseID), lab: str_(it.Lab), labType: str_(it.LabType), workType: str_(it.WorkType), details: str_(it.Details),
+    id: str_(it.ItemID), caseId: str_(it.CaseID), lab: str_(it.Lab), labType: str_(it.LabType), workType: str_(it.WorkType), material: str_(it.Material), details: str_(it.Details),
+    patientAt: it.PatientAt,
     status: str_(it.Status) || LAB_ST.NEW, receivedAt: it.ReceivedAt, startedAt: it.StartedAt, externalLab: str_(it.ExternalLab), externalAt: it.ExternalAt,
     expectedAt: it.ExpectedAt, readyAt: it.ReadyAt, sentAt: it.SentAt, deliveredAt: it.DeliveredAt, cost: price_(it.Cost),
     redoOfItem: str_(it.RedoOfItem), redoReason: str_(it.RedoReason), updatedBy: str_(it.UpdatedBy),
@@ -2939,10 +3192,12 @@ function mapLabCase_(c, items, now) {
   return {
     id: str_(c.CaseID), date: c.Date, nurse: str_(c.Nurse), doctor: str_(c.Doctor), clinic: str_(c.Clinic), branch: str_(c.Branch),
     patient: str_(c.Patient), fileNo: str_(c.FileNo), neededBy: c.NeededBy, urgent: isYes_(c.Urgent),
+    scanDate: c.ScanDate, notes: str_(c.Notes), source: str_(c.Source),
     redoOf: str_(c.RedoOf), redoReason: str_(c.RedoReason), redoNote: str_(c.RedoNote),
     attachments: str_(c.Attachments).split(/\s+/).filter(String), items: its, status: caseStatus_(its),
     overdue: its.some(function (i) { return i.overdue; }), externalLate: its.some(function (i) { return i.externalLate; }),
     toReceive: its.some(function (i) { return i.status === LAB_ST.SENT; }),
+    atClinic: its.some(function (i) { return i.status === LAB_ST.DELIVERED; }),
     labs: its.map(function (i) { return i.lab; }).filter(function (l, k, a) { return a.indexOf(l) === k; })
   };
 }
@@ -2964,7 +3219,7 @@ function queryLabCases_(user, filters, opts) {
     return o;
   }).filter(function (o) {
     // الأرشيف: الإرساليات المستلمة الأقدم من 60 يوماً لا تُحمّل إلا عند الطلب
-    return opts.archive || o.status !== LAB_ST.DELIVERED || (now - toMs_(o.date)) < ARCHIVE_DAYS * 864e5;
+    return opts.archive || LAB_CLOSED.indexOf(o.status) === -1 || (now - toMs_(o.date)) < ARCHIVE_DAYS * 864e5;
   }).sort(function (a, b) { return toMs_(b.date) - toMs_(a.date); });
 }
 function labNotes_(id) {
@@ -3006,6 +3261,9 @@ const LAB_ACTIONS = {
   external: { from: [LAB_ST.NEW, LAB_ST.RECEIVED, LAB_ST.WORK], to: LAB_ST.EXTERNAL, stamp: 'ExternalAt' },
   ready:    { from: [LAB_ST.NEW, LAB_ST.RECEIVED, LAB_ST.WORK, LAB_ST.EXTERNAL], to: LAB_ST.READY, stamp: 'ReadyAt' },
   send:     { from: [LAB_ST.READY], to: LAB_ST.SENT, stamp: 'SentAt' },
+  // Received from Lab: العمل وصل العيادة · Delivered to Patient: سُلِّم للمريض (تُغلق الحالة)
+  clinic:   { from: [LAB_ST.READY, LAB_ST.SENT], to: LAB_ST.DELIVERED, stamp: 'DeliveredAt' },
+  patient:  { from: [LAB_ST.READY, LAB_ST.SENT, LAB_ST.DELIVERED], to: LAB_ST.PATIENT, stamp: 'PatientAt' },
   reroute:  { from: [LAB_ST.NEW, LAB_ST.RECEIVED, LAB_ST.WORK, LAB_ST.EXTERNAL], to: null },
   cost:     { from: LAB_ORDER, to: null }
 };
@@ -3029,6 +3287,8 @@ function updateLabItems_(user, itemIds, action, data) {
       const o = { UpdatedBy: user.name };
       if (def.to) { o.Status = def.to; o[def.stamp] = now; }
       if (action === 'receive' || action === 'start' || action === 'ready') { if (!r.ReceivedAt) o.ReceivedAt = now; }
+      if (action === 'patient' && !r.DeliveredAt) o.DeliveredAt = now;
+      if ((action === 'clinic' || action === 'patient') && !r.ReadyAt) o.ReadyAt = now;
       if (action === 'external') {
         const ext = str_(data.lab);
         if (!labs[ext] || labs[ext].type !== 'خارجي') throw new Error('ERR_BAD_LAB');
@@ -3055,7 +3315,8 @@ function updateLabItems_(user, itemIds, action, data) {
     const cases = {};
     rows.forEach(function (r) { cases[str_(r.CaseID)] = (cases[str_(r.CaseID)] || []).concat(str_(r.ItemID)); });
     Object.keys(cases).forEach(function (cid) {
-      const label = { receive: 'استلام', start: 'بدء العمل', external: 'إرسال لمعمل خارجي: ' + str_(data.lab), ready: 'جاهز', send: 'أُرسل للعيادة', reroute: 'تحويل إلى ' + str_(data.lab), cost: 'تسجيل تكلفة' }[action];
+      const label = { receive: 'استلام', start: 'بدء العمل', external: 'إرسال لمعمل خارجي: ' + str_(data.lab), ready: 'جاهز', send: 'أُرسل للعيادة',
+        clinic: 'وصل العيادة (Received from Lab)', patient: 'سُلِّم للمريض (Delivered to Patient)', reroute: 'تحويل إلى ' + str_(data.lab), cost: 'تسجيل تكلفة' }[action];
       logAction_(cid, 'معمل — ' + label + ' (' + cases[cid].join('، ') + ')', user.name);
       if (note) append_('LabNotes', { Timestamp: now, CaseID: cid, ItemID: cases[cid].join(','), Author: user.name, Role: user.role, Message: note });
     });
@@ -3121,7 +3382,7 @@ function getLabStats_(user, opts) {
   });
   function bucket() { return { items: 0, done: 0, onTime: 0, withDue: 0, days: [], redo: 0, cost: 0, overdue: 0 }; }
   function avg(a) { return a.length ? round1_(a.reduce(function (x, y) { return x + y; }, 0) / a.length) : null; }
-  const sum = bucket(), byLab = {}, byType = {}, byKind = { 'داخلي': bucket(), 'خارجي': bucket() };
+  const sum = bucket(), byLab = {}, byType = {}, byMat = {}, byKind = { 'داخلي': bucket(), 'خارجي': bucket() };
   let redoCases = 0, caseCount = 0;
   Object.keys(cases).forEach(function (id) { if (inRange(cases[id])) { caseCount++; if (str_(cases[id].RedoOf)) redoCases++; } });
   const overdueNow = [];
@@ -3133,7 +3394,8 @@ function getLabStats_(user, opts) {
       daysLate: round1_((now - (m.externalLate ? toMs_(m.expectedAt) : toMs_(c.NeededBy))) / D) });
     if (!inRange(c)) return;
     const kind = str_(it.LabType) === 'خارجي' ? 'خارجي' : 'داخلي';
-    [sum, byLab[m.lab] = byLab[m.lab] || bucket(), byType[m.workType] = byType[m.workType] || bucket(), byKind[kind]].forEach(function (b) {
+    const mat = m.material || '—';
+    [sum, byLab[m.lab] = byLab[m.lab] || bucket(), byType[m.workType] = byType[m.workType] || bucket(), byMat[mat] = byMat[mat] || bucket(), byKind[kind]].forEach(function (b) {
       b.items++;
       if (m.overdue) b.overdue++;
       if (m.cost) b.cost = round2_(b.cost + m.cost);
@@ -3151,8 +3413,8 @@ function getLabStats_(user, opts) {
       redo: b.redo, redoRate: b.items ? Math.round(b.redo / b.items * 100) : 0, cost: b.cost, overdue: b.overdue };
   }
   function list(m) { return Object.keys(m).map(function (k) { return out(k, m[k]); }).sort(function (a, b) { return b.items - a.items; }); }
-  const labTypes = {};
-  getLabs_().forEach(function (l) { labTypes[l.name] = l.type; });
+  const labTypes = {}, labDays = {}, defDays = labTurnaroundDefault_();
+  getLabs_().forEach(function (l) { labTypes[l.name] = l.type; labDays[l.name] = l.turnaround || defDays; });
   // اتجاه 6 أشهر: عدد الأسطر ومتوسط أيام الإنجاز
   const trend = [], nowD = new Date();
   for (let i = 5; i >= 0; i--) {
@@ -3166,8 +3428,9 @@ function getLabStats_(user, opts) {
   return {
     from: from, to: to, generatedAt: new Date(),
     summary: Object.assign(out('', sum), { cases: caseCount, redoCases: redoCases }),
-    labs: list(byLab).map(function (x) { x.type = labTypes[x.name] || ''; return x; }),
-    workTypes: list(byType), kinds: [out('داخلي', byKind['داخلي']), out('خارجي', byKind['خارجي'])],
+    // setDays = أيام التنفيذ المحددة للمعمل مقابل avgDays الفعلي — لمعرفة الأيام الحقيقية لكل معمل مع الوقت
+    labs: list(byLab).map(function (x) { x.type = labTypes[x.name] || ''; x.setDays = labDays[x.name] || defDays; return x; }),
+    workTypes: list(byType), materials: list(byMat), turnaround: defDays, kinds: [out('داخلي', byKind['داخلي']), out('خارجي', byKind['خارجي'])],
     reasons: Object.keys(reasons).map(function (k) { return { reason: k, count: reasons[k] }; }).sort(function (a, b) { return b.count - a.count; }),
     overdueNow: overdueNow.sort(function (a, b) { return b.daysLate - a.daysLate; }), byStatus: openBy, trend: trend
   };

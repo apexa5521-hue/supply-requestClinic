@@ -239,7 +239,7 @@ button, input, select, textarea { font: inherit; color: inherit; }
 .perm-opt:has(input:disabled) { cursor: default; opacity: .85; }
 .perm-opt span { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
 .perm-opt small { color: var(--muted); font-size: 12px; line-height: 1.4; }
-.lab-line { display: grid; grid-template-columns: 28px minmax(140px, 1fr) minmax(140px, 1fr) minmax(160px, 1.4fr) auto; gap: 8px; align-items: center; }
+.lab-line { display: grid; grid-template-columns: 28px minmax(130px, 1fr) minmax(130px, 1fr) minmax(110px, .8fr) minmax(150px, 1.3fr) auto; gap: 8px; align-items: center; }
 .lab-line-n { width: 26px; height: 26px; border-radius: 8px; display: grid; place-items: center; font-weight: 700; font-size: 12.5px; background: var(--surface-2); color: var(--muted); }
 .lab-photos { display: flex; flex-wrap: wrap; gap: 10px; }
 .lab-photo { position: relative; width: 96px; height: 96px; border-radius: 12px; overflow: hidden; border: 1px solid var(--border); background: var(--surface-2); display: grid; place-items: center; gap: 4px; color: var(--muted); font-size: 12px; text-decoration: none; }
@@ -249,6 +249,9 @@ button, input, select, textarea { font: inherit; color: inherit; }
 .lab-item-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; font-size: 13.5px; padding: 6px 10px; border-radius: 10px; background: var(--surface-2); }
 .lab-item-row > span:first-child { display: inline-flex; align-items: center; gap: 6px; min-width: 0; overflow-wrap: anywhere; }
 .lab-card.redo { box-shadow: inset 4px 0 0 var(--t-orange), var(--shadow-sm); }
+.tag.remake { color: #fff; background: var(--t-orange); border-color: transparent; font-weight: 800; letter-spacing: .02em; }
+.lab-due { color: var(--primary); font-weight: 600; }
+.lab-due:empty { display: none; }
 [dir="rtl"] .lab-card.redo { box-shadow: inset -4px 0 0 var(--t-orange), var(--shadow-sm); }
 .lab-actions { display: flex; flex-direction: column; gap: 8px; padding: 10px 16px; border-top: 1px dashed var(--border); }
 .lab-act-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; font-size: 13px; }

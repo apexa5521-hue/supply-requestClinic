@@ -37,6 +37,8 @@ function rows(gas, sheet) {
   return d.slice(1).map(r => Object.fromEntries(h.map((k, i) => [k, r[i]])));
 }
 
+function todayISO() { return new Date(Date.now() + 3 * 36e5).toISOString().slice(0, 10); }
+
 function throwsCode(fn, code) {
   assert.throws(fn, e => String(e.message).indexOf(code) !== -1, 'expected ' + code);
 }
@@ -914,6 +916,25 @@ test('same clinic name in two branches (Sterilization): each request keeps its b
   assert.ok(names.includes('Sterilization — الرياض') && names.includes('Sterilization — جدة'), names.join(','));
 });
 
+test('backup: full copy of the spreadsheet into its own Drive folder, keeps the latest 30, admin only', () => {
+  const { api, login, gas, ctx } = boot();
+  const a = login('المدير', '1234'), n = login('سارة', '1111');
+  assert.equal(api(a, 'getBackupStatus').last, null);
+  throwsCode(() => api(n, 'backupNow'), 'ERR_FORBIDDEN');
+  let st;
+  for (let i = 0; i < 32; i++) st = api(a, 'backupNow');
+  const folder = gas.globals.DriveApp.createFolder._folder;
+  assert.equal(folder.copies.length, 32);
+  assert.equal(folder.copies.filter(c => !c.trashed).length, 30, 'older copies go to the Drive trash');
+  assert.ok(folder.copies[0].trashed && folder.copies[1].trashed && !folder.copies[31].trashed, 'the oldest are removed first');
+  assert.match(st.last.name, /^مسار — نسخة \d{4}-\d{2}-\d{2} \d{2}:\d{2}$/);
+  assert.equal(st.last.by, 'المدير');
+  assert.equal(st.folderUrl, 'https://drive.google.com/drive/folders/folder1');
+  ctx.dailyBackup();
+  assert.equal(api(a, 'getBackupStatus').last.by, 'النظام (تلقائي)');
+  assert.ok(rows(gas, 'Log').some(r => String(r.Action).indexOf('نسخة احتياطية') === 0), 'logged');
+});
+
 test('batch runs several reads in one execution with per-call errors, and rejects writes', () => {
   const { api, login } = boot();
   const n = login('سارة', '1111');
@@ -1299,21 +1320,29 @@ test('lab: nurse sends a case with lines to different labs; lab moves it interna
   const n = login('سارة', '1111');
   const cfg = api(n, 'getLabConfig');
   assert.deepEqual(cfg.labs.map(l => l.name), ['المعمل الداخلي', 'معمل النخبة', 'معمل الابتسامة'], 'inactive labs are hidden');
-  assert.ok(cfg.workTypes.includes('تاج'));
-  const base = { doctor: 'د. خالد', patient: 'محمد أحمد', fileNo: 'F-1001', neededBy: '2099-01-10',
-    lines: [{ lab: 'المعمل الداخلي', workType: 'تاج', details: 'سن 16 · لون A2' }, { lab: 'معمل النخبة', workType: 'جسر', details: '14-16' }] };
-  throwsCode(() => api(n, 'createLabCase', Object.assign({}, base, { patient: '' })), 'ERR_REQUIRED');
-  throwsCode(() => api(n, 'createLabCase', Object.assign({}, base, { lines: [{ lab: 'معمل موقوف', workType: 'تاج' }] })), 'ERR_BAD_LAB');
-  throwsCode(() => api(n, 'createLabCase', Object.assign({}, base, { lines: [{ lab: 'المعمل الداخلي', workType: 'شيء' }] })), 'ERR_BAD_WORKTYPE');
+  assert.deepEqual(cfg.workTypes, ['Crown', 'Veneer', 'Bridge', 'Inlay', 'Onlay', 'Denture', 'Night Guard', 'Implant Crown', 'Temporary', 'Surgical Guide']);
+  assert.deepEqual(cfg.materials, ['Zirconia', 'Emax', 'PFM', 'PMMA', 'Composite', 'Acrylic', 'Metal', 'Other']);
+  assert.equal(cfg.turnaround, 10);
+  const base = { doctor: 'د. خالد', patient: 'محمد أحمد', fileNo: 'F-1001', scanDate: '2026-01-05',
+    lines: [{ lab: 'المعمل الداخلي', workType: 'Crown', material: 'Zirconia', details: 'سن 16 · لون A2' }, { lab: 'معمل النخبة', workType: 'Bridge', material: 'Emax', details: '14-16' }] };
+  throwsCode(() => api(n, 'createLabCase', Object.assign({}, base, { fileNo: '' })), 'ERR_REQUIRED');
+  throwsCode(() => api(n, 'createLabCase', Object.assign({}, base, { scanDate: '' })), 'ERR_SCAN_DATE');
+  throwsCode(() => api(n, 'createLabCase', Object.assign({}, base, { scanDate: '2099-01-01' })), 'ERR_SCAN_FUTURE');
+  throwsCode(() => api(n, 'createLabCase', Object.assign({}, base, { lines: [{ lab: 'المعمل الداخلي', workType: 'Crown', material: 'Wood' }] })), 'ERR_BAD_MATERIAL');
+  throwsCode(() => api(n, 'createLabCase', Object.assign({}, base, { lines: [{ lab: 'معمل موقوف', workType: 'Crown', material: 'PFM' }] })), 'ERR_BAD_LAB');
+  throwsCode(() => api(n, 'createLabCase', Object.assign({}, base, { lines: [{ lab: 'المعمل الداخلي', workType: 'شيء', material: 'PFM' }] })), 'ERR_BAD_WORKTYPE');
   throwsCode(() => api(n, 'createLabCase', Object.assign({}, base, { doctor: 'د. سعد' })), 'ERR_BAD_DOCTOR');
   gas.mails.length = 0;
   const PNG = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==';
   const c = api(n, 'createLabCase', Object.assign({}, base, { photos: [PNG], clientKey: 'lab-draft-00001' }));
   assert.match(c.id, /^LAB-\d{6}-001$/);
   assert.equal(api(n, 'createLabCase', Object.assign({}, base, { clientKey: 'lab-draft-00001' })).id, c.id, 'resend after lost response → no duplicate');
-  assert.ok(gas.mails.some(m => m.to.includes('lab@example.com') && /إرسالية جديدة للمعمل/.test(m.subject)), 'lab account notified');
+  assert.ok(gas.mails.some(m => m.to.includes('lab@example.com') && /حالة جديدة للمعمل/.test(m.subject)), 'lab account notified');
   const row = rows(gas, 'LabCases')[0];
   assert.deepEqual([row.Clinic, row.Branch, row.Patient, row.FileNo], ['عيادة الأسنان 1', 'الرياض', 'محمد أحمد', 'F-1001']);
+  const got = api(n, 'getLabCase', c.id);
+  assert.equal(new Date(got.neededBy).toISOString().slice(0, 10), '2026-01-15', 'due = scan date + 10 days (default turnaround)');
+  assert.deepEqual(got.items.map(i => i.material), ['Zirconia', 'Emax']);
   assert.equal(api(n, 'getLabCase', c.id).attachments.length, 1);
   // من يرى: الممرضة، الطبيب نفسه، المعمل — لا ممرضة أخرى ولا التموين
   assert.equal(api(n, 'getMyLabCases').length, 1);
@@ -1348,23 +1377,89 @@ test('lab: nurse sends a case with lines to different labs; lab moves it interna
   const done = api(n, 'confirmLabReceipt', c.id);
   assert.equal(done.status, 'استلمته العيادة');
   throwsCode(() => api(n, 'confirmLabReceipt', c.id), 'ERR_BAD_TRANSITION');
+  // Delivered to Patient: المعمل يسجل تسليم المريض فتُغلق الحالة
+  throwsCode(() => api(n, 'updateLabItems', [i1], 'patient'), 'ERR_FORBIDDEN');
+  const closed = api(L, 'updateLabItems', [i1, i2], 'patient')[0];
+  assert.equal(closed.status, 'سُلِّم للمريض');
+  assert.ok(closed.items.every(i => i.patientAt));
+  throwsCode(() => api(L, 'updateLabItems', [i1], 'patient'), 'ERR_BAD_TRANSITION');
+});
+
+test('lab v2: due = scan + turnaround (Settings / per lab), chosen branch, backfilled delivered case, old Arabic work types replaced', () => {
+  const { api, login, gas } = boot(g => {
+    g.seed('Labs', ['LabName', 'Type', 'Email', 'Phone', 'Active', 'TurnaroundDays'], [
+      ['المعمل الداخلي', 'داخلي', 'lab@example.com', '', 'نعم', ''], ['معمل النخبة', 'خارجي', '', '', 'نعم', 14]]);
+    g.seed('Settings', ['Key', 'Value', 'Notes'], [['LabTurnaroundDays', 7, '']]);
+    g.seed('LabWorkTypes', ['WorkType'], [['تاج'], ['جسر'], ['طقم كامل'], ['طقم جزئي'], ['حافظ مسافة'], ['واقي ليلي'], ['تقويم متحرك'], ['قشور (فينير)'], ['حشوة خزفية (إنلاي/أونلاي)'], ['زراعة — تاج على زرعة'], ['أخرى']]);
+  });
+  const n = login('سارة', '1111');
+  const cfg = api(n, 'getLabConfig');
+  assert.equal(cfg.turnaround, 7);
+  assert.equal(cfg.labs.find(l => l.name === 'معمل النخبة').turnaround, 14);
+  assert.equal(cfg.workTypes[0], 'Crown', 'untouched old Arabic default list → the clinic list');
+  const due = id => new Date(api(n, 'getLabCase', id).neededBy).toISOString().slice(0, 10);
+  const a = api(n, 'createLabCase', { doctor: 'د. خالد', fileNo: '500', scanDate: '2026-03-01', lines: [{ lab: 'المعمل الداخلي', workType: 'Crown', material: 'PFM' }] });
+  assert.equal(due(a.id), '2026-03-08', 'Settings.LabTurnaroundDays = 7');
+  const b = api(n, 'createLabCase', { doctor: 'د. خالد', fileNo: '501', scanDate: '2026-03-01', branch: 'جدة',
+    lines: [{ lab: 'المعمل الداخلي', workType: 'Crown', material: 'PFM' }, { lab: 'معمل النخبة', workType: 'Veneer', material: 'Emax' }] });
+  assert.equal(due(b.id), '2026-03-15', 'the longest lab turnaround wins (14)');
+  assert.equal(api(n, 'getLabCase', b.id).branch, 'جدة');
+  throwsCode(() => api(n, 'createLabCase', { doctor: 'د. خالد', fileNo: '502', scanDate: '2026-03-01', branch: 'دبي', lines: [{ lab: 'المعمل الداخلي', workType: 'Crown', material: 'PFM' }] }), 'ERR_BAD_BRANCH');
+  gas.mails.length = 0;
+  const old = api(n, 'createLabCase', { doctor: 'د. خالد', fileNo: '503', scanDate: '2025-12-01', delivered: true, lines: [{ lab: 'المعمل الداخلي', workType: 'Crown', material: 'PFM' }] });
+  const oc = api(n, 'getLabCase', old.id);
+  assert.deepEqual([oc.status, oc.source], ['سُلِّم للمريض', 'إدخال سابق']);
+  assert.equal(gas.mails.length, 0, 'backfilled case does not notify the lab');
+  assert.ok(!api(login('فني المعمل', '8888'), 'getLabStats', {}).overdueNow.some(o => o.caseId === old.id), 'delivered case is never overdue');
+});
+
+test('lab import: old Google Form cases come in with their CASE- IDs, statuses and remakes; re-running skips them', () => {
+  const { api, login, gas, ctx } = boot(g => {
+    g.seed('LabImport', ['Timestamp', 'Case ID', 'Branch', 'Patient File No.', 'Doctor', 'Work Type', 'Material', 'Lab', 'Scan Date', 'Lab Due Date', 'Case status', 'Delivered to patient?', 'Remake reason', 'Notes'], [
+      ['1/10/2026 10:00:00', 'CASE-00010', 'الرياض', '9001', 'د. خالد', 'Crown', 'Zirconia', 'المعمل الداخلي', '1/10/2026', '1/20/2026', 'Delivered to Patient', 'Yes', '', 'تمام'],
+      ['2/01/2026 09:00:00', 'CASE-00011', 'الرياض', '9002', 'د. خالد', 'Bridge', 'Emax', 'معمل النخبة', '2/01/2026', '', 'Still at Lab', 'No', '', ''],
+      ['2/05/2026 09:00:00', 'CASE-00012', 'جدة', '9003', 'د. سعد', 'Veneer', 'Emax', 'معمل النخبة', '2/05/2026', '2/15/2026', 'Received from Lab', 'No', 'لون', ''],
+      ['', '', '', '', '', '', '', '', '', '', '', '', '', '']
+    ]);
+  });
+  const res = ctx.importLabCases_();
+  assert.deepEqual([res.added, res.skipped], [3, 0]);
+  const L = login('فني المعمل', '8888');
+  const all = api(L, 'getLabCases', { archive: true });
+  const byId = Object.fromEntries(all.map(c => [c.id, c]));
+  assert.deepEqual(['CASE-00010', 'CASE-00011', 'CASE-00012'].map(id => byId[id] && byId[id].status), ['سُلِّم للمريض', 'استلمه المعمل', 'استلمته العيادة']);
+  assert.equal(byId['CASE-00011'].items[0].material, 'Emax');
+  assert.equal(new Date(byId['CASE-00011'].neededBy).toISOString().slice(0, 10), '2026-02-11', 'missing due date → scan + 10');
+  assert.equal(byId['CASE-00012'].redoReason, 'لون');
+  assert.equal(byId['CASE-00012'].source, 'فورم قوقل');
+  assert.deepEqual(api(L, 'findLabCases', '9002').map(c => c.id), ['CASE-00011'], 'imported cases are found by file number');
+  assert.deepEqual([ctx.importLabCases_().added, ctx.importLabCases_().skipped], [0, 3], 'safe to run again');
+  assert.ok(rows(gas, 'Log').some(r => /استيراد 3 حالة/.test(r.Action)));
 });
 
 test('lab redo: nurse picks a previous case and the faulty line with a reason; lab sees it flagged; KPIs count redo per lab, cost and overdue', () => {
   const { api, login, gas } = boot();
   const n = login('سارة', '1111'), L = login('فني المعمل', '8888');
-  const c = api(n, 'createLabCase', { doctor: 'د. خالد', patient: 'سارة علي', fileNo: '7788', neededBy: '2099-02-01',
-    lines: [{ lab: 'المعمل الداخلي', workType: 'تاج' }, { lab: 'معمل النخبة', workType: 'جسر' }] });
+  const c = api(n, 'createLabCase', { doctor: 'د. خالد', fileNo: '7788', scanDate: todayISO(),
+    lines: [{ lab: 'المعمل الداخلي', workType: 'Crown', material: 'Zirconia' }, { lab: 'معمل النخبة', workType: 'Bridge', material: 'Emax' }] });
   api(L, 'updateLabItems', [c.id + '-2'], 'external', { lab: 'معمل النخبة', expectedAt: '2099-01-20', cost: 400 });
   api(L, 'updateLabItems', [c.id + '-1', c.id + '-2'], 'ready');
   api(L, 'updateLabItems', [c.id + '-1', c.id + '-2'], 'send');
   api(n, 'confirmLabReceipt', c.id);
-  const redoBase = { doctor: 'د. خالد', patient: 'سارة علي', fileNo: '7788', redoOf: c.id, redoItems: [c.id + '-2'], redoReason: 'لون', redoNote: 'اللون أغمق من المطلوب' };
+  const redoBase = { redoOf: c.id, redoItems: [c.id + '-2'], redoReason: 'لون', redoNote: 'اللون أغمق من المطلوب', redoScanDate: todayISO() };
   throwsCode(() => api(n, 'createLabCase', Object.assign({}, redoBase, { redoReason: 'مزاج' })), 'ERR_REDO_REASON');
-  throwsCode(() => api(login('ريم', '2222'), 'createLabCase', Object.assign({}, redoBase, { doctor: 'د. سعد' })), 'ERR_NOT_FOUND');
+  throwsCode(() => api(n, 'createLabCase', Object.assign({}, redoBase, { redoScanDate: '' })), 'ERR_SCAN_DATE');
+  throwsCode(() => api(n, 'createLabCase', Object.assign({}, redoBase, { redoOf: 'LAB-000000-999' })), 'ERR_NOT_FOUND');
+  // الإعادة برقم الملف: ممرضة أخرى تجد الحالة وتعيدها
+  const other = login('ريم', '2222');
+  assert.deepEqual(api(other, 'findLabCases', '7788').map(x => x.id), [c.id]);
+  assert.deepEqual(api(L, 'findLabCases', c.id).map(x => x.id), [c.id]);
+  assert.deepEqual(api(other, 'findLabCases', '77'), [], 'file number must match exactly');
   gas.mails.length = 0;
   const r = api(n, 'createLabCase', redoBase);
-  assert.ok(gas.mails.some(m => /إعادة للمعمل/.test(m.subject) && /أغمق/.test(m.body)), 'lab gets the problem in the email');
+  assert.ok(gas.mails.some(m => /Remake/.test(m.subject) && /أغمق/.test(m.body)), 'lab gets the problem in the email');
+  const redoRow = rows(gas, 'LabCases').findIndex(x => x.CaseID === r.id) + 2;
+  assert.equal(gas.ss.getSheetByName('LabCases')._bg[redoRow], '#FFE0B2', 'remake row is orange in the sheet');
   assert.ok(gas.mails.some(m => m.to === 'khaled@example.com' && /إعادة/.test(m.subject)), 'doctor informed of the redo');
   const rc = api(L, 'getLabCase', r.id);
   assert.deepEqual([rc.redoOf, rc.redoReason, rc.redoNote, rc.items.length, rc.items[0].lab, rc.items[0].redoOfItem], [c.id, 'لون', 'اللون أغمق من المطلوب', 1, 'معمل النخبة', c.id + '-2']);
@@ -1372,12 +1467,14 @@ test('lab redo: nurse picks a previous case and the faulty line with a reason; l
   assert.deepEqual(api(n, 'getLabCase', c.id).redoneBy, [r.id]);
   assert.ok(api(L, 'getAlerts').some(a => a.code === 'alert_lab_redo'));
   // متأخر: إرسالية موعدها مضى
-  const late = api(n, 'createLabCase', { doctor: 'د. خالد', patient: 'خالد', fileNo: '1', neededBy: '2020-01-01', lines: [{ lab: 'المعمل الداخلي', workType: 'طقم كامل' }] });
+  const late = api(n, 'createLabCase', { doctor: 'د. خالد', fileNo: '1', scanDate: '2020-01-01', lines: [{ lab: 'المعمل الداخلي', workType: 'Denture', material: 'Acrylic' }] });
   const st = api(L, 'getLabStats', {});
   assert.deepEqual([st.summary.cases, st.summary.redoCases, st.summary.items], [3, 1, 4]);
   const elite = st.labs.find(x => x.name === 'معمل النخبة');
   assert.deepEqual([elite.type, elite.items, elite.redo, elite.redoRate, elite.cost, elite.done], ['خارجي', 2, 1, 50, 400, 1]);
   assert.deepEqual(st.reasons, [{ reason: 'لون', count: 1 }]);
+  assert.equal(elite.setDays, 10);
+  assert.ok(st.materials.some(m => m.name === 'Emax' && m.redo === 1), 'redo counted per material');
   assert.ok(st.overdueNow.some(o => o.caseId === late.id));
   assert.equal(st.trend.length, 6);
   // الجودة تتابع وتنبّه المعمل؛ المالية بدون صلاحية
