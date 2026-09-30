@@ -488,14 +488,15 @@ function log(msg) { console.log('  ✔ ' + msg); }
   await page.fill('#lFile', 'F-1001');
   await page.selectOption('#lLines .lab-line:nth-child(1) [data-k="lab"]', 'المعمل الداخلي');
   await page.selectOption('#lLines .lab-line:nth-child(1) [data-k="workType"]', 'Crown');
-  await page.selectOption('#lLines .lab-line:nth-child(1) [data-k="material"]', 'Zirconia');
   await page.fill('#lLines .lab-line:nth-child(1) [data-k="details"]', 'سن 16 · A2');
   await page.click('[data-act="labAddLine"]');
   await page.selectOption('#lLines .lab-line:nth-child(2) [data-k="lab"]', 'معمل النخبة');
   await page.selectOption('#lLines .lab-line:nth-child(2) [data-k="workType"]', 'Bridge');
-  await page.click('#lSubmit');
-  expect(!(await page.isHidden('#lErr')) && (await page.textContent('#lErr')).includes('مادة'), 'material is required for each work');
-  await page.selectOption('#lLines .lab-line:nth-child(2) [data-k="material"]', 'Emax');
+  expect(!(await page.$('#lLines [data-k="material"]')) && !(await page.$('#lPhoto')), 'work = lab · type · notes only; no general photo box');
+  const PNG1 = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==', 'base64');
+  await page.setInputFiles('#lLines .lab-line:nth-child(1) [data-line-photo]', { name: 'tooth.png', mimeType: 'image/png', buffer: PNG1 });
+  await page.waitForSelector('#lLines .lab-line:nth-child(1) .lab-photo img');
+  expect(await page.locator('#lLines .lab-line:nth-child(2) .lab-photo').count() === 0, 'photo is attached to its own work only');
   expect((await page.textContent('#lSum')).includes('معمل النخبة'), 'lab form: two items to two labs in one case');
   expect((await page.textContent('#lDue')).includes('تلقائي') && (await page.textContent('#lDue')).includes('10'), 'lab due is calculated automatically (scan + 10 days)');
   await shot(page, 'lab-nurse-form', true);
@@ -545,6 +546,12 @@ function log(msg) { console.log('  ✔ ' + msg); }
   expect(await toastHas(page, 'الإعادة'), 'redo sent with the problem description');
   await page.waitForSelector('#labList .lab-card.redo');
   expect(await page.isVisible('#labList .lab-card.redo .tag.remake'), 'remake is flagged in orange');
+  expect((await page.textContent('#labList .lab-card.redo .req-id')).trim() === labId + '-R1', 'remake number is a sub-number of the original case (' + labId + '-R1)');
+  await page.click('#labList .lab-card.redo [data-act="labOpen"] >> nth=0');
+  await page.waitForSelector('.modal .lab-chain');
+  expect(await page.locator('.modal .lab-chain button').count() === 2 && await page.locator('.modal .lab-stepper .step').count() === 7, 'remake has its own tracking stepper and the chain to the original');
+  await shot(page, 'lab-remake-chain');
+  await page.keyboard.press('Escape');
   await logout(page);
   // المعمل: بحث برقم الملف ← Delivered to Patient
   await login(page, 'فني المعمل', '8888');

@@ -1367,7 +1367,8 @@ test('lab: nurse sends a case with lines to different labs; lab moves it interna
   throwsCode(() => api(n, 'createLabCase', Object.assign({}, base, { doctor: 'د. سعد' })), 'ERR_BAD_DOCTOR');
   gas.mails.length = 0;
   const PNG = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==';
-  const c = api(n, 'createLabCase', Object.assign({}, base, { photos: [PNG], clientKey: 'lab-draft-00001' }));
+  const withPhotos = Object.assign({}, base, { lines: [Object.assign({}, base.lines[0], { photos: [PNG, PNG] }), base.lines[1]] });
+  const c = api(n, 'createLabCase', Object.assign({}, withPhotos, { photos: [PNG], clientKey: 'lab-draft-00001' }));
   assert.match(c.id, /^LAB-\d{6}-001$/);
   assert.equal(api(n, 'createLabCase', Object.assign({}, base, { clientKey: 'lab-draft-00001' })).id, c.id, 'resend after lost response → no duplicate');
   assert.ok(gas.mails.some(m => m.to.includes('lab@example.com') && /حالة جديدة للمعمل/.test(m.subject)), 'lab account notified');
@@ -1377,6 +1378,7 @@ test('lab: nurse sends a case with lines to different labs; lab moves it interna
   assert.equal(new Date(got.neededBy).toISOString().slice(0, 10), '2026-01-15', 'due = scan date + 10 days (default turnaround)');
   assert.deepEqual(got.items.map(i => i.material), ['Zirconia', 'Emax']);
   assert.equal(api(n, 'getLabCase', c.id).attachments.length, 1);
+  assert.deepEqual(api(n, 'getLabCase', c.id).items.map(i => i.attachments.length), [2, 0], 'photos are attached per work');
   // من يرى: الممرضة، الطبيب نفسه، المعمل — لا ممرضة أخرى ولا التموين
   assert.equal(api(n, 'getMyLabCases').length, 1);
   assert.equal(api(login('ريم', '2222'), 'getMyLabCases').length, 0);
@@ -1416,6 +1418,7 @@ test('lab: nurse sends a case with lines to different labs; lab moves it interna
   assert.equal(closed.status, 'سُلِّم للمريض');
   assert.ok(closed.items.every(i => i.patientAt));
   throwsCode(() => api(L, 'updateLabItems', [i1], 'patient'), 'ERR_BAD_TRANSITION');
+  assert.match(api(n, 'createLabCase', Object.assign({}, base, { lines: [{ lab: 'المعمل الداخلي', workType: 'Crown', details: 'بدون مادة' }] })).id, /^LAB-/, 'material is optional');
 });
 
 test('lab v2: due = scan + turnaround (Settings / per lab), chosen branch, backfilled delivered case, old Arabic work types replaced', () => {
@@ -1490,6 +1493,7 @@ test('lab redo: nurse picks a previous case and the faulty line with a reason; l
   assert.deepEqual(api(other, 'findLabCases', '77'), [], 'file number must match exactly');
   gas.mails.length = 0;
   const r = api(n, 'createLabCase', redoBase);
+  assert.equal(r.id, c.id + '-R1', 'remake is a sub-number of the original case');
   assert.ok(gas.mails.some(m => /Remake/.test(m.subject) && /أغمق/.test(m.body)), 'lab gets the problem in the email');
   const redoRow = rows(gas, 'LabCases').findIndex(x => x.CaseID === r.id) + 2;
   assert.equal(gas.ss.getSheetByName('LabCases')._bg[redoRow], '#FFE0B2', 'remake row is orange in the sheet');
@@ -1517,4 +1521,8 @@ test('lab redo: nurse picks a previous case and the faulty line with a reason; l
   api(q, 'nudgeLab', late.id, 'المريض ينتظر');
   assert.ok(gas.mails.some(m => m.to.includes('lab@example.com') && /متأخرة/.test(m.subject)));
   throwsCode(() => api(login('نواف', '7777'), 'getLabStats', {}), 'ERR_FORBIDDEN');
+  // إعادة للإعادة: R2 تابعة لنفس الإرسالية الأساسية، والسلسلة كاملة في التفاصيل
+  const r2 = api(n, 'createLabCase', Object.assign({}, redoBase, { redoOf: r.id, redoItems: [r.id + '-1'], clientKey: 'redo-two-000001' }));
+  assert.equal(r2.id, c.id + '-R2');
+  assert.deepEqual(api(L, 'getLabCase', r2.id).chain.map(x => [x.id, x.remakeNo]), [[c.id, 0], [c.id + '-R1', 1], [c.id + '-R2', 2]]);
 });
