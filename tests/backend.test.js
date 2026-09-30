@@ -935,6 +935,39 @@ test('backup: full copy of the spreadsheet into its own Drive folder, keeps the 
   assert.ok(rows(gas, 'Log').some(r => String(r.Action).indexOf('نسخة احتياطية') === 0), 'logged');
 });
 
+test('auto setup: the clinic sheet (Buraydah/Unayzah) becomes the approved 22 clinics on first run, references fixed, backup taken, runs once', () => {
+  const sheetNow = [];
+  for (let i = 1; i <= 8; i++) sheetNow.push(['Dental Clinic ' + i + ' - Buraydah', 'Buraydah', 'Dentistry']);
+  for (let i = 1; i <= 4; i++) sheetNow.push(['Dental Clinic ' + i + ' - Unayzah', 'Unayzah', 'Dentistry']);
+  for (let i = 1; i <= 3; i++) sheetNow.push(['Dermatology Clinic ' + i + ' - Buraydah', 'Buraydah', 'Dermatology']);
+  sheetNow.push(['Dermatology Clinic 1 - Unayzah', 'Unayzah', 'Dermatology'], ['Dermatology Clinic 2 - Unayzah', 'Unayzah', 'Dermatology'],
+    ['Steralization- Buraydah', 'Buraydah', 'Steralization'], ['Steralization- Unayzah', 'Unayzah', 'Steralization']);
+  const { api, login, gas } = boot(g => {
+    g.seed('Clinics', ['ClinicName', 'Branch', 'Type'], sheetNow);
+    g.seed('Users', ['Name', 'Password', 'Role', 'Clinic', 'Email'], [
+      ['هند', '1111', 'ممرضة', 'Steralization- Buraydah', ''], ['نورة', '1111', 'ممرضة', 'Dental Clinic 8 - Buraydah, Dermatology Clinic 1 - Buraydah', ''],
+      ['المدير', '1234', 'أدمن', '', '']]);
+  });
+  const a = login('المدير', '1234');
+  const cl = rows(gas, 'Clinics').filter(r => r.ClinicName);
+  assert.equal(cl.length, 22);
+  assert.deepEqual(cl.filter(r => r.Branch === 'Unayzah').map(r => r.ClinicName),
+    ['Dental Clinic 1 - Unayzah', 'Dental Clinic 2 - Unayzah', 'Dental Clinic 3 - Unayzah', 'Dental Clinic 4 - Unayzah', 'Sterilization - Unayzah']);
+  assert.deepEqual(cl.filter(r => r.Type === 'Dermatology').map(r => r.ClinicName), ['Derma Hydrafacial', 'Derma Clarity', 'Derma Gentle Pro', 'Derma CLINIC']);
+  assert.equal(cl.filter(r => r.Branch === 'Buraydah' && r.Type === 'Dentistry').length, 12);
+  assert.equal(api(a, 'getConfig').clinics.length, 22, 'the app sees the new list right away');
+  const users = Object.fromEntries(rows(gas, 'Users').map(u => [u.Name, u.Clinic]));
+  assert.equal(users['هند'], 'Sterilization - Buraydah', 'typo in the user clinic fixed');
+  assert.equal(users['نورة'], 'Dental Clinic 8 - Buraydah, Dermatology Clinic 1 - Buraydah', 'unknown old names are left and reported');
+  assert.ok(rows(gas, 'Log').some(r => /22 عيادة/.test(r.Action) && /Dermatology Clinic 1 - Buraydah/.test(r.Action)), 'change + names needing attention are logged');
+  assert.equal(gas.globals.DriveApp.createFolder._folder.copies.length, 1, 'a backup was taken before changing the sheet');
+  assert.ok(rows(gas, 'Settings').some(r => r.Key === 'LabTurnaroundDays') && rows(gas, 'LabMaterials').length === 8, 'lab settings seeded automatically');
+  gas.ss.getSheetByName('Clinics').getRange(2, 1).setValue('Dental Clinic 1 - Buraydah (renamed)');
+  api(login('المدير', '1234'), 'getConfig');
+  assert.equal(rows(gas, 'Clinics')[0].ClinicName, 'Dental Clinic 1 - Buraydah (renamed)', 'runs once only — later manual edits in the sheet are kept');
+  assert.equal(gas.globals.DriveApp.createFolder._folder.copies.length, 1);
+});
+
 test('batch runs several reads in one execution with per-call errors, and rejects writes', () => {
   const { api, login } = boot();
   const n = login('سارة', '1111');

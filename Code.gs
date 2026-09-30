@@ -107,6 +107,92 @@ const COMPLAINT_TYPES = ['تأخير', 'نقص', 'زيادة', 'أخرى'];
  * شغّل هذه الدالة مرة واحدة من محرر Apps Script. آمنة للتشغيل أكثر من مرة:
  * تضيف التبويبات/الأعمدة الناقصة فقط ولا تمسح أي بيانات.
  */
+/* =====================================================================
+ *  التجهيز التلقائي بعد النشر (مرة واحدة لكل إصدار) — بلا أي خطوة يدوية:
+ *  تبويبات الإعداد (Settings / LabMaterials)، قائمة العيادات المعتمدة، المشغّلات (النسخ الليلي + onChange)
+ * ===================================================================== */
+const SETUP_VERSION_ = '2026-10-clinics22';
+function autoSetup_() {
+  try {
+    const cache = CacheService.getScriptCache();
+    if (cache.get('setup:ok') === SETUP_VERSION_) return;
+    const props = PropertiesService.getScriptProperties();
+    if (props.getProperty('setup:done') !== SETUP_VERSION_) {
+      const lock = LockService.getScriptLock();
+      if (!lock.tryLock(5000)) return; // يُعاد في الاستدعاء التالي
+      try {
+        if (props.getProperty('setup:done') !== SETUP_VERSION_) {
+          seedLabSetup_();
+          migrateClinics_();
+          if (typeof ScriptApp !== 'undefined') { try { installTriggers(); } catch (e) { console.error(e); } } // يحتاج صلاحية المشغّلات
+          flushDirty_();
+          props.setProperty('setup:done', SETUP_VERSION_);
+        }
+      } finally { lock.releaseLock(); }
+    }
+    cache.put('setup:ok', SETUP_VERSION_, 21600);
+  } catch (e) { console.error('autoSetup_', e); } // التجهيز لا يمنع النظام من العمل أبداً
+}
+
+function seedLabSetup_() {
+  if (read_('LabMaterials').rows.length === 0) LAB_MATERIALS_DEFAULT.forEach(function (m) { append_('LabMaterials', { Material: m }); });
+  if (!read_('Settings').rows.some(function (r) { return str_(r.Key) === 'LabTurnaroundDays'; })) {
+    append_('Settings', { Key: 'LabTurnaroundDays', Value: LAB_TURNAROUND_DEFAULT, Notes: 'أيام تنفيذ المعمل الافتراضية: موعد المعمل = تاريخ السكان + هذا العدد (ولكل معمل عمود TurnaroundDays في تبويب Labs)' });
+  }
+}
+
+/** مفتاح مقارنة أسماء العيادات: بلا مسافات/شرطات/حالة أحرف، ويصحح تهجئة Steralization */
+function clinicMatchKey_(v) { return str_(v).toLowerCase().replace(/steraliz/g, 'steriliz').replace(/[\s\-–—_]+/g, ''); }
+
+/**
+ * يجعل تبويب Clinics مطابقاً للقائمة المعتمدة (22 عيادة: بريدة وعنيزة) — فقط في شيت عيادات بريدة/عنيزة.
+ * قبل التعديل تُؤخذ نسخة احتياطية، وتُصحَّح أسماء العيادات في Users وDoctors إن تطابقت (مثل Steralization- Buraydah).
+ */
+function migrateClinics_() {
+  const t = read_('Clinics');
+  if (!t.rows.some(function (r) { return /buraydah|unayzah|بريدة|عنيزة/i.test(str_(r.Branch)); })) return; // ليس شيت العيادة
+  const target = DEFAULT_CLINICS_;
+  const same = t.rows.filter(function (r) { return str_(r.ClinicName); }).map(function (r) { return [str_(r.ClinicName), str_(r.Branch), str_(r.Type)].join('|'); });
+  if (same.length === target.length && target.every(function (c, i) { return same[i] === c.join('|'); })) return;
+  try { runBackup_('النظام (قبل تحديث العيادات)'); } catch (e) { console.error(e); }
+  const sh = sheet_('Clinics');
+  const values = sheetValues_('Clinics');
+  const head = values[0];
+  const width = head.length;
+  const iName = head.indexOf('ClinicName'), iBranch = head.indexOf('Branch'), iType = head.indexOf('Type');
+  const oldCount = Math.max(0, sh.getLastRow() - 1);
+  const rows = [];
+  for (let k = 0; k < Math.max(oldCount, target.length); k++) {
+    const row = []; for (let j = 0; j < width; j++) row.push('');
+    if (k < target.length) { row[iName] = target[k][0]; row[iBranch] = target[k][1]; row[iType] = target[k][2]; }
+    rows.push(row);
+  }
+  sh.getRange(2, 1, rows.length, width).setValues(rows);
+  markDirty_('Clinics');
+  // تصحيح المراجع في Users/Doctors (قائمة مفصولة بفواصل)
+  const byKey = {};
+  target.forEach(function (c) { byKey[clinicMatchKey_(c[0])] = c[0]; });
+  const unknown = {};
+  [['Users', 'Clinic'], ['Doctors', 'Clinic']].forEach(function (pair) {
+    const tb = read_(pair[0]);
+    const ups = [];
+    tb.rows.forEach(function (r) {
+      const raw = str_(r[pair[1]]); if (!raw) return;
+      let changed = false;
+      const parts = raw.split(/[,،]/).map(function (x) {
+        const v = x.trim(), hit = byKey[clinicMatchKey_(v)];
+        if (hit && hit !== v) { changed = true; return hit; }
+        if (!hit && /clinic|steril|derma/i.test(v) && !isSpecialtyWord_(v)) unknown[v] = true;
+        return v;
+      });
+      if (changed) ups.push({ row: r, obj: (function () { const o = {}; o[pair[1]] = parts.join(', '); return o; })() });
+    });
+    if (ups.length) setMany_(tb, ups);
+  });
+  logAction_('', 'تحديث تبويب العيادات للقائمة المعتمدة (' + target.length + ' عيادة)' +
+    (Object.keys(unknown).length ? ' — أسماء قديمة تحتاج ربطاً في Users/Doctors: ' + Object.keys(unknown).join('، ') : ''), 'النظام');
+}
+
 /** العيادات الافتراضية لتجهيز نظام جديد فقط — بعدها تبويب Clinics هو المرجع (أضف/احذف صفوفاً منه مباشرة) */
 const DEFAULT_CLINICS_ = (function () {
   const out = [];
@@ -198,6 +284,7 @@ function api(token, fn, args) {
   fn = String(fn);
   // القراءة من الكاش في كل العمليات؛ الكتابات تتحقق من الشيت الحي (withLock_ / setMany_)
   CACHED_READS_ = true;
+  autoSetup_();
   try {
     if (fn === 'login') return sanitize_(login_(args[0], args[1], args[2]));
     if (fn === 'logout') { logout_(token); return true; }
