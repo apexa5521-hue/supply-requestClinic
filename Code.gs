@@ -118,7 +118,7 @@ const COMPLAINT_TYPES = ['تأخير', 'نقص', 'زيادة', 'أخرى'];
  *  التجهيز التلقائي بعد النشر (مرة واحدة لكل إصدار) — بلا أي خطوة يدوية:
  *  تبويبات الإعداد (Settings / LabMaterials)، قائمة العيادات المعتمدة، المشغّلات (النسخ الليلي + onChange)
  * ===================================================================== */
-const SETUP_VERSION_ = '2026-10-assets-demo';
+const SETUP_VERSION_ = '2026-10-setup-v2';
 function autoSetup_() {
   try {
     const cache = CacheService.getScriptCache();
@@ -129,18 +129,50 @@ function autoSetup_() {
       if (!lock.tryLock(5000)) return; // يُعاد في الاستدعاء التالي
       try {
         if (props.getProperty('setup:done') !== SETUP_VERSION_) {
-          seedLabSetup_();
-          migrateClinics_();
-          grantPerm_('assets', ['executive', 'quality', 'finance']);
-          seedDemoAssets_();
-          if (typeof ScriptApp !== 'undefined') { try { installTriggers(); } catch (e) { console.error(e); } } // يحتاج صلاحية المشغّلات
-          flushDirty_();
-          props.setProperty('setup:done', SETUP_VERSION_);
+          const res = runSetupSteps_(false);
+          if (res.ok) props.setProperty('setup:done', SETUP_VERSION_);
+          else { cache.put('setup:ok', SETUP_VERSION_, 1800); return; } // فشل خطوة: نعيد المحاولة بعد 30 دقيقة (والأدمن يرى السبب)
         }
       } finally { lock.releaseLock(); }
     }
     cache.put('setup:ok', SETUP_VERSION_, 21600);
   } catch (e) { console.error('autoSetup_', e); } // التجهيز لا يمنع النظام من العمل أبداً
+}
+
+/** خطوات التجهيز — كل خطوة مستقلة (فشل واحدة لا يوقف البقية)، والنتيجة تُحفظ ليراها الأدمن */
+function runSetupSteps_(force) {
+  const steps = [
+    ['lab', 'إعدادات المعمل (Settings / LabMaterials)', seedLabSetup_],
+    ['clinics', 'قائمة العيادات المعتمدة', migrateClinics_],
+    ['perms', 'صلاحية العهدة للإدارة والجودة والمالية', function () { grantPerm_('assets', ['executive', 'quality', 'finance']); }],
+    ['demo', 'أدوات العهدة التجريبية TEST101', function () { seedDemoAssets_(force); }],
+    ['triggers', 'المشغّلات (النسخ الليلي + تغييرات الشيت)', function () { if (typeof ScriptApp !== 'undefined') installTriggers(); }]
+  ];
+  const log = steps.map(function (st) {
+    try { st[2](); flushDirty_(); return { step: st[0], label: st[1], ok: true }; }
+    catch (e) { console.error('setup ' + st[0], e); try { flushDirty_(); } catch (x) { /* تجاهل */ } return { step: st[0], label: st[1], ok: false, error: String((e && e.message) || e) }; }
+  });
+  const out = { version: SETUP_VERSION_, at: new Date().toISOString(), ok: log.every(function (l) { return l.ok; }), log: log };
+  try { PropertiesService.getScriptProperties().setProperty('setup:log', JSON.stringify(out)); } catch (e) { /* تجاهل */ }
+  return out;
+}
+
+/** حالة التجهيز للأدمن: إصدار الكود الذي يعمل الآن، آخر تشغيل وخطواته، وعدد أدوات TEST101 */
+function getSetupStatus_() {
+  const props = PropertiesService.getScriptProperties();
+  let last = null;
+  try { last = JSON.parse(props.getProperty('setup:log') || 'null'); } catch (e) { last = null; }
+  return { version: SETUP_VERSION_, done: props.getProperty('setup:done') === SETUP_VERSION_, last: last,
+    demoTools: read_('ItemsCatalog').rows.filter(function (r) { return /TEST101$/i.test(str_(r.ItemName)); }).length,
+    assetTools: read_('ItemsCatalog').rows.filter(function (r) { return isAssetOwnership_(r.Ownership); }).length };
+}
+function runSetupNow_(user) {
+  return withLock_(function () {
+    const res = runSetupSteps_(true);
+    if (res.ok) PropertiesService.getScriptProperties().setProperty('setup:done', SETUP_VERSION_);
+    logAction_('', 'تشغيل التجهيز يدوياً: ' + (res.ok ? 'نجح' : 'فيه أخطاء'), user.name);
+    return getSetupStatus_();
+  });
 }
 
 /** صلاحية جديدة تُضاف للأدوار التي حُفظت صلاحياتها يدوياً (الافتراضية تأخذها تلقائياً) */
@@ -168,8 +200,9 @@ const DEMO_ASSETS_ = [
   ['Amalgamator TEST101', 'SDI', 'Equipment', 640, ''],
   ['Dental Loupes TEST101', 'Univet', 'Equipment', 1190, '']
 ];
-function seedDemoAssets_() {
-  if (!read_('Clinics').rows.some(function (r) { return /buraydah|unayzah|بريدة|عنيزة/i.test(str_(r.Branch)); })) return; // شيت العيادة فقط
+function seedDemoAssets_(force) {
+  // تلقائياً: شيت العيادة فقط (بريدة/عنيزة) · يدوياً من الأدمن: دائماً
+  if (!force && !read_('Clinics').rows.some(function (r) { return /buraydah|unayzah|بريدة|عنيزة/i.test(str_(r.Branch)); })) return;
   const have = {};
   read_('ItemsCatalog').rows.forEach(function (r) { have[str_(r.ItemName).toLowerCase()] = true; });
   DEMO_ASSETS_.forEach(function (d) {
@@ -417,6 +450,8 @@ const API_ = {
   getQualityTrend:           { screens: [], perm: 'overview', fn: function (u, n) { return getQualityTrend_(n); } },
   getUsers:                  { screens: [], perm: 'users', fn: getUsers_ },
   getBackupStatus:           { screens: [], perm: 'users', fn: function () { return backupStatus_(); } },
+  getSetupStatus:            { screens: [], perm: 'users', fn: function () { return getSetupStatus_(); } },
+  runSetupNow:               { screens: [], perm: 'users', fn: runSetupNow_ },
   backupNow:                 { screens: [], perm: 'users', fn: function (user) { return runBackup_(user.name); } },
   getDoctorLinks:            { screens: [], perm: 'users', fn: getDoctorLinks_ },
   createUser:                { screens: [], perm: 'users', fn: createUser_ },

@@ -748,6 +748,9 @@ function log(msg) { console.log('  ✔ ' + msg); }
   expect(await toastHas(page, 'تم أخذ نسخة احتياطية') && await page.isVisible('#bkBox a:has-text("فتح آخر نسخة")'), 'admin takes a backup now and can open it');
   await page.locator('#bkBox').scrollIntoViewIfNeeded();
   await shot(page, 'admin-backup');
+  await page.waitForFunction(() => /2026-10-setup-v2/.test((document.getElementById('suBox') || {}).textContent || ''));
+  await page.click('#suBtn');
+  expect(await toastHas(page, 'اكتمل التجهيز') || await toastHas(page, 'التجهيز فيه خطوات'), 'admin sees the setup status (code version + steps) and can re-run it');
   // صلاحيات الدور: الأدمن يحدد ما يظهر لكل دور
   await page.click('[data-act="roleEdit"][data-name="جودة"]');
   await page.waitForSelector('#rPermWrap:not(.hidden)');

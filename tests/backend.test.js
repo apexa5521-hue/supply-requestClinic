@@ -1085,6 +1085,26 @@ test('nudge goes to whoever the request is waiting on: doctor → doctor, receip
   assert.ok(res.comments.some(c => /التمريض/.test(c.message) && /أكّدي/.test(c.message)));
 });
 
+test('setup steps are independent: one failing step does not block the TEST101 tools; admin sees why and can re-run', () => {
+  const { api, login, gas, ctx } = boot(g => {
+    g.seed('Clinics', ['ClinicName', 'Branch', 'Type'], [['Dental Clinic 1 - Buraydah', 'Buraydah', 'Dentistry']]);
+  });
+  const realMigrate = ctx.migrateClinics_;
+  ctx.migrateClinics_ = () => { throw new Error('ERR_CONFLICT'); };
+  const a = login('المدير', '1234');
+  assert.equal(rows(gas, 'ItemsCatalog').filter(r => /TEST101$/.test(r.ItemName)).length, 8, 'demo tools added even though the clinics step failed');
+  let st = api(a, 'getSetupStatus');
+  assert.equal(st.done, false);
+  assert.deepEqual(st.last.log.filter(x => !x.ok).map(x => [x.step, x.error]), [['clinics', 'ERR_CONFLICT']]);
+  assert.equal(st.demoTools, 8);
+  throwsCode(() => api(login('سارة', '1111'), 'runSetupNow'), 'ERR_FORBIDDEN');
+  ctx.migrateClinics_ = realMigrate;
+  st = api(a, 'runSetupNow');
+  assert.equal(st.done, true);
+  assert.ok(st.last.ok);
+  assert.equal(rows(gas, 'ItemsCatalog').filter(r => /TEST101$/.test(r.ItemName)).length, 8, 're-running does not duplicate');
+});
+
 test('batch runs several reads in one execution with per-call errors, and rejects writes', () => {
   const { api, login } = boot();
   const n = login('سارة', '1111');

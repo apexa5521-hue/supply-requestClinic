@@ -91,7 +91,7 @@ const I18N = {
     users_list: 'المستخدمون', add_user: 'مستخدم جديد', name: 'الاسم', role: 'الدور', email: 'البريد', screen: 'الشاشة', password: 'الرقم السري',
     pass_keep: 'اتركه فارغاً لعدم التغيير', email_ph: 'اختياري — للإشعارات', clinics_hint: 'للممرضات: عيادة أو أكثر', search_users: 'بحث بالاسم أو الدور…',
     confirm_delete_user: 'حذف المستخدم «{n}» نهائياً؟', user_saved: 'تم حفظ المستخدم', user_deleted: 'تم حذف المستخدم', edit_user: 'تعديل مستخدم',
-    roles_title: 'الأدوار والشاشات', bk_title: 'النسخ الاحتياطية', bk_sub: 'نسخة كاملة من الشيت كل ليلة (2 فجراً) في مجلد Drive مستقل — يُحتفظ بآخر {n} نسخة', bk_now: 'نسخة احتياطية الآن', bk_last: 'آخر نسخة: {d} · بواسطة {by}', bk_none: 'لم تُؤخذ أي نسخة بعد', bk_open: 'فتح آخر نسخة', bk_folder: 'مجلد النسخ', bk_done: 'تم أخذ نسخة احتياطية', bk_auto_off: 'النسخ الليلي التلقائي غير مفعّل — شغّل installTriggers مرة واحدة من محرر Apps Script', bk_restore: 'للاسترجاع: افتح النسخة ← File ← Make a copy، أو انسخ منها التبويب/الصفوف المطلوبة للشيت الأصلي', roles_sub: 'كل دور مرتبط بشاشة تحدد ما يراه المستخدم بعد الدخول', add_role: 'دور جديد', role_name: 'اسم الدور',
+    roles_title: 'الأدوار والشاشات', bk_title: 'النسخ الاحتياطية', su_title: 'تجهيز النظام بعد التحديث', su_sub: 'يعمل تلقائياً مرة بعد كل تحديث — هنا ترى نتيجة كل خطوة وتعيد تشغيله', su_run: 'تشغيل التجهيز الآن', su_version: 'إصدار الكود العامل:', su_done: 'اكتمل', su_pending: 'لم يكتمل', su_assets: 'أدوات العهدة في الكتالوج: {n} (منها TEST101: {d})', su_last: 'آخر تشغيل: {d}', su_never: 'لم يعمل التجهيز بعد على هذا الإصدار', su_ok: 'اكتمل التجهيز', su_err: 'التجهيز فيه خطوات فشلت — السبب ظاهر بجانبها', bk_sub: 'نسخة كاملة من الشيت كل ليلة (2 فجراً) في مجلد Drive مستقل — يُحتفظ بآخر {n} نسخة', bk_now: 'نسخة احتياطية الآن', bk_last: 'آخر نسخة: {d} · بواسطة {by}', bk_none: 'لم تُؤخذ أي نسخة بعد', bk_open: 'فتح آخر نسخة', bk_folder: 'مجلد النسخ', bk_done: 'تم أخذ نسخة احتياطية', bk_auto_off: 'النسخ الليلي التلقائي غير مفعّل — شغّل installTriggers مرة واحدة من محرر Apps Script', bk_restore: 'للاسترجاع: افتح النسخة ← File ← Make a copy، أو انسخ منها التبويب/الصفوف المطلوبة للشيت الأصلي', roles_sub: 'كل دور مرتبط بشاشة تحدد ما يراه المستخدم بعد الدخول', add_role: 'دور جديد', role_name: 'اسم الدور',
     confirm_delete_role: 'حذف الدور «{n}»؟', role_saved: 'تم حفظ الدور',
     alert_to_receive: 'لديك <b>{n}</b> طلب فيه شحنات بانتظار تأكيد الاستلام', alert_rejected: '<b>{n}</b> من طلباتك رُفض من الطبيب — راجع السبب وأعد الإرسال',
     alert_urgent_new: '<b>{n}</b> طلب طارئ معتمد بانتظار التجهيز', alert_new: '<b>{n}</b> طلب جاهز للتجهيز', alert_approved_ready: '<b>{n}</b> طلب مجهّز جاهز للإرسال للفرع',
@@ -188,7 +188,7 @@ const I18N = {
     users_list: 'Users', add_user: 'New user', name: 'Name', role: 'Role', email: 'Email', screen: 'Screen', password: 'Password',
     pass_keep: 'Leave empty to keep', email_ph: 'Optional — for notifications', clinics_hint: 'For nurses: one or more clinics', search_users: 'Search by name or role…',
     confirm_delete_user: 'Delete user “{n}” permanently?', user_saved: 'User saved', user_deleted: 'User deleted', edit_user: 'Edit user',
-    roles_title: 'Roles & screens', bk_title: 'Backups', bk_sub: 'A full copy of the spreadsheet every night (2 AM) in its own Drive folder — the latest {n} are kept', bk_now: 'Back up now', bk_last: 'Last backup: {d} · by {by}', bk_none: 'No backup taken yet', bk_open: 'Open latest backup', bk_folder: 'Backups folder', bk_done: 'Backup taken', bk_auto_off: 'Nightly backup is not enabled — run installTriggers once from the Apps Script editor', bk_restore: 'To restore: open the backup → File → Make a copy, or copy the needed tab/rows back into the original sheet', roles_sub: 'Each role maps to the screen a user sees after sign-in', add_role: 'New role', role_name: 'Role name',
+    roles_title: 'Roles & screens', bk_title: 'Backups', su_title: 'Post-update setup', su_sub: 'Runs automatically once after each update — see each step’s result here and re-run it', su_run: 'Run setup now', su_version: 'Running code version:', su_done: 'Complete', su_pending: 'Not complete', su_assets: 'Custody tools in catalog: {n} (TEST101: {d})', su_last: 'Last run: {d}', su_never: 'Setup has not run on this version yet', su_ok: 'Setup complete', su_err: 'Some setup steps failed — the reason is shown next to them', bk_sub: 'A full copy of the spreadsheet every night (2 AM) in its own Drive folder — the latest {n} are kept', bk_now: 'Back up now', bk_last: 'Last backup: {d} · by {by}', bk_none: 'No backup taken yet', bk_open: 'Open latest backup', bk_folder: 'Backups folder', bk_done: 'Backup taken', bk_auto_off: 'Nightly backup is not enabled — run installTriggers once from the Apps Script editor', bk_restore: 'To restore: open the backup → File → Make a copy, or copy the needed tab/rows back into the original sheet', roles_sub: 'Each role maps to the screen a user sees after sign-in', add_role: 'New role', role_name: 'Role name',
     confirm_delete_role: 'Delete role “{n}”?', role_saved: 'Role saved',
     alert_to_receive: 'You have <b>{n}</b> request(s) with shipments awaiting receipt', alert_rejected: '<b>{n}</b> of your requests were rejected — check the reason and resubmit',
     alert_urgent_new: '<b>{n}</b> approved emergency request(s) to prepare', alert_new: '<b>{n}</b> request(s) ready to prepare', alert_approved_ready: '<b>{n}</b> prepared request(s) ready to dispatch',
@@ -4356,9 +4356,11 @@ VIEWS.users = {
       '<section class="card"><div class="card-head"><div><h2>' + icon('shield') + esc(t('roles_title')) + '</h2><div class="hint">' + esc(t('roles_sub')) + '</div></div>' +
       '<button class="btn btn-soft" data-act="roleNew">' + icon('plus', 'i-sm') + esc(t('add_role')) + '</button></div><div class="card-body"><div id="rTable"></div></div></section>' +
       '<section class="card"><div class="card-head"><div><h2>' + icon('save') + esc(t('bk_title')) + '</h2><div class="hint">' + esc(t('bk_sub', { n: 30 })) + '</div></div>' +
-      '<button class="btn btn-soft" data-act="backupNow" id="bkBtn">' + icon('save', 'i-sm') + esc(t('bk_now')) + '</button></div><div class="card-body"><div id="bkBox" class="stack"><div class="skel" style="height:40px"></div></div></div></section>';
+      '<button class="btn btn-soft" data-act="backupNow" id="bkBtn">' + icon('save', 'i-sm') + esc(t('bk_now')) + '</button></div><div class="card-body"><div id="bkBox" class="stack"><div class="skel" style="height:40px"></div></div></div></section>' +
+      '<section class="card"><div class="card-head"><div><h2>' + icon('refresh') + esc(t('su_title')) + '</h2><div class="hint">' + esc(t('su_sub')) + '</div></div>' +
+      '<button class="btn btn-soft" data-act="setupNow" id="suBtn">' + icon('play', 'i-sm') + esc(t('su_run')) + '</button></div><div class="card-body"><div id="suBox" class="stack"><div class="skel" style="height:40px"></div></div></div></section>';
   },
-  mount() { renderRoles(); loadUsers(); loadBackup(); },
+  mount() { renderRoles(); loadUsers(); loadBackup(); loadSetup(); },
   refresh() { loadUsers(true); }
 };
 function renderBackup(st) {
@@ -4370,6 +4372,22 @@ function renderBackup(st) {
     (st.folderUrl ? '<a class="btn btn-sm btn-ghost" href="' + esc(st.folderUrl) + '" target="_blank" rel="noopener">' + esc(t('bk_folder')) + '</a>' : '') + '</span></div>' +
     '<div class="hint">' + icon('info', 'i-sm') + ' ' + esc(t('bk_restore')) + '</div>';
 }
+function renderSetup(st) {
+  const box = $('#suBox'); if (!box || !st) return;
+  const l = st.last;
+  box.innerHTML = '<div class="row-wrap"><span class="tag">' + esc(t('su_version')) + ' <b class="mono" style="margin-inline-start:4px">' + esc(st.version) + '</b></span>' +
+      '<span class="tag' + (st.done ? '' : ' late') + '">' + esc(t(st.done ? 'su_done' : 'su_pending')) + '</span>' +
+      '<span class="tag">' + esc(t('su_assets', { n: st.assetTools, d: st.demoTools })) + '</span></div>' +
+    (l ? '<div class="list">' + l.log.map(x => '<div class="row" style="gap:8px">' + icon(x.ok ? 'checkc' : 'xc', 'i-sm') + '<span' + (x.ok ? '' : ' style="color:var(--t-red)"') + '>' + esc(x.label) +
+        (x.error ? ' — <b>' + esc(x.error) + '</b>' : '') + '</span></div>').join('') + '</div><div class="hint">' + esc(t('su_last', { d: fmtDateTime(l.at) })) + '</div>'
+      : '<div class="hint">' + esc(t('su_never')) + '</div>');
+}
+function loadSetup() { call('getSetupStatus').then(renderSetup).catch(() => { const b = $('#suBox'); if (b) b.innerHTML = ''; }); }
+ACT.setupNow = el => {
+  busy(el, true);
+  call('runSetupNow').then(st => { busy(el, false); renderSetup(st); toast(t(st.last && st.last.ok ? 'su_ok' : 'su_err'), st.last && st.last.ok ? 'success' : 'warning'); AS.cfg = null; })
+    .catch(e => { busy(el, false); toast(errMsg(e), 'error'); });
+};
 function loadBackup() { call('getBackupStatus').then(renderBackup).catch(() => { const b = $('#bkBox'); if (b) b.innerHTML = ''; }); }
 ACT.backupNow = el => {
   busy(el, true);
