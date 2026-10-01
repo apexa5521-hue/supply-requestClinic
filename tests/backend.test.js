@@ -1085,6 +1085,131 @@ test('nudge goes to whoever the request is waiting on: doctor → doctor, receip
   assert.ok(res.comments.some(c => /التمريض/.test(c.message) && /أكّدي/.test(c.message)));
 });
 
+test('setup steps are independent: one failing step does not block the TEST101 tools; admin sees why and can re-run', () => {
+  const { api, login, gas, ctx } = boot(g => {
+    g.seed('Clinics', ['ClinicName', 'Branch', 'Type'], [['Dental Clinic 1 - Buraydah', 'Buraydah', 'Dentistry']]);
+  });
+  const realMigrate = ctx.migrateClinics_;
+  ctx.migrateClinics_ = () => { throw new Error('ERR_CONFLICT'); };
+  const a = login('المدير', '1234');
+  assert.equal(rows(gas, 'ItemsCatalog').filter(r => /TEST101$/.test(r.ItemName)).length, 8, 'demo tools added even though the clinics step failed');
+  let st = api(a, 'getSetupStatus');
+  assert.equal(st.done, false);
+  assert.deepEqual(st.last.log.filter(x => !x.ok).map(x => [x.step, x.error]), [['clinics', 'ERR_CONFLICT']]);
+  assert.equal(st.demoTools, 8);
+  throwsCode(() => api(login('سارة', '1111'), 'runSetupNow'), 'ERR_FORBIDDEN');
+  ctx.migrateClinics_ = realMigrate;
+  st = api(a, 'runSetupNow');
+  assert.equal(st.done, true);
+  assert.ok(st.last.ok);
+  assert.equal(rows(gas, 'ItemsCatalog').filter(r => /TEST101$/.test(r.ItemName)).length, 8, 're-running does not duplicate');
+});
+
+test('item statuses inside a request + undo a wrong shipment / status step with a reason, logged for quality', () => {
+  const { api, login, gas } = boot();
+  const n = login('سارة', '1111'), p = login('علي', '3333'), d = login('د. خالد', '4444'), q = login('منى', '5555');
+  const id = api(n, 'createRequest', { clinic: 'عيادة الأسنان 1', doctor: 'د. خالد', type: 'شهري', items: [{ name: 'PROPHY PASTE', qty: 3 }, { name: 'DENTAL FLOSS', qty: 3 }, { name: 'MICRO BRUSH FINE', qty: 3 }] }).id;
+  throwsCode(() => api(p, 'setItemsStatus', id, ['PROPHY PASTE'], 'قيد التجهيز'), 'ERR_NEEDS_APPROVAL');
+  api(d, 'doctorReview', id, 'اعتمد', '', []);
+  // حالة كل صنف
+  let full = api(p, 'setItemsStatus', id, ['PROPHY PASTE', 'DENTAL FLOSS'], 'قيد التجهيز');
+  assert.equal(full.request.status, 'قيد التجهيز', 'working on items starts the request prep');
+  full = api(p, 'setItemsStatus', id, ['DENTAL FLOSS'], 'بانتظار المندوب');
+  full = api(p, 'setItemsStatus', id, ['DENTAL FLOSS'], 'استلم المندوب');
+  assert.deepEqual(full.items.map(i => [i.item, i.itemStatus]), [['PROPHY PASTE', 'قيد التجهيز'], ['DENTAL FLOSS', 'استلم المندوب'], ['MICRO BRUSH FINE', '']]);
+  throwsCode(() => api(p, 'setItemsStatus', id, ['DENTAL FLOSS'], 'قيد التجهيز'), 'ERR_REASON_REQUIRED');
+  api(p, 'setItemsStatus', id, ['DENTAL FLOSS'], 'بانتظار المندوب', 'المندوب أرجعها ناقصة');
+  const nurseItems = api(n, 'getRequestDetail', id).items;
+  assert.equal(nurseItems.find(i => i.item === 'DENTAL FLOSS').itemStatus, 'بانتظار المندوب', 'the nurse sees each item status');
+  // شحنة أُرسلت بالغلط ← تراجع مع السبب
+  api(p, 'dispatchItems', id, ['PROPHY PASTE', 'DENTAL FLOSS', 'MICRO BRUSH FINE']);
+  assert.equal(api(n, 'getRequestDetail', id).status, 'تم الإرسال');
+  throwsCode(() => api(p, 'setItemsStatus', id, ['PROPHY PASTE'], 'قيد التجهيز'), 'ERR_NEEDS_APPROVAL');
+  const plan = api(p, 'getRevertPlan', id);
+  assert.deepEqual([plan.can, plan.kind, plan.batch, plan.status, plan.to], [true, 'shipment', 1, 'تم الإرسال', 'قيد التجهيز']);
+  throwsCode(() => api(p, 'revertStep', id, ''), 'ERR_REASON_REQUIRED');
+  throwsCode(() => api(n, 'revertStep', id, 'سبب'), 'ERR_FORBIDDEN');
+  gas.mails.length = 0;
+  const rv = api(p, 'revertStep', id, 'أُرسلت بالغلط لفرع آخر', { kind: 'shipment', batch: 1, status: 'تم الإرسال' });
+  assert.equal(rv.request.request.status, 'قيد التجهيز', 'status back to the previous step');
+  assert.ok(rv.request.items.every(i => i.sentQty === 0 && i.remainingQty === 3), 'the shipment is gone, everything is open again');
+  assert.equal(rv.request.shipments.length, 0);
+  assert.ok(gas.mails.some(m => m.to === 'sara@example.com' && /إلغاء شحنة/.test(m.subject) && /بالغلط/.test(m.body)), 'nurse told not to confirm it');
+  // تراجع الحالة خطوة: قيد التجهيز ← معتمد من الطبيب
+  assert.equal(api(p, 'getRevertPlan', id).kind, 'status');
+  throwsCode(() => api(p, 'revertStep', id, 'سبب كافي', { kind: 'shipment', batch: 1, status: 'تم الإرسال' }), 'ERR_CONFLICT');
+  api(p, 'revertStep', id, 'بدأنا التجهيز قبل الوقت');
+  assert.equal(api(n, 'getRequestDetail', id).status, 'معتمد من الطبيب');
+  assert.equal(api(p, 'getRevertPlan', id).can, false);
+  throwsCode(() => api(p, 'revertStep', id, 'سبب'), 'ERR_NOTHING_TO_REVERT');
+  // السجل: الجودة ترى كل التراجعات مع الوقت والسبب، والتفاصيل تعرضها
+  const log = api(q, 'getReversals', {});
+  assert.deepEqual(log.map(x => x.scope), ['حالة الطلب', 'إلغاء شحنة أُرسلت', 'حالة صنف: DENTAL FLOSS']);
+  assert.ok(log.every(x => x.reason && x.time && x.user === 'علي'));
+  assert.equal(api(n, 'getRequestDetail', id).reversals.length, 3);
+  throwsCode(() => api(n, 'getReversals', {}), 'ERR_FORBIDDEN');
+  // الشحنة المستلمة بالتوقيع لا يُتراجع عنها
+  api(p, 'dispatchItems', id, ['PROPHY PASTE']);
+  api(n, 'receiveShipment', id, 1, [{ item: 'PROPHY PASTE', qty: 3 }], 'سارة', 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==', '', '');
+  assert.equal(api(p, 'getRevertPlan', id).reason, 'ERR_SHIPMENT_RECEIVED');
+});
+
+test('departments: dental/derma consumables, requests take the clinic department, dental and derma procurement each see their own', () => {
+  const { api, login, gas } = boot(g => {
+    g.seed('ItemsCatalog', ['ItemName', 'CommercialName', 'Category', 'Price', 'Department'], [
+      ['DENTAL FLOSS', 'Oral-B', 'Hygiene', 12.5, 'أسنان'], ['PROPHY PASTE', 'Nupro', 'Hygiene', 60, 'Dental'],
+      ['Botox Needle', '', 'Derma', 7.7, 'جلدية'], ['FACE MASK BRUSH', '', 'Derma', 60.5, 'Dermatology'],
+      ['قفازات طبية M', '', 'Protection', 25, '']
+    ]);
+    g.seed('Clinics', ['ClinicName', 'Branch', 'Type'], [['عيادة الأسنان 1', 'الرياض', 'أسنان'], ['عيادة الجلدية 1', 'الرياض', 'جلدية'], ['Sterilization', 'الرياض', 'Sterilization']]);
+  });
+  const n = login('سارة', '1111'), a = login('المدير', '1234');
+  const cat = api(n, 'getConfig').catalog;
+  assert.deepEqual(cat.map(c => [c.name, c.dept || '']), [['DENTAL FLOSS', 'أسنان'], ['PROPHY PASTE', 'أسنان'], ['Botox Needle', 'جلدية'], ['FACE MASK BRUSH', 'جلدية'], ['قفازات طبية M', '']]);
+  throwsCode(() => api(n, 'createRequest', { clinic: 'عيادة الأسنان 1', doctor: 'د. خالد', type: 'شهري', items: [{ name: 'Botox Needle', qty: 1 }] }), 'ERR_ITEM_DEPT');
+  const dental = api(n, 'createRequest', { clinic: 'عيادة الأسنان 1', doctor: 'د. خالد', type: 'شهري', items: [{ name: 'DENTAL FLOSS', qty: 2 }, { name: 'قفازات طبية M', qty: 1 }] }).id;
+  const derma = api(n, 'createRequest', { clinic: 'عيادة الجلدية 1', type: 'شهري', items: [{ name: 'Botox Needle', qty: 5 }] }).id;
+  const steril = api(n, 'createRequest', { clinic: 'Sterilization', type: 'شهري', items: [{ name: 'قفازات طبية M', qty: 3 }, { name: 'DENTAL FLOSS', qty: 1 }] }).id;
+  assert.deepEqual(rows(gas, 'Requests').filter(r => [dental, derma, steril].includes(r.RequestID)).map(r => r.Department), ['أسنان', 'جلدية', '']);
+  // حسابات تموين مقسمة
+  api(a, 'createUser', { name: 'تموين أسنان', password: '1111', role: 'تموين', email: 'pd@example.com', department: 'أسنان' });
+  api(a, 'createUser', { name: 'تموين جلدية', password: '1111', role: 'تموين', email: 'pk@example.com', department: 'جلدية' });
+  assert.equal(api(a, 'getUsers').find(u => u.name === 'تموين جلدية').department, 'جلدية');
+  const pd = login('تموين أسنان', '1111'), pk = login('تموين جلدية', '1111'), all = login('علي', '3333');
+  const ids = t => (api(t, 'getRequests', {}).rows || api(t, 'getRequests', {})).map(r => r.id);
+  assert.ok(ids(pd).includes(dental) && !ids(pd).includes(derma) && ids(pd).includes(steril), 'dental procurement: dental + shared');
+  assert.ok(ids(pk).includes(derma) && !ids(pk).includes(dental) && ids(pk).includes(steril), 'derma procurement: derma + shared');
+  assert.ok(ids(all).includes(dental) && ids(all).includes(derma), 'procurement without a department sees everything');
+  assert.equal(api(pk, 'getConfig').user.department, 'جلدية');
+  // الإيميل يصل لتموين القسم فقط (والعام)
+  gas.mails.length = 0;
+  api(n, 'createRequest', { clinic: 'عيادة الجلدية 1', type: 'طارئ', items: [{ name: 'FACE MASK BRUSH', qty: 1 }] });
+  const to = gas.mails.map(m => m.to).join(',');
+  assert.ok(to.includes('pk@example.com') && to.includes('ali@example.com') && !to.includes('pd@example.com'), to);
+  // تعديل القسم ينعكس فوراً
+  api(a, 'updateUser', 'تموين أسنان', { role: 'تموين', email: 'pd@example.com', department: 'جلدية' });
+  assert.ok(ids(pd).includes(derma));
+});
+
+test('custody report works before the clinic inventory is registered: the unit is registered automatically with the ticket', () => {
+  const { api, login, gas } = boot();
+  const n = login('سارة', '1111'), p = login('علي', '3333');
+  const PNG = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==';
+  throwsCode(() => api(n, 'reportAsset', { clinic: 'عيادة الأسنان 1', item: 'DENTAL FLOSS', problem: 'أخرى', description: 'x' }), 'ERR_NOT_ASSET');
+  throwsCode(() => api(n, 'reportAsset', { clinic: 'عيادة الأسنان 2', item: 'Curing Light', problem: 'خربانة', photo: PNG }), 'ERR_FORBIDDEN');
+  const t1 = api(n, 'reportAsset', { clinic: 'عيادة الأسنان 1', item: 'Handpiece Low Speed', serial: 'NEW-77', problem: 'خربانة', photo: PNG });
+  const t2 = api(n, 'reportAsset', { clinic: 'عيادة الأسنان 1', item: 'Curing Light', problem: 'كفاءتها متدنية', description: 'ضعيف' });
+  const assets = rows(gas, 'Assets');
+  assert.deepEqual(assets.map(a => [a.Item, a.Serial, a.Status, a.Notes]), [['Handpiece Low Speed', 'NEW-77', 'مُرسلة للتموين', 'سُجّلت تلقائياً مع بلاغ'], ['Curing Light', '', 'مُرسلة للتموين', 'سُجّلت تلقائياً مع بلاغ']]);
+  assert.deepEqual(api(p, 'getAssetTickets', {}).map(t => [t.id, t.serial]).sort(), [[t1.id, 'NEW-77'], [t2.id, '']].sort());
+  // نفس الرقم وهو عليه بلاغ مفتوح → مرفوض
+  throwsCode(() => api(n, 'reportAsset', { clinic: 'عيادة الأسنان 1', item: 'Handpiece Low Speed', serial: 'new-77', problem: 'خربانة', photo: PNG }), 'ERR_SERIAL_EXISTS');
+  // القطعة المسجلة تُستخدم بدل إنشاء جديدة
+  api(p, 'issueAssets', { clinic: 'عيادة الأسنان 1', item: 'Handpiece Low Speed', serials: ['REG-1'] });
+  api(n, 'reportAsset', { clinic: 'عيادة الأسنان 1', item: 'Handpiece Low Speed', serial: 'REG-1', problem: 'كفاءتها متدنية', description: 'بطيء' });
+  assert.equal(rows(gas, 'Assets').filter(a => a.Serial === 'REG-1').length, 1);
+});
+
 test('batch runs several reads in one execution with per-call errors, and rejects writes', () => {
   const { api, login } = boot();
   const n = login('سارة', '1111');
