@@ -20,7 +20,8 @@ const SCHEMA = {
   Roles:        ['RoleName', 'Screen', 'Permissions'],
   Clinics:      ['ClinicName', 'Branch', 'Type'],
   Doctors:      ['DoctorName', 'Clinic', 'NurseName', 'Subspecialty'],
-  ItemsCatalog: ['ItemName', 'CommercialName', 'Category', 'Price'],
+  // Ownership: مستهلك (افتراضي) أو عهدة (على حساب الشركة) · Serialized: نعم للأدوات ذات الرقم التسلسلي (الهاندبيس…)
+  ItemsCatalog: ['ItemName', 'CommercialName', 'Category', 'Price', 'Ownership', 'Serialized'],
   Requests:     ['RequestID', 'Date', 'Clinic', 'Doctor', 'Nurse', 'Type', 'Status',
                  'SubmittedAt', 'SentAt', 'ReceivedAt', 'ReceiverName', 'SignatureURL',
                  'PrepAt', 'VendorWaitAt', 'VendorReceivedAt', 'ReviewAt', 'ReviewedAt',
@@ -45,8 +46,14 @@ const SCHEMA = {
                  'RedoOf', 'RedoReason', 'RedoNote', 'Attachments', 'ClientKey', 'ScanDate', 'Notes', 'Source'],
   LabItems:     ['ItemID', 'CaseID', 'Lab', 'LabType', 'WorkType', 'Details', 'Status', 'ReceivedAt', 'StartedAt',
                  'ExternalLab', 'ExternalAt', 'ExpectedAt', 'ReadyAt', 'SentAt', 'DeliveredAt', 'Cost', 'RedoOfItem', 'RedoReason', 'UpdatedBy',
-                 'Material', 'PatientAt'],
-  LabNotes:     ['Timestamp', 'CaseID', 'ItemID', 'Author', 'Role', 'Message']
+                 'Material', 'PatientAt', 'Attachments'],
+  LabNotes:     ['Timestamp', 'CaseID', 'ItemID', 'Author', 'Role', 'Message'],
+  // عُهدة العيادة: المعيار لكل عيادة، القطع المصروفة (بالرقم التسلسلي)، وبلاغات الأدوات
+  ClinicStandards: ['Clinic', 'Item', 'StandardQty', 'UpdatedBy', 'UpdatedAt'],
+  Assets:       ['AssetID', 'Item', 'Serial', 'Clinic', 'Branch', 'Qty', 'Status', 'IssuedAt', 'IssuedBy', 'Cost', 'TicketID', 'Notes', 'UpdatedAt', 'UpdatedBy'],
+  AssetTickets: ['TicketID', 'Date', 'AssetID', 'Item', 'Serial', 'Clinic', 'Branch', 'Nurse', 'Problem', 'Description', 'Photo', 'Status',
+                 'ReceivedAt', 'ReceivedBy', 'InspectPhoto', 'InspectNote', 'Decision', 'DecidedAt', 'RepairVendor', 'RepairCost', 'LossValue',
+                 'ReturnedAt', 'ReplacementAssetID', 'ClosedAt', 'UpdatedBy', 'ClientKey']
 };
 
 const ST = {
@@ -84,12 +91,12 @@ const DEFAULT_ROLES = [
  * notices: إرسال التنبيهات · monitor: متابعة التموين والمواعيد · finance: شاشة المالية
  * prices_edit: تعديل أسعار الكتالوج · users: المستخدمون والأدوار
  */
-const PERMS = ['overview', 'reports', 'complaints', 'complaints_close', 'notices', 'monitor', 'finance', 'prices_edit', 'lab_view', 'users'];
+const PERMS = ['overview', 'reports', 'complaints', 'complaints_close', 'notices', 'monitor', 'finance', 'prices_edit', 'lab_view', 'assets', 'users'];
 const DEFAULT_PERMS = {
   admin: PERMS,
-  executive: ['overview', 'reports', 'complaints', 'complaints_close', 'notices', 'monitor', 'lab_view'],
-  quality: ['overview', 'reports', 'complaints', 'complaints_close', 'notices', 'monitor', 'lab_view'],
-  finance: ['finance', 'prices_edit', 'reports', 'monitor'],
+  executive: ['overview', 'reports', 'complaints', 'complaints_close', 'notices', 'monitor', 'lab_view', 'assets'],
+  quality: ['overview', 'reports', 'complaints', 'complaints_close', 'notices', 'monitor', 'lab_view', 'assets'],
+  finance: ['finance', 'prices_edit', 'reports', 'monitor', 'assets'],
   dashboard: ['overview', 'reports', 'complaints', 'notices']
 };
 /* الطلب الشهري يُرفع من يوم 15 إلى 20، ويجب أن يُستلم قبل يوم 1 من الشهر التالي؛ الطارئ خلال 24 ساعة */
@@ -111,7 +118,7 @@ const COMPLAINT_TYPES = ['تأخير', 'نقص', 'زيادة', 'أخرى'];
  *  التجهيز التلقائي بعد النشر (مرة واحدة لكل إصدار) — بلا أي خطوة يدوية:
  *  تبويبات الإعداد (Settings / LabMaterials)، قائمة العيادات المعتمدة، المشغّلات (النسخ الليلي + onChange)
  * ===================================================================== */
-const SETUP_VERSION_ = '2026-10-clinics22';
+const SETUP_VERSION_ = '2026-10-assets';
 function autoSetup_() {
   try {
     const cache = CacheService.getScriptCache();
@@ -124,6 +131,7 @@ function autoSetup_() {
         if (props.getProperty('setup:done') !== SETUP_VERSION_) {
           seedLabSetup_();
           migrateClinics_();
+          grantPerm_('assets', ['executive', 'quality', 'finance']);
           if (typeof ScriptApp !== 'undefined') { try { installTriggers(); } catch (e) { console.error(e); } } // يحتاج صلاحية المشغّلات
           flushDirty_();
           props.setProperty('setup:done', SETUP_VERSION_);
@@ -132,6 +140,17 @@ function autoSetup_() {
     }
     cache.put('setup:ok', SETUP_VERSION_, 21600);
   } catch (e) { console.error('autoSetup_', e); } // التجهيز لا يمنع النظام من العمل أبداً
+}
+
+/** صلاحية جديدة تُضاف للأدوار التي حُفظت صلاحياتها يدوياً (الافتراضية تأخذها تلقائياً) */
+function grantPerm_(perm, screens) {
+  const t = read_('Roles');
+  if (t.headers.indexOf('Permissions') === -1) return;
+  const ups = t.rows.filter(function (r) {
+    const v = str_(r.Permissions);
+    return screens.indexOf(str_(r.Screen)) !== -1 && v && v !== '*' && v !== 'none' && v.split(/[,،\s]+/).indexOf(perm) === -1;
+  }).map(function (r) { return { row: r, obj: { Permissions: str_(r.Permissions) + ',' + perm } }; });
+  if (ups.length) setMany_(t, ups);
 }
 
 function seedLabSetup_() {
@@ -393,6 +412,18 @@ const API_ = {
   confirmLabReceipt:         { screens: ['nurse'], fn: confirmLabReceipt_ },
   getLabStats:               { screens: ['lab'], perm: 'lab_view', fn: getLabStats_ },
   nudgeLab:                  { screens: [], perm: 'lab_view', fn: nudgeLab_ },
+  // عُهدة العيادة
+  getAssetConfig:            { screens: ['nurse', 'doctor', 'procurement'], perm: 'assets', fn: getAssetConfig_ },
+  getClinicAssets:           { screens: ['nurse', 'doctor', 'procurement'], perm: 'assets', fn: getClinicAssets_ },
+  getAssetTickets:           { screens: ['nurse', 'doctor', 'procurement'], perm: 'assets', fn: getAssetTickets_ },
+  getAssetTicket:            { screens: ['nurse', 'doctor', 'procurement'], perm: 'assets', fn: getAssetTicket_ },
+  findAsset:                 { screens: ['procurement'], perm: 'assets', fn: findAsset_ },
+  getAssetStats:             { screens: ['procurement'], perm: 'assets', fn: getAssetStats_ },
+  reportAsset:               { screens: ['nurse'], fn: reportAsset_ },
+  issueAssets:               { screens: ['procurement'], perm: 'users', fn: issueAssets_ },
+  setClinicStandard:         { screens: ['procurement'], perm: 'users', fn: setClinicStandard_ },
+  updateAssetTicket:         { screens: ['procurement'], fn: updateAssetTicket_ },
+  setAssetTicketCost:        { screens: ['procurement'], perm: 'finance', fn: setAssetTicketCost_ },
   nudgeProcurement:          { screens: [], perm: 'monitor', fn: nudgeProcurement_ },
   getFinance:                { screens: [], perm: 'finance', fn: getFinance_ },
   getPriceList:              { screens: [], perm: 'prices_edit', fn: getPriceList_ },
@@ -970,6 +1001,7 @@ function getCatalog_(withPrice) {
     return true;
   }).map(function (r) {
     const o = { name: str_(r.ItemName), commercial: str_(r.CommercialName), category: str_(r.Category) };
+    if (isAssetOwnership_(r.Ownership)) { o.asset = true; o.serialized = isYes_(r.Serialized); }
     if (withPrice) {
       o.price = price_(r.Price) || 0;
       const issue = priceProblem_(r.Price);
@@ -2466,6 +2498,8 @@ function getAlerts_(user) {
     const labIn = queryLabCases_(user, { nurse: user.name }).filter(function (c) { return c.toReceive; }).length;
     if (labIn) alerts.push({ type: 'info', code: 'alert_lab_to_receive', n: labIn });
   } else if (user.screen === 'procurement') {
+    const tkNew = read_('AssetTickets').rows.filter(function (r) { return str_(r.TicketID) && (str_(r.Status) || TK_ST.NEW) === TK_ST.NEW; }).length;
+    if (tkNew) alerts.push({ type: 'warning', code: 'alert_asset_new', n: tkNew });
     const all = queryRequests_({});
     const ready = all.filter(function (r) { return r.cleared && (r.status === ST.APPROVED || r.status === ST.NEW); });
     const urgent = ready.filter(function (r) { return r.type === 'طارئ'; }).length;
@@ -2602,15 +2636,15 @@ function getDoctorReport_(user, opts) {
       const name = str_(it.ItemName);
       const c = cat[name.toLowerCase()] || {};
       const qty = Number(it.ApprovedQty !== '' && it.ApprovedQty !== null && it.ApprovedQty !== undefined ? it.ApprovedQty : it.RequestedQty) || 0;
-      const price = Number(c.price) || 0; // مُنقّى في getCatalog_ (التواريخ والقيم غير المنطقية = 0)
+      const price = c.asset ? 0 : (Number(c.price) || 0); // مُنقّى في getCatalog_؛ أصناف العهدة على حساب الشركة لا الطبيب
       const total = round2_(qty * price);
-      if (!price) sum.unpriced++;
+      if (!price && !c.asset) sum.unpriced++;
       if (c.priceIssue) badPrices[name] = c.priceIssue;
       const k = name.toLowerCase();
       top[k] = top[k] || { item: name, qty: 0, total: 0 };
       top[k].qty += qty; top[k].total = round2_(top[k].total + total);
       sum.lines++; sum.qty += qty;
-      return { item: name, commercial: c.commercial || '', category: c.category || '', qty: qty, price: price, total: total };
+      return { item: name, commercial: c.commercial || '', category: c.category || '', qty: qty, price: price, total: total, company: !!c.asset };
     });
     const total = round2_(items.reduce(function (a, i) { return a + i.total; }, 0));
     sum.requests++; sum.total = round2_(sum.total + total);
@@ -2636,7 +2670,7 @@ function getStatsReport_(user, opts) {
   const branch = str_(opts.branch);
   const cat = {}, badPrices = [];
   getCatalog_(true).forEach(function (c) {
-    cat[c.name.toLowerCase()] = Number(c.price) || 0;
+    cat[c.name.toLowerCase()] = c.asset ? 0 : (Number(c.price) || 0); // العهدة لا تُحسب على الطبيب/العيادة كمستهلك
     if (c.priceIssue) badPrices.push({ item: c.name, issue: c.priceIssue });
   });
   const byReq = itemsByRequest_();
@@ -2968,7 +3002,7 @@ const LAB_WORK_TYPES_DEFAULT = ['Crown', 'Veneer', 'Bridge', 'Inlay', 'Onlay', '
 const LAB_WORK_TYPES_OLD_ = ['تاج', 'جسر', 'طقم كامل', 'طقم جزئي', 'حافظ مسافة', 'واقي ليلي', 'تقويم متحرك', 'قشور (فينير)', 'حشوة خزفية (إنلاي/أونلاي)', 'زراعة — تاج على زرعة', 'أخرى'];
 const LAB_MATERIALS_DEFAULT = ['Zirconia', 'Emax', 'PFM', 'PMMA', 'Composite', 'Acrylic', 'Metal', 'Other'];
 const LAB_TURNAROUND_DEFAULT = 10;
-const LAB_MAX_ITEMS = 20, LAB_MAX_PHOTOS = 3;
+const LAB_MAX_ITEMS = 20, LAB_MAX_PHOTOS = 3, LAB_LINE_PHOTOS = 3;
 
 function isYes_(v) { return v === true || /^(نعم|yes|true|1|y|✓)$/i.test(str_(v)); }
 
@@ -3066,14 +3100,16 @@ function createLabCase_(user, payload) {
     ? redoLines.map(function (it) {
         return { lab: str_(payload.redoLab) || str_(it.Lab), workType: str_(it.WorkType), material: str_(it.Material), details: str_(it.Details), redoOfItem: str_(it.ItemID) };
       })
-    : (payload.lines || []).map(function (l) { return { lab: str_(l && l.lab), workType: str_(l && l.workType), material: str_(l && l.material), details: clean_(l && l.details, 500) }; })
-        .filter(function (l) { return l.lab || l.workType || l.details; });
+    : (payload.lines || []).map(function (l) {
+        return { lab: str_(l && l.lab), workType: str_(l && l.workType), material: str_(l && l.material), details: clean_(l && l.details, 500),
+          photos: ((l && l.photos) || []).slice(0, LAB_LINE_PHOTOS) };
+      }).filter(function (l) { return l.lab || l.workType || l.details; });
   if (!lines.length) throw new Error('ERR_NO_ITEMS');
   if (lines.length > LAB_MAX_ITEMS) throw new Error('ERR_TOO_MANY_ITEMS');
   lines.forEach(function (l) {
     if (!labs[l.lab] && !(redoOf && !str_(payload.redoLab))) throw new Error('ERR_BAD_LAB');
     if (!l.workType || (types.indexOf(l.workType) === -1 && !redoOf)) throw new Error('ERR_BAD_WORKTYPE');
-    if (!redoOf && materials.indexOf(l.material) === -1) throw new Error('ERR_BAD_MATERIAL');
+    if (!redoOf && l.material && materials.indexOf(l.material) === -1) throw new Error('ERR_BAD_MATERIAL'); // المادة اختيارية
   });
   const needed = labDueFrom_(scan, lines.map(function (l) { return l.lab; }), labs);
   const delivered = !redoOf && !!payload.delivered; // إدخال حالة قديمة سُلّمت للمريض
@@ -3093,14 +3129,21 @@ function createLabCase_(user, payload) {
   }
   const cache = CacheService.getScriptCache();
   const ckKey = clientKey ? 'lck:' + user.name + ':' + clientKey : '';
-  const res = reserveId_('LAB-', function (prefix) { return maxSeq_(freshTable_('LabCases').rows, 'CaseID', prefix); },
-    function () { return ckKey ? cache.get(ckKey) : null; });
+  // الإعادة رقم فرعي تابع للإرسالية الأساسية: LAB-yyMMdd-001-R1، R2…
+  const root = redoOf ? labRootId_(redoOf) : '';
+  const guard = function () { return ckKey ? cache.get(ckKey) : null; };
+  const res = redoOf ? reserveRedoId_(root, guard)
+    : reserveId_('LAB-', function (prefix) { return maxSeq_(freshTable_('LabCases').rows, 'CaseID', prefix); }, guard);
   if (!res.duplicate) {
     const id = res.id;
     if (ckKey) cache.put(ckKey, id, 21600);
     try {
       const urls = [];
       photos.forEach(function (ph, i) { try { urls.push(saveLabPhoto_(id + '-photo' + (i + 1), ph)); } catch (e) { console.error(e); } });
+      lines.forEach(function (l, i) {
+        l.urls = [];
+        (l.photos || []).forEach(function (ph, k) { try { l.urls.push(saveLabPhoto_(id + '-' + (i + 1) + '-photo' + (k + 1), ph)); } catch (e) { console.error(e); } });
+      });
       const now = new Date();
       append_('LabCases', {
         CaseID: id, Date: now, Nurse: user.name, Doctor: doctorName, Clinic: clinic, Branch: branch, Patient: pName, FileNo: fileNum,
@@ -3111,7 +3154,7 @@ function createLabCase_(user, payload) {
       if (redoOf) highlightLastRow_('LabCases', id, '#FFE0B2'); // الإعادة برتقالية في الشيت
       lines.forEach(function (l, i) {
         append_('LabItems', { ItemID: id + '-' + (i + 1), CaseID: id, Lab: l.lab, LabType: (labs[l.lab] || {}).type || '', WorkType: l.workType,
-          Material: l.material, Details: l.details, Status: delivered ? LAB_ST.PATIENT : LAB_ST.NEW, PatientAt: delivered ? now : '',
+          Material: l.material, Details: l.details, Status: delivered ? LAB_ST.PATIENT : LAB_ST.NEW, PatientAt: delivered ? now : '', Attachments: (l.urls || []).join(' '),
           RedoOfItem: l.redoOfItem || '', RedoReason: l.redoOfItem ? str_(payload.redoReason) : '' });
       });
     } catch (e) { if (ckKey) cache.remove(ckKey); throw e; }
@@ -3217,6 +3260,27 @@ function appendMany_(name, objs) {
   markDirty_(name);
 }
 
+/** الإرسالية الأساسية لسلسلة الإعادات (الرقم قبل -R) */
+function labRootId_(id) {
+  let c = labCaseRow_(id), guard = 0;
+  while (c && str_(c.RedoOf) && guard++ < 20) { const up = labCaseRow_(str_(c.RedoOf)); if (!up) break; c = up; }
+  return str_(c ? c.CaseID : id).replace(/-R\d+$/, '');
+}
+/** حجز رقم إعادة فرعي (ROOT-R1، R2…) بقفل قصير وعدّاد لكل إرسالية أساسية */
+function reserveRedoId_(root, guard) {
+  const lock = LockService.getDocumentLock() || LockService.getScriptLock();
+  if (!lock.tryLock(20000)) throw new Error('ERR_BUSY');
+  try {
+    const dup = guard ? guard() : null;
+    if (dup) return { duplicate: true, id: dup };
+    const props = PropertiesService.getScriptProperties();
+    const key = 'rseq:' + root;
+    const n = Math.max(Number(props.getProperty(key)) || 0, maxSeq_(freshTable_('LabCases').rows, 'CaseID', root + '-R')) + 1;
+    props.setProperty(key, String(n));
+    return { duplicate: false, id: root + '-R' + n };
+  } finally { lock.releaseLock(); }
+}
+
 /** تلوين آخر صف مُلحق (إن كان هو صف المعرّف) — تمييز بصري في الشيت فقط */
 function highlightLastRow_(name, id, color) {
   try {
@@ -3260,7 +3324,7 @@ function mapLabItem_(it, c, now) {
   const exp = toMs_(it.ExpectedAt);
   return {
     id: str_(it.ItemID), caseId: str_(it.CaseID), lab: str_(it.Lab), labType: str_(it.LabType), workType: str_(it.WorkType), material: str_(it.Material), details: str_(it.Details),
-    patientAt: it.PatientAt,
+    patientAt: it.PatientAt, attachments: str_(it.Attachments).split(/\s+/).filter(String),
     status: str_(it.Status) || LAB_ST.NEW, receivedAt: it.ReceivedAt, startedAt: it.StartedAt, externalLab: str_(it.ExternalLab), externalAt: it.ExternalAt,
     expectedAt: it.ExpectedAt, readyAt: it.ReadyAt, sentAt: it.SentAt, deliveredAt: it.DeliveredAt, cost: price_(it.Cost),
     redoOfItem: str_(it.RedoOfItem), redoReason: str_(it.RedoReason), updatedBy: str_(it.UpdatedBy),
@@ -3279,7 +3343,8 @@ function mapLabCase_(c, items, now) {
   return {
     id: str_(c.CaseID), date: c.Date, nurse: str_(c.Nurse), doctor: str_(c.Doctor), clinic: str_(c.Clinic), branch: str_(c.Branch),
     patient: str_(c.Patient), fileNo: str_(c.FileNo), neededBy: c.NeededBy, urgent: isYes_(c.Urgent),
-    scanDate: c.ScanDate, notes: str_(c.Notes), source: str_(c.Source),
+    scanDate: c.ScanDate, caseNotes: str_(c.Notes), source: str_(c.Source),
+    root: str_(c.CaseID).replace(/-R\d+$/, ''), remakeNo: Number((/-R(\d+)$/.exec(str_(c.CaseID)) || [])[1]) || 0,
     redoOf: str_(c.RedoOf), redoReason: str_(c.RedoReason), redoNote: str_(c.RedoNote),
     attachments: str_(c.Attachments).split(/\s+/).filter(String), items: its, status: caseStatus_(its),
     overdue: its.some(function (i) { return i.overdue; }), externalLate: its.some(function (i) { return i.externalLate; }),
@@ -3321,6 +3386,11 @@ function getLabCase_(user, id) {
   const o = mapLabCase_(c, labItemsOf_(id), Date.now());
   o.notes = labNotes_(id);
   o.redoneBy = read_('LabCases').rows.filter(function (r) { return str_(r.RedoOf) === o.id; }).map(function (r) { return str_(r.CaseID); });
+  // سلسلة التتبع: الإرسالية الأساسية وكل إعاداتها بحالتها
+  const now = Date.now();
+  o.chain = read_('LabCases').rows.filter(function (r) { const id = str_(r.CaseID); return id === o.root || id.indexOf(o.root + '-R') === 0; })
+    .map(function (r) { const m = mapLabCase_(r, labItemsOf_(str_(r.CaseID)), now); return { id: m.id, status: m.status, date: m.date, remakeNo: m.remakeNo, redoReason: m.redoReason }; })
+    .sort(function (a, b) { return a.remakeNo - b.remakeNo; });
   if (o.redoOf) {
     const orig = labCaseRow_(o.redoOf);
     if (orig) o.origin = mapLabCase_(orig, labItemsOf_(o.redoOf), Date.now());
@@ -3520,5 +3590,370 @@ function getLabStats_(user, opts) {
     workTypes: list(byType), materials: list(byMat), turnaround: defDays, kinds: [out('داخلي', byKind['داخلي']), out('خارجي', byKind['خارجي'])],
     reasons: Object.keys(reasons).map(function (k) { return { reason: k, count: reasons[k] }; }).sort(function (a, b) { return b.count - a.count; }),
     overdueNow: overdueNow.sort(function (a, b) { return b.daysLate - a.daysLate; }), byStatus: openBy, trend: trend
+  };
+}
+
+/* =====================================================================
+ *  عُهدة العيادة — الأدوات على حساب الشركة (ليست مستهلكاً للطبيب)
+ *  الكتالوج: Ownership = عهدة · Serialized = نعم (مثل الهاندبيس اللو/الهاي)
+ *  المعيار لكل عيادة (ClinicStandards) ← الصرف (Assets، سطر لكل رقم تسلسلي) ←
+ *  بلاغ الممرضة (AssetTickets) ← التموين: استلام بصورة الحالة ← قابلة للتصليح / تالفة / مفقودة ← بديل يدوي
+ * ===================================================================== */
+const AS_ST = { IN: 'في العيادة', SENT: 'مُرسلة للتموين', REPAIR: 'قيد الصيانة', DAMAGED: 'تالفة', LOST: 'مفقودة' };
+const TK_ST = { NEW: 'بلاغ جديد', RECEIVED: 'استلمها التموين', REPAIR: 'قيد الصيانة', RETURNED: 'رجعت للعيادة', DAMAGED: 'تالفة', LOST: 'مفقودة' };
+const TK_OPEN = [TK_ST.NEW, TK_ST.RECEIVED, TK_ST.REPAIR];
+const ASSET_PROBLEMS = ['خربانة', 'كفاءتها متدنية', 'مفقودة', 'أخرى'];
+
+function isAssetOwnership_(v) { return /عهد|asset|company|شركة|custody/i.test(str_(v)); }
+
+function assetCatalog_() {
+  const out = {};
+  getCatalog_(true).forEach(function (c) { if (c.asset) out[c.name] = { name: c.name, serialized: !!c.serialized, price: c.price || 0, category: c.category }; });
+  return out;
+}
+/** العيادات التي يراها المستخدم: الممرضة عياداتها (أو الكل إن لم تُقيَّد)، الطبيب عيادات سجله، والبقية الكل */
+function assetClinicsFor_(user) {
+  const all = getClinics_().map(function (c) { return c.name; });
+  if (user.screen === 'nurse') { const mine = userClinics_(user); return mine.length ? mine : all; }
+  if (user.screen === 'doctor') {
+    const names = (doctorNamesFor_(user) || []);
+    const out = [];
+    names.forEach(function (n) { const c = doctorClinic_({ name: '', clinic: '' }, n); if (c && out.indexOf(c) === -1) out.push(c); });
+    return out;
+  }
+  return all;
+}
+function doctorNamesFor_(user) {
+  try { return allDoctors_().filter(function (d) { return isMyDoctor_(user, d.name); }).map(function (d) { return d.name; }); } catch (e) { return []; }
+}
+
+function getAssetConfig_(user) {
+  const cat = assetCatalog_();
+  return { items: Object.keys(cat).map(function (k) { return cat[k]; }), problems: ASSET_PROBLEMS, clinics: assetClinicsFor_(user),
+    canIssue: user.screen === 'procurement' || (user.perms || []).indexOf('users') !== -1 };
+}
+
+function mapAsset_(r) {
+  return { id: str_(r.AssetID), item: str_(r.Item), serial: str_(r.Serial), clinic: str_(r.Clinic), branch: str_(r.Branch),
+    qty: Math.max(1, Math.floor(num_(r.Qty)) || 1), status: str_(r.Status) || AS_ST.IN, issuedAt: r.IssuedAt, cost: price_(r.Cost) || 0,
+    ticket: str_(r.TicketID), notes: str_(r.Notes) };
+}
+
+/** عهدة العيادات: لكل عيادة ولكل أداة: المعيار، الموجود في العيادة، الغائب (عند التموين/الصيانة)، والنقص */
+function getClinicAssets_(user, opts) {
+  opts = opts || {};
+  const allowed = assetClinicsFor_(user);
+  const want = str_(opts.clinic);
+  const clinics = getClinics_().filter(function (c) { return allowed.indexOf(c.name) !== -1 && (!want || c.name === want); });
+  const std = {};
+  read_('ClinicStandards').rows.forEach(function (r) {
+    const q = Math.floor(num_(r.StandardQty));
+    if (str_(r.Clinic) && str_(r.Item) && q > 0) (std[str_(r.Clinic)] = std[str_(r.Clinic)] || {})[str_(r.Item)] = q;
+  });
+  const byClinic = {};
+  read_('Assets').rows.forEach(function (r) {
+    const a = mapAsset_(r);
+    if (!a.id || a.status === AS_ST.DAMAGED || a.status === AS_ST.LOST) return;
+    ((byClinic[a.clinic] = byClinic[a.clinic] || {})[a.item] = byClinic[a.clinic][a.item] || []).push(a);
+  });
+  return clinics.map(function (c) {
+    const s = std[c.name] || {}, have = byClinic[c.name] || {};
+    const names = Object.keys(s).concat(Object.keys(have).filter(function (k) { return !(k in s); }));
+    const items = names.map(function (item) {
+      const list = have[item] || [];
+      const inClinic = list.filter(function (a) { return a.status === AS_ST.IN; }).reduce(function (x, a) { return x + a.qty; }, 0);
+      const away = list.filter(function (a) { return a.status !== AS_ST.IN; }).reduce(function (x, a) { return x + a.qty; }, 0);
+      const standard = s[item] || 0;
+      return { item: item, standard: standard, inClinic: inClinic, away: away, shortage: Math.max(0, standard - inClinic), assets: list };
+    }).sort(function (a, b) { return b.shortage - a.shortage || a.item.localeCompare(b.item); });
+    return { clinic: c.name, branch: c.branch, items: items, shortage: items.reduce(function (x, i) { return x + i.shortage; }, 0) };
+  });
+}
+
+/** المعيار: عدد الأداة المطلوب دائماً في العيادة (التموين/الأدمن) */
+function setClinicStandard_(user, clinic, item, qty) {
+  clinic = str_(clinic); item = str_(item);
+  qty = Math.floor(Number(qty));
+  if (!getClinics_().some(function (c) { return c.name === clinic; })) throw new Error('ERR_BAD_CLINIC');
+  if (!assetCatalog_()[item]) throw new Error('ERR_NOT_ASSET');
+  if (!(qty >= 0 && qty <= 1000)) throw new Error('ERR_BAD_QTY');
+  withLock_(function () {
+    const t = read_('ClinicStandards');
+    const row = t.rows.filter(function (r) { return str_(r.Clinic) === clinic && str_(r.Item) === item; })[0];
+    if (row) setMany_(t, [{ row: row, obj: { StandardQty: qty, UpdatedBy: user.name, UpdatedAt: new Date() } }]);
+    else append_('ClinicStandards', { Clinic: clinic, Item: item, StandardQty: qty, UpdatedBy: user.name, UpdatedAt: new Date() });
+    logAction_('', 'معيار عهدة: ' + clinic + ' — ' + item + ' = ' + qty, user.name);
+  });
+  return getClinicAssets_(user, { clinic: clinic })[0];
+}
+
+/**
+ * صرف عهدة لعيادة (التموين). payload = { clinic, item, qty, serials:[...], cost, notes, ticketId (بديل لبلاغ) }
+ * الأداة ذات الرقم التسلسلي: سطر لكل قطعة (5 هاندبيس = 5 أرقام)، والرقم لا يتكرر لنفس الأداة وهي نشطة.
+ */
+function issueAssets_(user, payload) {
+  payload = payload || {};
+  const clinic = str_(payload.clinic), item = str_(payload.item);
+  const c = getClinics_().filter(function (x) { return x.name === clinic; })[0];
+  if (!c) throw new Error('ERR_BAD_CLINIC');
+  const cat = assetCatalog_()[item];
+  if (!cat) throw new Error('ERR_NOT_ASSET');
+  const serials = (payload.serials || []).map(function (x) { return clean_(x, 60); }).filter(String);
+  let qty = Math.floor(Number(payload.qty));
+  if (cat.serialized) {
+    if (!serials.length) throw new Error('ERR_SERIAL_REQUIRED');
+    if (serials.some(function (x, i) { return serials.indexOf(x) !== i; })) throw new Error('ERR_SERIAL_DUP');
+    qty = serials.length;
+  } else if (!(qty >= 1 && qty <= 500)) throw new Error('ERR_BAD_QTY');
+  const costIn = payload.cost === undefined || payload.cost === '' || payload.cost === null ? null : num_(payload.cost);
+  if (costIn !== null && !(costIn >= 0 && costIn <= PRICE_MAX)) throw new Error('ERR_BAD_PRICE');
+  const unitCost = costIn !== null ? round2_(costIn) : (cat.price || 0);
+  const ticketId = str_(payload.ticketId);
+  const ids = withLock_(function () {
+    if (cat.serialized) {
+      const active = {};
+      read_('Assets').rows.forEach(function (r) {
+        if (str_(r.Item) === item && str_(r.Serial) && [AS_ST.DAMAGED, AS_ST.LOST].indexOf(str_(r.Status)) === -1) active[str_(r.Serial).toLowerCase()] = true;
+      });
+      const taken = serials.filter(function (x) { return active[x.toLowerCase()]; });
+      if (taken.length) throw new Error('ERR_SERIAL_EXISTS:' + taken.join('، '));
+    }
+    let tk = null;
+    if (ticketId) {
+      tk = read_('AssetTickets').rows.filter(function (r) { return str_(r.TicketID) === ticketId; })[0];
+      if (!tk || [TK_ST.DAMAGED, TK_ST.LOST].indexOf(str_(tk.Status)) === -1 || str_(tk.ReplacementAssetID)) throw new Error('ERR_BAD_TRANSITION');
+    }
+    const now = new Date();
+    const n = cat.serialized ? serials.length : 1;
+    const out = [];
+    for (let i = 0; i < n; i++) {
+      const id = reserveId_('AST-', function (prefix) { return maxSeq_(freshTable_('Assets').rows, 'AssetID', prefix); }).id;
+      append_('Assets', { AssetID: id, Item: item, Serial: cat.serialized ? serials[i] : '', Clinic: clinic, Branch: c.branch, Qty: cat.serialized ? 1 : qty,
+        Status: AS_ST.IN, IssuedAt: now, IssuedBy: user.name, Cost: unitCost, Notes: clean_(payload.notes, 300) + (ticketId ? (payload.notes ? ' · ' : '') + 'بديل للبلاغ ' + ticketId : ''),
+        UpdatedAt: now, UpdatedBy: user.name });
+      out.push(id);
+    }
+    if (tk) setMany_(read_('AssetTickets'), [{ row: read_('AssetTickets').rows.filter(function (r) { return str_(r.TicketID) === ticketId; })[0], obj: { ReplacementAssetID: out.join(','), UpdatedBy: user.name } }]);
+    logAction_(ticketId, 'صرف عهدة: ' + item + ' × ' + (cat.serialized ? serials.length + ' (' + serials.join('، ') + ')' : qty) + ' → ' + clinic, user.name);
+    return out;
+  });
+  return { ids: ids, clinic: getClinicAssets_(user, { clinic: clinic })[0] };
+}
+
+function mapTicket_(r) {
+  return { id: str_(r.TicketID), date: r.Date, assetId: str_(r.AssetID), item: str_(r.Item), serial: str_(r.Serial), clinic: str_(r.Clinic), branch: str_(r.Branch),
+    nurse: str_(r.Nurse), problem: str_(r.Problem), description: str_(r.Description), photo: str_(r.Photo), status: str_(r.Status) || TK_ST.NEW,
+    receivedAt: r.ReceivedAt, receivedBy: str_(r.ReceivedBy), inspectPhoto: str_(r.InspectPhoto), inspectNote: str_(r.InspectNote),
+    decision: str_(r.Decision), decidedAt: r.DecidedAt, repairVendor: str_(r.RepairVendor), repairCost: price_(r.RepairCost) || 0,
+    lossValue: price_(r.LossValue) || 0, returnedAt: r.ReturnedAt, replacement: str_(r.ReplacementAssetID), closedAt: r.ClosedAt,
+    open: TK_OPEN.indexOf(str_(r.Status) || TK_ST.NEW) !== -1 };
+}
+function canSeeTicket_(user, tk) {
+  if (user.screen === 'procurement' || (user.perms || []).indexOf('assets') !== -1) return true;
+  return assetClinicsFor_(user).indexOf(tk.clinic) !== -1;
+}
+function getAssetTickets_(user, opts) {
+  opts = opts || {};
+  return read_('AssetTickets').rows.filter(function (r) { return str_(r.TicketID); }).map(mapTicket_)
+    .filter(function (tk) {
+      if (!canSeeTicket_(user, tk)) return false;
+      if (opts.open && !tk.open) return false;
+      return opts.archive || tk.open || (Date.now() - toMs_(tk.closedAt || tk.date)) < ARCHIVE_DAYS * 864e5;
+    }).sort(function (a, b) { return toMs_(b.date) - toMs_(a.date); });
+}
+function getAssetTicket_(user, id) {
+  const r = read_('AssetTickets').rows.filter(function (x) { return str_(x.TicketID) === str_(id); })[0];
+  if (!r) throw new Error('ERR_NOT_FOUND');
+  const tk = mapTicket_(r);
+  if (!canSeeTicket_(user, tk)) throw new Error('ERR_FORBIDDEN');
+  // سجل القطعة: كل بلاغاتها السابقة (مفيد للأرقام التسلسلية كثيرة الأعطال)
+  tk.history = read_('AssetTickets').rows.filter(function (x) { return str_(x.AssetID) === tk.assetId && str_(x.TicketID) !== tk.id; }).map(mapTicket_);
+  return tk;
+}
+
+/** بلاغ أداة من الممرضة: payload = { assetId, problem, description, photo (dataUrl — إلزامية للخربانة), clientKey } */
+function reportAsset_(user, payload) {
+  payload = payload || {};
+  const problem = str_(payload.problem);
+  if (ASSET_PROBLEMS.indexOf(problem) === -1) throw new Error('ERR_BAD_PROBLEM');
+  const desc = clean_(payload.description, 1000);
+  if (problem === 'خربانة' && !payload.photo) throw new Error('ERR_PHOTO_REQUIRED');
+  if ((problem === 'أخرى' || problem === 'كفاءتها متدنية') && !desc) throw new Error('ERR_REQUIRED');
+  const clientKey = /^[A-Za-z0-9-]{8,64}$/.test(str_(payload.clientKey)) ? str_(payload.clientKey) : '';
+  const allowed = assetClinicsFor_(user);
+  const assetId = str_(payload.assetId);
+  if (clientKey) {
+    const same = read_('AssetTickets').rows.filter(function (r) { return str_(r.ClientKey) === clientKey && str_(r.Nurse) === user.name; })[0];
+    if (same) return { duplicate: true, id: str_(same.TicketID) };
+  }
+  const res = withLock_(function () {
+    const t = read_('Assets');
+    const row = t.rows.filter(function (r) { return str_(r.AssetID) === assetId; })[0];
+    if (!row) throw new Error('ERR_NOT_FOUND');
+    const a = mapAsset_(row);
+    if (allowed.indexOf(a.clinic) === -1) throw new Error('ERR_FORBIDDEN');
+    if (a.status !== AS_ST.IN) throw new Error('ERR_ASSET_BUSY');
+    const now = new Date();
+    const id = reserveId_('TKT-', function (prefix) { return maxSeq_(freshTable_('AssetTickets').rows, 'TicketID', prefix); }).id;
+    let target = assetId;
+    if (a.qty > 1) {
+      // أداة بدون رقم تسلسلي وبكمية: قطعة واحدة تُفصل وتُرسل، والباقي يبقى في العيادة
+      setMany_(t, [{ row: row, obj: { Qty: a.qty - 1, UpdatedAt: now, UpdatedBy: user.name } }]);
+      target = reserveId_('AST-', function (prefix) { return maxSeq_(freshTable_('Assets').rows, 'AssetID', prefix); }).id;
+      append_('Assets', { AssetID: target, Item: a.item, Serial: '', Clinic: a.clinic, Branch: a.branch, Qty: 1, Status: AS_ST.SENT, IssuedAt: row.IssuedAt,
+        IssuedBy: str_(row.IssuedBy), Cost: a.cost, TicketID: id, Notes: 'مفصولة من ' + assetId, UpdatedAt: now, UpdatedBy: user.name });
+    } else {
+      setMany_(t, [{ row: row, obj: { Status: AS_ST.SENT, TicketID: id, UpdatedAt: now, UpdatedBy: user.name } }]);
+    }
+    return { id: id, asset: a, target: target };
+  });
+  let photoUrl = '';
+  if (payload.photo) { try { photoUrl = saveLabPhoto_(res.id + '-report', payload.photo); } catch (e) { if (problem === 'خربانة') throw e; } }
+  const a = res.asset;
+  append_('AssetTickets', { TicketID: res.id, Date: new Date(), AssetID: res.target, Item: a.item, Serial: a.serial, Clinic: a.clinic, Branch: a.branch,
+    Nurse: user.name, Problem: problem, Description: desc, Photo: photoUrl, Status: TK_ST.NEW, ClientKey: clientKey });
+  logAction_(res.id, 'بلاغ أداة: ' + a.item + (a.serial ? ' #' + a.serial : '') + ' — ' + problem, user.name);
+  notifyRole_('procurement', '🔧 بلاغ أداة - ' + res.id + ' — ' + a.item, 'العيادة: ' + a.clinic + (a.branch ? ' (' + a.branch + ')' : '') +
+    '\nالأداة: ' + a.item + (a.serial ? '\nالرقم التسلسلي: ' + a.serial : '') + '\nالمشكلة: ' + problem + (desc ? '\nالوصف: ' + desc : '') +
+    '\nالممرضة: ' + user.name + '\n\nيرجى استلام الأداة وتحديث حالتها من داخل النظام.');
+  return { duplicate: false, id: res.id };
+}
+
+/**
+ * التموين يحدّث البلاغ: action =
+ *  receive (استلام + صورة الحالة إلزامية + ملاحظة) · repair (قابلة للتصليح: الجهة + التكلفة) ·
+ *  return (رجعت للعيادة بعد التصليح: التكلفة النهائية) · damaged (تالفة: قيمة الخسارة) · lost (مفقودة) · note (صورة/ملاحظة إضافية)
+ */
+function updateAssetTicket_(user, id, action, data) {
+  data = data || {};
+  action = str_(action);
+  const flow = {
+    receive: [TK_ST.NEW], repair: [TK_ST.RECEIVED], 'return': [TK_ST.REPAIR],
+    damaged: [TK_ST.RECEIVED, TK_ST.REPAIR], lost: [TK_ST.NEW, TK_ST.RECEIVED], note: TK_OPEN
+  };
+  if (!flow[action]) throw new Error('ERR_BAD_ACTION');
+  if (action === 'receive' && !data.photo) throw new Error('ERR_PHOTO_REQUIRED');
+  const money = function (v) {
+    if (v === undefined || v === null || v === '') return null;
+    const n = num_(v); if (!(n >= 0 && n <= PRICE_MAX)) throw new Error('ERR_BAD_PRICE'); return round2_(n);
+  };
+  const cost = money(data.cost), loss = money(data.loss);
+  let photoUrl = '';
+  if (data.photo) photoUrl = saveLabPhoto_(str_(id) + '-' + action + '-' + Date.now(), data.photo);
+  const note = clean_(data.note, 500);
+  const out = withLock_(function () {
+    const t = read_('AssetTickets');
+    const row = t.rows.filter(function (r) { return str_(r.TicketID) === str_(id); })[0];
+    if (!row) throw new Error('ERR_NOT_FOUND');
+    const st = str_(row.Status) || TK_ST.NEW;
+    if (flow[action].indexOf(st) === -1) throw new Error('ERR_BAD_TRANSITION');
+    const now = new Date();
+    const o = { UpdatedBy: user.name };
+    let assetStatus = null;
+    if (photoUrl) o.InspectPhoto = [str_(row.InspectPhoto), photoUrl].filter(String).join(' ');
+    if (note) o.InspectNote = [str_(row.InspectNote), note].filter(String).join(' · ');
+    if (action === 'receive') { o.Status = TK_ST.RECEIVED; o.ReceivedAt = now; o.ReceivedBy = user.name; }
+    if (action === 'repair') {
+      o.Status = TK_ST.REPAIR; o.Decision = 'قابلة للتصليح'; o.DecidedAt = now; o.RepairVendor = clean_(data.vendor, 120);
+      if (cost !== null) o.RepairCost = cost;
+      assetStatus = AS_ST.REPAIR;
+    }
+    if (action === 'return') {
+      o.Status = TK_ST.RETURNED; o.ReturnedAt = now; o.ClosedAt = now;
+      if (cost !== null) o.RepairCost = cost;
+      assetStatus = AS_ST.IN;
+    }
+    if (action === 'damaged' || action === 'lost') {
+      const asset = read_('Assets').rows.filter(function (r) { return str_(r.AssetID) === str_(row.AssetID); })[0];
+      const cat = assetCatalog_()[str_(row.Item)] || {};
+      o.Status = action === 'damaged' ? TK_ST.DAMAGED : TK_ST.LOST;
+      o.Decision = action === 'damaged' ? 'تالفة' : 'مفقودة'; o.DecidedAt = now; o.ClosedAt = now;
+      o.LossValue = loss !== null ? loss : (asset && price_(asset.Cost)) || cat.price || 0;
+      assetStatus = action === 'damaged' ? AS_ST.DAMAGED : AS_ST.LOST;
+    }
+    setMany_(t, [{ row: row, obj: o }]);
+    if (assetStatus) {
+      const at = read_('Assets');
+      const ar = at.rows.filter(function (r) { return str_(r.AssetID) === str_(row.AssetID); })[0];
+      if (ar) setMany_(at, [{ row: ar, obj: { Status: assetStatus, TicketID: assetStatus === AS_ST.IN ? '' : str_(id), UpdatedAt: now, UpdatedBy: user.name } }]);
+    }
+    logAction_(str_(id), 'عهدة — ' + { receive: 'استلام الأداة', repair: 'قابلة للتصليح', 'return': 'رجعت للعيادة', damaged: 'تالفة', lost: 'مفقودة', note: 'ملاحظة/صورة' }[action] +
+      (cost !== null ? ' · تكلفة ' + cost : '') + (o.LossValue !== undefined ? ' · خسارة ' + o.LossValue : ''), user.name);
+    return { nurse: str_(row.Nurse), item: str_(row.Item), serial: str_(row.Serial), status: o.Status };
+  });
+  if (out.status && action !== 'note') {
+    notifyUser_(out.nurse, 'تحديث بلاغ الأداة ' + id + ': ' + out.status, 'الأداة: ' + out.item + (out.serial ? ' #' + out.serial : '') + '\nالحالة: ' + out.status + (note ? '\nملاحظة: ' + note : ''));
+  }
+  return getAssetTicket_(user, id);
+}
+
+/** المالية (أو التموين) تعدّل تكلفة التصليح / قيمة الخسارة */
+function setAssetTicketCost_(user, id, data) {
+  data = data || {};
+  const money = function (v) { const n = num_(v); if (!(n >= 0 && n <= PRICE_MAX)) throw new Error('ERR_BAD_PRICE'); return round2_(n); };
+  withLock_(function () {
+    const t = read_('AssetTickets');
+    const row = t.rows.filter(function (r) { return str_(r.TicketID) === str_(id); })[0];
+    if (!row) throw new Error('ERR_NOT_FOUND');
+    const o = { UpdatedBy: user.name };
+    if (data.repairCost !== undefined && data.repairCost !== '') o.RepairCost = money(data.repairCost);
+    if (data.lossValue !== undefined && data.lossValue !== '') o.LossValue = money(data.lossValue);
+    if (Object.keys(o).length < 2) throw new Error('ERR_REQUIRED');
+    setMany_(t, [{ row: row, obj: o }]);
+    logAction_(str_(id), 'تعديل تكلفة العهدة' + (o.RepairCost !== undefined ? ' · تصليح ' + o.RepairCost : '') + (o.LossValue !== undefined ? ' · خسارة ' + o.LossValue : ''), user.name);
+  });
+  return getAssetTicket_(user, id);
+}
+
+/** بحث بالرقم التسلسلي أو رقم الأصل: القطعة وكل بلاغاتها */
+function findAsset_(user, q) {
+  q = str_(q).toLowerCase();
+  if (q.length < 2) return [];
+  const tickets = read_('AssetTickets').rows.map(mapTicket_);
+  return read_('Assets').rows.map(mapAsset_).filter(function (a) { return a.id && (a.serial.toLowerCase() === q || a.id.toLowerCase() === q || a.serial.toLowerCase().indexOf(q) === 0); })
+    .slice(0, 20).map(function (a) { a.tickets = tickets.filter(function (tk) { return tk.assetId === a.id; }); return a; });
+}
+
+/**
+ * مؤشرات العهدة للإدارة والمالية: البلاغات والقرارات، تكلفة التصليح وقيمة التالف،
+ * حسب العيادة والأداة والفرع، الأرقام التسلسلية المتكررة، والنقص عن المعيار الآن.
+ */
+function getAssetStats_(user, opts) {
+  opts = opts || {};
+  const from = parseDay_(opts.from), to = parseDay_(opts.to, true);
+  const branch = str_(opts.branch);
+  const inRange = function (d) { const ms = toMs_(d); return (!from || ms >= from.getTime()) && (!to || ms <= to.getTime()); };
+  const tickets = read_('AssetTickets').rows.filter(function (r) { return str_(r.TicketID); }).map(mapTicket_)
+    .filter(function (tk) { return inRange(tk.date) && (!branch || tk.branch === branch); });
+  function bucket() { return { tickets: 0, open: 0, repaired: 0, damaged: 0, lost: 0, repairCost: 0, lossValue: 0 }; }
+  function add(b, tk) {
+    b.tickets++;
+    if (tk.open) b.open++;
+    if (tk.status === TK_ST.RETURNED || tk.status === TK_ST.REPAIR) b.repaired++;
+    if (tk.status === TK_ST.DAMAGED) b.damaged++;
+    if (tk.status === TK_ST.LOST) b.lost++;
+    b.repairCost = round2_(b.repairCost + tk.repairCost);
+    b.lossValue = round2_(b.lossValue + tk.lossValue);
+  }
+  const sum = bucket(), byClinic = {}, byItem = {}, byBranch = {}, bySerial = {}, problems = {};
+  tickets.forEach(function (tk) {
+    [sum, byClinic[tk.clinic] = byClinic[tk.clinic] || bucket(), byItem[tk.item] = byItem[tk.item] || bucket(), byBranch[tk.branch || '—'] = byBranch[tk.branch || '—'] || bucket()]
+      .forEach(function (b) { add(b, tk); });
+    if (tk.serial) { const k = tk.item + ' #' + tk.serial; (bySerial[k] = bySerial[k] || { item: tk.item, serial: tk.serial, clinic: tk.clinic, count: 0, cost: 0 }); bySerial[k].count++; bySerial[k].cost = round2_(bySerial[k].cost + tk.repairCost + tk.lossValue); }
+    problems[tk.problem] = (problems[tk.problem] || 0) + 1;
+  });
+  function list(m) { return Object.keys(m).map(function (k) { const b = m[k]; b.name = k; b.total = round2_(b.repairCost + b.lossValue); return b; }).sort(function (a, b) { return b.total - a.total || b.tickets - a.tickets; }); }
+  const clinicsNow = getClinicAssets_(user, {}).filter(function (c) { return !branch || c.branch === branch; });
+  const shortages = [];
+  clinicsNow.forEach(function (c) { c.items.forEach(function (i) { if (i.shortage) shortages.push({ clinic: c.clinic, branch: c.branch, item: i.item, standard: i.standard, inClinic: i.inClinic, away: i.away, shortage: i.shortage }); }); });
+  const assets = read_('Assets').rows.map(mapAsset_).filter(function (a) { return a.id && (!branch || a.branch === branch); });
+  const activeValue = round2_(assets.filter(function (a) { return a.status !== AS_ST.DAMAGED && a.status !== AS_ST.LOST; }).reduce(function (x, a) { return x + a.cost * a.qty; }, 0));
+  sum.total = round2_(sum.repairCost + sum.lossValue);
+  return {
+    from: from, to: to, generatedAt: new Date(), summary: Object.assign(sum, { units: assets.filter(function (a) { return a.status !== AS_ST.DAMAGED && a.status !== AS_ST.LOST; }).reduce(function (x, a) { return x + a.qty; }, 0), activeValue: activeValue, shortageUnits: shortages.reduce(function (x, s) { return x + s.shortage; }, 0) }),
+    byClinic: list(byClinic), byItem: list(byItem), byBranch: list(byBranch),
+    serials: Object.keys(bySerial).map(function (k) { return bySerial[k]; }).filter(function (x) { return x.count > 1; }).sort(function (a, b) { return b.count - a.count || b.cost - a.cost; }).slice(0, 15),
+    problems: Object.keys(problems).map(function (k) { return { problem: k, count: problems[k] }; }).sort(function (a, b) { return b.count - a.count; }),
+    shortages: shortages.sort(function (a, b) { return b.shortage - a.shortage; }), tickets: tickets
   };
 }

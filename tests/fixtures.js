@@ -33,14 +33,17 @@
       ['معمل الابتسامة', 'خارجي', '', '', 'نعم'],
       ['معمل موقوف', 'خارجي', '', '', 'لا']
     ]);
-    gas.seed('ItemsCatalog', ['ItemName', 'CommercialName', 'Category', 'Price'], [
+    gas.seed('ItemsCatalog', ['ItemName', 'CommercialName', 'Category', 'Price', 'Ownership', 'Serialized'], [
       ['MICRO BRUSH FINE', 'TPC Micro', 'Consumables', 45],
       ['PROPHY PASTE', 'Nupro', 'Hygiene', 60],
       ['DENTAL FLOSS', 'Oral-B', 'Hygiene', 12.5],
       ['Etchant Blue Tip', '3M Scotchbond', 'Bonding', 38],
       ['Ivoclar Tetric-N A2', 'Tetric N-Ceram', 'Composite', 120],
       ['Itero Sleeve', 'Align', 'Scanner', 300],
-      ['قفازات طبية M', 'Sri Trang', 'Protection', 25]
+      ['قفازات طبية M', 'Sri Trang', 'Protection', 25],
+      // عهدة (على حساب الشركة)
+      ['Handpiece Low Speed', 'NSK', 'Handpiece', 1500, 'عهدة', 'نعم'],
+      ['Curing Light', 'Woodpecker', 'Equipment', 800, 'عهدة', '']
     ]);
     return gas;
   }
