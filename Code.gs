@@ -16,16 +16,18 @@ const LOGIN_LOCK_SECONDS = 3 * 60;
 const DUP_WINDOW_SECONDS = 120;
 
 const SCHEMA = {
-  Users:        ['Name', 'Password', 'Role', 'Clinic', 'Email', 'PasswordChangedAt', 'DoctorName'],
+  // Department للمستخدم: تموين أسنان / تموين جلدية (فارغ = كل الأقسام)
+  Users:        ['Name', 'Password', 'Role', 'Clinic', 'Email', 'PasswordChangedAt', 'DoctorName', 'Department'],
   Roles:        ['RoleName', 'Screen', 'Permissions'],
   Clinics:      ['ClinicName', 'Branch', 'Type'],
   Doctors:      ['DoctorName', 'Clinic', 'NurseName', 'Subspecialty'],
   // Ownership: مستهلك (افتراضي) أو عهدة (على حساب الشركة) · Serialized: نعم للأدوات ذات الرقم التسلسلي (الهاندبيس…)
-  ItemsCatalog: ['ItemName', 'CommercialName', 'Category', 'Price', 'Ownership', 'Serialized'],
+  // Department: أسنان / جلدية (فارغ = مشترك يظهر للقسمين)
+  ItemsCatalog: ['ItemName', 'CommercialName', 'Category', 'Price', 'Ownership', 'Serialized', 'Department'],
   Requests:     ['RequestID', 'Date', 'Clinic', 'Doctor', 'Nurse', 'Type', 'Status',
                  'SubmittedAt', 'SentAt', 'ReceivedAt', 'ReceiverName', 'SignatureURL',
                  'PrepAt', 'VendorWaitAt', 'VendorReceivedAt', 'ReviewAt', 'ReviewedAt',
-                 'RejectionReason', 'ReceiptURL', 'Branch', 'ApprovedAt', 'ClientKey'],
+                 'RejectionReason', 'ReceiptURL', 'Branch', 'ApprovedAt', 'ClientKey', 'Department'],
   // ItemStatus: حالة الصنف داخل الطلبية (قيد التجهيز / بانتظار المندوب / استلم المندوب) قبل إرساله
   RequestItems: ['RequestID', 'ItemName', 'RequestedQty', 'ApprovedQty', 'ReceivedQty', 'DispatchedAt', 'DispatchBatch', 'ItemStatus', 'ItemStatusAt', 'ItemStatusBy'],
   // سجل التراجعات: كل تراجع عن خطوة (شحنة أُرسلت بالغلط، حالة طلب، حالة صنف) مع السبب والوقت — تراه الجودة والإدارة
@@ -992,6 +994,40 @@ function session_(token) {
   return user;
 }
 
+/* =====================================================================
+ *  الأقسام: أسنان / جلدية — المستهلكات والتموين والطلبات مصنفة بالقسم
+ * ===================================================================== */
+const DEPTS = ['أسنان', 'جلدية'];
+function normDept_(v) {
+  v = str_(v).toLowerCase();
+  if (/dent|أسنان|اسنان/.test(v)) return 'أسنان';
+  if (/derm|جلد|skin/.test(v)) return 'جلدية';
+  return '';
+}
+/** قسم العيادة من نوعها (Dentistry / Dermatology) أو اسمها — التعقيم وغيره بلا قسم (مشترك) */
+function clinicDept_(name) {
+  if (!MEMO_.cDept) {
+    MEMO_.cDept = {};
+    getClinics_().forEach(function (c) { MEMO_.cDept[c.name] = normDept_(c.type) || normDept_(c.name); });
+  }
+  name = str_(name);
+  return name in MEMO_.cDept ? MEMO_.cDept[name] : normDept_(name);
+}
+/** قسم المستخدم من تبويب Users (يُقرأ كل مرة حتى ينعكس تعديل الأدمن فوراً) */
+function userDept_(user) {
+  const r = read_('Users').rows.filter(function (u) { return str_(u.Name) === user.name; })[0];
+  return r ? normDept_(r.Department) : '';
+}
+/** هل يخص الطلب قسم المستخدم؟ (بلا قسم = للجميع) */
+function deptMatch_(userDept, reqDept) { return !userDept || !reqDept || userDept === reqDept; }
+/** إيميل للتموين: حسابات القسم نفسه + حسابات التموين العامة (بلا قسم) */
+function notifyProcurement_(dept, subject, body) {
+  const emails = read_('Users').rows.filter(function (u) {
+    return str_(u.Email) && roleScreen_(u.Role) === 'procurement' && deptMatch_(normDept_(u.Department), dept);
+  }).map(function (u) { return str_(u.Email); });
+  if (emails.length) sendMail_(emails.join(','), subject, body);
+}
+
 function userClinics_(user) {
   return user.clinic ? user.clinic.split(',').map(function (s) { return s.trim(); }).filter(String) : [];
 }
@@ -1069,6 +1105,7 @@ function getCatalog_(withPrice) {
   }).map(function (r) {
     const o = { name: str_(r.ItemName), commercial: str_(r.CommercialName), category: str_(r.Category) };
     if (isAssetOwnership_(r.Ownership)) { o.asset = true; o.serialized = isYes_(r.Serialized); }
+    const dp = normDept_(r.Department); if (dp) o.dept = dp;
     if (withPrice) {
       o.price = price_(r.Price) || 0;
       const issue = priceProblem_(r.Price);
@@ -1155,6 +1192,7 @@ function migrateRoles_() {
 
 function getConfig_(user) {
   // كل العيادات متاحة للجميع في «مستهلكات عيادة» (مثل طلبات التعقيم لأي فرع)؛ عيادات المستخدم تُعرض أولاً
+  user.department = userDept_(user);
   return {
     user: user,
     clinics: getClinics_(),
@@ -1296,6 +1334,7 @@ function findRequest_(id) {
 function mapRequest_(r) {
   return {
     id: str_(r.RequestID), date: r.Date, clinic: str_(r.Clinic), branch: str_(r.Branch) || clinicBranch_(r.Clinic), doctor: str_(r.Doctor),
+    department: normDept_(r.Department) || clinicDept_(r.Clinic),
     nurse: str_(r.Nurse), type: str_(r.Type), status: str_(r.Status) || ST.NEW,
     submittedAt: r.SubmittedAt, prepAt: r.PrepAt, vendorWaitAt: r.VendorWaitAt,
     vendorReceivedAt: r.VendorReceivedAt, reviewAt: r.ReviewAt, reviewedAt: r.ReviewedAt,
@@ -1491,7 +1530,7 @@ function nudgeProcurement_(user, requestId, message) {
   let to = '', emailed = true;
   if (owner === 'nurse') { to = g.req.nurse; emailed = notifyUser_(to, subject, body); }
   else if (owner === 'doctor' && doctorAccounts_()[g.req.doctor]) { to = doctorAccounts_()[g.req.doctor]; emailed = notifyUser_(to, subject, body); }
-  else notifyRole_('procurement', subject, body);
+  else notifyProcurement_(r.department, subject, body);
   // بدون إيميل مسجل: يبقى التنبيه تعليقاً على الطلب يراه صاحبه في النظام
   return { owner: owner, to: to, emailed: emailed, comments: comments_(g.req.id) };
 }
@@ -1711,7 +1750,10 @@ function withArchive_(filters, opts) {
 }
 function getRequestsApi_(user, filters) {
   filters = filters || {};
-  return queryRequests_(withArchive_({ status: filters.status, clinic: filters.clinic, branch: filters.branch, nurse: filters.nurse, month: filters.month }, filters));
+  const list = queryRequests_(withArchive_({ status: filters.status, clinic: filters.clinic, branch: filters.branch, nurse: filters.nurse, month: filters.month }, filters));
+  // تموين الأسنان يرى طلبات الأسنان، وتموين الجلدية طلبات الجلدية (والمشتركة للجميع)
+  const dept = user.screen === 'procurement' ? userDept_(user) : '';
+  return dept ? list.filter(function (r) { return deptMatch_(dept, r.department); }) : list;
 }
 function getMyRequests_(user, opts) { return queryRequests_(withArchive_({ nurse: user.name }, opts)); }
 function getDoctorRequests_(user, opts) { return queryRequests_(withArchive_({ doctorUser: user }, opts)); }
@@ -1758,11 +1800,15 @@ function createRequest_(user, payload) {
   const items = order.map(function (k) { return merged[k]; });
   if (!items.length) throw new Error('ERR_NO_ITEMS');
   // الطلب من الكتالوج فقط — لا أصناف بأسماء حرة (يُعتمد اسم الكتالوج بحروفه)
-  const catalog = {};
-  getCatalog_(false).forEach(function (c) { catalog[c.name.toLowerCase()] = c.name; });
+  const catalog = {}, catDept = {};
+  getCatalog_(false).forEach(function (c) { catalog[c.name.toLowerCase()] = c.name; catDept[c.name.toLowerCase()] = c.dept || ''; });
+  // قسم الطلب من عيادته: طلب الأسنان لا يقبل مستهلكات الجلدية والعكس (المشترك مسموح للقسمين)
+  const dept = clinic ? clinicDept_(clinic) : '';
   items.forEach(function (it) {
     const canon = catalog[it.name.toLowerCase()];
     if (!canon) throw new Error('ERR_UNKNOWN_ITEM');
+    const d = catDept[it.name.toLowerCase()];
+    if (dept && d && d !== dept) throw new Error('ERR_ITEM_DEPT:' + canon);
     it.name = canon;
   });
   if (items.length > 200) throw new Error('ERR_TOO_MANY_ITEMS');
@@ -1796,7 +1842,7 @@ function createRequest_(user, payload) {
     const now = new Date();
     append_('Requests', {
       RequestID: id, Date: now, Clinic: clinic, Branch: branch, Doctor: doctor, Nurse: user.name,
-      Type: type, Status: needsReview ? ST.REVIEW : ST.NEW, SubmittedAt: now, ReviewAt: needsReview ? now : '', ClientKey: clientKey
+      Type: type, Status: needsReview ? ST.REVIEW : ST.NEW, SubmittedAt: now, ReviewAt: needsReview ? now : '', ClientKey: clientKey, Department: dept
     });
     items.forEach(function (it) { append_('RequestItems', { RequestID: id, ItemName: it.name, RequestedQty: it.qty }); });
   } catch (e) {
@@ -1806,15 +1852,15 @@ function createRequest_(user, payload) {
   }
   logAction_(id, 'إنشاء طلب (' + type + ')', user.name);
 
-  const details = '\nرقم الطلب: ' + id + '\nالفرع: ' + (branch || '—') + '\nالعيادة: ' + (clinic || '—') + '\nالطبيب: ' + (doctor || 'مستهلكات عيادة') +
+  const details = '\nرقم الطلب: ' + id + (dept ? '\nالقسم: ' + dept : '') + '\nالفرع: ' + (branch || '—') + '\nالعيادة: ' + (clinic || '—') + '\nالطبيب: ' + (doctor || 'مستهلكات عيادة') +
     '\nالممرضة: ' + user.name + '\nنوع الطلب: ' + type + '\nعدد الأصناف: ' + items.length;
   if (needsReview) {
     notifyUser_(doctorAccounts_()[doctor], (type === 'طارئ' ? '🚨 طلب طارئ بانتظار مراجعتك - ' : 'طلب جديد بانتظار مراجعتك - ') + id,
       'رُفع طلب جديد لعيادتك بانتظار مراجعتك واعتمادك من داخل النظام.' + details);
     // الطارئ: التموين يعلم مبكراً (للاستعداد) رغم انتظار الاعتماد
-    if (type === 'طارئ') notifyRole_('procurement', '🚨 طلب طارئ (بانتظار اعتماد الطبيب) - ' + id, 'رُفع طلب طارئ وهو الآن لدى الطبيب للاعتماد.' + details);
+    if (type === 'طارئ') notifyProcurement_(dept, '🚨 طلب طارئ (بانتظار اعتماد الطبيب) - ' + id, 'رُفع طلب طارئ وهو الآن لدى الطبيب للاعتماد.' + details);
   } else {
-    notifyRole_('procurement', (type === 'طارئ' ? '🚨 طلب طارئ - ' : 'طلب مستلزمات جديد - ') + id,
+    notifyProcurement_(dept, (type === 'طارئ' ? '🚨 طلب طارئ - ' : 'طلب مستلزمات جديد - ') + id,
       (clinicOnly ? 'تم رفع طلب مستهلكات عيادة (بدون طبيب — لا يحتاج اعتماداً).' : 'تم رفع طلب جديد (الطبيب ليس له حساب — لا يحتاج اعتماداً في النظام).') + details);
   }
   return { id: id, duplicate: false };
@@ -2409,7 +2455,7 @@ function doctorReview_(user, requestId, decision, reason, itemNotes, qtys) {
   if (reason && decision === 'اعتمد') addComment_(user, requestId, reason);
   const where = ' (عيادة ' + req.clinic + (req.branch ? ' · فرع ' + req.branch : '') + ')';
   if (decision === 'اعتمد') {
-    notifyRole_('procurement', (req.type === 'طارئ' ? '🚨 طلب طارئ معتمد - ' : 'طلب معتمد جاهز للتجهيز - ') + requestId,
+    notifyProcurement_(req.department, (req.type === 'طارئ' ? '🚨 طلب طارئ معتمد - ' : 'طلب معتمد جاهز للتجهيز - ') + requestId,
       'اعتمد الطبيب ' + user.name + ' الطلب ' + requestId + where + ' وهو جاهز للتجهيز.' + (reason ? '\nملاحظة الطبيب: ' + reason : ''));
   } else {
     notifyUser_(req.nurse, 'رفض الطبيب للطلب - ' + requestId,
@@ -2724,9 +2770,10 @@ function getAlerts_(user) {
     const labIn = queryLabCases_(user, { nurse: user.name }).filter(function (c) { return c.toReceive; }).length;
     if (labIn) alerts.push({ type: 'info', code: 'alert_lab_to_receive', n: labIn });
   } else if (user.screen === 'procurement') {
+    const myDept = userDept_(user);
     const tkNew = read_('AssetTickets').rows.filter(function (r) { return str_(r.TicketID) && (str_(r.Status) || TK_ST.NEW) === TK_ST.NEW; }).length;
     if (tkNew) alerts.push({ type: 'warning', code: 'alert_asset_new', n: tkNew });
-    const all = queryRequests_({});
+    const all = queryRequests_({}).filter(function (r) { return deptMatch_(myDept, r.department); });
     const ready = all.filter(function (r) { return r.cleared && (r.status === ST.APPROVED || r.status === ST.NEW); });
     const urgent = ready.filter(function (r) { return r.type === 'طارئ'; }).length;
     const toSend = all.filter(function (r) { return r.cleared && (r.status === ST.PREP || r.status === ST.VENDOR_RECV); }).length;
@@ -3064,7 +3111,7 @@ function getUsers_() {
   requestRows_().forEach(function (r) { if (str_(r.Doctor)) real[str_(r.Doctor)] = true; });
   Object.keys(acc).forEach(function (n) { if (n !== acc[n] || real[n]) (linked[acc[n]] = linked[acc[n]] || []).push(n); });
   return read_('Users').rows.filter(function (r) { return str_(r.Name); }).map(function (r) {
-    const u = { name: str_(r.Name), role: str_(r.Role), clinic: str_(r.Clinic), email: str_(r.Email), screen: roleScreen_(r.Role), doctorName: str_(r.DoctorName) };
+    const u = { name: str_(r.Name), role: str_(r.Role), clinic: str_(r.Clinic), email: str_(r.Email), screen: roleScreen_(r.Role), doctorName: str_(r.DoctorName), department: normDept_(r.Department) };
     if (u.screen === 'doctor') u.linked = linked[u.name] || [];
     return u;
   });
@@ -3128,11 +3175,11 @@ function createUser_(user, u) {
   const password = String(u.password || '');
   if (!name || !password) throw new Error('ERR_REQUIRED');
   if (password.length < 4) throw new Error('ERR_WEAK_PASSWORD');
-  const fields = { role: str_(u.role), clinic: clean_(u.clinic, 500), email: str_(u.email), doctorName: clean_(u.doctorName, 120) };
+  const fields = { role: str_(u.role), clinic: clean_(u.clinic, 500), email: str_(u.email), doctorName: clean_(u.doctorName, 120), department: normDept_(u.department) };
   validateUserFields_(fields);
   if (getUsers_().some(function (x) { return loginKey_(x.name) === loginKey_(name); })) throw new Error('ERR_USER_EXISTS');
   append_('Users', { Name: name, Password: hashPassword_(latinDigits_(password).trim()), Role: fields.role, Clinic: fields.clinic, Email: fields.email,
-    DoctorName: roleScreen_(fields.role) === 'doctor' ? fields.doctorName : '' });
+    DoctorName: roleScreen_(fields.role) === 'doctor' ? fields.doctorName : '', Department: fields.department });
   logAction_('', 'إنشاء مستخدم: ' + name, user.name);
   return getUsers_();
 }
@@ -3146,12 +3193,12 @@ function updateUser_(user, name, u) {
   const t = read_('Users');
   const row = t.rows.filter(function (r) { return str_(r.Name) === str_(name); })[0];
   if (!row) throw new Error('ERR_NOT_FOUND');
-  const fields = { role: str_(u.role), clinic: clean_(u.clinic, 500), email: str_(u.email), doctorName: clean_(u.doctorName, 120) };
+  const fields = { role: str_(u.role), clinic: clean_(u.clinic, 500), email: str_(u.email), doctorName: clean_(u.doctorName, 120), department: normDept_(u.department) };
   validateUserFields_(fields);
   if (roleScreen_(row.Role) === 'admin' && roleScreen_(fields.role) !== 'admin' && countAdmins_(str_(name)) === 0) {
     throw new Error('ERR_LAST_ADMIN');
   }
-  const upd = { Role: fields.role, Clinic: fields.clinic, Email: fields.email, DoctorName: roleScreen_(fields.role) === 'doctor' ? fields.doctorName : '' };
+  const upd = { Role: fields.role, Clinic: fields.clinic, Email: fields.email, DoctorName: roleScreen_(fields.role) === 'doctor' ? fields.doctorName : '', Department: fields.department };
   if (u.password) {
     if (String(u.password).length < 4) throw new Error('ERR_WEAK_PASSWORD');
     upd.Password = hashPassword_(latinDigits_(String(u.password)).trim());

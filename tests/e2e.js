@@ -163,6 +163,16 @@ function log(msg) { console.log('  ✔ ' + msg); }
   await page.selectOption('#fClinic', await page.$eval('#fClinic optgroup option:nth-child(2)', o => o.value));
   expect((await page.textContent('#sterilNote')).includes('جدة') && await page.inputValue('#fBranch') === 'جدة', 'choosing sterilization shows where it is (branch) and sets the branch');
   await shot(page, 'new-sterilization');
+  // الأقسام: عيادة الجلدية ترى مستهلكات الجلدية والمشتركة فقط، وكل صنف عليه تصنيفه
+  await page.evaluate(() => { S.catalog.forEach(c => { if (c.name === 'PROPHY PASTE') c.dept = 'أسنان'; if (c.name === 'قفازات طبية M') c.dept = 'جلدية'; }); });
+  await page.selectOption('#fClinic', await page.$eval('#fClinic option', (o, n) => [...o.parentNode.parentNode.querySelectorAll('option')].find(x => x.textContent === n).value, 'عيادة الجلدية 1'));
+  await page.click('#itemSearch');
+  await page.waitForSelector('#comboList .combo-opt');
+  const pick = await page.$$eval('#comboList .combo-opt .nm', els => els.map(e => e.textContent));
+  expect(!pick.some(x => x.includes('PROPHY PASTE')) && pick.some(x => x.includes('قفازات طبية M') && x.includes('مستهلك جلدية')) && pick.some(x => x.includes('مشترك')), 'derma clinic: dental items hidden, items tagged by department (' + pick.length + ')');
+  await shot(page, 'items-by-department');
+  await page.keyboard.press('Escape');
+  await page.evaluate(() => { S.catalog.forEach(c => { delete c.dept; }); });
   await shot(page, 'new-clinic-consumables');
   await page.click('[data-seg-name="reqKind"][data-v="doctor"]');
   await page.waitForSelector('#fDoctor option[value="د. خالد"]', { state: 'attached' });

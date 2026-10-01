@@ -1154,6 +1154,43 @@ test('item statuses inside a request + undo a wrong shipment / status step with 
   assert.equal(api(p, 'getRevertPlan', id).reason, 'ERR_SHIPMENT_RECEIVED');
 });
 
+test('departments: dental/derma consumables, requests take the clinic department, dental and derma procurement each see their own', () => {
+  const { api, login, gas } = boot(g => {
+    g.seed('ItemsCatalog', ['ItemName', 'CommercialName', 'Category', 'Price', 'Department'], [
+      ['DENTAL FLOSS', 'Oral-B', 'Hygiene', 12.5, 'أسنان'], ['PROPHY PASTE', 'Nupro', 'Hygiene', 60, 'Dental'],
+      ['Botox Needle', '', 'Derma', 7.7, 'جلدية'], ['FACE MASK BRUSH', '', 'Derma', 60.5, 'Dermatology'],
+      ['قفازات طبية M', '', 'Protection', 25, '']
+    ]);
+    g.seed('Clinics', ['ClinicName', 'Branch', 'Type'], [['عيادة الأسنان 1', 'الرياض', 'أسنان'], ['عيادة الجلدية 1', 'الرياض', 'جلدية'], ['Sterilization', 'الرياض', 'Sterilization']]);
+  });
+  const n = login('سارة', '1111'), a = login('المدير', '1234');
+  const cat = api(n, 'getConfig').catalog;
+  assert.deepEqual(cat.map(c => [c.name, c.dept || '']), [['DENTAL FLOSS', 'أسنان'], ['PROPHY PASTE', 'أسنان'], ['Botox Needle', 'جلدية'], ['FACE MASK BRUSH', 'جلدية'], ['قفازات طبية M', '']]);
+  throwsCode(() => api(n, 'createRequest', { clinic: 'عيادة الأسنان 1', doctor: 'د. خالد', type: 'شهري', items: [{ name: 'Botox Needle', qty: 1 }] }), 'ERR_ITEM_DEPT');
+  const dental = api(n, 'createRequest', { clinic: 'عيادة الأسنان 1', doctor: 'د. خالد', type: 'شهري', items: [{ name: 'DENTAL FLOSS', qty: 2 }, { name: 'قفازات طبية M', qty: 1 }] }).id;
+  const derma = api(n, 'createRequest', { clinic: 'عيادة الجلدية 1', type: 'شهري', items: [{ name: 'Botox Needle', qty: 5 }] }).id;
+  const steril = api(n, 'createRequest', { clinic: 'Sterilization', type: 'شهري', items: [{ name: 'قفازات طبية M', qty: 3 }, { name: 'DENTAL FLOSS', qty: 1 }] }).id;
+  assert.deepEqual(rows(gas, 'Requests').filter(r => [dental, derma, steril].includes(r.RequestID)).map(r => r.Department), ['أسنان', 'جلدية', '']);
+  // حسابات تموين مقسمة
+  api(a, 'createUser', { name: 'تموين أسنان', password: '1111', role: 'تموين', email: 'pd@example.com', department: 'أسنان' });
+  api(a, 'createUser', { name: 'تموين جلدية', password: '1111', role: 'تموين', email: 'pk@example.com', department: 'جلدية' });
+  assert.equal(api(a, 'getUsers').find(u => u.name === 'تموين جلدية').department, 'جلدية');
+  const pd = login('تموين أسنان', '1111'), pk = login('تموين جلدية', '1111'), all = login('علي', '3333');
+  const ids = t => (api(t, 'getRequests', {}).rows || api(t, 'getRequests', {})).map(r => r.id);
+  assert.ok(ids(pd).includes(dental) && !ids(pd).includes(derma) && ids(pd).includes(steril), 'dental procurement: dental + shared');
+  assert.ok(ids(pk).includes(derma) && !ids(pk).includes(dental) && ids(pk).includes(steril), 'derma procurement: derma + shared');
+  assert.ok(ids(all).includes(dental) && ids(all).includes(derma), 'procurement without a department sees everything');
+  assert.equal(api(pk, 'getConfig').user.department, 'جلدية');
+  // الإيميل يصل لتموين القسم فقط (والعام)
+  gas.mails.length = 0;
+  api(n, 'createRequest', { clinic: 'عيادة الجلدية 1', type: 'طارئ', items: [{ name: 'FACE MASK BRUSH', qty: 1 }] });
+  const to = gas.mails.map(m => m.to).join(',');
+  assert.ok(to.includes('pk@example.com') && to.includes('ali@example.com') && !to.includes('pd@example.com'), to);
+  // تعديل القسم ينعكس فوراً
+  api(a, 'updateUser', 'تموين أسنان', { role: 'تموين', email: 'pd@example.com', department: 'جلدية' });
+  assert.ok(ids(pd).includes(derma));
+});
+
 test('batch runs several reads in one execution with per-call errors, and rejects writes', () => {
   const { api, login } = boot();
   const n = login('سارة', '1111');
