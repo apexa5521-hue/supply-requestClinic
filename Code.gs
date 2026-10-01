@@ -26,7 +26,10 @@ const SCHEMA = {
                  'SubmittedAt', 'SentAt', 'ReceivedAt', 'ReceiverName', 'SignatureURL',
                  'PrepAt', 'VendorWaitAt', 'VendorReceivedAt', 'ReviewAt', 'ReviewedAt',
                  'RejectionReason', 'ReceiptURL', 'Branch', 'ApprovedAt', 'ClientKey'],
-  RequestItems: ['RequestID', 'ItemName', 'RequestedQty', 'ApprovedQty', 'ReceivedQty', 'DispatchedAt', 'DispatchBatch'],
+  // ItemStatus: حالة الصنف داخل الطلبية (قيد التجهيز / بانتظار المندوب / استلم المندوب) قبل إرساله
+  RequestItems: ['RequestID', 'ItemName', 'RequestedQty', 'ApprovedQty', 'ReceivedQty', 'DispatchedAt', 'DispatchBatch', 'ItemStatus', 'ItemStatusAt', 'ItemStatusBy'],
+  // سجل التراجعات: كل تراجع عن خطوة (شحنة أُرسلت بالغلط، حالة طلب، حالة صنف) مع السبب والوقت — تراه الجودة والإدارة
+  Reversals:    ['Timestamp', 'RequestID', 'User', 'Role', 'Scope', 'From', 'To', 'Reason', 'Details'],
   // كل سطر = كمية صنف واحد داخل شحنة واحدة (يسمح بإرسال جزء من كمية الصنف)
   ShipmentItems: ['RequestID', 'Batch', 'ItemName', 'Qty', 'DispatchedAt', 'DispatchedBy', 'ReceivedQty'],
   Shipments:    ['RequestID', 'Batch', 'ReceivedAt', 'ReceiverName', 'ReceivedBy', 'SignatureURL', 'SignatureFileID', 'ReceiptURL'],
@@ -427,6 +430,10 @@ const API_ = {
   getRequestItemsFull:       { screens: ['procurement'].concat(MGMT), fn: getRequestItemsFull_ },
   updateItemApproval:        { screens: ['procurement'], fn: updateItemApproval_ },
   dispatchItems:             { screens: ['procurement'], fn: dispatchItems_ },
+  setItemsStatus:            { screens: ['procurement'], fn: setItemsStatus_ },
+  getRevertPlan:             { screens: ['procurement'], fn: function (u, id) { return cachedRead_(function () { return revertPlan_(id).plan; }); } },
+  revertStep:                { screens: ['procurement'], fn: revertStep_ },
+  getReversals:              { screens: ['procurement'], perm: 'monitor', fn: getReversals_ },
   bulkUpdateStatus:          { screens: ['procurement'], fn: bulkUpdateStatus_ },
   getDoctorRequests:         { screens: ['doctor'], fn: getDoctorRequests_ },
   getRequestItemsWithCatalog:{ screens: ['doctor', 'procurement'].concat(MGMT), fn: getRequestItemsWithCatalog_ },
@@ -1822,6 +1829,7 @@ function mapItem_(r, batches) {
   return {
     item: str_(r.ItemName), requestedQty: r.RequestedQty, approvedQty: r.ApprovedQty,
     receivedQty: r.ReceivedQty, dispatchedAt: r.DispatchedAt,
+    itemStatus: str_(r.ItemStatus), itemStatusAt: r.ItemStatusAt,
     batch: batches ? batches.of(r) : (Number(r.DispatchBatch) || 0)
   };
 }
@@ -2214,6 +2222,149 @@ function dispatchItems_(user, requestId, lines) {
   return res;
 }
 
+/* =====================================================================
+ *  حالة كل صنف داخل الطلبية + التراجع عن خطوة (مع السبب) وسجل التراجعات
+ * ===================================================================== */
+const ITEM_ST = [ST.PREP, ST.VENDOR_WAIT, ST.VENDOR_RECV]; // قيد التجهيز ← بانتظار المندوب ← استلم المندوب (ثم الإرسال بالشحنات)
+
+function addReversal_(user, requestId, scope, from, to, reason, details) {
+  append_('Reversals', { Timestamp: new Date(), RequestID: str_(requestId), User: user.name, Role: user.role, Scope: scope,
+    From: from, To: to, Reason: reason, Details: clean_(details, 500) });
+  append_('Comments', { Timestamp: new Date(), RequestID: str_(requestId), Author: user.name, Role: user.role,
+    Message: '↩️ تراجع (' + scope + '): ' + from + ' ← ' + to + ' — السبب: ' + reason });
+  logAction_(requestId, 'تراجع (' + scope + '): ' + from + ' ← ' + to + ' — السبب: ' + reason, user.name);
+}
+
+/**
+ * التموين يحدد حالة صنف أو أكثر داخل الطلبية (قبل إرسالها). status = '' لإلغاء الحالة.
+ * الرجوع لحالة سابقة يحتاج سبباً ويُسجَّل في سجل التراجعات.
+ */
+function setItemsStatus_(user, requestId, items, status, reason) {
+  status = str_(status);
+  reason = clean_(reason, 500);
+  if (status && ITEM_ST.indexOf(status) === -1) throw new Error('ERR_BAD_STATUS');
+  items = (Array.isArray(items) ? items : [items]).map(str_).filter(String);
+  if (!items.length) throw new Error('ERR_NO_ITEMS');
+  withLock_(function () {
+    resetMemo_();
+    const f = findRequest_(requestId);
+    const cur = str_(f.row.Status);
+    if ((DISPATCHABLE.indexOf(cur) === -1 && cur !== ST.NEW) || !cleared_(f.row)) throw new Error('ERR_NEEDS_APPROVAL');
+    const req = mapRequest_(f.row);
+    const ri = read_('RequestItems');
+    const rows = ri.rows.filter(function (r) { return str_(r.RequestID) === req.id; });
+    const st = shipState_(req, rows);
+    const left = {};
+    st.items.forEach(function (i) { left[i.item] = i.remainingQty; });
+    const now = new Date();
+    const ups = [], back = [];
+    items.forEach(function (name) {
+      const row = rows.filter(function (r) { return str_(r.ItemName) === name; })[0];
+      if (!row) throw new Error('ERR_NOT_FOUND');
+      if (!(left[name] > 0)) throw new Error('ERR_ITEM_SENT'); // الصنف أُرسل بالكامل — للتراجع استخدم «تراجع خطوة»
+      const was = str_(row.ItemStatus);
+      if (was === status) return;
+      if (ITEM_ST.indexOf(status) < ITEM_ST.indexOf(was)) back.push({ name: name, from: was });
+      ups.push({ row: row, obj: { ItemStatus: status, ItemStatusAt: now, ItemStatusBy: user.name }, from: was });
+    });
+    if (back.length && !reason) throw new Error('ERR_REASON_REQUIRED');
+    if (!ups.length) return;
+    setMany_(ri, ups.map(function (u) { return { row: u.row, obj: u.obj }; }));
+    ups.forEach(function (u) {
+      const to = status || 'بدون حالة';
+      if (back.some(function (b) { return b.name === str_(u.row.ItemName); })) addReversal_(user, req.id, 'حالة صنف: ' + str_(u.row.ItemName), u.from, to, reason, '');
+      else logAction_(req.id, 'حالة صنف: ' + str_(u.row.ItemName) + ' — ' + (u.from || 'بدون حالة') + ' ← ' + to, user.name);
+    });
+    // بدء العمل على أي صنف = الطلب «قيد التجهيز» (إن لم يكن بدأ)
+    if (status && (cur === ST.APPROVED || cur === ST.NEW)) {
+      setCells_(f.t, f.row, { Status: ST.PREP, PrepAt: now });
+      logAction_(req.id, 'تغيير الحالة: ' + cur + ' ← ' + ST.PREP + ' (بدء تجهيز الأصناف)', user.name);
+    }
+  });
+  return getRequestItemsFull_(user, requestId);
+}
+
+/** الحالة السابقة لطلب حسب أختامه الزمنية (للتراجع) */
+function prevStatus_(row, from) {
+  if (from === ST.SENT) return row.VendorReceivedAt ? ST.VENDOR_RECV : row.PrepAt ? ST.PREP : (row.ApprovedAt ? ST.APPROVED : ST.NEW);
+  if (from === ST.VENDOR_RECV) return ST.VENDOR_WAIT;
+  if (from === ST.VENDOR_WAIT) return ST.PREP;
+  if (from === ST.PREP) return row.ApprovedAt ? ST.APPROVED : ST.NEW;
+  return '';
+}
+/**
+ * ما الذي سيُتراجع عنه: آخر شحنة لم تستلمها العيادة (أُرسلت بالغلط) — وإلا حالة الطلب خطوة للخلف.
+ * الشحنة المستلمة بالتوقيع لا يُتراجع عنها.
+ */
+function revertPlan_(requestId) {
+  const f = findRequest_(requestId);
+  const req = mapRequest_(f.row);
+  const rows = itemsOf_(req.id);
+  const st = shipState_(req, rows);
+  const cur = str_(f.row.Status) || ST.NEW;
+  const last = st.ships.length ? st.ships[st.ships.length - 1] : null;
+  if (last && !last.received) {
+    const to = cur === ST.SENT ? prevStatus_(f.row, ST.SENT) : cur;
+    return { f: f, req: req, st: st, plan: { can: true, kind: 'shipment', batch: last.batch, from: 'الشحنة ' + last.batch + ' (' + last.units + ' قطعة)', status: cur, to: to,
+      items: last.items.map(function (i) { return { item: i.item, qty: i.qty }; }) } };
+  }
+  const to = [ST.PREP, ST.VENDOR_WAIT, ST.VENDOR_RECV].indexOf(cur) !== -1 ? prevStatus_(f.row, cur) : '';
+  if (to) return { f: f, req: req, st: st, plan: { can: true, kind: 'status', from: cur, status: cur, to: to } };
+  return { f: f, req: req, st: st, plan: { can: false, status: cur, reason: last && last.received ? 'ERR_SHIPMENT_RECEIVED' : 'ERR_NOTHING_TO_REVERT' } };
+}
+
+/** التراجع عن خطوة (التموين) — السبب إلزامي ويُسجَّل مع الوقت في سجل التراجعات */
+function revertStep_(user, requestId, reason, expected) {
+  reason = clean_(reason, 500);
+  if (reason.length < 3) throw new Error('ERR_REASON_REQUIRED');
+  let out, notify = null;
+  withLock_(function () {
+    resetMemo_();
+    const p = revertPlan_(requestId), plan = p.plan, f = p.f;
+    if (!plan.can) throw new Error(plan.reason);
+    // ما عرضته الواجهة يجب أن يطابق الحالة الآن (لا نتراجع عن شيء غيّره شخص آخر للتو)
+    if (expected && (expected.kind !== plan.kind || (plan.kind === 'shipment' && Number(expected.batch) !== plan.batch) || expected.status !== plan.status)) throw new Error('ERR_CONFLICT');
+    const now = new Date();
+    if (plan.kind === 'shipment') {
+      const si = freshTable_('ShipmentItems');
+      si.rows.filter(function (r) { return str_(r.RequestID) === p.req.id && Number(r.Batch) === plan.batch; })
+        .sort(function (a, b) { return b._row - a._row; })
+        .forEach(function (r) { sheet_('ShipmentItems').deleteRow(r._row); });
+      markDirty_('ShipmentItems'); delete MEMO_.sitems;
+      const ri = read_('RequestItems');
+      const b = batchesOf_(ri.rows.filter(function (r) { return str_(r.RequestID) === p.req.id; }));
+      setMany_(ri, ri.rows.filter(function (r) { return str_(r.RequestID) === p.req.id && r.DispatchedAt && b.of(r) === plan.batch; })
+        .map(function (r) { return { row: r, obj: { DispatchedAt: '', DispatchBatch: '' } }; }));
+      if (plan.status === ST.SENT) setCells_(f.t, f.row, { Status: plan.to, SentAt: '' });
+      addReversal_(user, p.req.id, 'إلغاء شحنة أُرسلت', plan.from + ' · ' + plan.status, plan.to, reason,
+        plan.items.map(function (i) { return i.item + ' ×' + i.qty; }).join('، '));
+      notify = { nurse: p.req.nurse, subject: 'إلغاء شحنة من طلبك - ' + p.req.id + ' (الشحنة ' + plan.batch + ')',
+        body: 'أُلغيت الشحنة رقم ' + plan.batch + ' من طلبك ' + p.req.id + ' (أُرسلت بالخطأ).\nالسبب: ' + reason + '\nالأصناف:\n- ' +
+          plan.items.map(function (i) { return i.item + ' ×' + i.qty; }).join('\n- ') + '\n\nلا تؤكدي استلامها — ستصلك شحنة صحيحة لاحقاً.' };
+    } else {
+      const clear = {}; clear[TRANSITIONS[plan.status].stamp] = '';
+      setCells_(f.t, f.row, Object.assign({ Status: plan.to }, clear));
+      addReversal_(user, p.req.id, 'حالة الطلب', plan.status, plan.to, reason, '');
+    }
+    out = plan;
+  });
+  if (notify) notifyUser_(notify.nurse, notify.subject, notify.body);
+  return { reverted: out, request: getRequestItemsFull_(user, requestId) };
+}
+
+/** سجل التراجعات للجودة والإدارة (والتموين): opts = { from, to } */
+function getReversals_(user, opts) {
+  opts = opts || {};
+  const from = parseDay_(opts.from), to = parseDay_(opts.to, true);
+  return read_('Reversals').rows.filter(function (r) {
+    const ms = toMs_(r.Timestamp);
+    return str_(r.RequestID) && (!from || ms >= from.getTime()) && (!to || ms <= to.getTime());
+  }).map(function (r) {
+    return { time: r.Timestamp, requestId: str_(r.RequestID), user: str_(r.User), role: str_(r.Role), scope: str_(r.Scope),
+      from: str_(r.From), to: str_(r.To), reason: str_(r.Reason), details: str_(r.Details) };
+  }).sort(function (a, b) { return toMs_(b.time) - toMs_(a.time); }).slice(0, 300);
+}
+
 /**
  * قرار الطبيب على طلب الممرضة: اعتماد (مع تعديل الكميات اختيارياً) أو رفض مع السبب.
  * qtys = [{ item, qty }] — الكمية المعتمدة لكل صنف (0 = لا يُصرف).
@@ -2432,6 +2583,8 @@ function getRequestDetail_(user, requestId) {
   });
   req.comments = comments_(requestId);
   req.kpi = kpi_(req);
+  req.reversals = read_('Reversals').rows.filter(function (r) { return str_(r.RequestID) === req.id; })
+    .map(function (r) { return { time: r.Timestamp, user: str_(r.User), scope: str_(r.Scope), from: str_(r.From), to: str_(r.To), reason: str_(r.Reason) }; });
   return req;
 }
 

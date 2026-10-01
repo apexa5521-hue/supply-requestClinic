@@ -654,6 +654,48 @@ function log(msg) { console.log('  ✔ ' + msg); }
   expect((await page.textContent('#asFound')).includes('تالفة'), 'serial lookup shows the unit history');
   await logout(page);
 
+  // ---------- حالة كل صنف داخل الطلبية + التراجع عن خطوة بالسبب ----------
+  await login(page, 'سارة', '1111');
+  const stId = await page.evaluate(() => call('createRequest', { clinic: 'عيادة الأسنان 1', type: 'شهري', items: [{ name: 'PROPHY PASTE', qty: 2 }, { name: 'DENTAL FLOSS', qty: 4 }] }).then(r => r.id));
+  await logout(page);
+  await login(page, 'علي', '3333');
+  await page.click('.sidebar [data-view="requests"]');
+  await page.waitForSelector('[data-rid="' + stId + '"] [data-act="procToggle"]');
+  await page.click('[data-rid="' + stId + '"] .req-actions [data-act="procToggle"]');
+  await page.waitForSelector('#exp-' + stId + ' .item-st[data-item="DENTAL FLOSS"]');
+  await page.selectOption('#exp-' + stId + ' .item-st[data-item="DENTAL FLOSS"]', 'بانتظار المندوب');
+  expect(await toastHas(page, 'حُدّثت حالة 1 صنف'), 'procurement sets a status for one item inside the request');
+  await page.waitForTimeout(300);
+  expect(await page.inputValue('#exp-' + stId + ' .item-st[data-item="DENTAL FLOSS"]') === 'بانتظار المندوب' && await page.inputValue('#exp-' + stId + ' .item-st[data-item="PROPHY PASTE"]') === '', 'each item keeps its own status');
+  await page.selectOption('#exp-' + stId + ' .item-st[data-item="DENTAL FLOSS"]', 'قيد التجهيز');
+  await page.waitForSelector('.modal #rvReason');
+  await page.click('.modal [data-close]');
+  await page.waitForTimeout(300);
+  expect(await page.inputValue('#exp-' + stId + ' .item-st[data-item="DENTAL FLOSS"]') === 'بانتظار المندوب', 'going back needs a reason — cancelling restores the status');
+  await shot(page, 'item-statuses', true);
+  await page.check('#exp-' + stId + ' [data-change="dspAll"]');
+  await page.click('#exp-' + stId + ' [data-act="dispatch"]');
+  expect(await toastHas(page, 'اكتمل إرسال كل الأصناف'), 'everything sent (by mistake)');
+  await page.waitForSelector('[data-rid="' + stId + '"] [data-act="revertStep"]');
+  await page.click('[data-rid="' + stId + '"] [data-act="revertStep"]');
+  await page.waitForSelector('.modal #rvReason');
+  expect((await page.textContent('.modal .modal-head')).includes('إلغاء الشحنة 1'), 'undo shows exactly what will be undone (shipment 1)');
+  await page.click('.modal #rvOk');
+  expect((await page.textContent('.modal #rvErr')).length > 0, 'the reason is required');
+  await page.fill('.modal #rvReason', 'أُرسلت بالغلط قبل وصول المندوب');
+  await page.click('.modal #rvOk');
+  expect(await toastHas(page, 'تم التراجع وتسجيله'), 'wrong shipment undone with a reason');
+  await page.waitForTimeout(500);
+  expect(await page.evaluate(id => __gas.dump('ShipmentItems').filter(r => r[0] === id).length, stId) === 0, 'shipment rows removed — items open again');
+  await logout(page);
+  await login(page, 'منى', '5555');
+  await page.click('.sidebar [data-view="monitor"]');
+  await page.waitForSelector('#monRev .card');
+  expect((await page.textContent('#monRev')).includes('أُرسلت بالغلط قبل وصول المندوب') && (await page.textContent('#monRev')).includes(stId), 'quality sees the undo log (who, when, what, why)');
+  await shot(page, 'undo-log', true);
+  await page.click('.sidebar [data-view="overview"]');
+  await logout(page);
+
   // ---------- Quality dashboard ----------
   await login(page, 'منى', '5555');
   await page.waitForSelector('#dashKpis .kpi-val');

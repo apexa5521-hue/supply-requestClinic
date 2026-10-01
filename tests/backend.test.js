@@ -1105,6 +1105,55 @@ test('setup steps are independent: one failing step does not block the TEST101 t
   assert.equal(rows(gas, 'ItemsCatalog').filter(r => /TEST101$/.test(r.ItemName)).length, 8, 're-running does not duplicate');
 });
 
+test('item statuses inside a request + undo a wrong shipment / status step with a reason, logged for quality', () => {
+  const { api, login, gas } = boot();
+  const n = login('سارة', '1111'), p = login('علي', '3333'), d = login('د. خالد', '4444'), q = login('منى', '5555');
+  const id = api(n, 'createRequest', { clinic: 'عيادة الأسنان 1', doctor: 'د. خالد', type: 'شهري', items: [{ name: 'PROPHY PASTE', qty: 3 }, { name: 'DENTAL FLOSS', qty: 3 }, { name: 'MICRO BRUSH FINE', qty: 3 }] }).id;
+  throwsCode(() => api(p, 'setItemsStatus', id, ['PROPHY PASTE'], 'قيد التجهيز'), 'ERR_NEEDS_APPROVAL');
+  api(d, 'doctorReview', id, 'اعتمد', '', []);
+  // حالة كل صنف
+  let full = api(p, 'setItemsStatus', id, ['PROPHY PASTE', 'DENTAL FLOSS'], 'قيد التجهيز');
+  assert.equal(full.request.status, 'قيد التجهيز', 'working on items starts the request prep');
+  full = api(p, 'setItemsStatus', id, ['DENTAL FLOSS'], 'بانتظار المندوب');
+  full = api(p, 'setItemsStatus', id, ['DENTAL FLOSS'], 'استلم المندوب');
+  assert.deepEqual(full.items.map(i => [i.item, i.itemStatus]), [['PROPHY PASTE', 'قيد التجهيز'], ['DENTAL FLOSS', 'استلم المندوب'], ['MICRO BRUSH FINE', '']]);
+  throwsCode(() => api(p, 'setItemsStatus', id, ['DENTAL FLOSS'], 'قيد التجهيز'), 'ERR_REASON_REQUIRED');
+  api(p, 'setItemsStatus', id, ['DENTAL FLOSS'], 'بانتظار المندوب', 'المندوب أرجعها ناقصة');
+  const nurseItems = api(n, 'getRequestDetail', id).items;
+  assert.equal(nurseItems.find(i => i.item === 'DENTAL FLOSS').itemStatus, 'بانتظار المندوب', 'the nurse sees each item status');
+  // شحنة أُرسلت بالغلط ← تراجع مع السبب
+  api(p, 'dispatchItems', id, ['PROPHY PASTE', 'DENTAL FLOSS', 'MICRO BRUSH FINE']);
+  assert.equal(api(n, 'getRequestDetail', id).status, 'تم الإرسال');
+  throwsCode(() => api(p, 'setItemsStatus', id, ['PROPHY PASTE'], 'قيد التجهيز'), 'ERR_NEEDS_APPROVAL');
+  const plan = api(p, 'getRevertPlan', id);
+  assert.deepEqual([plan.can, plan.kind, plan.batch, plan.status, plan.to], [true, 'shipment', 1, 'تم الإرسال', 'قيد التجهيز']);
+  throwsCode(() => api(p, 'revertStep', id, ''), 'ERR_REASON_REQUIRED');
+  throwsCode(() => api(n, 'revertStep', id, 'سبب'), 'ERR_FORBIDDEN');
+  gas.mails.length = 0;
+  const rv = api(p, 'revertStep', id, 'أُرسلت بالغلط لفرع آخر', { kind: 'shipment', batch: 1, status: 'تم الإرسال' });
+  assert.equal(rv.request.request.status, 'قيد التجهيز', 'status back to the previous step');
+  assert.ok(rv.request.items.every(i => i.sentQty === 0 && i.remainingQty === 3), 'the shipment is gone, everything is open again');
+  assert.equal(rv.request.shipments.length, 0);
+  assert.ok(gas.mails.some(m => m.to === 'sara@example.com' && /إلغاء شحنة/.test(m.subject) && /بالغلط/.test(m.body)), 'nurse told not to confirm it');
+  // تراجع الحالة خطوة: قيد التجهيز ← معتمد من الطبيب
+  assert.equal(api(p, 'getRevertPlan', id).kind, 'status');
+  throwsCode(() => api(p, 'revertStep', id, 'سبب كافي', { kind: 'shipment', batch: 1, status: 'تم الإرسال' }), 'ERR_CONFLICT');
+  api(p, 'revertStep', id, 'بدأنا التجهيز قبل الوقت');
+  assert.equal(api(n, 'getRequestDetail', id).status, 'معتمد من الطبيب');
+  assert.equal(api(p, 'getRevertPlan', id).can, false);
+  throwsCode(() => api(p, 'revertStep', id, 'سبب'), 'ERR_NOTHING_TO_REVERT');
+  // السجل: الجودة ترى كل التراجعات مع الوقت والسبب، والتفاصيل تعرضها
+  const log = api(q, 'getReversals', {});
+  assert.deepEqual(log.map(x => x.scope), ['حالة الطلب', 'إلغاء شحنة أُرسلت', 'حالة صنف: DENTAL FLOSS']);
+  assert.ok(log.every(x => x.reason && x.time && x.user === 'علي'));
+  assert.equal(api(n, 'getRequestDetail', id).reversals.length, 3);
+  throwsCode(() => api(n, 'getReversals', {}), 'ERR_FORBIDDEN');
+  // الشحنة المستلمة بالتوقيع لا يُتراجع عنها
+  api(p, 'dispatchItems', id, ['PROPHY PASTE']);
+  api(n, 'receiveShipment', id, 1, [{ item: 'PROPHY PASTE', qty: 3 }], 'سارة', 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==', '', '');
+  assert.equal(api(p, 'getRevertPlan', id).reason, 'ERR_SHIPMENT_RECEIVED');
+});
+
 test('batch runs several reads in one execution with per-call errors, and rejects writes', () => {
   const { api, login } = boot();
   const n = login('سارة', '1111');
