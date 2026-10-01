@@ -1768,3 +1768,30 @@ test('lab redo: nurse picks a previous case and the faulty line with a reason; l
   assert.equal(r2.id, c.id + '-R2');
   assert.deepEqual(api(L, 'getLabCase', r2.id).chain.map(x => [x.id, x.remakeNo]), [[c.id, 0], [c.id + '-R1', 1], [c.id + '-R2', 2]]);
 });
+
+test('packed responses (columnar lists) round-trip exactly and are smaller', () => {
+  const { ctx, api, login } = boot();
+  const p = login('علي', '3333');
+  // نفس فك الواجهة (JavaScript.html → unpack)
+  const unpack = v => {
+    if (v === null || typeof v !== 'object') return v;
+    if (Array.isArray(v)) return v.map(unpack);
+    if (Array.isArray(v.__pk) && Array.isArray(v.r)) return v.r.map(row => Object.fromEntries(v.__pk.map((k, j) => [k, unpack(row[j])])));
+    return Object.fromEntries(Object.keys(v).map(k => [k, unpack(v[k])]));
+  };
+  const n = login('سارة', '1111');
+  for (let i = 0; i < 10; i++) api(n, 'createRequest', { clinic: 'عيادة الأسنان 1', type: 'شهري', items: [{ name: 'PROPHY PASTE', qty: 1 + i }] });
+  const plain = api(p, 'getRequests', {});
+  const packed = JSON.parse(JSON.stringify(ctx.api(p, 'getRequests', [{}], { pk: 1 })));
+  assert.ok(plain.length >= 10);
+  assert.ok(Array.isArray(packed.__pk), 'long uniform list is packed');
+  assert.deepEqual(unpack(packed), plain);
+  assert.ok(JSON.stringify(packed).length < JSON.stringify(plain).length * 0.7, 'packed is much smaller');
+  // دفعة (batch) وأشكال متداخلة وقوائم قصيرة/غير متجانسة
+  const b = [['getRequests', [{}]], ['getAlerts', []], ['getNotices', []]];
+  assert.deepEqual(unpack(JSON.parse(JSON.stringify(ctx.api(p, 'batch', [b], { pk: 1 })))), api(p, 'batch', b));
+  const mixed = [{ a: 1 }, { b: 2 }, { a: 1 }, { a: 1 }, { a: 1 }, { a: 1 }, { a: 1 }, { a: 1 }, { a: 1 }];
+  assert.deepEqual(unpack(JSON.parse(JSON.stringify(ctx.pack_(mixed)))), mixed);
+  const nested = { list: Array.from({ length: 9 }, (_, i) => ({ id: i, tags: ['x', i], sub: Array.from({ length: 9 }, (_, j) => ({ j, s: '' })) })), n: null };
+  assert.deepEqual(unpack(JSON.parse(JSON.stringify(ctx.pack_(nested)))), nested);
+});

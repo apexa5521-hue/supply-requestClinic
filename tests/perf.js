@@ -40,7 +40,9 @@ function boot(N) {
 }
 
 function measure(gas, ctx, label, token, fn, args) {
+  const trace = gas.ops.trace; delete gas.ops.trace;
   const before = JSON.parse(JSON.stringify(gas.ops));
+  if (process.env.PERF_TRACE) gas.ops.trace = [];
   const t0 = process.hrtime.bigint();
   let err = '';
   try { ctx.api(token, fn, args); } catch (e) { err = e.message; }
@@ -48,6 +50,8 @@ function measure(gas, ctx, label, token, fn, args) {
   const by = {};
   let est = (gas.ops.cells - before.cells) * CELL_MS;
   Object.keys(gas.ops.byKind).forEach(k => { const n = gas.ops.byKind[k] - (before.byKind[k] || 0); if (n) { by[k] = n; est += n * (COST[k] || 50); } });
+  if (gas.ops.trace && (process.env.PERF_TRACE === '*' || label.indexOf(process.env.PERF_TRACE) !== -1)) console.log('\n── ' + label + '\n  ' + gas.ops.trace.join('\n  '));
+  delete gas.ops.trace; void trace;
   return { label, calls: gas.ops.calls - before.calls, est: Math.round(est), cpu: Math.round(cpu), by, err };
 }
 

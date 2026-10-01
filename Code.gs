@@ -349,7 +349,7 @@ function doPost(e) {
   let out;
   try {
     const body = JSON.parse((e && e.postData && e.postData.contents) || '{}');
-    out = { ok: true, data: api(body.token, body.fn, body.args) };
+    out = { ok: true, data: api(body.token, body.fn, body.args, body.pk ? { pk: 1 } : null) };
   } catch (err) {
     out = { ok: false, error: String((err && err.message) || err) };
   }
@@ -360,7 +360,38 @@ function doPost(e) {
  * الموزّع الوحيد المكشوف للواجهة.
  * كل دالة معرّفة بالشاشات المسموح لها؛ '*' = أي مستخدم مسجّل.
  */
-function api(token, fn, args) {
+function api(token, fn, args, opts) {
+  const out = apiCore_(token, fn, args);
+  return opts && opts.pk ? pack_(out) : out;
+}
+
+/**
+ * تقليص حجم الرد: القوائم الطويلة من كائنات بنفس الحقول تُرسل كأعمدة {__pk: [الحقول], r: [[القيم]…]}
+ * بدل تكرار أسماء الحقول في كل صف (يقارب نصف الحجم). الواجهة تفكّها تلقائياً؛ يُفعَّل فقط إن طلبته الواجهة.
+ */
+const PACK_MIN_ = 8;
+function pack_(v) {
+  if (v === null || typeof v !== 'object') return v;
+  if (Array.isArray(v)) {
+    const first = v[0];
+    if (v.length >= PACK_MIN_ && first && typeof first === 'object' && !Array.isArray(first)) {
+      const keys = Object.keys(first), n = keys.length;
+      let same = true;
+      for (let i = 1; i < v.length && same; i++) {
+        const o = v[i];
+        if (!o || typeof o !== 'object' || Array.isArray(o) || Object.keys(o).length !== n) { same = false; break; }
+        for (let j = 0; j < n; j++) if (!(keys[j] in o)) { same = false; break; }
+      }
+      if (same) return { __pk: keys, r: v.map(function (o) { return keys.map(function (k) { return pack_(o[k]); }); }) };
+    }
+    return v.map(pack_);
+  }
+  const o = {};
+  for (const k in v) if (Object.prototype.hasOwnProperty.call(v, k)) o[k] = pack_(v[k]);
+  return o;
+}
+
+function apiCore_(token, fn, args) {
   MEMO_ = {};
   args = Array.isArray(args) ? args : [];
   fn = String(fn);

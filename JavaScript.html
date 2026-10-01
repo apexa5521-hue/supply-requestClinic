@@ -239,13 +239,36 @@ function t(key, vars) {
 function icon(name, cls) { return '<svg class="i ' + (cls || '') + '" aria-hidden="true"><use href="#i-' + name + '"/></svg>'; }
 function locale() { return S.lang === 'ar' ? 'ar-SA-u-ca-gregory-nu-latn' : 'en-GB'; }
 function toDate(v) { if (!v) return null; const d = new Date(v); return isNaN(d.getTime()) ? null : d; }
-function fmtDate(v) { const d = toDate(v); return d ? d.toLocaleDateString(locale(), { timeZone: 'Asia/Riyadh', day: 'numeric', month: 'short', year: 'numeric' }) : '—'; }
-function fmtDateTime(v) { const d = toDate(v); return d ? d.toLocaleString(locale(), { timeZone: 'Asia/Riyadh', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : '—'; }
-function fmtTime(v) { const d = toDate(v); return d ? d.toLocaleTimeString(locale(), { timeZone: 'Asia/Riyadh', hour: '2-digit', minute: '2-digit' }) : ''; }
-function fmtNum(n, dec) { return Number(n || 0).toLocaleString(locale(), { maximumFractionDigits: dec === undefined ? 1 : dec }); }
+/* منسّقات Intl تُبنى مرة واحدة لكل لغة وتُعاد (بناؤها مكلف جداً: toLocaleString بخيارات يبني منسّقاً جديداً في كل استدعاء) */
+const INTL_ = {};
+function intl(kind, opts, loc) {
+  loc = loc || locale();
+  const k = kind + '|' + loc + '|' + opts;
+  let f = INTL_[k];
+  if (!f) {
+    const o = INTL_OPTS_[opts] || { maximumFractionDigits: Number(opts.slice(1)) };
+    f = INTL_[k] = kind === 'n' ? new Intl.NumberFormat(loc, o) : kind === 'r' ? new Intl.RelativeTimeFormat(loc, o) : new Intl.DateTimeFormat(loc, o);
+  }
+  return f;
+}
+const INTL_OPTS_ = {
+  date: { timeZone: 'Asia/Riyadh', day: 'numeric', month: 'short', year: 'numeric' },
+  dateTime: { timeZone: 'Asia/Riyadh', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' },
+  time: { timeZone: 'Asia/Riyadh', hour: '2-digit', minute: '2-digit' },
+  month: { timeZone: 'Asia/Riyadh', year: 'numeric', month: '2-digit' },
+  day: { timeZone: 'Asia/Riyadh', day: 'numeric' },
+  monthLong: { month: 'long', year: 'numeric' },
+  monthShortUtc: { month: 'short', timeZone: 'UTC' },
+  stamp: { timeZone: 'Asia/Riyadh', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit' },
+  rel: { numeric: 'auto' }
+};
+function fmtDate(v) { const d = toDate(v); return d ? intl('d', 'date').format(d) : '—'; }
+function fmtDateTime(v) { const d = toDate(v); return d ? intl('d', 'dateTime').format(d) : '—'; }
+function fmtTime(v) { const d = toDate(v); return d ? intl('d', 'time').format(d) : ''; }
+function fmtNum(n, dec) { return intl('n', 'x' + (dec === undefined ? 1 : dec)).format(Number(n || 0)); }
 function monthKey(v) {
   const d = toDate(v); if (!d) return '';
-  const p = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Riyadh', year: 'numeric', month: '2-digit' }).formatToParts(d);
+  const p = intl('d', 'month', 'en-CA').formatToParts(d);
   return p.find(x => x.type === 'year').value + '-' + p.find(x => x.type === 'month').value;
 }
 function relTime(v) {
@@ -253,7 +276,7 @@ function relTime(v) {
   const diff = (d.getTime() - Date.now()) / 1000;
   const abs = Math.abs(diff);
   if (abs < 45) return t('just_now');
-  const rtf = new Intl.RelativeTimeFormat(S.lang === 'ar' ? 'ar' : 'en', { numeric: 'auto' });
+  const rtf = intl('r', 'rel', S.lang === 'ar' ? 'ar' : 'en');
   if (abs < 3600) return rtf.format(Math.round(diff / 60), 'minute');
   if (abs < 86400) return rtf.format(Math.round(diff / 3600), 'hour');
   if (abs < 86400 * 7) return rtf.format(Math.round(diff / 86400), 'day');
@@ -289,6 +312,31 @@ function moreBtn(key, total) {
   return total > lim ? '<div class="more-row"><button class="btn btn-soft" data-act="moreList" data-k="' + key + '">' + icon('chevd', 'i-sm') +
     esc(t('show_more', { n: Math.min(PAGE, total - lim), left: total - lim })) + '</button></div>' : '';
 }
+/* الجداول الطويلة: أول 50 صفاً ثم «عرض المزيد» يضيف الصفوف في مكانها بلا إعادة رسم (آلاف الصفوف كانت تُثقل الصفحة)؛
+   الطباعة تعرض الجدول كاملاً */
+const TBL_ = {};
+let tblSeq_ = 0;
+function pagedRows(rows, rowFn, colspan) {
+  if (rows.length <= PAGE) return rows.map(rowFn).join('');
+  if (++tblSeq_ % 20 === 0) Object.keys(TBL_).forEach(k => { if (!document.querySelector('tr.tbl-more[data-k="' + k + '"]')) delete TBL_[k]; });
+  const k = 'tb' + tblSeq_;
+  TBL_[k] = { rows, rowFn, colspan, shown: PAGE };
+  return rows.slice(0, PAGE).map(rowFn).join('') + tblMoreRow(k);
+}
+function tblMoreRow(k) {
+  const T = TBL_[k], left = T.rows.length - T.shown;
+  return '<tr class="tbl-more" data-k="' + k + '"><td colspan="' + T.colspan + '"><button class="btn btn-soft btn-sm" data-act="moreRows" data-k="' + k + '">' + icon('chevd', 'i-sm') +
+    esc(t('show_more', { n: Math.min(PAGE * 4, left), left })) + '</button></td></tr>';
+}
+function moreRows(k, all) {
+  const T = TBL_[k], tr = document.querySelector('tr.tbl-more[data-k="' + k + '"]');
+  if (!T || !tr) return;
+  const n = all ? T.rows.length : Math.min(T.rows.length, T.shown + PAGE * 4);
+  tr.insertAdjacentHTML('beforebegin', T.rows.slice(T.shown, n).map(T.rowFn).join(''));
+  T.shown = n;
+  if (n >= T.rows.length) { tr.remove(); delete TBL_[k]; } else tr.outerHTML = tblMoreRow(k);
+}
+window.addEventListener('beforeprint', () => document.querySelectorAll('tr.tbl-more').forEach(tr => moreRows(tr.dataset.k, true)));
 function archiveBtn(key, on) {
   return on ? '' : '<div class="more-row archive"><button class="btn btn-ghost btn-sm" data-act="loadArchive" data-k="' + key + '">' + icon('layers', 'i-sm') + esc(t('show_archive')) + '</button></div>';
 }
@@ -337,16 +385,27 @@ function postJson(body) {
 }
 /* نفس الطابور والتجميع سواء كانت الصفحة من Apps Script (google.script.run) أو GitHub Pages (fetch) */
 function hasGSR() { return !!(window.google && google.script && google.script.run); }
+/* فكّ الردود المضغوطة كأعمدة ({__pk: الحقول, r: الصفوف}) — الخادم القديم يرسل كائنات عادية فتمر كما هي */
+function unpack(v) {
+  if (v === null || typeof v !== 'object') return v;
+  if (Array.isArray(v)) { for (let i = 0; i < v.length; i++) v[i] = unpack(v[i]); return v; }
+  if (Array.isArray(v.__pk) && Array.isArray(v.r)) {
+    const keys = v.__pk, n = keys.length;
+    return v.r.map(row => { const o = {}; for (let j = 0; j < n; j++) o[keys[j]] = unpack(row[j]); return o; });
+  }
+  for (const k in v) v[k] = unpack(v[k]);
+  return v;
+}
 function transport(body) {
-  if (!hasGSR()) return postJson(body);
+  if (!hasGSR()) return postJson(Object.assign({ pk: 1 }, body)).then(res => { if (res && res.ok) res.data = unpack(res.data); return res; });
   return new Promise(res => {
     google.script.run
-      .withSuccessHandler(data => res({ ok: true, data: data }))
+      .withSuccessHandler(data => res({ ok: true, data: unpack(data) }))
       .withFailureHandler(e => {
         const msg = String((e && e.message) || e || '');
         res({ ok: false, error: /ERR_[A-Z_]+/.test(msg) ? msg.match(/ERR_[A-Z_]+(:\S*)?/)[0] : 'ERR_NETWORK' });
       })
-      .api(body.token, body.fn, body.args);
+      .api(body.token, body.fn, body.args, { pk: 1 });
   });
 }
 /* الكتابة: «مشغول» تعني أن الخادم لم ينفّذ شيئاً (القفل لم يتوفر) → إعادة المحاولة آمنة */
@@ -467,22 +526,41 @@ function seedRC(fn, args, data) {
 const PERSIST = ['getMyRequests', 'getRequests', 'getDoctorRequests', 'getAlerts', 'getNotices', 'getComplaints', 'getExecutiveStats', 'getQualityReport', 'getQualityTrend',
   'getStatsReport', 'getMonitor', 'getFinance', 'getLabCases', 'getMyLabCases', 'getDoctorLabCases', 'getLabStats', 'getLabConfig', 'getPriceList'];
 let persistTimer = null;
-function persistRC() {
+/* حفظ الردود لآخر زيارة: كل مفتاح في خانة مستقلة، ويُكتب فقط ما تغيّر
+   (كانت كل الردود — عدة ميغابايت — تُعاد كتابتها بعد كل استدعاء) */
+const RC_DIRTY = new Set();
+const RC_SAVED = {};
+function persistRC(key) {
+  if (key) RC_DIRTY.add(key);
   clearTimeout(persistTimer);
   persistTimer = setTimeout(() => {
     if (!S.user) return;
-    const out = [];
-    RC.forEach((e, k) => { if (PERSIST.indexOf(k.split('|')[0]) !== -1) out.push([k, e.data]); });
-    try { sessionStorage.setItem('sf_rc', JSON.stringify({ u: S.user.name, e: out })); } catch (e) { /* مساحة ممتلئة: تجاهل */ }
+    try {
+      const idx = JSON.parse(sessionStorage.getItem('sf_rc') || 'null');
+      const keys = idx && idx.u === S.user.name && Array.isArray(idx.k) ? idx.k : [];
+      RC_DIRTY.forEach(k => {
+        const e = RC.get(k); if (!e) return;
+        const str = JSON.stringify(e.data);
+        if (RC_SAVED[k] === str) return;
+        try { sessionStorage.setItem('sf_rc:' + k, str); RC_SAVED[k] = str; if (keys.indexOf(k) === -1) keys.push(k); } catch (er) { /* مساحة ممتلئة: تجاهل */ }
+      });
+      RC_DIRTY.clear();
+      sessionStorage.setItem('sf_rc', JSON.stringify({ u: S.user.name, k: keys }));
+    } catch (e) { /* التخزين غير متاح */ }
   }, 800);
 }
 function restoreRC(userName) {
   try {
     const o = JSON.parse(sessionStorage.getItem('sf_rc') || 'null');
-    if (!o || o.u !== userName) return 0;
-    o.e.forEach(([k, d]) => RC.set(k, { data: d, at: 0, seed: true }));
-    return o.e.length;
+    if (!o || o.u !== userName || !Array.isArray(o.k)) return 0;
+    let n = 0;
+    o.k.forEach(k => { const str = sessionStorage.getItem('sf_rc:' + k); if (str) { RC.set(k, { data: JSON.parse(str), at: 0, seed: true }); RC_SAVED[k] = str; n++; } });
+    return n;
   } catch (e) { return 0; }
+}
+function clearPersistedRC() {
+  Object.keys(RC_SAVED).forEach(k => delete RC_SAVED[k]);
+  try { Object.keys(sessionStorage).forEach(k => { if (k === 'sf_rc' || k.indexOf('sf_rc:') === 0) sessionStorage.removeItem(k); }); } catch (e) { /* ignore */ }
 }
 function call(fn) {
   const args = Array.prototype.slice.call(arguments, 1);
@@ -501,7 +579,7 @@ function call(fn) {
     if (read) {
       RC.delete(key); RC.set(key, { data: data, at: Date.now() });
       if (RC.size > 150) RC.delete(RC.keys().next().value);
-      if (PERSIST.indexOf(fn) !== -1) persistRC();
+      if (PERSIST.indexOf(fn) !== -1) persistRC(key);
     } else if (fn !== 'login' && fn !== 'logout') RC.clear();
     return data;
   }, e => {
@@ -824,6 +902,7 @@ function toggleLang() {
    Event delegation
    ===================================================================== */
 const ACT = {};
+ACT.moreRows = el => moreRows(el.dataset.k);
 document.addEventListener('click', e => {
   const el = e.target.closest('[data-act]');
   if (!el || el.disabled) return;
@@ -924,7 +1003,7 @@ function resetApp() {
   LAB.mine = []; LAB.doc = []; LAB.board = []; LAB.stats = null; LAB.cfg = null; LAB.loaded = {}; // المسودة محفوظة لكل مستخدم على حدة S.doc.list = []; S.doc.archive = false;
   Object.keys(SIGS).forEach(k => delete SIGS[k]); Object.keys(LIMITS).forEach(k => delete LIMITS[k]);
   session.clear(); RC.clear();
-  try { sessionStorage.removeItem('sf_rc'); } catch (e) { /* ignore */ }
+  clearPersistedRC();
   while (MODALS.length) { const m = MODALS.pop(); m.el.remove(); }
   document.body.style.overflow = '';
   showLogin();
@@ -1443,7 +1522,7 @@ ACT.complaint = el => openComplaint(el.dataset.id);
 const MONTHLY_WINDOW = [15, 20];
 /* بعد يوم 20: الرفع متاح عادي لكنه يُعلَّم «رُفع متأخراً» — لا يُمنع أبداً */
 function pastMonthlyWindow() {
-  const d = Number(new Date().toLocaleString('en-US', { timeZone: 'Asia/Riyadh', day: 'numeric' }));
+  const d = Number(intl('d', 'day', 'en-US').format(new Date()));
   return d > MONTHLY_WINDOW[1];
 }
 /** الطبيب في بطاقة الطلب — أو «مستهلكات عيادة» للطلب بدون طبيب */
@@ -2051,7 +2130,7 @@ function drawReceipt(id, sections, combined) {
     const H = 96 + sections.reduce((h, s) => h + secH(s), 0) + 16;
     const c = document.createElement('canvas'); c.width = W; c.height = H;
     const x = c.getContext('2d');
-    const when = v => { const d = toDate(v) || new Date(); return d.toLocaleString('en-GB', { timeZone: 'Asia/Riyadh' }); };
+    const when = v => { const d = toDate(v) || new Date(); return intl('d', 'stamp', 'en-GB').format(d); };
     x.fillStyle = '#fff'; x.fillRect(0, 0, W, H);
     x.fillStyle = '#3d8fc8'; x.fillRect(0, 0, W, 10);
     x.textAlign = 'center'; x.fillStyle = '#3d8fc8'; x.font = 'bold 21px Arial, sans-serif';
@@ -2533,7 +2612,7 @@ ACT.openReport = () => {
 function periodLabel(range) {
   if (range.from && range.to && range.from.slice(0, 7) === range.to.slice(0, 7) && range.from.slice(8) === '01') {
     const [y, mo] = range.from.split('-').map(Number);
-    return new Date(y, mo - 1, 1).toLocaleDateString(locale(), { month: 'long', year: 'numeric' });
+    return intl('d', 'monthLong').format(new Date(y, mo - 1, 1));
   }
   if (!range.to && !range.from) return t('all_time');
   return t('rep_all_until', { d: fmtDate(range.to + 'T12:00:00') });
@@ -2707,7 +2786,7 @@ function rpLoad(silent) {
 function rpTable(rows, cols, empty) {
   if (!rows.length) return emptyState('inbox', empty || t('no_data'));
   return '<div class="table-wrap"><table class="table rp-table"><thead><tr>' + cols.map(c => '<th' + (c.num ? ' class="num"' : '') + '>' + esc(c.h) + '</th>').join('') + '</tr></thead><tbody>' +
-    rows.map(r => '<tr>' + cols.map(c => '<td' + (c.num ? ' class="num"' : '') + '>' + c.v(r) + '</td>').join('') + '</tr>').join('') + '</tbody></table></div>';
+    pagedRows(rows, r => '<tr>' + cols.map(c => '<td' + (c.num ? ' class="num"' : '') + '>' + c.v(r) + '</td>').join('') + '</tr>', cols.length) + '</tbody></table></div>';
 }
 function rpStatsHtml(st, range) {
   const s = st.summary, cur = ' ' + t('currency');
@@ -3092,7 +3171,7 @@ function renderDash(silent) {
   const rows = (rep && rep.rows) || [];
   $('#dashRows').innerHTML = rows.length
     ? '<div class="table-wrap" style="max-height:420px;overflow:auto"><table class="table"><thead><tr><th>#</th><th>' + esc(t('branch')) + '</th><th>' + esc(t('clinic')) + '</th><th>' + esc(t('doctor')) + '</th><th>' + esc(t('type')) + '</th><th class="num">' + esc(t('hours')) + '</th></tr></thead><tbody>' +
-      rows.map(r => '<tr><td><button class="btn btn-ghost btn-sm mono" data-act="detail" data-id="' + esc(r.id) + '" style="min-height:26px;padding:2px 6px">' + esc(r.id) + '</button></td><td>' + esc(r.branch || '—') + '</td><td>' + esc(r.clinic || '—') + '</td><td>' + esc(docLabel(r)) + '</td><td>' + typeTag(r.type) + '</td><td class="num"' + (r.hours > (r.type === 'طارئ' ? 24 : 72) ? ' style="color:var(--t-red);font-weight:700"' : '') + '>' + fmtNum(r.hours) + '</td></tr>').join('') +
+      pagedRows(rows, r => '<tr><td><button class="btn btn-ghost btn-sm mono" data-act="detail" data-id="' + esc(r.id) + '" style="min-height:26px;padding:2px 6px">' + esc(r.id) + '</button></td><td>' + esc(r.branch || '—') + '</td><td>' + esc(r.clinic || '—') + '</td><td>' + esc(docLabel(r)) + '</td><td>' + typeTag(r.type) + '</td><td class="num"' + (r.hours > (r.type === 'طارئ' ? 24 : 72) ? ' style="color:var(--t-red);font-weight:700"' : '') + '>' + fmtNum(r.hours) + '</td></tr>', 6) +
       '</tbody></table></div>'
     : emptyState('clock', t('no_data'));
 
@@ -3103,7 +3182,7 @@ function renderDash(silent) {
 function monthLabel(m) {
   if (!m) return '';
   const d = new Date(m + '-15T12:00:00Z');
-  return d.toLocaleDateString(locale(), { month: 'short', timeZone: 'UTC' });
+  return intl('d', 'monthShortUtc').format(d);
 }
 
 /* ---------- Canvas charts (DPR aware, animated, themed, hover tooltips) ---------- */
@@ -3120,7 +3199,10 @@ function drawChart(cfg, animate) {
   canvas.width = W * dpr; canvas.height = H * dpr;
   const ctx = canvas.getContext('2d');
   const rtl = document.documentElement.dir === 'rtl';
-  const colors = { grid: cssVar('--border'), text: cssVar('--muted'), main: cssVar('--primary'), line: cssVar('--t-blue'), surface: cssVar('--surface') };
+  // قراءة متغيرات CSS مرة واحدة لكل رسم (getComputedStyle مكلف ويُستدعى في كل إطار للحركة)
+  const cs = getComputedStyle(document.documentElement), cv = n => cs.getPropertyValue(n).trim();
+  const colors = { grid: cv('--border'), text: cv('--muted'), main: cv('--primary'), line: cv('--t-blue'), surface: cv('--surface'), strong: cv('--primary-strong'), ink: cv('--text') };
+  const fontFam = cv('--font').split(',')[0];
   const data = cfg.data, labels = cfg.labels;
   const pad = { t: 22, r: 16, b: cfg.type === 'bar' ? 44 : 28, l: 40 };
   const pw = W - pad.l - pad.r, ph = H - pad.t - pad.b;
@@ -3132,7 +3214,7 @@ function drawChart(cfg, animate) {
     return rtl ? R - off : L + off;
   };
   const Y = v => pad.t + ph - (v / niceMax) * ph;
-  const font = s => s + 'px ' + cssVar('--font').split(',')[0];
+  const font = s => s + 'px ' + fontFam;
   const points = data.map((v, i) => ({ x: X(i), y: Y(v), v: v, i: i }));
   cfg._points = points; cfg._barW = Math.min(pw / Math.max(data.length, 1) * 0.56, 46);
 
@@ -3201,16 +3283,18 @@ function drawChart(cfg, animate) {
         const r = Math.min(7, bw / 2, h);
         ctx.beginPath();
         ctx.moveTo(x, Y(0)); ctx.lineTo(x, y + r); ctx.quadraticCurveTo(x, y, x + r, y); ctx.lineTo(x + bw - r, y); ctx.quadraticCurveTo(x + bw, y, x + bw, y + r); ctx.lineTo(x + bw, Y(0)); ctx.closePath();
-        ctx.fillStyle = cfg._hover === i ? cssVar('--primary-strong') : colors.main; ctx.fill();
-        if (p === 1 && pt.v) { ctx.fillStyle = cssVar('--text'); ctx.font = font(11); ctx.textBaseline = 'bottom'; ctx.fillText(fmtNum(pt.v), pt.x, y - 4); }
+        ctx.fillStyle = cfg._hover === i ? colors.strong : colors.main; ctx.fill();
+        if (p === 1 && pt.v) { ctx.fillStyle = colors.ink; ctx.font = font(11); ctx.textBaseline = 'bottom'; ctx.fillText(fmtNum(pt.v), pt.x, y - 4); }
       });
     }
   }
   cfg._frame = frame;
+  // رسم جديد يلغي حركة سابقة على نفس اللوحة (وإلا تتراكم حلقات الحركة مع كل تحديث)
+  if (canvas._raf) { cancelAnimationFrame(canvas._raf); canvas._raf = 0; }
   if (animate && !REDUCED) {
     const t0 = performance.now();
-    const tick = now => { const p = Math.max(0, Math.min(1, (now - t0) / 900)); frame(1 - Math.pow(1 - p, 3)); if (p < 1) requestAnimationFrame(tick); };
-    requestAnimationFrame(tick);
+    const tick = now => { const p = Math.max(0, Math.min(1, (now - t0) / 900)); frame(1 - Math.pow(1 - p, 3)); canvas._raf = p < 1 ? requestAnimationFrame(tick) : 0; };
+    canvas._raf = requestAnimationFrame(tick);
   } else frame(1);
   if (!canvas._hooked) {
     canvas._hooked = true;
