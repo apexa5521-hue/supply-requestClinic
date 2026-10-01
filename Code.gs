@@ -490,6 +490,7 @@ const API_ = {
   getAssetStats:             { screens: ['procurement'], perm: 'assets', fn: getAssetStats_ },
   reportAsset:               { screens: ['nurse'], fn: reportAsset_ },
   issueAssets:               { screens: ['procurement'], perm: 'users', fn: issueAssets_ },
+  registerAsset:             { screens: ['nurse'], fn: registerAsset_ },
   setClinicStandard:         { screens: ['procurement'], perm: 'users', fn: setClinicStandard_ },
   updateAssetTicket:         { screens: ['procurement'], fn: updateAssetTicket_ },
   setAssetTicketCost:        { screens: ['procurement'], perm: 'finance', fn: setAssetTicketCost_ },
@@ -4046,6 +4047,14 @@ function getAssetTicket_(user, id) {
 }
 
 /** بلاغ أداة من الممرضة: payload = { assetId, problem, description, photo (dataUrl — إلزامية للخربانة), clientKey } */
+/** الممرضة تسجل الرقم التسلسلي من ستيكر الأداة في عيادتها (للأدوات ذات الرقم التسلسلي فقط) */
+function registerAsset_(user, payload) {
+  payload = payload || {};
+  if (assetClinicsFor_(user).indexOf(str_(payload.clinic)) === -1) throw new Error('ERR_FORBIDDEN');
+  const cat = assetCatalog_()[str_(payload.item)];
+  if (!cat || !cat.serialized) throw new Error('ERR_NOT_ASSET');
+  return issueAssets_(user, { clinic: payload.clinic, item: payload.item, serials: payload.serials, notes: 'سجّلتها الممرضة من الستيكر' });
+}
 function reportAsset_(user, payload) {
   payload = payload || {};
   const problem = str_(payload.problem);
