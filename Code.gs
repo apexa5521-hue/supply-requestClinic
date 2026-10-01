@@ -1404,16 +1404,29 @@ function getMonitor_(user, opts) {
   };
 }
 
-/** تنبيه التموين على طلب متأخر: تعليق على الطلب + إيميل للتموين */
+/**
+ * تنبيه على طلب متأخر — يصل لصاحب المرحلة الحالية («أين يقف»):
+ * بانتظار استلام العيادة ← الممرضة · بانتظار اعتماد الطبيب ← الطبيب · التجهيز/الإرسال ← التموين.
+ * يُضاف تعليق على الطلب ويُرسل الإيميل للجهة المسؤولة فقط.
+ */
 function nudgeProcurement_(user, requestId, message) {
   const g = guardSee_(user, requestId);
-  message = clean_(message, 500) || 'يرجى الإسراع في إنهاء هذا الطلب — تجاوز الموعد المحدد.';
-  append_('Comments', { Timestamp: new Date(), RequestID: g.req.id, Author: user.name, Role: user.role, Message: '⏰ ' + message });
-  logAction_(g.req.id, 'تنبيه التموين (متابعة)', user.name);
-  notifyRole_('procurement', '⏰ متابعة طلب متأخر - ' + g.req.id,
-    user.name + ' (' + user.role + ') يطلب الإسراع في الطلب ' + g.req.id + ' — ' + (g.req.doctor || g.req.clinic) +
-    (g.req.branch ? ' / فرع ' + g.req.branch : '') + '.\n\n' + message);
-  return comments_(g.req.id);
+  const r = queryRequests_({}).filter(function (x) { return x.id === g.req.id; })[0] || g.req;
+  const owner = stageOf_(r).owner || 'procurement';
+  const ownerAr = { nurse: 'التمريض', doctor: 'الطبيب', procurement: 'التموين' }[owner] || 'التموين';
+  message = clean_(message, 500) || (owner === 'nurse' ? 'يرجى تأكيد استلام الطلب والتوقيع من داخل النظام — تجاوز الموعد المحدد.'
+    : owner === 'doctor' ? 'يرجى اعتماد الطلب — تجاوز الموعد المحدد.' : 'يرجى الإسراع في إنهاء هذا الطلب — تجاوز الموعد المحدد.');
+  append_('Comments', { Timestamp: new Date(), RequestID: g.req.id, Author: user.name, Role: user.role, Message: '⏰ (' + ownerAr + ') ' + message });
+  logAction_(g.req.id, 'تنبيه ' + ownerAr + ' (متابعة)', user.name);
+  const subject = '⏰ متابعة طلب متأخر - ' + g.req.id;
+  const body = user.name + ' (' + user.role + ') يطلب الإسراع في الطلب ' + g.req.id + ' — ' + (g.req.doctor || g.req.clinic) +
+    (g.req.clinic && g.req.doctor ? ' / ' + g.req.clinic : '') + (g.req.branch ? ' / فرع ' + g.req.branch : '') + '.\n\n' + message;
+  let to = '', emailed = true;
+  if (owner === 'nurse') { to = g.req.nurse; emailed = notifyUser_(to, subject, body); }
+  else if (owner === 'doctor' && doctorAccounts_()[g.req.doctor]) { to = doctorAccounts_()[g.req.doctor]; emailed = notifyUser_(to, subject, body); }
+  else notifyRole_('procurement', subject, body);
+  // بدون إيميل مسجل: يبقى التنبيه تعليقاً على الطلب يراه صاحبه في النظام
+  return { owner: owner, to: to, emailed: emailed, comments: comments_(g.req.id) };
 }
 
 /**
@@ -2577,7 +2590,8 @@ function notifyPerm_(perm, subject, body) {
 
 function notifyUser_(name, subject, body) {
   const u = read_('Users').rows.filter(function (r) { return str_(r.Name) === str_(name); })[0];
-  if (u && str_(u.Email)) sendMail_(str_(u.Email), subject, body);
+  if (u && str_(u.Email)) { sendMail_(str_(u.Email), subject, body); return true; }
+  return false;
 }
 
 function notifyNursePartial_(req, r) {

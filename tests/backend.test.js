@@ -1061,6 +1061,25 @@ test('custody: standard per clinic, issue with serial numbers, nurse report with
   assert.ok(t2.id);
 });
 
+test('nudge goes to whoever the request is waiting on: doctor → doctor, receipt → the nurse, prep → procurement', () => {
+  const { api, login, gas } = boot();
+  const n = login('سارة', '1111'), p = login('علي', '3333'), d = login('د. خالد', '4444'), q = login('منى', '5555');
+  const id = api(n, 'createRequest', { clinic: 'عيادة الأسنان 1', doctor: 'د. خالد', type: 'طارئ', items: [{ name: 'PROPHY PASTE', qty: 2 }] }).id;
+  gas.mails.length = 0;
+  assert.equal(api(q, 'nudgeProcurement', id, '').owner, 'doctor');
+  assert.deepEqual(gas.mails.map(m => m.to), ['khaled@example.com'], 'waiting on the doctor → only the doctor');
+  api(d, 'doctorReview', id, 'اعتمد', '', []);
+  gas.mails.length = 0;
+  assert.equal(api(q, 'nudgeProcurement', id, '').owner, 'procurement');
+  assert.ok(gas.mails.every(m => m.to.includes('ali@example.com')) && gas.mails.length === 1, 'prep → procurement');
+  api(p, 'dispatchItems', id, ['PROPHY PASTE']);
+  gas.mails.length = 0;
+  const res = api(q, 'nudgeProcurement', id, 'أكّدي الاستلام');
+  assert.equal(res.owner, 'nurse');
+  assert.deepEqual(gas.mails.map(m => m.to), ['sara@example.com'], 'awaiting clinic receipt → the nurse, not procurement');
+  assert.ok(res.comments.some(c => /التمريض/.test(c.message) && /أكّدي/.test(c.message)));
+});
+
 test('batch runs several reads in one execution with per-call errors, and rejects writes', () => {
   const { api, login } = boot();
   const n = login('سارة', '1111');
