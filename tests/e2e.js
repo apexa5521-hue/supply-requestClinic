@@ -614,6 +614,15 @@ function log(msg) { console.log('  ✔ ' + msg); }
   await logout(page);
   await login(page, 'سارة', '1111');
   await page.click('.sidebar [data-view="assets"]');
+  expect(await page.isVisible('#asReportBtn') && (await page.textContent('#pageSub')).trim() === '', 'nurse custody page: «report a faulty tool» button on top, no subtitle');
+  await page.waitForSelector('#asClinics section');
+  expect(!(await page.textContent('#asClinics')).includes('عيادة الجلدية 1') && (await page.textContent('#asClinics')).includes('بلا عهدة مسجلة'), 'clinics without custody are collapsed into one line');
+  await page.click('#asReportBtn');
+  await page.waitForSelector('.modal #anClinic');
+  await page.selectOption('.modal #anClinic', 'عيادة الجلدية 1');
+  await page.selectOption('.modal #anItem', 'Handpiece Low Speed');
+  expect(await page.isVisible('.modal #anSerial') && !(await page.isVisible('.modal #anUnit')), 'unregistered clinic: the nurse types the serial (registered automatically)');
+  await page.keyboard.press('Escape');
   await page.waitForSelector('#asClinics [data-act="asReport"][data-serial="LS-101"]');
   await page.click('#asClinics [data-act="asReport"][data-serial="LS-101"]');
   await page.waitForSelector('.modal #arProb');

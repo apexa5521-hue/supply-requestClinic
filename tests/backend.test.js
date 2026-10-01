@@ -1191,6 +1191,25 @@ test('departments: dental/derma consumables, requests take the clinic department
   assert.ok(ids(pd).includes(derma));
 });
 
+test('custody report works before the clinic inventory is registered: the unit is registered automatically with the ticket', () => {
+  const { api, login, gas } = boot();
+  const n = login('سارة', '1111'), p = login('علي', '3333');
+  const PNG = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==';
+  throwsCode(() => api(n, 'reportAsset', { clinic: 'عيادة الأسنان 1', item: 'DENTAL FLOSS', problem: 'أخرى', description: 'x' }), 'ERR_NOT_ASSET');
+  throwsCode(() => api(n, 'reportAsset', { clinic: 'عيادة الأسنان 2', item: 'Curing Light', problem: 'خربانة', photo: PNG }), 'ERR_FORBIDDEN');
+  const t1 = api(n, 'reportAsset', { clinic: 'عيادة الأسنان 1', item: 'Handpiece Low Speed', serial: 'NEW-77', problem: 'خربانة', photo: PNG });
+  const t2 = api(n, 'reportAsset', { clinic: 'عيادة الأسنان 1', item: 'Curing Light', problem: 'كفاءتها متدنية', description: 'ضعيف' });
+  const assets = rows(gas, 'Assets');
+  assert.deepEqual(assets.map(a => [a.Item, a.Serial, a.Status, a.Notes]), [['Handpiece Low Speed', 'NEW-77', 'مُرسلة للتموين', 'سُجّلت تلقائياً مع بلاغ'], ['Curing Light', '', 'مُرسلة للتموين', 'سُجّلت تلقائياً مع بلاغ']]);
+  assert.deepEqual(api(p, 'getAssetTickets', {}).map(t => [t.id, t.serial]).sort(), [[t1.id, 'NEW-77'], [t2.id, '']].sort());
+  // نفس الرقم وهو عليه بلاغ مفتوح → مرفوض
+  throwsCode(() => api(n, 'reportAsset', { clinic: 'عيادة الأسنان 1', item: 'Handpiece Low Speed', serial: 'new-77', problem: 'خربانة', photo: PNG }), 'ERR_SERIAL_EXISTS');
+  // القطعة المسجلة تُستخدم بدل إنشاء جديدة
+  api(p, 'issueAssets', { clinic: 'عيادة الأسنان 1', item: 'Handpiece Low Speed', serials: ['REG-1'] });
+  api(n, 'reportAsset', { clinic: 'عيادة الأسنان 1', item: 'Handpiece Low Speed', serial: 'REG-1', problem: 'كفاءتها متدنية', description: 'بطيء' });
+  assert.equal(rows(gas, 'Assets').filter(a => a.Serial === 'REG-1').length, 1);
+});
+
 test('batch runs several reads in one execution with per-call errors, and rejects writes', () => {
   const { api, login } = boot();
   const n = login('سارة', '1111');

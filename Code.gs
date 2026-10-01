@@ -4055,11 +4055,12 @@ function reportAsset_(user, payload) {
   if ((problem === 'أخرى' || problem === 'كفاءتها متدنية') && !desc) throw new Error('ERR_REQUIRED');
   const clientKey = /^[A-Za-z0-9-]{8,64}$/.test(str_(payload.clientKey)) ? str_(payload.clientKey) : '';
   const allowed = assetClinicsFor_(user);
-  const assetId = str_(payload.assetId);
   if (clientKey) {
     const same = read_('AssetTickets').rows.filter(function (r) { return str_(r.ClientKey) === clientKey && str_(r.Nurse) === user.name; })[0];
     if (same) return { duplicate: true, id: str_(same.TicketID) };
   }
+  // بلاغ بدون قطعة مسجلة (العهدة لم تُجرد بعد): العيادة + الأداة (+ الرقم التسلسلي) — تُسجَّل القطعة تلقائياً مع البلاغ
+  const assetId = str_(payload.assetId) || resolveReportAsset_(user, payload, allowed);
   const res = withLock_(function () {
     const t = read_('Assets');
     const row = t.rows.filter(function (r) { return str_(r.AssetID) === assetId; })[0];
@@ -4091,6 +4092,30 @@ function reportAsset_(user, payload) {
     '\nالأداة: ' + a.item + (a.serial ? '\nالرقم التسلسلي: ' + a.serial : '') + '\nالمشكلة: ' + problem + (desc ? '\nالوصف: ' + desc : '') +
     '\nالممرضة: ' + user.name + '\n\nيرجى استلام الأداة وتحديث حالتها من داخل النظام.');
   return { duplicate: false, id: res.id };
+}
+
+function resolveReportAsset_(user, payload, allowed) {
+  const clinic = str_(payload.clinic), item = str_(payload.item), serial = clean_(payload.serial, 60);
+  const c = getClinics_().filter(function (x) { return x.name === clinic; })[0];
+  if (!c) throw new Error('ERR_BAD_CLINIC');
+  if (allowed.indexOf(clinic) === -1) throw new Error('ERR_FORBIDDEN');
+  const cat = assetCatalog_()[item];
+  if (!cat) throw new Error('ERR_NOT_ASSET');
+  return withLock_(function () {
+    const rows = read_('Assets').rows.map(mapAsset_).filter(function (a) { return a.id && a.item === item && a.clinic === clinic && a.status === AS_ST.IN; });
+    const hit = serial ? rows.filter(function (a) { return a.serial.toLowerCase() === serial.toLowerCase(); })[0]
+      : rows.filter(function (a) { return !a.serial; })[0];
+    if (hit) return hit.id;
+    if (serial && read_('Assets').rows.some(function (r) {
+      return str_(r.Item) === item && str_(r.Serial).toLowerCase() === serial.toLowerCase() && [AS_ST.DAMAGED, AS_ST.LOST].indexOf(str_(r.Status)) === -1;
+    })) throw new Error('ERR_SERIAL_EXISTS:' + serial); // الرقم مسجّل في عيادة أخرى أو عليه بلاغ مفتوح
+    const id = reserveId_('AST-', function (prefix) { return maxSeq_(freshTable_('Assets').rows, 'AssetID', prefix); }).id;
+    const now = new Date();
+    append_('Assets', { AssetID: id, Item: item, Serial: serial, Clinic: clinic, Branch: c.branch, Qty: 1, Status: AS_ST.IN, IssuedAt: now,
+      IssuedBy: user.name, Cost: cat.price || 0, Notes: 'سُجّلت تلقائياً مع بلاغ', UpdatedAt: now, UpdatedBy: user.name });
+    logAction_('', 'تسجيل قطعة عهدة تلقائياً مع بلاغ: ' + item + (serial ? ' #' + serial : '') + ' — ' + clinic, user.name);
+    return id;
+  });
 }
 
 /**
