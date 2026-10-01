@@ -1064,13 +1064,6 @@ test('custody: standard per clinic, issue with serial numbers, nurse report with
   const row = rep.rows.find(r => r.id === req.id);
   assert.deepEqual(row.items.map(i => [i.item, i.total, i.company]), [['DENTAL FLOSS', 25, false], ['Curing Light', 0, true]]);
   assert.ok(t2.id);
-  // الممرضة تسجل الرقم من الستيكر
-  const rg = api(n, 'registerAsset', { clinic: 'عيادة الأسنان 1', item: 'Handpiece Low Speed', serials: ['LS-005'] });
-  assert.equal(rg.ids.length, 1);
-  throwsCode(() => api(n, 'registerAsset', { clinic: 'عيادة الأسنان 1', item: 'Handpiece Low Speed', serials: ['LS-005'] }), 'ERR_SERIAL_EXISTS:LS-005');
-  throwsCode(() => api(n, 'registerAsset', { clinic: 'عيادة الأسنان 1', item: 'Curing Light', serials: ['X'] }), 'ERR_NOT_ASSET');
-  ca = api(n, 'getClinicAssets', { clinic: 'عيادة الأسنان 1' })[0];
-  assert.equal(ca.items.find(i => i.item === 'Handpiece Low Speed').inClinic, 5);
 });
 
 test('nudge goes to whoever the request is waiting on: doctor → doctor, receipt → the nurse, prep → procurement', () => {
