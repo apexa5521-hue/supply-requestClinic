@@ -962,6 +962,11 @@ test('auto setup: the clinic sheet (Buraydah/Unayzah) becomes the approved 22 cl
   assert.ok(rows(gas, 'Log').some(r => /22 عيادة/.test(r.Action) && /Dermatology Clinic 1 - Buraydah/.test(r.Action)), 'change + names needing attention are logged');
   assert.equal(gas.globals.DriveApp.createFolder._folder.copies.length, 1, 'a backup was taken before changing the sheet');
   assert.ok(rows(gas, 'Settings').some(r => r.Key === 'LabTurnaroundDays') && rows(gas, 'LabMaterials').length === 8, 'lab settings seeded automatically');
+  const demo = rows(gas, 'ItemsCatalog').filter(r => /TEST101$/.test(r.ItemName));
+  assert.equal(demo.length, 8, 'demo custody tools added');
+  assert.ok(demo.every(r => r.Ownership === 'عهدة' && Number(r.Price) > 0));
+  assert.deepEqual(demo.filter(r => r.Serialized === 'نعم').map(r => r.ItemName).slice(0, 2), ['Handpiece Low Speed TEST101', 'Handpiece High Speed TEST101']);
+  assert.ok(api(a, 'getAssetConfig').items.some(i => i.name === 'Handpiece Low Speed TEST101' && i.serialized), 'they show up as custody tools');
   gas.ss.getSheetByName('Clinics').getRange(2, 1).setValue('Dental Clinic 1 - Buraydah (renamed)');
   api(login('المدير', '1234'), 'getConfig');
   assert.equal(rows(gas, 'Clinics')[0].ClinicName, 'Dental Clinic 1 - Buraydah (renamed)', 'runs once only — later manual edits in the sheet are kept');

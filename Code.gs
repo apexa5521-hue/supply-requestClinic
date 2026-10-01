@@ -118,7 +118,7 @@ const COMPLAINT_TYPES = ['تأخير', 'نقص', 'زيادة', 'أخرى'];
  *  التجهيز التلقائي بعد النشر (مرة واحدة لكل إصدار) — بلا أي خطوة يدوية:
  *  تبويبات الإعداد (Settings / LabMaterials)، قائمة العيادات المعتمدة، المشغّلات (النسخ الليلي + onChange)
  * ===================================================================== */
-const SETUP_VERSION_ = '2026-10-assets';
+const SETUP_VERSION_ = '2026-10-assets-demo';
 function autoSetup_() {
   try {
     const cache = CacheService.getScriptCache();
@@ -132,6 +132,7 @@ function autoSetup_() {
           seedLabSetup_();
           migrateClinics_();
           grantPerm_('assets', ['executive', 'quality', 'finance']);
+          seedDemoAssets_();
           if (typeof ScriptApp !== 'undefined') { try { installTriggers(); } catch (e) { console.error(e); } } // يحتاج صلاحية المشغّلات
           flushDirty_();
           props.setProperty('setup:done', SETUP_VERSION_);
@@ -151,6 +152,30 @@ function grantPerm_(perm, screens) {
     return screens.indexOf(str_(r.Screen)) !== -1 && v && v !== '*' && v !== 'none' && v.split(/[,،\s]+/).indexOf(perm) === -1;
   }).map(function (r) { return { row: r, obj: { Permissions: str_(r.Permissions) + ',' + perm } }; });
   if (ups.length) setMany_(t, ups);
+}
+
+/**
+ * أدوات عهدة تجريبية (اسمها ينتهي بـ TEST101) — مثال لمن يضيف الأدوات الحقيقية:
+ * Ownership = عهدة، Serialized = نعم للأدوات ذات الرقم التسلسلي، وسعر للوحدة. تُضاف مرة واحدة ولا تتكرر، ويمكن حذفها لاحقاً.
+ */
+const DEMO_ASSETS_ = [
+  ['Handpiece Low Speed TEST101', 'NSK', 'Handpiece', 1450, 'نعم'],
+  ['Handpiece High Speed TEST101', 'NSK', 'Handpiece', 2150, 'نعم'],
+  ['Ultrasonic Scaler TEST101', 'Woodpecker', 'Equipment', 3200, 'نعم'],
+  ['Apex Locator TEST101', 'Morita', 'Equipment', 1875, 'نعم'],
+  ['Intraoral Camera TEST101', 'Acteon', 'Equipment', 2730, 'نعم'],
+  ['Curing Light TEST101', 'Woodpecker', 'Equipment', 785, ''],
+  ['Amalgamator TEST101', 'SDI', 'Equipment', 640, ''],
+  ['Dental Loupes TEST101', 'Univet', 'Equipment', 1190, '']
+];
+function seedDemoAssets_() {
+  if (!read_('Clinics').rows.some(function (r) { return /buraydah|unayzah|بريدة|عنيزة/i.test(str_(r.Branch)); })) return; // شيت العيادة فقط
+  const have = {};
+  read_('ItemsCatalog').rows.forEach(function (r) { have[str_(r.ItemName).toLowerCase()] = true; });
+  DEMO_ASSETS_.forEach(function (d) {
+    if (have[d[0].toLowerCase()]) return;
+    append_('ItemsCatalog', { ItemName: d[0], CommercialName: d[1], Category: d[2], Price: d[3], Ownership: 'عهدة', Serialized: d[4] });
+  });
 }
 
 function seedLabSetup_() {
