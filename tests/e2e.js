@@ -699,10 +699,15 @@ function log(msg) { console.log('  ✔ ' + msg); }
   expect(await page.locator('#monBody .mon-doc').count() === 4, 'monthly cycle is tracked per doctor (not per clinic)');
   expect(await page.locator('#monBody [data-act="monNudge"]').count() >= 1, 'overdue requests are listed with a nudge button');
   await shot(page, 'quality-monitor', true);
+  const nOwner = await page.getAttribute('#monBody [data-act="monNudge"] >> nth=0', 'data-owner');
+  const nLabel = { nurse: 'التمريض', doctor: 'الطبيب', procurement: 'التموين' }[nOwner];
+  expect(!!nLabel && (await page.textContent('#monBody [data-act="monNudge"] >> nth=0')).includes(nLabel), 'nudge button names who the request waits on (' + nOwner + ')');
   await page.click('#monBody [data-act="monNudge"] >> nth=0');
+  expect((await page.textContent('.modal .modal-head')).includes(nLabel), 'nudge dialog is addressed to the stage owner');
   await page.click('#nSend');
-  expect(await toastHas(page, 'تم تنبيه التموين'), 'quality nudged procurement on an overdue request');
-  expect(await page.evaluate(() => __gas.mails.some(m => /متابعة طلب متأخر/.test(m.subject))), 'nudge emailed procurement');
+  expect(await toastHas(page, 'تم تنبيه ' + nLabel) || await toastHas(page, 'لا يوجد إيميل مسجل'), 'quality nudged the stage owner on an overdue request');
+  const nMails = await page.evaluate(() => __gas.mails.filter(m => /متابعة طلب متأخر/.test(m.subject)).map(m => m.to));
+  expect(nOwner === 'nurse' ? nMails.every(to => !/ali@example\.com/.test(to)) : nMails.length > 0, 'nudge emailed the stage owner only — not procurement (' + nOwner + ': ' + (nMails.join(',') || 'no email → comment + warning') + ')');
   await logout(page);
 
   // ---------- Finance ----------
