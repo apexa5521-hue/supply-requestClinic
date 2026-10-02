@@ -530,6 +530,8 @@ let persistTimer = null;
    (كانت كل الردود — عدة ميغابايت — تُعاد كتابتها بعد كل استدعاء) */
 const RC_DIRTY = new Set();
 const RC_SAVED = {};
+/* بصمة خفيفة للنص (لا نحتفظ بنسخة ثانية من ردود بالميغابايت في الذاكرة) */
+function strSig(str) { let h = 0x811c9dc5; for (let i = 0; i < str.length; i++) h = Math.imul(h ^ str.charCodeAt(i), 16777619); return str.length + ':' + (h >>> 0); }
 function persistRC(key) {
   if (key) RC_DIRTY.add(key);
   clearTimeout(persistTimer);
@@ -540,9 +542,9 @@ function persistRC(key) {
       const keys = idx && idx.u === S.user.name && Array.isArray(idx.k) ? idx.k : [];
       RC_DIRTY.forEach(k => {
         const e = RC.get(k); if (!e) return;
-        const str = JSON.stringify(e.data);
-        if (RC_SAVED[k] === str) return;
-        try { sessionStorage.setItem('sf_rc:' + k, str); RC_SAVED[k] = str; if (keys.indexOf(k) === -1) keys.push(k); } catch (er) { /* مساحة ممتلئة: تجاهل */ }
+        const str = JSON.stringify(e.data), sig = strSig(str);
+        if (RC_SAVED[k] === sig) return;
+        try { sessionStorage.setItem('sf_rc:' + k, str); RC_SAVED[k] = sig; if (keys.indexOf(k) === -1) keys.push(k); } catch (er) { /* مساحة ممتلئة: تجاهل */ }
       });
       RC_DIRTY.clear();
       sessionStorage.setItem('sf_rc', JSON.stringify({ u: S.user.name, k: keys }));
@@ -554,7 +556,7 @@ function restoreRC(userName) {
     const o = JSON.parse(sessionStorage.getItem('sf_rc') || 'null');
     if (!o || o.u !== userName || !Array.isArray(o.k)) return 0;
     let n = 0;
-    o.k.forEach(k => { const str = sessionStorage.getItem('sf_rc:' + k); if (str) { RC.set(k, { data: JSON.parse(str), at: 0, seed: true }); RC_SAVED[k] = str; n++; } });
+    o.k.forEach(k => { const str = sessionStorage.getItem('sf_rc:' + k); if (str) { RC.set(k, { data: JSON.parse(str), at: 0, seed: true }); RC_SAVED[k] = strSig(str); n++; } });
     return n;
   } catch (e) { return 0; }
 }
@@ -2181,7 +2183,8 @@ function drawReceipt(id, sections, combined) {
 ACT.moreList = el => {
   const k = el.dataset.k;
   LIMITS[k] = (LIMITS[k] || PAGE) + PAGE;
-  ({ proc: () => renderProcList(false), mine: () => renderMineList(false), doc: () => renderDoc(false, true) })[k]();
+  const f = ({ proc: () => renderProcList(false), mine: () => renderMineList(false), doc: () => renderDoc(false, true), lab: () => renderLabBoard(false), as: () => asRenderTickets() })[k];
+  if (f) f();
 };
 ACT.loadArchive = el => {
   const k = el.dataset.k;
@@ -4275,9 +4278,9 @@ function asRenderTickets() {
   const chips = $('#asChips'); if (chips) chips.innerHTML = chipsHtml(TK_GROUPS, AS.group, 'asGroup', groupCounts(TK_GROUPS, AS.tickets));
   const g = TK_GROUPS.find(x => x.id === AS.group) || TK_GROUPS[3];
   const list = AS.tickets.filter(x => matchGroup(g, x));
-  box.innerHTML = list.length ? list.map(asTicketCard).join('') : emptyState('tool', t('as_no_tickets'));
+  box.innerHTML = list.length ? pageOf('as', list).map(asTicketCard).join('') + moreBtn('as', list.length) : emptyState('tool', t('as_no_tickets'));
 }
-ACT.asGroup = el => { AS.group = el.dataset.g; asRenderTickets(); };
+ACT.asGroup = el => { AS.group = el.dataset.g; resetPage('as'); asRenderTickets(); };
 function asLoad(silent) {
   const role = S.user.screen;
   const jobs = [asCfg()];

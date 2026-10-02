@@ -97,6 +97,16 @@ function run(N) {
   const L = login('فني المعمل', '8888');
   m('lab getLabCases', L, 'getLabCases', [{}]);
   m('lab getLabStats', L, 'getLabStats', [{}]);
+  // الحالة المستقرة: نفس القراءات مرة ثانية (الخطة محفوظة والكاش دافئ)
+  m('warm: nurse getRequestDetail', n, 'getRequestDetail', [id]);
+  m('warm: nurse batch(config+mine+alerts+notices)', n, 'batch', [[['getConfig', []], ['getMyRequests', []], ['getAlerts', []], ['getNotices', []]]]);
+  m('warm: doctor getDoctorRequests', d, 'getDoctorRequests');
+  m('warm: quality getExecutiveStats', q, 'getExecutiveStats', ['']);
+  m('warm: quality getMonitor', q, 'getMonitor');
+  m('warm: quality getStatsReport (all)', q, 'getStatsReport', [{}]);
+  m('warm: finance getFinance (all)', f, 'getFinance', [{}]);
+  m('warm: lab getLabStats', L, 'getLabStats', [{}]);
+  m('warm: proc login + preload', null, 'login', ['علي', '3333', plan]);
   return rows;
 }
 

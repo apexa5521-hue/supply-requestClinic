@@ -127,7 +127,7 @@ const SETUP_VERSION_ = '2026-10-setup-v2';
 function autoSetup_() {
   try {
     const cache = CacheService.getScriptCache();
-    if (cache.get('setup:ok') === SETUP_VERSION_) return;
+    if (preGet_('setup:ok') === SETUP_VERSION_) return;
     const props = PropertiesService.getScriptProperties();
     if (props.getProperty('setup:done') !== SETUP_VERSION_) {
       const lock = LockService.getScriptLock();
@@ -397,6 +397,8 @@ function apiCore_(token, fn, args) {
   fn = String(fn);
   // القراءة من الكاش في كل العمليات؛ الكتابات تتحقق من الشيت الحي (withLock_ / setMany_)
   CACHED_READS_ = true;
+  const plan = planKey_(fn, args);
+  preamble_(token, plan, fn === 'login' ? 'lf:' + loginKey_(str_(args[0])) : '');
   autoSetup_();
   try {
     if (fn === 'login') return sanitize_(login_(args[0], args[1], args[2]));
@@ -411,8 +413,63 @@ function apiCore_(token, fn, args) {
     return sanitize_(def.fn.apply(null, [user].concat(args)));
   } finally {
     flushDirty_();
+    savePlan_(plan);
     CACHED_READS_ = false;
   }
+}
+
+/* ---------------------------------------------------------------------
+ *  تقليل رحلات الكاش في كل استدعاء:
+ *  1) رحلة واحدة في البداية تجلب: علامة التجهيز + الجلسة + إصدارات التبويبات + خطة الاستدعاء
+ *  2) «خطة» كل دالة = التبويبات التي قرأتها آخر مرة وعدد أجزائها → تُجلب كلها في رحلة واحدة
+ *     بدل رحلة لكل تبويب. الخطة تتعلم تلقائياً وتُحدَّث فقط إن تغيرت.
+ * --------------------------------------------------------------------- */
+function planKey_(fn, args) {
+  if (fn === 'batch') return 'tp:batch:' + (Array.isArray(args[0]) ? args[0].map(function (c) { return String(c && c[0]); }).join(',') : '');
+  if (fn === 'login') return 'tp:login:' + loginKey_(str_(args[0])).slice(0, 80);
+  if (fn === 'logout') return '';
+  return 'tp:' + fn;
+}
+function preamble_(token, plan, extraKey) {
+  const keys = ['setup:ok'].concat(Object.keys(SCHEMA).map(function (n) { return 'v:' + n; }));
+  if (token) keys.push('s:' + token);
+  if (plan) keys.push(plan);
+  if (extraKey) keys.push(extraKey);
+  let got;
+  try { got = cache_().getAll(keys) || {}; } catch (e) { return; } // الكاش غير متاح: كل دالة تقرأ بنفسها
+  MEMO_.pre = got;
+  MEMO_.preKeys = {};
+  keys.forEach(function (k) { MEMO_.preKeys[k] = true; });
+  const ver = {};
+  Object.keys(got).forEach(function (k) { if (k.indexOf('v:') === 0) ver[k] = got[k]; });
+  MEMO_.ver = ver;
+  MEMO_.planWas = plan && got[plan] ? got[plan] : '';
+  if (MEMO_.planWas) prefetchTables_(MEMO_.planWas);
+}
+/** قيمة من رحلة البداية إن جُلبت فيها، وإلا من الكاش مباشرة */
+function preGet_(key) {
+  if (MEMO_.preKeys && MEMO_.preKeys[key]) { const v = MEMO_.pre[key]; return v === undefined ? null : v; }
+  return cache_().get(key);
+}
+function prefetchTables_(planStr) {
+  let plan;
+  try { plan = JSON.parse(planStr); } catch (e) { return; }
+  const ver = MEMO_.ver || {}, keys = [];
+  Object.keys(plan).forEach(function (name) {
+    const v = ver['v:' + name];
+    if (!v || !SCHEMA[name]) return;
+    keys.push('n:' + name + ':' + v);
+    // الأجزاء المتوقعة + جزء احتياطي لنمو التبويب
+    for (let i = 0; i <= Math.min(Number(plan[name]) || 1, 199); i++) keys.push('c:' + name + ':' + v + ':' + i);
+  });
+  if (!keys.length) return;
+  try { MEMO_.pf = cache_().getAll(keys) || {}; } catch (e) { MEMO_.pf = null; }
+}
+function savePlan_(plan) {
+  if (!plan || !MEMO_.used) return;
+  const s = JSON.stringify(MEMO_.used);
+  if (s === MEMO_.planWas || s === '{}') return;
+  try { cache_().put(plan, s, 21600); } catch (e) { /* الكاش اختياري */ }
 }
 
 /**
@@ -585,7 +642,11 @@ function flushDirty_() {
   if (!names.length) return;
   // نضمن وصول الكتابات للشيت قبل إعلان الإصدار الجديد (وإلا قد يُخزَّن محتوى قديم تحته)
   try { SpreadsheetApp.flush(); } catch (e) { /* تجاهل */ }
-  names.forEach(bumpVersion_);
+  // كل الإصدارات الجديدة في رحلة كاش واحدة
+  const out = {};
+  names.forEach(function (n) { out['v:' + n] = Utilities.getUuid().slice(0, 8); });
+  try { cache_().putAll(out, 21600); } catch (e) { /* الكاش اختياري */ }
+  if (MEMO_.ver) Object.keys(out).forEach(function (k) { MEMO_.ver[k] = out[k]; });
   MEMO_.dirty = {};
 }
 
@@ -609,16 +670,24 @@ function cachedValues_(name) {
     const nKey = 'n:' + name + ':' + ver;
     const keys = [];
     for (let i = 0; i < 40; i++) keys.push('c:' + name + ':' + ver + ':' + i);
-    let parts = cache.getAll([nKey].concat(keys)) || {};
+    // من الجلب المسبق (خطة الدالة) إن وُجد كاملاً، وإلا رحلة لهذا التبويب
+    const pf = MEMO_.pf;
+    let parts = pf && pf[nKey] ? pf : null;
+    if (parts) {
+      const pn = Number(parts[nKey]);
+      for (let i = 0; i < pn; i++) if (parts['c:' + name + ':' + ver + ':' + i] === undefined) { parts = null; break; }
+    }
+    if (!parts) parts = cache.getAll([nKey].concat(keys)) || {};
     const n = Number(parts[nKey]);
     if (!n) return null;
     if (n > 40) {
       const more = [];
       for (let i = 40; i < n; i++) { more.push('c:' + name + ':' + ver + ':' + i); keys.push(more[more.length - 1]); }
-      parts = Object.assign(parts, cache.getAll(more) || {});
+      if (more.some(function (k) { return parts[k] === undefined; })) parts = Object.assign({}, parts, cache.getAll(more) || {});
     }
     let json = '';
     for (let i = 0; i < n; i++) { const p = parts[keys[i]]; if (p === undefined || p === null) return null; json += p; }
+    (MEMO_.used = MEMO_.used || {})[name] = n;
     return decodeValues_(json);
   } catch (e) { return null; }
 }
@@ -635,6 +704,7 @@ function storeValues_(name, values) {
     out['n:' + name + ':' + ver] = String(n || 1);
     if (!n) out['c:' + name + ':' + ver + ':0'] = '[]';
     cache_().putAll(out, READ_CACHE_TTL);
+    (MEMO_.used = MEMO_.used || {})[name] = n || 1;
   } catch (e) { /* الكاش اختياري */ }
 }
 
@@ -962,7 +1032,7 @@ function login_(name, password, preload) {
   const key = loginKey_(name);
   const cache = CacheService.getScriptCache();
   const failKey = 'lf:' + key;
-  const fails = Number(cache.get(failKey) || 0);
+  const fails = Number(preGet_(failKey) || 0);
   if (fails >= LOGIN_MAX_FAILS) throw new Error('ERR_LOGIN_LOCKED');
 
   const t = read_('Users');
@@ -1009,7 +1079,7 @@ function logout_(token) {
 function session_(token) {
   if (!token) throw new Error('ERR_SESSION');
   const cache = CacheService.getScriptCache();
-  const raw = cache.get('s:' + token);
+  const raw = preGet_('s:' + token);
   if (!raw) throw new Error('ERR_SESSION');
   const user = JSON.parse(raw);
   // الدور وصلاحياته تُقرأ في كل طلب: تعديل الأدمن لدور ينعكس فوراً بدون إعادة دخول
@@ -3557,9 +3627,12 @@ function importLabCases_() {
 function appendMany_(name, objs) {
   if (!objs.length) return;
   const sh = sheet_(name);
-  const vals = [headerRow_(sh)];
-  ensureHeaders_(sh, vals, SCHEMA[name]);
-  const headers = vals[0];
+  let headers = MEMO_['hd:' + name];
+  if (!headers) {
+    const vals = [headerRow_(sh)];
+    ensureHeaders_(sh, vals, SCHEMA[name]);
+    headers = MEMO_['hd:' + name] = vals[0];
+  }
   const rows = objs.map(function (o) { return headers.map(function (h) { return Object.prototype.hasOwnProperty.call(o, h) ? o[h] : ''; }); });
   sh.getRange(sh.getLastRow() + 1, 1, rows.length, headers.length).setValues(rows);
   markDirty_(name);
