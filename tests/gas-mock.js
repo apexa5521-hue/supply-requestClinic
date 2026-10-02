@@ -13,14 +13,14 @@
     const forcedText = [];
     // عدّاد استدعاءات خدمة Sheets (كل استدعاء = رحلة للخادم في Apps Script الحقيقي) + الخلايا المقروءة
     const ops = { calls: 0, cells: 0, byKind: {} };
-    const op = (kind, cells) => { ops.calls++; ops.byKind[kind] = (ops.byKind[kind] || 0) + 1; ops.cells += cells || 0; };
+    const op = (kind, cells, what) => { ops.calls++; ops.byKind[kind] = (ops.byKind[kind] || 0) + 1; ops.cells += cells || 0; if (ops.trace) ops.trace.push(kind + ' ' + (what || '') + (cells > 1 ? ' [' + cells + ']' : '')); };
     let uuidSeq = 0;
 
     function Range(sh, row, col, nr, nc) {
       nr = nr || 1; nc = nc || 1;
       return {
         getValues() {
-          op('read', nr * nc);
+          op('read', nr * nc, sh._name);
           const out = [];
           for (let r = 0; r < nr; r++) {
             const line = [];
@@ -34,11 +34,11 @@
         },
         getValue() { return this.getValues()[0][0]; },
         setValues(vals) {
-          op('write', nr * nc);
+          op('write', nr * nc, sh._name);
           for (let r = 0; r < nr; r++) for (let c = 0; c < nc; c++) sh._set(row + r, col + c, vals[r][c]);
           return this;
         },
-        setValue(v) { op('write', 1); sh._set(row, col, v); return this; },
+        setValue(v) { op('write', 1, sh._name); sh._set(row, col, v); return this; },
         setNumberFormat() { return this; },
         setBackground(c) { (sh._bg = sh._bg || {})[row] = c; return this; },
         setFontWeight() { return this; }
@@ -63,11 +63,11 @@
           return 0;
         },
         _lc() { return this._data.reduce((m, l) => { let n = l.length; while (n && (l[n - 1] === '' || l[n - 1] === undefined)) n--; return Math.max(m, n); }, 0); },
-        getLastRow() { op('meta'); return this._lr(); },
-        getLastColumn() { op('meta'); return this._lc(); },
+        getLastRow() { op('meta', 0, name + '.lastRow'); return this._lr(); },
+        getLastColumn() { op('meta', 0, name + '.lastCol'); return this._lc(); },
         getRange(r, c, nr, nc) { return Range(this, r, c, nr, nc); },
         getDataRange() { return Range(this, 1, 1, Math.max(this._lr(), 1), Math.max(this._lc(), 1)); },
-        appendRow(vals) { op('append', vals.length); const r = this._lr() + 1; vals.forEach((v, i) => this._set(r, i + 1, v)); return this; },
+        appendRow(vals) { op('append', vals.length, name); const r = this._lr() + 1; vals.forEach((v, i) => this._set(r, i + 1, v)); return this; },
         deleteRow(r) { this._data.splice(r - 1, 1); },
         setFrozenRows() { return this; },
         autoResizeColumns() { return this; }
@@ -77,7 +77,7 @@
 
     const ss = {
       getId() { return 'ss1'; },
-      getSheetByName(n) { op('meta'); return sheets[n] || null; },
+      getSheetByName(n) { op('meta', 0, 'sheet ' + n); return sheets[n] || null; },
       insertSheet(n) { sheets[n] = Sheet(n); order.push(n); return sheets[n]; },
       getSheets() { return order.map(n => sheets[n]); },
       deleteSheet(sh) { delete sheets[sh._name]; order.splice(order.indexOf(sh._name), 1); }
@@ -87,11 +87,11 @@
     const cacheStore = {};
     const now = () => (opts.now ? opts.now() : Date.now());
     const cache = {
-      get(k) { op('cache'); const e = cacheStore[k]; if (!e) return null; if (e.exp < now()) { delete cacheStore[k]; return null; } return e.v; },
-      put(k, v, ttl) { op('cache'); cacheStore[k] = { v: String(v), exp: now() + (ttl || 600) * 1000 }; },
-      remove(k) { op('cache'); delete cacheStore[k]; },
-      getAll(keys) { op('cache'); const o = {}; keys.forEach(k => { const e = cacheStore[k]; if (e && e.exp >= now()) o[k] = e.v; }); return o; },
-      putAll(obj, ttl) { op('cache'); Object.keys(obj).forEach(k => { cacheStore[k] = { v: String(obj[k]), exp: now() + (ttl || 600) * 1000 }; }); }
+      get(k) { op('cache', 0, 'get ' + k); const e = cacheStore[k]; if (!e) return null; if (e.exp < now()) { delete cacheStore[k]; return null; } return e.v; },
+      put(k, v, ttl) { op('cache', 0, 'put ' + k); cacheStore[k] = { v: String(v), exp: now() + (ttl || 600) * 1000 }; },
+      remove(k) { op('cache', 0, 'rm ' + k); delete cacheStore[k]; },
+      getAll(keys) { op('cache', 0, 'getAll ' + keys.join(',')); const o = {}; keys.forEach(k => { const e = cacheStore[k]; if (e && e.exp >= now()) o[k] = e.v; }); return o; },
+      putAll(obj, ttl) { op('cache', 0, 'putAll ' + Object.keys(obj).join(',')); Object.keys(obj).forEach(k => { cacheStore[k] = { v: String(obj[k]), exp: now() + (ttl || 600) * 1000 }; }); }
     };
 
     function digestBytes(str, len) {
@@ -143,8 +143,8 @@
           releaseLock() {} }; }
       },
       PropertiesService: { getScriptProperties() { return {
-        getProperty(k) { op('cache'); return Object.prototype.hasOwnProperty.call(props, k) ? props[k] : null; },
-        setProperty(k, v) { op('cache'); props[k] = String(v); return this; },
+        getProperty(k) { op('cache', 0, 'prop ' + k); return Object.prototype.hasOwnProperty.call(props, k) ? props[k] : null; },
+        setProperty(k, v) { op('cache', 0, 'setprop ' + k); props[k] = String(v); return this; },
         deleteProperty(k) { delete props[k]; return this; },
         getKeys() { return Object.keys(props); } }; } },
       MailApp: { sendEmail(to, subject, body) { op('mail'); mails.push({ to, subject, body }); } },

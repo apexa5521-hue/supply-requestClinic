@@ -518,6 +518,33 @@ function log(msg) { console.log('  ✔ ' + msg); }
   await logout(page);
   await login(page, 'فني المعمل', '8888');
   await page.waitForSelector('#labList .lab-card');
+  // قائمة طويلة: «عرض المزيد» في لوحة المعمل يضيف دفعة (كان يرمي خطأ)
+  {
+    const before = await page.evaluate(() => {
+      const k = LAB.key, one = LAB[k][0];
+      window.__labSaved = LAB[k];
+      LAB[k] = Array.from({ length: 120 }, (_, i) => Object.assign({}, one, { id: one.id + '-x' + i }));
+      resetPage('lab'); renderLabBoard(false);
+      return document.querySelectorAll('#labList .lab-card').length;
+    });
+    await page.click('#labList [data-act="moreList"][data-k="lab"]');
+    const after = await page.evaluate(() => document.querySelectorAll('#labList .lab-card').length);
+    expect(before === 50 && after === 100, 'lab board pages long lists (50 → 100 after «show more»)');
+    await page.evaluate(() => { LAB[LAB.key] = window.__labSaved; resetPage('lab'); renderLabBoard(false); });
+  }
+  // الجداول الطويلة (مثل «طلبات تجاوزت الموعد»): 50 صفاً ثم «عرض المزيد» يكمل في مكانه، والطباعة تعرض الكل
+  {
+    const first = await page.evaluate(() => {
+      const host = document.createElement('div'); host.id = 'tblTest';
+      host.innerHTML = rpTable(Array.from({ length: 330 }, (_, i) => ({ i })), [{ h: '#', v: r => String(r.i) }]);
+      document.body.appendChild(host);
+      return host.querySelectorAll('tbody tr:not(.tbl-more)').length;
+    });
+    await page.click('#tblTest .tbl-more button');
+    const second = await page.evaluate(() => document.querySelectorAll('#tblTest tbody tr:not(.tbl-more)').length);
+    const all = await page.evaluate(() => { window.dispatchEvent(new Event('beforeprint')); const h = document.getElementById('tblTest'); const n = [h.querySelectorAll('tbody tr').length, h.querySelector('tbody tr:last-child').textContent]; h.remove(); return n; });
+    expect(first === 50 && second === 250 && all[0] === 330 && all[1] === '329', 'long tables: 50 rows, +200 on «show more», all rows when printing');
+  }
   expect(await page.isVisible('.alert:has-text("إرسالية جديدة")'), 'lab gets a new-case alert');
   await page.click('.lab-card [data-act="labDo"][data-a="start"][data-items="' + labId + '-1"]');
   expect(await toastHas(page, 'بدأ العمل'), 'lab started item 1 in-house');
