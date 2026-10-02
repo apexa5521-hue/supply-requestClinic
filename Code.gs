@@ -55,6 +55,9 @@ const SCHEMA = {
                  'Material', 'PatientAt', 'Attachments'],
   LabNotes:     ['Timestamp', 'CaseID', 'ItemID', 'Author', 'Role', 'Message'],
   // عُهدة العيادة: المعيار لكل عيادة، القطع المصروفة (بالرقم التسلسلي)، وبلاغات الأدوات
+  // البوكسات: بوكس ثابت لكل طبيب (أو عيادة لمستهلكات العيادة) عليه QR برمز سري؛ وسجل كل حركة بالصورة
+  Boxes:        ['BoxID', 'Owner', 'Token', 'Location', 'Status', 'Loads', 'Destination', 'LoadedAt', 'UpdatedAt', 'UpdatedBy', 'Photo', 'Notes'],
+  BoxMoves:     ['Timestamp', 'BoxID', 'Owner', 'From', 'To', 'Action', 'By', 'Photo', 'RequestID', 'Batch', 'ClientKey'],
   ClinicStandards: ['Clinic', 'Item', 'StandardQty', 'UpdatedBy', 'UpdatedAt'],
   Assets:       ['AssetID', 'Item', 'Serial', 'Clinic', 'Branch', 'Qty', 'Status', 'IssuedAt', 'IssuedBy', 'Cost', 'TicketID', 'Notes', 'UpdatedAt', 'UpdatedBy'],
   AssetTickets: ['TicketID', 'Date', 'AssetID', 'Item', 'Serial', 'Clinic', 'Branch', 'Nurse', 'Problem', 'Description', 'Photo', 'Status',
@@ -410,6 +413,10 @@ function apiCore_(token, fn, args) {
     // إيقاظ الخادم وتسخين كاش المستخدمين والأدوار أثناء كتابة بيانات الدخول (بدون جلسة، لا يُرجع بيانات)
     if (fn === 'ping') { read_('Users'); getRoles_(); return true; }
     if (fn === 'batch') return batch_(token, args[0]);
+    // صفحة السواق (بدون حساب): الرمز السري للبوكس أو لرابط المهام هو الصلاحية
+    if (fn === 'boxInfo') return sanitize_(boxInfo_(args[0]));
+    if (fn === 'boxDeliver') return sanitize_(boxDeliver_(args[0]));
+    if (fn === 'driverTasks') return sanitize_(driverTasks_(args[0]));
     const def = API_[fn];
     if (!def) throw new Error('ERR_UNKNOWN_FN');
     const user = session_(token);
@@ -587,6 +594,10 @@ const API_ = {
   updateAssetTicket:         { screens: ['procurement'], fn: updateAssetTicket_ },
   setAssetTicketCost:        { screens: ['procurement'], perm: 'finance', fn: setAssetTicketCost_ },
   nudgeProcurement:          { screens: [], perm: 'monitor', fn: nudgeProcurement_ },
+  // البوكسات
+  getBoxes:                  { screens: ['procurement'], fn: getBoxes_ },
+  requestBoxMove:            { screens: ['procurement'], fn: requestBoxMove_ },
+  addBox:                    { screens: ['procurement'], fn: addBox_ },
   getFinance:                { screens: [], perm: 'finance', fn: getFinance_ },
   getPriceList:              { screens: [], perm: 'prices_edit', fn: getPriceList_ },
   setItemPrice:              { screens: [], perm: 'prices_edit', fn: setItemPrice_ },
@@ -1103,6 +1114,233 @@ function session_(token) {
 }
 
 /* =====================================================================
+ *  تتبع البوكسات
+ *  - بوكس ثابت لكل طبيب (أو للعيادة في «مستهلكات عيادة») برقم BOX-### ورمز سري داخل ستيكر QR.
+ *  - «إرسال» من التموين يحمّل الشحنة في بوكس صاحبها ← «جاهز للنقل» ووجهته فرع الطلب، ويظهر في مهام السواق.
+ *  - السواق يمسح الـ QR (بدون حساب): يختار مكان التسليم، يصوّر البوكس، ويضغط «تسليم» ← الشحنة «وصلت الفرع» وتُبلَّغ الممرضة.
+ *  - الممرضة تستلم كالمعتاد (الكميات والتوقيع)؛ البوكس يبقى مكانه فارغاً. التموين يطلب نقله متى احتاجه (يظهر في مهام السواق).
+ * ===================================================================== */
+const BX_ST = { EMPTY: 'فارغ', READY: 'جاهز للنقل', MOVE: 'مطلوب نقله', DELIVERED: 'وصل الفرع' };
+const BOX_HOME = 'التموين';
+function boxLoads_(v) { return str_(v).split(',').map(function (x) { return x.trim(); }).filter(String); }
+function mapBox_(r) {
+  return { id: str_(r.BoxID), owner: str_(r.Owner), location: str_(r.Location) || BOX_HOME, status: str_(r.Status) || BX_ST.EMPTY,
+    loads: boxLoads_(r.Loads), destination: str_(r.Destination), loadedAt: r.LoadedAt, updatedAt: r.UpdatedAt, updatedBy: str_(r.UpdatedBy),
+    photo: str_(r.Photo), notes: str_(r.Notes) };
+}
+function newToken_() { return (Utilities.getUuid() + Utilities.getUuid()).replace(/-/g, '').slice(0, 32); }
+function boxOwnerOf_(req) { return str_(req.doctor) || str_(req.clinic); }
+/** بوكس صاحب الطلب (يُنشأ تلقائياً أول مرة) — داخل القفل */
+function ensureBox_(owner, user) {
+  owner = str_(owner);
+  if (!owner) return null;
+  const t = read_('Boxes');
+  const have = t.rows.filter(function (r) { return str_(r.Owner) === owner; })[0];
+  if (have) return have;
+  let n = 0;
+  t.rows.forEach(function (r) { const m = /^BOX-(\d+)$/.exec(str_(r.BoxID)); if (m) n = Math.max(n, Number(m[1])); });
+  const id = 'BOX-' + String(n + 1).padStart(3, '0');
+  append_('Boxes', { BoxID: id, Owner: owner, Token: newToken_(), Location: BOX_HOME, Status: BX_ST.EMPTY, UpdatedAt: new Date(), UpdatedBy: user ? user.name : '' });
+  return read_('Boxes').rows.filter(function (r) { return str_(r.BoxID) === id; })[0];
+}
+function addBoxMove_(box, from, to, action, by, photo, requestId, batch, clientKey) {
+  append_('BoxMoves', { Timestamp: new Date(), BoxID: str_(box.BoxID), Owner: str_(box.Owner), From: from, To: to, Action: action, By: by,
+    Photo: photo || '', RequestID: requestId || '', Batch: batch || '', ClientKey: clientKey || '' });
+}
+/** تحميل شحنة في البوكس (من writeShipment_ داخل القفل) — بوكس جديد يُكتب محمّلاً في سطر واحد */
+function loadBox_(req, batch, user, now) {
+  const owner = boxOwnerOf_(req);
+  if (!owner) return;
+  const key = req.id + '#' + batch;
+  const dest = str_(req.branch) || clinicBranch_(req.clinic);
+  const t = read_('Boxes');
+  let row = t.rows.filter(function (r) { return str_(r.Owner) === owner; })[0];
+  let from = BOX_HOME;
+  if (row) {
+    from = str_(row.Location) || BOX_HOME;
+    const loads = boxLoads_(row.Loads);
+    if (loads.indexOf(key) === -1) loads.push(key);
+    setMany_(t, [{ row: row, obj: { Location: BOX_HOME, Status: BX_ST.READY, Loads: loads.join(','), Destination: dest, LoadedAt: now, UpdatedAt: now, UpdatedBy: user.name } }]);
+  } else {
+    let n = 0;
+    t.rows.forEach(function (r) { const m = /^BOX-(\d+)$/.exec(str_(r.BoxID)); if (m) n = Math.max(n, Number(m[1])); });
+    row = { BoxID: 'BOX-' + String(n + 1).padStart(3, '0'), Owner: owner };
+    append_('Boxes', { BoxID: row.BoxID, Owner: owner, Token: newToken_(), Location: BOX_HOME, Status: BX_ST.READY, Loads: key, Destination: dest, LoadedAt: now, UpdatedAt: now, UpdatedBy: user.name });
+  }
+  addBoxMove_(row, from, BOX_HOME, 'تحميل', user.name, '', req.id, batch);
+  // تنبيه السواق بالإيميل (اختياري من Settings ← DriverEmail)
+  const mail = str_(getSetting_('DriverEmail', ''));
+  if (mail) sendMail_(mail, 'بوكس جاهز للنقل: ' + str_(row.BoxID) + ' (' + owner + ') إلى ' + dest,
+    'بوكس ' + owner + ' (' + str_(row.BoxID) + ') جاهز في التموين — التوصيل إلى فرع ' + dest + '.\nامسح الـ QR على البوكس عند التسليم.');
+}
+/** إخراج شحنة من البوكس (استلام الممرضة أو إلغاء الشحنة) — داخل القفل */
+function unloadBox_(requestId, batch, by, why) {
+  const t = read_('Boxes');
+  const key = str_(requestId) + '#' + batch;
+  const row = t.rows.filter(function (r) { return boxLoads_(r.Loads).indexOf(key) !== -1; })[0];
+  if (!row) return;
+  const loads = boxLoads_(row.Loads).filter(function (k) { return k !== key; });
+  const st = str_(row.Status);
+  const status = loads.length ? st : (st === BX_ST.READY || st === BX_ST.DELIVERED ? BX_ST.EMPTY : st);
+  setMany_(t, [{ row: row, obj: { Loads: loads.join(','), Status: status, Destination: loads.length || status === BX_ST.MOVE ? str_(row.Destination) : '', UpdatedAt: new Date(), UpdatedBy: by } }]);
+  addBoxMove_(row, str_(row.Location), str_(row.Location), why, by, '', requestId, batch);
+}
+/** مواقع التسليم المسموحة: الفروع + التموين */
+function boxPlaces_() { return [BOX_HOME].concat(getBranches_()); }
+function boxByToken_(p) {
+  p = p || {};
+  const id = str_(p.box), k = str_(p.k);
+  const row = read_('Boxes').rows.filter(function (r) { return str_(r.BoxID) === id; })[0];
+  if (!row || !k || str_(row.Token) !== k) throw new Error('ERR_BAD_LINK');
+  return row;
+}
+function loadsInfo_(loads) {
+  const want = {};
+  loads.forEach(function (k) { want[k.split('#')[0]] = true; });
+  const reqs = {};
+  read_('Requests').rows.forEach(function (r) { if (want[str_(r.RequestID)]) reqs[str_(r.RequestID)] = r; });
+  return loads.map(function (k) {
+    const id = k.split('#')[0], r = reqs[id];
+    return { request: id, batch: Number(k.split('#')[1]) || 0, clinic: r ? str_(r.Clinic) : '', branch: r ? reqBranch_(r) : '' };
+  });
+}
+/** صفحة السواق: بيانات البوكس فقط (بدون أسعار أو أصناف) */
+function boxInfo_(p) {
+  const row = boxByToken_(p);
+  const b = mapBox_(row);
+  return { id: b.id, owner: b.owner, location: b.location, status: b.status, destination: b.destination,
+    loads: loadsInfo_(b.loads), places: boxPlaces_() };
+}
+/** «تسليم»: مكان التسليم + صورة البوكس + اسم السواق */
+function boxDeliver_(p) {
+  p = p || {};
+  const to = str_(p.to), driver = clean_(p.driver, 60), clientKey = str_(p.clientKey).slice(0, 64);
+  if (boxPlaces_().indexOf(to) === -1) throw new Error('ERR_BAD_PLACE');
+  if (!driver) throw new Error('ERR_DRIVER_NAME');
+  const pre = boxByToken_(p);
+  if (clientKey) {
+    const dup = read_('BoxMoves').rows.filter(function (r) { return str_(r.ClientKey) === clientKey && str_(r.BoxID) === str_(pre.BoxID); })[0];
+    if (dup) return { ok: true, duplicate: true, box: boxInfo_(p) };
+  }
+  if (!p.photo) throw new Error('ERR_PHOTO_REQUIRED');
+  const photo = saveLabPhoto_(str_(pre.BoxID) + '-' + Date.now(), p.photo);
+  let notify = [];
+  withLock_(function () {
+    resetMemo_();
+    const row = boxByToken_(p);
+    const b = mapBox_(row);
+    const now = new Date();
+    const atBranch = to !== BOX_HOME;
+    const status = b.loads.length ? (atBranch ? BX_ST.DELIVERED : BX_ST.READY) : BX_ST.EMPTY;
+    setMany_(read_('Boxes'), [{ row: row, obj: { Location: to, Status: status, Destination: status === BX_ST.READY ? b.destination : '', UpdatedAt: now, UpdatedBy: driver + ' (سواق)', Photo: photo } }]);
+    const info = loadsInfo_(b.loads);
+    if (b.loads.length) {
+      info.forEach(function (l) {
+        addBoxMove_(row, b.location, to, 'تسليم', driver, photo, l.request, l.batch, clientKey);
+        if (atBranch) {
+          logAction_(l.request, 'وصل بوكس ' + b.owner + ' (' + b.id + ') فرع ' + to + ' — الشحنة ' + l.batch + ' — السواق ' + driver, driver);
+          append_('Comments', { Timestamp: now, RequestID: l.request, Author: driver, Role: 'سواق', Message: '📦 وصل البوكس ' + b.id + ' إلى فرع ' + to + ' (الشحنة ' + l.batch + ') — بانتظار الاستلام' });
+          notify.push(l);
+        }
+      });
+    } else addBoxMove_(row, b.location, to, 'نقل', driver, photo, '', '', clientKey);
+  });
+  // إبلاغ الممرضة بوصول البوكس
+  const reqs = {};
+  read_('Requests').rows.forEach(function (r) { reqs[str_(r.RequestID)] = r; });
+  notify.forEach(function (l) {
+    const r = reqs[l.request];
+    if (r && str_(r.Nurse)) notifyUser_(str_(r.Nurse), 'وصل بوكس طلبك ' + l.request + ' إلى فرع ' + to,
+      'وصل البوكس الخاص بطلبك ' + l.request + ' (الشحنة ' + l.batch + ') إلى فرع ' + to + '.\nافتح البوكس وأكّد الاستلام والكميات من النظام.');
+  });
+  return { ok: true, box: boxInfo_(p) };
+}
+/** رمز رابط «مهام السواق» (يُنشأ مرة في Settings ← DriverToken، ويمكن تغييره من الشيت لإبطال الرابط القديم) */
+function driverToken_() {
+  let tk = str_(getSetting_('DriverToken', ''));
+  if (tk) return tk;
+  withLock_(function () {
+    tk = str_(getSetting_('DriverToken', ''));
+    if (!tk) { tk = newToken_(); append_('Settings', { Key: 'DriverToken', Value: tk, Notes: 'رمز رابط مهام السواق — غيّره لإبطال الرابط القديم' }); }
+  });
+  return tk;
+}
+function driverTasks_(p) {
+  p = p || {};
+  const tk = str_(getSetting_('DriverToken', ''));
+  if (!tk || str_(p.k) !== tk) throw new Error('ERR_BAD_LINK');
+  const boxes = read_('Boxes').rows.map(mapBox_).filter(function (b) { return b.id && (b.status === BX_ST.READY || b.status === BX_ST.MOVE); });
+  return boxes.map(function (b) {
+    const row = read_('Boxes').rows.filter(function (r) { return str_(r.BoxID) === b.id; })[0];
+    return { id: b.id, owner: b.owner, status: b.status, location: b.location, destination: b.destination, since: b.updatedAt, k: str_(row.Token), count: b.loads.length };
+  }).sort(function (a, b) { return toMs_(a.since) - toMs_(b.since); });
+}
+/** شاشة التموين: كل البوكسات + آخر حركة + رابط الـ QR لكل بوكس + رابط مهام السواق */
+function getBoxes_(user) {
+  const moves = {};
+  read_('BoxMoves').rows.forEach(function (m) { const id = str_(m.BoxID); if (id) (moves[id] = moves[id] || []).push(m); });
+  const list = read_('Boxes').rows.filter(function (r) { return str_(r.BoxID); }).map(function (r) {
+    const b = mapBox_(r);
+    b.k = str_(r.Token);
+    b.loads = loadsInfo_(b.loads);
+    b.history = (moves[b.id] || []).slice(-8).reverse().map(function (m) {
+      return { time: m.Timestamp, from: str_(m.From), to: str_(m.To), action: str_(m.Action), by: str_(m.By), photo: str_(m.Photo), request: str_(m.RequestID), batch: str_(m.Batch) };
+    });
+    return b;
+  });
+  // زمن التوصيل: من التحميل إلى وصول الفرع (آخر 60 يوماً)
+  const loadAt = {}, hrs = [];
+  read_('BoxMoves').rows.forEach(function (m) {
+    const k = str_(m.RequestID) + '#' + str_(m.Batch);
+    if (str_(m.Action) === 'تحميل') loadAt[k] = toMs_(m.Timestamp);
+    else if (str_(m.Action) === 'تسليم' && loadAt[k] && str_(m.To) !== BOX_HOME && Date.now() - toMs_(m.Timestamp) < 60 * 864e5) hrs.push((toMs_(m.Timestamp) - loadAt[k]) / 36e5);
+  });
+  return { boxes: list, places: boxPlaces_(), driverToken: driverToken_(),
+    avgDeliveryHrs: hrs.length ? Math.round(hrs.reduce(function (a, x) { return a + x; }, 0) / hrs.length * 10) / 10 : null,
+    appUrl: appUrl_() };
+}
+function appUrl_() { try { return ScriptApp.getService().getUrl() || ''; } catch (e) { return ''; } }
+/** التموين يطلب نقل بوكس (مثلاً إرجاعه للتموين قبل تعبئته) ← يظهر في مهام السواق */
+function requestBoxMove_(user, boxId, to) {
+  to = str_(to);
+  if (boxPlaces_().indexOf(to) === -1) throw new Error('ERR_BAD_PLACE');
+  withLock_(function () {
+    resetMemo_();
+    const row = read_('Boxes').rows.filter(function (r) { return str_(r.BoxID) === str_(boxId); })[0];
+    if (!row) throw new Error('ERR_NOT_FOUND');
+    const b = mapBox_(row);
+    if (b.location === to && !b.loads.length) {
+      setMany_(read_('Boxes'), [{ row: row, obj: { Status: BX_ST.EMPTY, Destination: '', UpdatedAt: new Date(), UpdatedBy: user.name } }]);
+      return;
+    }
+    if (b.loads.length && b.status === BX_ST.DELIVERED) throw new Error('ERR_BOX_LOADED'); // فيه شحنة بانتظار استلام الممرضة
+    setMany_(read_('Boxes'), [{ row: row, obj: { Status: b.loads.length ? BX_ST.READY : BX_ST.MOVE, Destination: to, UpdatedAt: new Date(), UpdatedBy: user.name } }]);
+    addBoxMove_(row, b.location, to, 'طلب نقل', user.name, '', '', '');
+  });
+  const mail = str_(getSetting_('DriverEmail', ''));
+  if (mail) sendMail_(mail, 'مطلوب نقل بوكس ' + str_(boxId) + ' إلى ' + to, 'مطلوب نقل البوكس ' + str_(boxId) + ' إلى ' + to + '.');
+  return true;
+}
+/** بوكس جديد يدوياً (لطبيب/عيادة قبل أول إرسال، لطباعة الستيكر مبكراً) */
+function addBox_(user, owner) {
+  owner = clean_(owner, 120);
+  if (!owner) throw new Error('ERR_REQUIRED');
+  let id = '';
+  withLock_(function () { resetMemo_(); id = str_(ensureBox_(owner, user).BoxID); });
+  return { id: id };
+}
+/** حالة التوصيل لكل شحنة (للطلبات): آخر «تسليم» لفرع لكل طلب#شحنة */
+function deliveriesIndex_() {
+  if (MEMO_.dlv) return MEMO_.dlv;
+  const out = {};
+  read_('BoxMoves').rows.forEach(function (m) {
+    if (str_(m.Action) !== 'تسليم' || str_(m.To) === BOX_HOME || !str_(m.RequestID)) return;
+    out[str_(m.RequestID) + '#' + Number(m.Batch)] = { at: m.Timestamp, to: str_(m.To), by: str_(m.By), photo: str_(m.Photo), box: str_(m.BoxID) };
+  });
+  return (MEMO_.dlv = out);
+}
+
+/* =====================================================================
  *  الأقسام: أسنان / جلدية — المستهلكات والتموين والطلبات مصنفة بالقسم
  * ===================================================================== */
 const DEPTS = ['أسنان', 'جلدية'];
@@ -1516,6 +1754,8 @@ function queryRequests_(filters) {
     r.shipmentCount = st.ships.length;
     r.lastShipAt = st.ships.length ? st.ships.reduce(function (m, g) { return toMs_(g.sentAt) > toMs_(m) ? g.sentAt : m; }, '') : '';
     r.pendingShipments = st.pending;
+    // شحنة وصل بوكسها الفرع ولم تُستلم بعد → «وصل الفرع»
+    r.atBranch = st.ships.some(function (g) { return !g.received && g.delivered; });
     r.needsReview = !!reviewers[r.doctor];
     r.cleared = !r.needsReview || r.status === ST.APPROVED || !!r.approvedAt;
     r.awaitingDoctor = r.needsReview && !r.cleared && AWAITING_DOCTOR.indexOf(r.status) !== -1;
@@ -2111,6 +2351,8 @@ function shipState_(req, rows) {
     g.signatureUrl = x ? str_(x.SignatureURL) : (legacy ? req.signature : '');
     g.receiptUrl = x ? str_(x.ReceiptURL) : (legacy ? req.receiptUrl : '');
     g.units = g.items.reduce(function (a, i) { return a + i.qty; }, 0);
+    // حالة التوصيل للعرض فقط (لا تحتاجها عمليات الكتابة داخل القفل)
+    g.delivered = CACHED_READS_ ? deliveriesIndex_()[req.id + '#' + n] || null : null;
     return g;
   });
   const sum = function (f) { return items.reduce(function (a, i) { return a + f(i); }, 0); };
@@ -2154,6 +2396,7 @@ function writeShipment_(req, rows, st, lines, user, now) {
     const l = lines.filter(function (x) { return x.name === str_(r.ItemName); })[0];
     return i && l && l.qty >= i.remainingQty;
   }).map(function (r) { return { row: r, obj: { DispatchedAt: now, DispatchBatch: batch } }; }));
+  try { loadBox_(req, batch, user, now); } catch (e) { console.error('loadBox_', e); } // التتبع لا يمنع الإرسال أبداً
   return batch;
 }
 
@@ -2512,6 +2755,7 @@ function revertStep_(user, requestId, reason, expected) {
         .sort(function (a, b) { return b._row - a._row; })
         .forEach(function (r) { sheet_('ShipmentItems').deleteRow(r._row); });
       markDirty_('ShipmentItems'); delete MEMO_.sitems;
+      try { unloadBox_(p.req.id, plan.batch, user.name, 'إلغاء الشحنة'); } catch (e) { console.error('unloadBox_', e); }
       const ri = read_('RequestItems');
       const b = batchesOf_(ri.rows.filter(function (r) { return str_(r.RequestID) === p.req.id; }));
       setMany_(ri, ri.rows.filter(function (r) { return str_(r.RequestID) === p.req.id && r.DispatchedAt && b.of(r) === plan.batch; })
@@ -2681,6 +2925,7 @@ function receiveShipment_(user, requestId, batch, receivedItems, receiverName, s
       return { row: r, obj: { ReceivedQty: total } };
     }));
     logAction_(req.id, 'استلام الشحنة ' + batch + ' وتوقيعها (' + ship.items.length + ' صنف)', receiverName + ' (' + user.name + ')');
+    try { unloadBox_(req.id, batch, user.name, 'استلام الممرضة'); } catch (e) { console.error('unloadBox_', e); }
 
     const after = shipState_(req, rows);
     const complete = after.allDispatched && after.pending === 0;
@@ -2903,6 +3148,8 @@ function getAlerts_(user) {
     const toReceive = mine.filter(function (r) { return r.pendingShipments > 0; }).length;
     const rejected = mine.filter(function (r) { return r.status === ST.REJECTED; }).length;
     if (toReceive) alerts.push({ type: 'info', code: 'alert_to_receive', n: toReceive });
+    const arrived = mine.filter(function (r) { return r.atBranch; }).length;
+    if (arrived) alerts.push({ type: 'success', code: 'alert_box_arrived', n: arrived });
     if (rejected) alerts.push({ type: 'danger', code: 'alert_rejected', n: rejected });
     const labIn = queryLabCases_(user, { nurse: user.name }).filter(function (c) { return c.toReceive; }).length;
     if (labIn) alerts.push({ type: 'info', code: 'alert_lab_to_receive', n: labIn });

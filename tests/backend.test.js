@@ -1844,3 +1844,63 @@ test('branch manager: sees only his branch (requests, details, reports, monitor,
   const q = api(login('منى', '5555'), 'getRequests', {}).map(r => r.id);
   assert.ok(q.includes(riyadh) && q.includes(jeddah));
 });
+
+test('boxes: dispatch loads the doctor box → driver scan delivers with photo → nurse receives → box stays; move on request', () => {
+  const { api, login, gas } = boot();
+  const reem = login('ريم', '2222'), p = login('علي', '3333');
+  const id = api(reem, 'createRequest', { doctor: 'د. سعد', type: 'طارئ', items: [{ name: 'PROPHY PASTE', qty: 2 }, { name: 'DENTAL FLOSS', qty: 1 }] }).id;
+  api(p, 'bulkUpdateStatus', [id], 'قيد التجهيز');
+  api(p, 'dispatchItems', id, ['PROPHY PASTE']);
+  let bx = api(p, 'getBoxes');
+  assert.equal(bx.boxes.length, 1);
+  const box = bx.boxes[0];
+  assert.deepEqual([box.id, box.owner, box.status, box.location, box.destination, box.loads.map(l => l.request + '#' + l.batch)],
+    ['BOX-001', 'د. سعد', 'جاهز للنقل', 'التموين', 'جدة', [id + '#1']], 'doctor box created and loaded, destination = request branch');
+  assert.ok(box.k.length >= 24 && bx.driverToken.length >= 24);
+  // مهام السواق برابط سري
+  throwsCode(() => api(null, 'driverTasks', { k: 'wrong' }), 'ERR_BAD_LINK');
+  assert.deepEqual(api(null, 'driverTasks', { k: bx.driverToken }).map(x => [x.id, x.destination]), [['BOX-001', 'جدة']]);
+  // صفحة البوكس بالـ QR: بلا أسعار أو أصناف
+  throwsCode(() => api(null, 'boxInfo', { box: 'BOX-001', k: 'nope' }), 'ERR_BAD_LINK');
+  const info = api(null, 'boxInfo', { box: 'BOX-001', k: box.k });
+  assert.deepEqual(info.places, ['التموين', 'الرياض', 'جدة']);
+  assert.ok(!/PROPHY|price|سعر/.test(JSON.stringify(info)), 'no items or prices on the public page');
+  const d = { box: 'BOX-001', k: box.k, to: 'جدة', driver: 'أبو فهد', photo: PNG, clientKey: 'dlv-000001' };
+  throwsCode(() => api(null, 'boxDeliver', Object.assign({}, d, { photo: '' })), 'ERR_PHOTO_REQUIRED');
+  throwsCode(() => api(null, 'boxDeliver', Object.assign({}, d, { driver: '' })), 'ERR_DRIVER_NAME');
+  throwsCode(() => api(null, 'boxDeliver', Object.assign({}, d, { to: 'الدمام' })), 'ERR_BAD_PLACE');
+  throwsCode(() => api(null, 'boxDeliver', Object.assign({}, d, { k: 'x' })), 'ERR_BAD_LINK');
+  const res = api(null, 'boxDeliver', d);
+  assert.deepEqual([res.box.status, res.box.location], ['وصل الفرع', 'جدة']);
+  assert.equal(api(null, 'boxDeliver', d).duplicate, true, 'double tap is ignored');
+  assert.equal(rows(gas, 'BoxMoves').filter(m => m.Action === 'تسليم').length, 1);
+  // الممرضة: الطلب «وصل الفرع» + تنبيه + تعليق
+  const mine = api(reem, 'getMyRequests').find(r => r.id === id);
+  assert.equal(mine.atBranch, true);
+  assert.ok(api(reem, 'getAlerts').some(a => a.code === 'alert_box_arrived'));
+  const det = api(reem, 'getRequestDetail', id);
+  assert.deepEqual([det.shipments[0].delivered.to, det.shipments[0].delivered.by], ['جدة', 'أبو فهد']);
+  assert.ok(det.shipments[0].delivered.photo);
+  assert.ok(api(reem, 'getComments', id).some(c => /وصل البوكس/.test(c.message)));
+  assert.deepEqual(api(null, 'driverTasks', { k: bx.driverToken }), [], 'nothing left to move');
+  // الاستلام: البوكس يبقى في الفرع فارغاً
+  api(reem, 'receiveShipment', id, 1, [{ name: 'PROPHY PASTE', qty: 2 }], 'ريم', '', '', '');
+  bx = api(p, 'getBoxes');
+  assert.deepEqual([bx.boxes[0].status, bx.boxes[0].location, bx.boxes[0].loads.length], ['فارغ', 'جدة', 0]);
+  assert.equal(api(reem, 'getMyRequests').find(r => r.id === id).atBranch, false);
+  // التموين يطلب إرجاعه ← مهمة للسواق ← تسليم للتموين بدون شحنة
+  api(p, 'requestBoxMove', 'BOX-001', 'التموين');
+  assert.deepEqual(api(null, 'driverTasks', { k: bx.driverToken }).map(x => [x.id, x.status, x.location, x.destination]), [['BOX-001', 'مطلوب نقله', 'جدة', 'التموين']]);
+  api(null, 'boxDeliver', Object.assign({}, d, { to: 'التموين', clientKey: 'dlv-000002' }));
+  bx = api(p, 'getBoxes');
+  assert.deepEqual([bx.boxes[0].status, bx.boxes[0].location], ['فارغ', 'التموين']);
+  // الإرسال الثاني يحمّل نفس البوكس
+  api(p, 'dispatchItems', id, ['DENTAL FLOSS']);
+  bx = api(p, 'getBoxes');
+  assert.deepEqual([bx.boxes.length, bx.boxes[0].status, bx.boxes[0].loads.map(l => l.batch)], [1, 'جاهز للنقل', [2]]);
+  // البوكس لطلب «مستهلكات عيادة» باسم العيادة؛ وبوكس يدوي لطباعة الستيكر مبكراً
+  assert.equal(api(p, 'addBox', 'د. خالد').id, 'BOX-002');
+  assert.equal(api(p, 'addBox', 'د. خالد').id, 'BOX-002', 'one box per owner');
+  // مدير الفرع/الممرضة لا يرون شاشة البوكسات
+  throwsCode(() => api(reem, 'getBoxes'), 'ERR_FORBIDDEN');
+});

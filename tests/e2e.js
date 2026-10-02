@@ -100,9 +100,11 @@ function log(msg) { console.log('  ✔ ' + msg); }
     // مثل HtmlService: يستبدل <?!= include_('X'); ?> بمحتوى X.html
     const html = fs.readFileSync(path.join(ROOT, 'Index.html'), 'utf8')
       .replace(/<\?!=\s*include_\('([\w-]+)'\);?\s*\?>/g, (_, f) => fs.readFileSync(path.join(ROOT, f + '.html'), 'utf8'));
-    await ctx.route('http://supplyflow.test/', r => r.fulfill({ contentType: 'text/html; charset=utf-8', body: html }));
-    await page.goto('http://supplyflow.test/');
-    await page.waitForSelector('#loginView:not(.hidden)');
+    await ctx.route(/^http:\/\/supplyflow\.test\/(\?.*)?$/, r => r.fulfill({ contentType: 'text/html; charset=utf-8', body: html }));
+    // مولّد QR من cdnjs غير متاح في الاختبار: الطباعة تتحول لرابط نصي
+    await ctx.route(/cdnjs\.cloudflare\.com/, r => r.abort());
+    await page.goto('http://supplyflow.test/' + ((opts && opts.query) || ''));
+    if (!(opts && opts.query)) await page.waitForSelector('#loginView:not(.hidden)');
     return page;
   }
   async function shot(page, name, full) {
@@ -401,6 +403,36 @@ function log(msg) { console.log('  ✔ ' + msg); }
   expect(await page.inputValue(qtyInp('MICRO BRUSH FINE')) === '3', 'remaining 3 micro brushes prefilled');
   await page.click(`#exp-${newId} [data-act="dispatch"]`);
   expect(await toastHas(page, 'اكتمل'), 'all quantities dispatched → request sent');
+  // ---------- البوكسات: الإرسال حمّل بوكس الطبيب ← السواق يمسح ويسلّم بصورة ----------
+  await page.click('.sidebar [data-view="boxes"]');
+  await page.waitForSelector('#bxList .box-card');
+  const bx = await page.evaluate(() => BX.data.boxes[0]);
+  expect(bx.status === 'جاهز للنقل' && bx.loads.length === 2 && bx.destination === bx.loads[0].branch, 'dispatch loaded the doctor box (2 shipments) → ready to deliver to the request branch');
+  expect((await page.inputValue('#bxDrvUrl')).includes('?driver='), 'procurement sees the driver tasks link');
+  await shot(page, 'proc-boxes');
+  await page.click('#bxList [data-act="bxSticker"]');
+  await page.waitForSelector('#printArea .sticker', { state: 'attached' });
+  expect(await page.textContent('#printArea .sticker .st-id') === bx.id && (await page.textContent('#printArea .sticker')).includes('?box=' + bx.id), 'sticker prints the box id + scan link (text when QR lib is offline)');
+  await page.evaluate(() => { document.body.classList.remove('printing'); document.getElementById('printArea').innerHTML = ''; });
+  // صفحة السواق: المهام ← البوكس ← المكان + صورة + اسم ← تسليم
+  await page.evaluate(tk => showDriverTasks(tk), await page.evaluate(() => BX.data.driverToken));
+  await page.waitForSelector('.drv-task');
+  expect((await page.textContent('.drv-task')).includes('من التموين إلى ' + bx.destination), 'driver tasks: box from procurement to the branch');
+  await page.click('.drv-task');
+  await page.waitForSelector('#drvGo');
+  expect(await page.getAttribute('.drv-place[data-p="' + bx.destination + '"]', 'aria-pressed') === 'true', 'destination branch preselected');
+  await page.fill('#drvName', 'أبو فهد');
+  await page.click('#drvGo');
+  expect((await page.textContent('#drvErr')).includes('صوّر'), 'photo is required before delivery');
+  await page.setInputFiles('#drvFile', { name: 'box.png', mimeType: 'image/png', buffer: Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==', 'base64') });
+  await page.waitForSelector('#drvPhoto.has');
+  await shot(page, 'driver-deliver');
+  await page.click('#drvGo');
+  await page.waitForSelector('.drv-done');
+  expect((await page.textContent('.drv-done')).includes('تم التسليم إلى ' + bx.destination), 'driver delivered with one tap');
+  expect(await page.evaluate(() => __gas.dump('BoxMoves').filter(r => r[5] === 'تسليم').length) === 2, 'delivery logged for both shipments with photo');
+  await shot(page, 'driver-done');
+  await page.evaluate(() => { document.getElementById('driverView').remove(); document.getElementById('appShell').classList.remove('hidden'); });
   await logout(page);
 
   // ---------- Nurse receives ----------
@@ -408,6 +440,7 @@ function log(msg) { console.log('  ✔ ' + msg); }
   expect(await page.isVisible('.alert.info'), 'nurse is alerted about a request to receive');
   await page.click('.sidebar [data-view="mine"]');
   expect(await page.textContent(`.req:has-text("${newId}") [data-act="receive"] .count-pill`) === '2', 'receive button shows 2 shipments waiting');
+  expect(await page.isVisible(`.req:has-text("${newId}") .tag.arrived`), 'request card shows «وصل الفرع» after the driver delivery');
   const sign = async (dx) => {
     const pad = await page.$('#sigPad');
     const bb = await pad.boundingBox();
@@ -428,7 +461,7 @@ function log(msg) { console.log('  ✔ ' + msg); }
   await shot(page, 'nurse-receive-shipment-1');
   await page.click('#rOk');
   expect(await toastHas(page, 'تم استلام الشحنة #1'), 'shipment #1 received and signed');
-  expect(await page.evaluate(() => __gas.files.length) === 2, 'shipment #1 signature and receipt uploaded');
+  expect(await page.evaluate(() => __gas.files.length) === 3, 'shipment #1 signature and receipt uploaded (+ the driver box photo)');
   // الشحنة 2 (الأخيرة) → إيصال موحّد
   await page.waitForSelector(`.req:has-text("${newId}") [data-act="receive"]:not(:has(.count-pill))`);
   await page.click(`.req:has-text("${newId}") [data-act="receive"]`);
@@ -439,7 +472,7 @@ function log(msg) { console.log('  ✔ ' + msg); }
   await shot(page, 'nurse-receive-last-shipment');
   await page.click('#rOk');
   expect(await toastHas(page, 'اكتمل استلام الطلب'), 'last shipment completes the request');
-  const files = await page.evaluate(() => __gas.files.map(f => ({ name: f.name, bytes: f.bytes })));
+  const files = await page.evaluate(() => __gas.files.filter(f => !/^BOX-/.test(f.name)).map(f => ({ name: f.name, bytes: f.bytes })));
   const merged = files.find(f => f.name.endsWith('-receipt-all.png'));
   expect(files.length === 5 && merged, 'combined receipt saved with every shipment (5 files)');
   if (merged) fs.writeFileSync(path.join(OUT, 'combined-receipt.png'), Buffer.from(merged.bytes.map(b => b & 0xff)));
@@ -815,6 +848,14 @@ function log(msg) { console.log('  ✔ ' + msg); }
   expect((await page.textContent('#asStats')).includes('1,500') && (await page.textContent('#asStats')).includes('Handpiece Low Speed'), 'finance sees custody cost (loss 1,500) by tool');
   await shot(page, 'assets-dashboard', true);
   await logout(page);
+
+  // رابط السواق الخاطئ يفتح صفحة السواق برسالة واضحة (بدون شاشة الدخول)
+  {
+    const dp = await newPage({ viewport: { width: 390, height: 844 }, isMobile: true, query: '?driver=wrong-token' });
+    await dp.waitForSelector('#driverView .empty');
+    expect((await dp.textContent('#driverView')).includes('الرابط غير صالح') && await dp.isHidden('#loginView'), 'driver link opens the driver page without login (invalid token → clear message)');
+    await dp.close();
+  }
 
   // ---------- Admin ----------
   await login(page, 'المدير', '1234');
