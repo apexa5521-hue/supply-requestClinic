@@ -182,7 +182,7 @@ test('config: nurse sees every clinic (own clinics flagged) and no prices; clini
   const proc = api(login('علي', '3333'), 'getConfig');
   assert.equal(proc.catalog.find(c => c.name === 'PROPHY PASTE').price, 60);
   assert.equal(proc.roles.length, 0, 'roles only for admin');
-  assert.equal(api(login('المدير', '1234'), 'getConfig').roles.length, 8);
+  assert.equal(api(login('المدير', '1234'), 'getConfig').roles.length, 9);
 });
 
 test('createRequest: validation', () => {
@@ -1306,7 +1306,7 @@ test('setupSheets is idempotent and seeds defaults on an empty spreadsheet', () 
   ctx.setupSheets();
   ctx.setupSheets();
   assert.equal(gas.dump('Users').length, 2);
-  assert.equal(gas.dump('Roles').length, 10);
+  assert.equal(gas.dump('Roles').length, 11);
   assert.equal(gas.dump('ItemsCatalog').length, 18);
   const r = ctx.api(null, 'login', ['المدير', '1234']);
   assert.equal(r.user.screen, 'admin');
@@ -1383,7 +1383,7 @@ test('roles split: legacy quality/executive/finance migrate; executive keeps ful
   });
   const q = login('منى', '5555');
   assert.deepEqual(rows(gas, 'Roles').map(r => [r.RoleName, r.Screen]).sort(), [
-    ['أدمن', 'admin'], ['ممرضة', 'nurse'], ['تموين', 'procurement'], ['جودة', 'quality'], ['تنفيذي', 'executive'], ['مالية', 'finance'], ['المعمل', 'lab']].sort());
+    ['أدمن', 'admin'], ['ممرضة', 'nurse'], ['تموين', 'procurement'], ['جودة', 'quality'], ['تنفيذي', 'executive'], ['مالية', 'finance'], ['المعمل', 'lab'], ['مدير فرع', 'branch']].sort());
   const qc = api(q, 'getConfig');
   assert.equal(qc.user.screen, 'quality');
   assert.ok(qc.user.perms.includes('monitor') && !qc.user.perms.includes('users') && !qc.user.perms.includes('finance'));
@@ -1534,7 +1534,7 @@ test('management roles (finance…) are added automatically when missing, so the
   });
   const a = login('المدير', '1234');
   const roles = api(a, 'getConfig').roles.map(r => r.name + ':' + r.screen).sort();
-  assert.deepEqual(roles, ['أدمن:admin', 'تموين:procurement', 'تنفيذي:executive', 'جودة:quality', 'طبيب:doctor', 'مالية:finance', 'ممرضة:nurse', 'المعمل:lab'].sort());
+  assert.deepEqual(roles, ['أدمن:admin', 'تموين:procurement', 'تنفيذي:executive', 'جودة:quality', 'طبيب:doctor', 'مالية:finance', 'ممرضة:nurse', 'المعمل:lab', 'مدير فرع:branch'].sort());
   api(a, 'createUser', { name: 'المالية', password: '2468', role: 'مالية', email: 'finance@example.com' });
   const f = api(null, 'login', 'المالية', '2468');
   assert.equal(f.user.screen, 'finance');
@@ -1794,4 +1794,53 @@ test('packed responses (columnar lists) round-trip exactly and are smaller', () 
   assert.deepEqual(unpack(JSON.parse(JSON.stringify(ctx.pack_(mixed)))), mixed);
   const nested = { list: Array.from({ length: 9 }, (_, i) => ({ id: i, tags: ['x', i], sub: Array.from({ length: 9 }, (_, j) => ({ j, s: '' })) })), n: null };
   assert.deepEqual(unpack(JSON.parse(JSON.stringify(ctx.pack_(nested)))), nested);
+});
+
+test('branch manager: sees only his branch (requests, details, reports, monitor, lab, complaints, custody), read-only', () => {
+  const { api, login } = boot();
+  const a = login('المدير', '1234');
+  api(a, 'createUser', { name: 'مدير جدة', password: '9090', role: 'مدير فرع', branch: 'جدة' });
+  api(a, 'createUser', { name: 'مدير غلط', password: '9191', role: 'مدير فرع', branch: 'فرع غير موجود' });
+  assert.equal(api(a, 'getUsers').find(u => u.name === 'مدير جدة').branch, 'جدة');
+  assert.equal(api(a, 'getUsers').find(u => u.name === 'مدير غلط').branch, '', 'unknown branch is not saved');
+  const sara = login('سارة', '1111'), reem = login('ريم', '2222');
+  const riyadh = api(sara, 'createRequest', { clinic: 'عيادة الأسنان 1', type: 'طارئ', items: [{ name: 'PROPHY PASTE', qty: 1 }] }).id;
+  const jeddah = api(reem, 'createRequest', { clinic: 'عيادة الأسنان 2', type: 'طارئ', items: [{ name: 'PROPHY PASTE', qty: 2 }] }).id;
+  const labR = api(sara, 'createLabCase', { doctor: 'د. خالد', fileNo: '11', scanDate: '2020-01-01', lines: [{ lab: 'المعمل الداخلي', workType: 'Denture', material: 'Acrylic' }] }).id;
+  const labJ = api(reem, 'createLabCase', { doctor: 'د. سعد', fileNo: '22', scanDate: '2020-01-01', lines: [{ lab: 'المعمل الداخلي', workType: 'Denture', material: 'Acrylic' }] }).id;
+  api(sara, 'addComplaint', riyadh, 'تأخير', 'من الرياض');
+
+  const b = api(null, 'login', 'مدير جدة', '9090');
+  assert.equal(b.user.screen, 'branch');
+  assert.equal(b.user.branch, 'جدة');
+  assert.deepEqual(b.user.perms.slice().sort(), ['assets', 'complaints', 'lab_view', 'monitor', 'overview', 'reports'].sort());
+  const m = b.token;
+  const ids = api(m, 'getRequests', {}).map(r => r.id);
+  assert.ok(ids.includes(jeddah) && !ids.includes(riyadh), 'only his branch requests');
+  assert.equal(api(m, 'getRequestDetail', jeddah).id, jeddah);
+  throwsCode(() => api(m, 'getRequestDetail', riyadh), 'ERR_NOT_FOUND');
+  assert.deepEqual(api(m, 'getStatsReport', {}).branches.map(x => x.name), ['جدة'], 'reports only his branch');
+  assert.ok(api(m, 'getMonitor', {}).late.every(r => r.branch === 'جدة'));
+  assert.deepEqual(api(m, 'getMonitor', {}).cycle.doctors.map(d => d.doctor), ['د. سعد'], 'monthly cycle: only doctors of his branch');
+  const cases = api(m, 'getLabStats', {}).summary.cases;
+  assert.equal(cases, 1, 'lab KPIs only for his branch');
+  assert.equal(api(m, 'getLabCase', labJ).id, labJ);
+  throwsCode(() => api(m, 'getLabCase', labR), 'ERR_FORBIDDEN');
+  // تنبيه وشكاوى: مسموح لفرعه فقط
+  api(m, 'nudgeProcurement', jeddah, 'متى يوصل؟');
+  throwsCode(() => api(m, 'nudgeProcurement', riyadh, 'x'), 'ERR_NOT_FOUND');
+  api(m, 'addComplaint', jeddah, 'تأخير', 'من مدير الفرع');
+  const comps = api(m, 'getComplaints', false);
+  assert.ok(comps.length === 1 && comps[0].requestId === jeddah, 'complaints of his branch only');
+  // العهدة: عيادات فرعه فقط
+  assert.ok(api(m, 'getClinicAssets', {}).every(c => c.branch === 'جدة'));
+  // مشاهدة فقط: لا اعتماد ولا إرسال ولا تعديل
+  throwsCode(() => api(m, 'dispatchItems', jeddah, ['PROPHY PASTE']), 'ERR_FORBIDDEN');
+  throwsCode(() => api(m, 'bulkUpdateStatus', [jeddah], 'تم الإرسال'), 'ERR_FORBIDDEN');
+  throwsCode(() => api(m, 'getFinance', {}), 'ERR_FORBIDDEN');
+  // بدون فرع (أو فرع غير صالح) = كل الفروع؛ والجودة ترى الكل
+  const all = api(login('مدير غلط', '9191'), 'getRequests', {}).map(r => r.id);
+  assert.ok(all.includes(riyadh) && all.includes(jeddah));
+  const q = api(login('منى', '5555'), 'getRequests', {}).map(r => r.id);
+  assert.ok(q.includes(riyadh) && q.includes(jeddah));
 });

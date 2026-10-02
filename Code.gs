@@ -17,7 +17,8 @@ const DUP_WINDOW_SECONDS = 120;
 
 const SCHEMA = {
   // Department للمستخدم: تموين أسنان / تموين جلدية (فارغ = كل الأقسام)
-  Users:        ['Name', 'Password', 'Role', 'Clinic', 'Email', 'PasswordChangedAt', 'DoctorName', 'Department'],
+  // Branch للمستخدم الإداري (مدير فرع): يرى بيانات فرعه فقط (فارغ = كل الفروع)
+  Users:        ['Name', 'Password', 'Role', 'Clinic', 'Email', 'PasswordChangedAt', 'DoctorName', 'Department', 'Branch'],
   Roles:        ['RoleName', 'Screen', 'Permissions'],
   Clinics:      ['ClinicName', 'Branch', 'Type'],
   Doctors:      ['DoctorName', 'Clinic', 'NurseName', 'Subspecialty'],
@@ -83,12 +84,12 @@ TRANSITIONS[ST.SENT]        = { from: [ST.APPROVED, ST.PREP, ST.VENDOR_RECV], st
 const DISPATCHABLE = [ST.APPROVED, ST.PREP, ST.VENDOR_WAIT, ST.VENDOR_RECV];
 
 const REQUEST_TYPES = ['شهري', 'طارئ'];
-const SCREENS = ['nurse', 'procurement', 'doctor', 'lab', 'quality', 'executive', 'finance', 'dashboard', 'admin'];
+const SCREENS = ['nurse', 'procurement', 'doctor', 'lab', 'quality', 'executive', 'finance', 'dashboard', 'branch', 'admin'];
 /** شاشات الإدارة: ما يظهر فيها تحدده صلاحيات الدور (Permissions في تبويب Roles) */
-const MGMT_SCREENS = ['quality', 'executive', 'finance', 'dashboard', 'admin'];
+const MGMT_SCREENS = ['quality', 'executive', 'finance', 'dashboard', 'branch', 'admin'];
 const DEFAULT_ROLES = [
   ['ممرضة', 'nurse'], ['تموين', 'procurement'], ['طبيب', 'doctor'],
-  ['جودة', 'quality'], ['جوده', 'quality'], ['مالية', 'finance'], ['تنفيذي', 'executive'], ['أدمن', 'admin'], ['المعمل', 'lab']
+  ['جودة', 'quality'], ['جوده', 'quality'], ['مالية', 'finance'], ['تنفيذي', 'executive'], ['أدمن', 'admin'], ['المعمل', 'lab'], ['مدير فرع', 'branch']
 ];
 /**
  * الصلاحيات القابلة للتحديد لكل دور إداري. الأدمن له كل شيء دائماً.
@@ -102,7 +103,9 @@ const DEFAULT_PERMS = {
   executive: ['overview', 'reports', 'complaints', 'complaints_close', 'notices', 'monitor', 'lab_view', 'assets'],
   quality: ['overview', 'reports', 'complaints', 'complaints_close', 'notices', 'monitor', 'lab_view', 'assets'],
   finance: ['finance', 'prices_edit', 'reports', 'monitor', 'assets'],
-  dashboard: ['overview', 'reports', 'complaints', 'notices']
+  dashboard: ['overview', 'reports', 'complaints', 'notices'],
+  // مدير الفرع: مشاهدة فرعه + تقاريره ومؤشراته + التنبيه والشكاوى (بدون اعتماد أو إرسال)
+  branch: ['overview', 'reports', 'complaints', 'monitor', 'lab_view', 'assets']
 };
 /* الطلب الشهري يُرفع من يوم 15 إلى 20، ويجب أن يُستلم قبل يوم 1 من الشهر التالي؛ الطارئ خلال 24 ساعة */
 const MONTHLY_WINDOW = [15, 20];
@@ -397,6 +400,7 @@ function apiCore_(token, fn, args) {
   fn = String(fn);
   // القراءة من الكاش في كل العمليات؛ الكتابات تتحقق من الشيت الحي (withLock_ / setMany_)
   CACHED_READS_ = true;
+  SCOPE_BRANCH_ = '';
   const plan = planKey_(fn, args);
   preamble_(token, plan, fn === 'login' ? 'lf:' + loginKey_(str_(args[0])) : '');
   autoSetup_();
@@ -415,6 +419,7 @@ function apiCore_(token, fn, args) {
     flushDirty_();
     savePlan_(plan);
     CACHED_READS_ = false;
+    SCOPE_BRANCH_ = '';
   }
 }
 
@@ -1066,6 +1071,7 @@ function login_(name, password, preload) {
   const token = Utilities.getUuid() + Utilities.getUuid().replace(/-/g, '');
   cache.put('s:' + token, JSON.stringify(Object.assign({ _at: Date.now() }, user)), SESSION_TTL);
   user.perms = permsOf_(user);
+  applyScope_(user);
   const out = { success: true, token: token, user: user, config: getConfig_(user) };
   const calls = preload && typeof preload === 'object' ? preload[screen] : null;
   if (Array.isArray(calls) && calls.length && calls.length <= BATCH_MAX) out.preload = runBatch_(user, calls);
@@ -1087,6 +1093,7 @@ function session_(token) {
   if (!sc) throw new Error('ERR_SESSION');
   user.screen = sc;
   user.perms = permsOf_(user);
+  applyScope_(user);
   // تمديد الجلسة مع النشاط — مرة كل 20 دقيقة تكفي (توفّر رحلة كاش في كل طلب)
   if (!(Date.now() - (user._at || 0) < 20 * 60 * 1000)) {
     user._at = Date.now();
@@ -1119,6 +1126,32 @@ function userDept_(user) {
   const r = read_('Users').rows.filter(function (u) { return str_(u.Name) === user.name; })[0];
   return r ? normDept_(r.Department) : '';
 }
+/* =====================================================================
+ *  نطاق الفرع: مستخدم إداري (مثل «مدير فرع») عنده Branch في تبويب Users يرى بيانات فرعه فقط —
+ *  الطلبات، التقارير، المتابعة، المعمل، الشكاوى، العهدة. الفرع يؤخذ من السجل نفسه (فرع الطلب/الإرسالية)
+ *  لا من الطبيب، فالطبيب الذي يعمل في الفرعين يظهر طلبه لمدير الفرع الذي طُلب منه.
+ * ===================================================================== */
+let SCOPE_BRANCH_ = '';
+function userBranch_(user) {
+  const r = read_('Users').rows.filter(function (u) { return str_(u.Name) === user.name; })[0];
+  return r ? str_(r.Branch) : '';
+}
+function applyScope_(user) {
+  SCOPE_BRANCH_ = MGMT_SCREENS.indexOf(user.screen) !== -1 && user.screen !== 'admin' ? userBranch_(user) : '';
+  user.branch = SCOPE_BRANCH_;
+}
+/** فرع صالح من تبويب Clinics (أو فارغ) */
+function validBranch_(b) { b = str_(b); return b && getBranches_().indexOf(b) !== -1 ? b : ''; }
+function inScope_(branch) { return !SCOPE_BRANCH_ || str_(branch) === SCOPE_BRANCH_; }
+function reqBranch_(r) { return str_(r.Branch) || clinicBranch_(r.Clinic); }
+/** أرقام الطلبات الظاهرة في النطاق (للشكاوى والتراجعات) */
+function scopedRequestIds_() {
+  if (!SCOPE_BRANCH_) return null;
+  const ids = {};
+  requestRows_().forEach(function (r) { ids[str_(r.RequestID)] = true; });
+  return ids;
+}
+
 /** هل يخص الطلب قسم المستخدم؟ (بلا قسم = للجميع) */
 function deptMatch_(userDept, reqDept) { return !userDept || !reqDept || userDept === reqDept; }
 /** إيميل للتموين: حسابات القسم نفسه + حسابات التموين العامة (بلا قسم) */
@@ -1257,7 +1290,7 @@ function permsOf_(user) {
 function ensureMgmtRoles_() {
   const have = {};
   read_('Roles').rows.forEach(function (r) { if (str_(r.RoleName)) have[str_(r.RoleName)] = str_(r.Screen); });
-  const missing = [['جودة', 'quality'], ['مالية', 'finance'], ['تنفيذي', 'executive'], ['أدمن', 'admin'], ['المعمل', 'lab']].filter(function (d) {
+  const missing = [['جودة', 'quality'], ['مالية', 'finance'], ['تنفيذي', 'executive'], ['أدمن', 'admin'], ['المعمل', 'lab'], ['مدير فرع', 'branch']].filter(function (d) {
     // لا نضيف «جودة» إن كان «جوده» موجوداً، ولا أي دور شاشته موجودة مسبقاً باسم آخر
     if (have[d[0]] !== undefined || (d[0] === 'جودة' && have['جوده'] !== undefined) || (d[0] === 'مالية' && have['ماليه'] !== undefined)) return false;
     return !Object.keys(have).some(function (n) { return have[n] === d[1]; });
@@ -1422,13 +1455,13 @@ function getDoctorProfile_(user, doctor) {
  *  الطلبات
  * ===================================================================== */
 
-function requestRows_() { return read_('Requests').rows.filter(function (r) { return str_(r.RequestID); }); }
+function requestRows_() { return read_('Requests').rows.filter(function (r) { return str_(r.RequestID) && (!SCOPE_BRANCH_ || inScope_(reqBranch_(r))); }); }
 
 function findRequest_(id) {
   id = str_(id);
   const t = read_('Requests');
   const row = t.rows.filter(function (r) { return str_(r.RequestID) === id; })[0];
-  if (!row) throw new Error('ERR_NOT_FOUND');
+  if (!row || (SCOPE_BRANCH_ && !inScope_(reqBranch_(row)))) throw new Error('ERR_NOT_FOUND');
   return { t: t, row: row };
 }
 
@@ -1592,7 +1625,8 @@ function getMonitor_(user, opts) {
   all.forEach(function (r) {
     if (r.type !== 'طارئ' && r.doctor && monthOf_(r.submittedAt || r.date) === cycleMonth) (byDoc[r.doctor] = byDoc[r.doctor] || []).push(r);
   });
-  const cycle = allDoctors_().map(function (d) {
+  // مدير الفرع: أطباء عيادات فرعه + من رفع طلباً من فرعه هذا الشهر (الطبيب المتنقل بين الفرعين)
+  const cycle = allDoctors_().filter(function (d) { return !SCOPE_BRANCH_ || inScope_(clinicBranch_(d.clinic)) || byDoc[d.name]; }).map(function (d) {
     const rs = byDoc[d.name] || [];
     const first = rs[rs.length - 1];
     return { doctor: d.name, clinic: d.clinic, nurse: d.nurse, count: rs.length,
@@ -2503,9 +2537,10 @@ function revertStep_(user, requestId, reason, expected) {
 function getReversals_(user, opts) {
   opts = opts || {};
   const from = parseDay_(opts.from), to = parseDay_(opts.to, true);
+  const ids = scopedRequestIds_();
   return read_('Reversals').rows.filter(function (r) {
     const ms = toMs_(r.Timestamp);
-    return str_(r.RequestID) && (!from || ms >= from.getTime()) && (!to || ms <= to.getTime());
+    return str_(r.RequestID) && (!ids || ids[str_(r.RequestID)]) && (!from || ms >= from.getTime()) && (!to || ms <= to.getTime());
   }).map(function (r) {
     return { time: r.Timestamp, requestId: str_(r.RequestID), user: str_(r.User), role: str_(r.Role), scope: str_(r.Scope),
       from: str_(r.From), to: str_(r.To), reason: str_(r.Reason), details: str_(r.Details) };
@@ -2815,7 +2850,8 @@ function addComplaint_(user, requestId, type, message) {
 }
 
 function getComplaints_(user, openOnly) {
-  return read_('Complaints').rows.filter(function (r) { return str_(r.ComplaintID); })
+  const ids = scopedRequestIds_();
+  return read_('Complaints').rows.filter(function (r) { return str_(r.ComplaintID) && (!ids || ids[str_(r.RequestID)]); })
     .map(function (r) {
       return {
         id: str_(r.ComplaintID), time: r.Timestamp, requestId: str_(r.RequestID), author: str_(r.Author),
@@ -3212,7 +3248,7 @@ function getUsers_() {
   requestRows_().forEach(function (r) { if (str_(r.Doctor)) real[str_(r.Doctor)] = true; });
   Object.keys(acc).forEach(function (n) { if (n !== acc[n] || real[n]) (linked[acc[n]] = linked[acc[n]] || []).push(n); });
   return read_('Users').rows.filter(function (r) { return str_(r.Name); }).map(function (r) {
-    const u = { name: str_(r.Name), role: str_(r.Role), clinic: str_(r.Clinic), email: str_(r.Email), screen: roleScreen_(r.Role), doctorName: str_(r.DoctorName), department: normDept_(r.Department) };
+    const u = { name: str_(r.Name), role: str_(r.Role), clinic: str_(r.Clinic), email: str_(r.Email), screen: roleScreen_(r.Role), doctorName: str_(r.DoctorName), department: normDept_(r.Department), branch: str_(r.Branch) };
     if (u.screen === 'doctor') u.linked = linked[u.name] || [];
     return u;
   });
@@ -3276,11 +3312,11 @@ function createUser_(user, u) {
   const password = String(u.password || '');
   if (!name || !password) throw new Error('ERR_REQUIRED');
   if (password.length < 4) throw new Error('ERR_WEAK_PASSWORD');
-  const fields = { role: str_(u.role), clinic: clean_(u.clinic, 500), email: str_(u.email), doctorName: clean_(u.doctorName, 120), department: normDept_(u.department) };
+  const fields = { role: str_(u.role), clinic: clean_(u.clinic, 500), email: str_(u.email), doctorName: clean_(u.doctorName, 120), department: normDept_(u.department), branch: validBranch_(u.branch) };
   validateUserFields_(fields);
   if (getUsers_().some(function (x) { return loginKey_(x.name) === loginKey_(name); })) throw new Error('ERR_USER_EXISTS');
   append_('Users', { Name: name, Password: hashPassword_(latinDigits_(password).trim()), Role: fields.role, Clinic: fields.clinic, Email: fields.email,
-    DoctorName: roleScreen_(fields.role) === 'doctor' ? fields.doctorName : '', Department: fields.department });
+    DoctorName: roleScreen_(fields.role) === 'doctor' ? fields.doctorName : '', Department: fields.department, Branch: fields.branch });
   logAction_('', 'إنشاء مستخدم: ' + name, user.name);
   return getUsers_();
 }
@@ -3294,12 +3330,12 @@ function updateUser_(user, name, u) {
   const t = read_('Users');
   const row = t.rows.filter(function (r) { return str_(r.Name) === str_(name); })[0];
   if (!row) throw new Error('ERR_NOT_FOUND');
-  const fields = { role: str_(u.role), clinic: clean_(u.clinic, 500), email: str_(u.email), doctorName: clean_(u.doctorName, 120), department: normDept_(u.department) };
+  const fields = { role: str_(u.role), clinic: clean_(u.clinic, 500), email: str_(u.email), doctorName: clean_(u.doctorName, 120), department: normDept_(u.department), branch: validBranch_(u.branch) };
   validateUserFields_(fields);
   if (roleScreen_(row.Role) === 'admin' && roleScreen_(fields.role) !== 'admin' && countAdmins_(str_(name)) === 0) {
     throw new Error('ERR_LAST_ADMIN');
   }
-  const upd = { Role: fields.role, Clinic: fields.clinic, Email: fields.email, DoctorName: roleScreen_(fields.role) === 'doctor' ? fields.doctorName : '', Department: fields.department };
+  const upd = { Role: fields.role, Clinic: fields.clinic, Email: fields.email, DoctorName: roleScreen_(fields.role) === 'doctor' ? fields.doctorName : '', Department: fields.department, Branch: fields.branch };
   if (u.password) {
     if (String(u.password).length < 4) throw new Error('ERR_WEAK_PASSWORD');
     upd.Password = hashPassword_(latinDigits_(String(u.password)).trim());
@@ -3691,6 +3727,7 @@ function labItemsOf_(id) {
 }
 /** من يرى الإرسالية: الممرضة صاحبتها، الطبيب نفسه، المعمل، ومن لديه صلاحية متابعة المعمل */
 function canSeeLab_(user, c) {
+  if (SCOPE_BRANCH_ && !inScope_(str_(c.Branch) || clinicBranch_(c.Clinic))) return false;
   if (user.screen === 'lab' || (user.perms || []).indexOf('lab_view') !== -1) return true;
   if (user.screen === 'nurse') return str_(c.Nurse) === user.name;
   if (user.screen === 'doctor') return isMyDoctor_(user, str_(c.Doctor));
@@ -3905,7 +3942,7 @@ function getLabStats_(user, opts) {
   const from = parseDay_(opts.from), to = parseDay_(opts.to, true);
   const now = Date.now(), D = 864e5;
   const cases = {};
-  read_('LabCases').rows.forEach(function (c) { if (str_(c.CaseID)) cases[str_(c.CaseID)] = c; });
+  read_('LabCases').rows.forEach(function (c) { if (str_(c.CaseID) && (!SCOPE_BRANCH_ || inScope_(str_(c.Branch) || clinicBranch_(c.Clinic)))) cases[str_(c.CaseID)] = c; });
   const items = read_('LabItems').rows.filter(function (it) { return cases[str_(it.CaseID)]; });
   const inRange = function (c) { const ms = toMs_(c.Date); return (!from || ms >= from.getTime()) && (!to || ms <= to.getTime()); };
   // الأسطر التي أُعيدت: كل سطر إعادة يشير لسطره الأصلي — تُحسب الإعادة على معمل/نوع السطر الأصلي
@@ -3991,7 +4028,7 @@ function assetCatalog_() {
 }
 /** العيادات التي يراها المستخدم: الممرضة عياداتها (أو الكل إن لم تُقيَّد)، الطبيب عيادات سجله، والبقية الكل */
 function assetClinicsFor_(user) {
-  const all = getClinics_().map(function (c) { return c.name; });
+  const all = getClinics_().filter(function (c) { return inScope_(c.branch); }).map(function (c) { return c.name; });
   if (user.screen === 'nurse') { const mine = userClinics_(user); return mine.length ? mine : all; }
   if (user.screen === 'doctor') {
     const names = (doctorNamesFor_(user) || []);
@@ -4022,7 +4059,7 @@ function getClinicAssets_(user, opts) {
   opts = opts || {};
   const allowed = assetClinicsFor_(user);
   const want = str_(opts.clinic);
-  const clinics = getClinics_().filter(function (c) { return allowed.indexOf(c.name) !== -1 && (!want || c.name === want); });
+  const clinics = getClinics_().filter(function (c) { return allowed.indexOf(c.name) !== -1 && inScope_(c.branch) && (!want || c.name === want); });
   const std = {};
   read_('ClinicStandards').rows.forEach(function (r) {
     const q = Math.floor(num_(r.StandardQty));
@@ -4032,10 +4069,12 @@ function getClinicAssets_(user, opts) {
   read_('Assets').rows.forEach(function (r) {
     const a = mapAsset_(r);
     if (!a.id || a.status === AS_ST.DAMAGED || a.status === AS_ST.LOST) return;
-    ((byClinic[a.clinic] = byClinic[a.clinic] || {})[a.item] = byClinic[a.clinic][a.item] || []).push(a);
+    // العيادة نفسها قد تتكرر باسمها في فرعين (مثل Sterilization): التجميع بالاسم + الفرع
+    const k = a.clinic + '|' + (a.branch || clinicBranch_(a.clinic));
+    ((byClinic[k] = byClinic[k] || {})[a.item] = byClinic[k][a.item] || []).push(a);
   });
   return clinics.map(function (c) {
-    const s = std[c.name] || {}, have = byClinic[c.name] || {};
+    const s = std[c.name] || {}, have = byClinic[c.name + '|' + c.branch] || {};
     const names = Object.keys(s).concat(Object.keys(have).filter(function (k) { return !(k in s); }));
     const items = names.map(function (item) {
       const list = have[item] || [];
@@ -4127,6 +4166,7 @@ function mapTicket_(r) {
     open: TK_OPEN.indexOf(str_(r.Status) || TK_ST.NEW) !== -1 };
 }
 function canSeeTicket_(user, tk) {
+  if (SCOPE_BRANCH_ && !inScope_(tk.branch)) return false;
   if (user.screen === 'procurement' || (user.perms || []).indexOf('assets') !== -1) return true;
   return assetClinicsFor_(user).indexOf(tk.clinic) !== -1;
 }
@@ -4324,7 +4364,7 @@ function findAsset_(user, q) {
 function getAssetStats_(user, opts) {
   opts = opts || {};
   const from = parseDay_(opts.from), to = parseDay_(opts.to, true);
-  const branch = str_(opts.branch);
+  const branch = SCOPE_BRANCH_ || str_(opts.branch);
   const inRange = function (d) { const ms = toMs_(d); return (!from || ms >= from.getTime()) && (!to || ms <= to.getTime()); };
   const tickets = read_('AssetTickets').rows.filter(function (r) { return str_(r.TicketID); }).map(mapTicket_)
     .filter(function (tk) { return inRange(tk.date) && (!branch || tk.branch === branch); });
