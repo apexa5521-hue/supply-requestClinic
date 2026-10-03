@@ -15,22 +15,31 @@ const FFMPEG = execFileSync('python3', ['-c', 'import imageio_ffmpeg;print(image
 
 /* ---------- المشاهد: نص الشرح (الصوت + الترجمة على الشاشة) ---------- */
 const SCENES = [
-  ['intro', 'Welcome to Supply Flow, the clinic supply system. In this short video you will learn how to order supplies, follow your requests, get your doctor\'s approval, and receive shipments.'],
-  ['login', 'Open the system link. Enter your name and your password, then tap Sign in.'],
-  ['doctor', 'You start on the New request page. First, choose the doctor you are ordering for. The clinic and the branch are filled in automatically.'],
-  ['type', 'Next, choose the request type. Monthly is the regular monthly order. Emergency is for urgent needs.'],
-  ['items', 'Now add the items. Tap the search box, type part of the item name, and tap it to add it.'],
-  ['qty', 'Use the plus and minus buttons to set the quantity of each item.'],
-  ['submit', 'Check the summary, then tap Send request. Don\'t worry about losing your work: your draft is saved automatically.'],
-  ['mine', 'To follow your orders, open My requests. The colored badge shows where each request is right now, and the bar shows its progress.'],
-  ['detail', 'Tap Details to see the full story of a request: every step with its time, the items, and the comments.'],
-  ['notify', 'Your doctor is notified automatically by email. Ask the doctor to sign in to their page and approve. You can also write a comment here as a reminder.'],
-  ['doctorpage', 'This is the doctor\'s page. The doctor sees every request waiting for review.'],
-  ['approve', 'The doctor opens the request, can adjust a quantity or add a note, and then taps Approve.'],
-  ['sent', 'After approval, procurement prepares your order and sends it. You get an alert, and the request shows that a shipment is on its way.'],
-  ['receive', 'When the shipment arrives, open My requests and tap Receive. Check every quantity, and change it if anything is missing.'],
-  ['sign', 'Sign inside the box with your finger, then tap Confirm receipt.'],
-  ['done', 'Done. The request is complete, and a receipt with your signature is saved. If there is ever a problem with a request, use the Report button on its card. Thank you!']
+  ['intro', 'Welcome to Supply Flow. This video shows nurses everything they need, step by step, in a simple way.'],
+  ['login', 'Open the system link. Write your name and your password, then tap Sign in.'],
+  ['kinds', 'On the New request page, there are three choices at the top. One: Doctor request, for supplies used by one doctor. The doctor must approve it. Two: Clinic consumables, for supplies used by the whole clinic, and for sterilization. No doctor approval is needed. Three: Send to lab, for patient work that goes to the dental lab.'],
+  ['doctor', 'Let\'s start with a Doctor request. Choose the doctor. The clinic and the branch are filled in for you.'],
+  ['type', 'Choose the type. Monthly is your normal monthly order. Emergency is only for urgent needs.'],
+  ['items', 'Now add the items. Tap the search box, write part of the name, and tap the item.'],
+  ['qty', 'Use plus and minus to set how many you need.'],
+  ['submit', 'Check the summary on the side, then tap Submit request. Your draft is saved by itself, so you never lose your work.'],
+  ['clinic', 'Next, Clinic consumables. Use it for things the whole clinic uses, like gloves or cotton. Choose Clinic consumables, then choose your clinic, and add the items.'],
+  ['clinicsend', 'Tap Submit request. This request goes straight to procurement. It does not wait for a doctor.'],
+  ['steril', 'Sterilization supplies are ordered the same way, as Clinic consumables. Open the clinic list. The Sterilization section is at the top. Choose the sterilization of your branch: Buraydah or Unayzah.'],
+  ['sterilsend', 'A note shows exactly where the order will be delivered. Add the items and tap Submit request.'],
+  ['mine', 'Now open My requests. Here you can see the difference. The doctor request shows Doctor review: it waits for the doctor. The clinic and sterilization requests show New: they went straight to procurement.'],
+  ['detail', 'Tap Details to see everything about a request: each step and its time, the items, and the comments.'],
+  ['notify', 'The doctor gets an email automatically. Ask the doctor to open their page and approve. You can also write a comment here as a reminder.'],
+  ['doctorpage', 'This is the doctor\'s page. The doctor sees the requests that are waiting for approval.'],
+  ['approve', 'The doctor opens the request. The doctor can change a quantity or add a note, and then taps Approve.'],
+  ['sent', 'After approval, procurement prepares the order and sends it to your branch. You get an alert, and the request shows Sent.'],
+  ['receive', 'When the box arrives, open My requests and tap Receive and sign. Check each quantity. If something is missing, change the number.'],
+  ['sign', 'Sign in the box with your finger, then tap Confirm receipt. A receipt with your signature is saved.'],
+  ['labform', 'Now, sending work to the lab. Choose Send to lab, choose the doctor, and write the patient file number. The scan date is today. Change it only if the scan was on another day.'],
+  ['labwork', 'Add the work: choose the lab, the type of work, and write notes, like the tooth number and the shade. You can add a photo for each work. The date the lab must finish is calculated for you.'],
+  ['labsend', 'Tap Send to lab. Now you can follow it on the Lab page.'],
+  ['labback', 'When the lab finishes, it sends the work back to the clinic. You will see the button Confirm receipt. Tap it when the work reaches your clinic.'],
+  ['done', 'That\'s all. Doctor requests need the doctor\'s approval. Clinic and sterilization requests go straight to procurement. Lab work goes to the lab. If there is any problem, use the Report button on the card. Thank you!']
 ];
 
 /* ---------- الصوت: ملف لكل مشهد + مدته ---------- */
@@ -54,18 +63,22 @@ const initScript = [
   `(function () {
     const gas = GasMock.createGas();
     const D = 864e5, now = Date.now();
-    gas.seed('Roles', ['RoleName', 'Screen'], [['Nurse', 'nurse'], ['Procurement', 'procurement'], ['Doctor', 'doctor'], ['Admin', 'admin']]);
+    gas.seed('Roles', ['RoleName', 'Screen'], [['Nurse', 'nurse'], ['Procurement', 'procurement'], ['Doctor', 'doctor'], ['Lab', 'lab'], ['Admin', 'admin']]);
     gas.seed('Users', ['Name', 'Password', 'Role', 'Clinic', 'Email', 'PasswordChangedAt', 'DoctorName'], [
       ['Sara', '1111', 'Nurse', 'Dental Clinic 1', 'sara@example.com', '', ''],
       ['Dr. Khalid', '4444', 'Doctor', '', 'khalid@example.com', '', 'Dr. Khalid'],
       ['Ali', '3333', 'Procurement', '', 'ali@example.com', '', ''],
+      ['Lab Tech', '8888', 'Lab', '', 'lab@example.com', '', ''],
       ['Admin', '9999', 'Admin', '', '', '', '']
     ]);
-    gas.seed('Clinics', ['ClinicName', 'Branch', 'Type'], [['Dental Clinic 1', 'Buraydah', 'Dentistry'], ['Dental Clinic 2', 'Unayzah', 'Dentistry']]);
+    gas.seed('Clinics', ['ClinicName', 'Branch', 'Type'], [['Sterilization', 'Buraydah', 'Sterilization'], ['Sterilization', 'Unayzah', 'Sterilization'], ['Dental Clinic 1', 'Buraydah', 'Dentistry'], ['Dental Clinic 2', 'Unayzah', 'Dentistry']]);
+    gas.seed('Labs', ['LabName', 'Type', 'Email', 'Phone', 'Active', 'TurnaroundDays'], [['Internal Lab', 'داخلي', 'lab@example.com', '', 'نعم', 7], ['Elite Dental Lab', 'خارجي', 'elite@example.com', '', 'نعم', 10]]);
+    gas.seed('LabWorkTypes', ['WorkType'], [['Crown'], ['Bridge'], ['Denture'], ['Night guard']]);
+    gas.seed('LabMaterials', ['Material'], [['Zirconia'], ['Emax'], ['Acrylic']]);
     gas.seed('Doctors', ['DoctorName', 'Clinic', 'NurseName', 'Subspecialty'], [['Dr. Khalid', 'Dental Clinic 1', 'Sara', 'Orthodontics'], ['Dr. Noura', 'Dental Clinic 1', 'Sara', '']]);
     gas.seed('ItemsCatalog', ['ItemName', 'CommercialName', 'Category', 'Price', 'Ownership', 'Serialized', 'Department'], [
       ['PROPHY PASTE', 'Nupro', 'Hygiene', 60, '', '', ''], ['DENTAL FLOSS', 'Oral-B', 'Hygiene', 15, '', '', ''], ['MICRO BRUSH FINE', '', 'Disposables', 25, '', '', ''],
-      ['Etchant Blue Tip', '3M', 'Restorative', 40, '', '', ''], ['Composite A2', 'Tetric N', 'Restorative', 120, '', '', ''], ['Gloves M', '', 'Disposables', 30, '', '', '']
+      ['Etchant Blue Tip', '3M', 'Restorative', 40, '', '', ''], ['Composite A2', 'Tetric N', 'Restorative', 120, '', '', ''], ['Gloves M', '', 'Disposables', 30, '', '', ''], ['Cotton rolls', '', 'Disposables', 12, '', '', ''], ['Sterilization pouches', '', 'Sterilization', 45, '', '', ''], ['Indicator tape', '', 'Sterilization', 20, '', '', '']
     ]);
     const old = (id, days, st) => { const d = new Date(now - days * D); return [id, d, 'Dental Clinic 1', 'Dr. Khalid', 'Sara', 'شهري', st, d, d, st === 'تم الاستلام' ? d : '', st === 'تم الاستلام' ? 'Sara' : '', '', '', '', '', d, d, '', '', 'Buraydah', d]; };
     gas.seed('Requests', ['RequestID','Date','Clinic','Doctor','Nurse','Type','Status','SubmittedAt','SentAt','ReceivedAt','ReceiverName','SignatureURL','PrepAt','VendorWaitAt','VendorReceivedAt','ReviewAt','ReviewedAt','RejectionReason','ReceiptURL','Branch','ApprovedAt'],
@@ -186,54 +199,82 @@ const overlayScript = `
   }
 
   await scene('intro', '', async () => { await wait(500); });
-  await scene('login', 'Step 1 · Sign in', async () => { await login('Sara', '1111'); });
-  await scene('doctor', 'Step 2 · New request', async () => {
+  await scene('login', 'Sign in', async () => { await login('Sara', '1111'); });
+  await scene('kinds', 'Three kinds of requests', async () => {
+    await page.waitForSelector('[data-seg-name="reqKind"]');
+    await wait(1500);
+    for (const k of ['doctor', 'clinic', 'lab']) { await point('[data-seg-name="reqKind"][data-v="' + k + '"]'); await highlight('[data-seg-name="reqKind"][data-v="' + k + '"]', 3600); }
+  });
+  await scene('doctor', '1 · Doctor request', async () => {
+    await click('[data-seg-name="reqKind"][data-v="doctor"]');
     await page.waitForSelector('#fDoctor option[value="Dr. Khalid"]', { state: 'attached' });
     await point('#fDoctor');
     await page.selectOption('#fDoctor', 'Dr. Khalid');
     await wait(600);
     await highlight('#fBranch', 1500);
   });
-  await scene('type', 'Step 2 · New request', async () => {
+  await scene('type', '1 · Doctor request', async () => {
     await click('[data-seg-name="reqType"][data-v="شهري"]');
-    await wait(500);
+    await wait(400);
     await point('[data-seg-name="reqType"][data-v="طارئ"]');
   });
-  await scene('items', 'Step 2 · New request', async () => {
-    await type('#itemSearch', 'prophy');
-    await page.waitForSelector('#comboList .combo-opt');
-    await wait(500);
-    await click('#comboList .combo-opt');
-    await type('#itemSearch', 'floss');
+  async function addItem(q) {
+    await type('#itemSearch', q);
     await page.waitForSelector('#comboList .combo-opt');
     await wait(400);
     await click('#comboList .combo-opt');
-    await page.keyboard.press('Escape');
-  });
-  await scene('qty', 'Step 2 · New request', async () => {
+  }
+  await scene('items', '1 · Doctor request', async () => { await addItem('prophy'); await addItem('floss'); await page.keyboard.press('Escape'); });
+  await scene('qty', '1 · Doctor request', async () => {
     await click('.item-line:nth-child(1) [data-d="1"]');
     await click('.item-line:nth-child(1) [data-d="1"]');
     await click('.item-line:nth-child(2) [data-d="1"]');
   });
-  let reqId = '';
-  await scene('submit', 'Step 2 · New request', async () => {
-    await highlight('#sumBox', 1400);
+  const submit = async () => {
     await click('#submitBtn');
     const tt = await (await page.waitForSelector('.toast:last-child')).textContent();
-    reqId = (/REQ-[\d-]+/.exec(tt) || [''])[0];
+    await wait(600);
+    return (/REQ-[\d-]+/.exec(tt) || [''])[0];
+  };
+  let reqId = '';
+  await scene('submit', '1 · Doctor request', async () => { await highlight('#sumBox', 1400); reqId = await submit(); });
+  await scene('clinic', '2 · Clinic consumables', async () => {
+    await click('[data-seg-name="reqKind"][data-v="clinic"]');
+    await page.waitForSelector('#fClinic');
+    await point('#fClinic');
+    await page.selectOption('#fClinic', await page.$eval('#fClinic', el => [...el.options].find(o => /Dental Clinic 1/.test(o.textContent)).value));
+    await wait(500);
+    await addItem('gloves'); await addItem('cotton'); await page.keyboard.press('Escape');
+    await click('.item-line:nth-child(1) [data-d="1"]');
   });
-  await scene('mine', 'Step 3 · Follow your requests', async () => {
+  await scene('clinicsend', '2 · Clinic consumables', async () => { await submit(); });
+  await scene('steril', '3 · Sterilization', async () => {
+    await page.waitForSelector('#fClinic');
+    await point('#fClinic');
+    await highlight('#fClinic', 1600);
+    await page.selectOption('#fClinic', await page.$eval('#fClinic', el => [...el.options].find(o => /Sterilization/.test(o.textContent) && /Buraydah/.test(o.textContent)).value));
+    await wait(500);
+  });
+  await scene('sterilsend', '3 · Sterilization', async () => {
+    await highlight('#sterilNote', 1800);
+    await addItem('pouches'); await page.keyboard.press('Escape');
+    await click('.item-line:nth-child(1) [data-d="1"]');
+    await submit();
+  });
+  await scene('mine', 'Follow your requests', async () => {
     await click('.sidebar [data-view="mine"]');
     await page.waitForSelector('#mineList .req');
-    await highlight(`.req:has-text("${reqId}") .badge`, 1600);
+    await highlight(`.req:has-text("${reqId}") .badge`, 2600);
+    await highlight('#mineList .req:nth-child(2) .badge', 2000);
+    await highlight('#mineList .req:nth-child(3) .badge', 2000);
   });
-  await scene('detail', 'Step 3 · Follow your requests', async () => {
+  await scene('detail', 'Follow your requests', async () => {
     await click(`.req:has-text("${reqId}") [data-act="detail"]`);
     await page.waitForSelector('.modal .stepper');
     await wait(1200);
     await page.evaluate(() => { const b = document.querySelector('.modal-body'); if (b) b.scrollTo({ top: 260, behavior: 'smooth' }); });
   });
-  await scene('notify', 'Step 4 · Doctor approval', async () => {
+  await scene('notify', 'Doctor approval', async () => {
     await page.evaluate(() => { const b = document.querySelector('.modal-body'); if (b) b.scrollTo({ top: b.scrollHeight, behavior: 'smooth' }); });
     await wait(700);
     await type('#dComment', 'Dr. Khalid, please approve this request today.');
@@ -241,13 +282,13 @@ const overlayScript = `
     await wait(900);
     await page.keyboard.press('Escape');
   });
-  await scene('doctorpage', 'Step 4 · Doctor approval', async () => {
+  await scene('doctorpage', 'Doctor approval', async () => {
     await logout();
     await login('Dr. Khalid', '4444');
     await page.waitForSelector('#docList .req');
     await highlight(`#docList .req:has-text("${reqId}")`, 1500);
   });
-  await scene('approve', 'Step 4 · Doctor approval', async () => {
+  await scene('approve', 'Doctor approval', async () => {
     await click(`#docList [data-id="${reqId}"]`);
     await page.waitForSelector('#rvItems table');
     await wait(500);
@@ -264,7 +305,7 @@ const overlayScript = `
     __api(tk, 'bulkUpdateStatus', [[id], 'قيد التجهيز']);
     __api(tk, 'dispatchItems', [id, ['PROPHY PASTE', 'DENTAL FLOSS']]);
   }, reqId);
-  await scene('sent', 'Step 5 · Receive the shipment', async () => {
+  await scene('sent', 'Receive the shipment', async () => {
     await logout();
     await login('Sara', '1111');
     await wait(400);
@@ -273,14 +314,14 @@ const overlayScript = `
     await page.waitForSelector(`.req:has-text("${reqId}") [data-act="receive"]`);
     await highlight(`.req:has-text("${reqId}") .badge`, 1200);
   });
-  await scene('receive', 'Step 5 · Receive the shipment', async () => {
+  await scene('receive', 'Receive the shipment', async () => {
     await click(`.req:has-text("${reqId}") [data-act="receive"]`);
     await page.waitForSelector('.rq');
     await wait(600);
     await point('.rq >> nth=0');
     await highlight('.rq', 900);
   });
-  await scene('sign', 'Step 5 · Receive the shipment', async () => {
+  await scene('sign', 'Receive the shipment', async () => {
     const pad = await page.$('#sigPad');
     await pad.scrollIntoViewIfNeeded();
     const bb = await pad.boundingBox();
@@ -298,11 +339,60 @@ const overlayScript = `
     await page.evaluate(() => { document.getElementById('tvCursor').style.transition = ''; });
     await wait(400);
     await click('#rOk');
+    await wait(900);
+  });
+  await scene('labform', '4 · Send to lab', async () => {
+    await click('.sidebar [data-view="new"]');
+    await click('[data-seg-name="reqKind"][data-v="lab"]');
+    await page.waitForSelector('#lDoctor option[value="Dr. Khalid"]', { state: 'attached' });
+    await point('#lDoctor');
+    await page.selectOption('#lDoctor', 'Dr. Khalid');
+    await wait(400);
+    await type('#lFile', '10245');
+    await highlight('#lScan', 1400);
+  });
+  await scene('labwork', '4 · Send to lab', async () => {
+    const L = '#lLines .lab-line:nth-child(1) ';
+    await point(L + '[data-k="lab"]');
+    await page.selectOption(L + '[data-k="lab"]', 'Internal Lab');
+    await wait(400);
+    await point(L + '[data-k="workType"]');
+    await page.selectOption(L + '[data-k="workType"]', 'Crown');
+    await wait(400);
+    await type(L + '[data-k="details"]', 'Tooth 16, shade A2');
+    await point(L + '.lab-line-photo-btn');
+    const PNG = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==', 'base64');
+    await page.setInputFiles(L + '[data-line-photo]', { name: 'tooth.png', mimeType: 'image/png', buffer: PNG });
+    await page.waitForSelector(L + '.lab-photo img').catch(() => {});
+    await wait(500);
+    await highlight('#lDue', 1800);
+  });
+  let caseId = '';
+  await scene('labsend', '4 · Send to lab', async () => {
+    await click('#lSubmit');
+    await page.waitForSelector('#labList .lab-card');
+    caseId = (await page.textContent('#labList .lab-card .req-id')).trim();
+    await highlight('#labList .lab-card', 1600);
+  });
+  // المعمل ينجز العمل ويرسله للعيادة (في الخلفية)
+  await page.evaluate(id => {
+    const tk = __api(null, 'login', ['Lab Tech', '8888']).token;
+    __api(tk, 'updateLabItems', [[id + '-1'], 'start', {}]);
+    __api(tk, 'updateLabItems', [[id + '-1'], 'ready', {}]);
+    __api(tk, 'updateLabItems', [[id + '-1'], 'send', {}]);
+  }, caseId);
+  await scene('labback', '4 · Send to lab', async () => {
+    await click('.sidebar [data-view="new"]');
+    await click('.sidebar [data-view="labmine"]');
+    await page.waitForSelector('#labList [data-act="labConfirm"]');
+    await highlight('#labList [data-act="labConfirm"]', 1400);
+    await click('#labList [data-act="labConfirm"]');
+    await wait(900);
   });
   await scene('done', '', async () => {
+    await click('.sidebar [data-view="mine"]');
     await wait(900);
-    await highlight(`.req:has-text("${reqId}") .badge`, 1400);
-    await point(`.req:has-text("${reqId}") [data-act="complaint"]`);
+    await point('#mineList .req [data-act="complaint"]');
   });
   await page.evaluate(() => { document.getElementById('tvCap').textContent = ''; });
   await wait(800);
