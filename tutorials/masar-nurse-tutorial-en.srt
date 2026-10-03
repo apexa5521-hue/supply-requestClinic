@@ -1,0 +1,63 @@
+1
+00:00:00,767 --> 00:00:13,987
+Welcome to Supply Flow, the clinic supply system. In this short video you will learn how to order supplies, follow your requests, get your doctor's approval, and receive shipments.
+
+2
+00:00:14,438 --> 00:00:19,888
+Open the system link. Enter your name and your password, then tap Sign in.
+
+3
+00:00:20,339 --> 00:00:29,719
+You start on the New request page. First, choose the doctor you are ordering for. The clinic and the branch are filled in automatically.
+
+4
+00:00:30,170 --> 00:00:38,160
+Next, choose the request type. Monthly is the regular monthly order. Emergency is for urgent needs.
+
+5
+00:00:38,612 --> 00:00:45,042
+Now add the items. Tap the search box, type part of the item name, and tap it to add it.
+
+6
+00:00:45,596 --> 00:00:50,416
+Use the plus and minus buttons to set the quantity of each item.
+
+7
+00:00:50,867 --> 00:00:58,647
+Check the summary, then tap Send request. Don't worry about losing your work: your draft is saved automatically.
+
+8
+00:00:59,098 --> 00:01:08,578
+To follow your orders, open My requests. The colored badge shows where each request is right now, and the bar shows its progress.
+
+9
+00:01:09,030 --> 00:01:17,120
+Tap Details to see the full story of a request: every step with its time, the items, and the comments.
+
+10
+00:01:17,572 --> 00:01:27,962
+Your doctor is notified automatically by email. Ask the doctor to sign in to their page and approve. You can also write a comment here as a reminder.
+
+11
+00:01:28,413 --> 00:01:34,103
+This is the doctor's page. The doctor sees every request waiting for review.
+
+12
+00:01:36,745 --> 00:01:43,415
+The doctor opens the request, can adjust a quantity or add a note, and then taps Approve.
+
+13
+00:01:43,871 --> 00:01:52,851
+After approval, procurement prepares your order and sends it. You get an alert, and the request shows that a shipment is on its way.
+
+14
+00:01:54,528 --> 00:02:03,358
+When the shipment arrives, open My requests and tap Receive. Check every quantity, and change it if anything is missing.
+
+15
+00:02:03,809 --> 00:02:08,969
+Sign inside the box with your finger, then tap Confirm receipt.
+
+16
+00:02:09,420 --> 00:02:21,160
+Done. The request is complete, and a receipt with your signature is saved. If there is ever a problem with a request, use the Report button on its card. Thank you!

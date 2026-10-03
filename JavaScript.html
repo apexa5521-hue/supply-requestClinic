@@ -1838,7 +1838,7 @@ function setupCombo() {
     } else {
       const added = {};
       nurseDraft().items.forEach(it => { added[it.name.toLowerCase()] = it.qty; });
-      list.innerHTML = '<div class="combo-head">' + esc(t(q ? 'items_found' : 'items_all', { n: matches.length, total: S.catalog.length })) + (dept ? ' · ' + esc(t('items_dept_hint', { d: dept })) : '') + '</div>' + opts.map((o, i) =>
+      list.innerHTML = '<div class="combo-head">' + esc(t(q ? 'items_found' : 'items_all', { n: matches.length, total: S.catalog.length })) + (dept ? ' · ' + esc(t('items_dept_hint', { d: S.lang === 'ar' ? dept : (dept === 'جلدية' ? 'Derma' : 'Dental') })) : '') + '</div>' + opts.map((o, i) =>
         '<div class="combo-opt" role="option" data-i="' + i + '" aria-selected="' + (i === active) + '"><span class="ic">' + icon('package') + '</span><div class="grow"><div class="nm">' + hl(o.name, q) + ' ' + deptTag(o.c.dept) + '</div>' +
           ((o.c.commercial || o.c.category || o.c.price) ? '<div class="mt">' + esc([o.c.commercial, o.c.category].filter(Boolean).join(' · ')) + (o.c.price ? ' · ' + fmtNum(o.c.price, 2) + ' ' + esc(t('currency')) : '') + '</div>' : '') + '</div>' +
           (added[o.name.toLowerCase()] ? '<span class="combo-added">' + icon('check', 'i-sm') + '×' + added[o.name.toLowerCase()] + '</span>' : '') + '</div>').join('');
