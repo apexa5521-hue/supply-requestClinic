@@ -1,0 +1,155 @@
+1
+00:00:00,780 --> 00:00:02,380
+Selamat datang di Supply Flow.
+
+2
+00:00:02,380 --> 00:00:07,500
+Video ini menunjukkan semua yang perawat butuhkan, langkah demi langkah, dengan cara yang mudah.
+
+3
+00:00:07,951 --> 00:00:12,821
+Buka tautan sistem. Tulis nama dan kata sandi Anda, lalu ketuk Sign in.
+
+4
+00:00:13,291 --> 00:00:17,166
+Di halaman New request ada tiga pilihan di atas. Satu:
+
+5
+00:00:17,166 --> 00:00:23,194
+Doctor request, untuk perlengkapan satu dokter, dan dokter harus menyetujuinya. Dua:
+
+6
+00:00:23,194 --> 00:00:30,514
+Clinic consumables, untuk perlengkapan seluruh klinik dan sterilisasi, tanpa persetujuan dokter. Tiga:
+
+7
+00:00:30,514 --> 00:00:34,891
+Send to lab, untuk pekerjaan pasien yang dikirim ke lab gigi.
+
+8
+00:00:35,341 --> 00:00:41,481
+Mari mulai dengan Doctor request. Pilih dokternya. Klinik dan cabang terisi otomatis.
+
+9
+00:00:41,932 --> 00:00:48,292
+Pilih jenisnya. Monthly untuk pesanan bulanan biasa. Emergency hanya untuk kebutuhan mendesak.
+
+10
+00:00:48,744 --> 00:00:54,214
+Sekarang tambahkan barang. Ketuk kotak pencarian, tulis sebagian nama, lalu ketuk barangnya.
+
+11
+00:00:55,518 --> 00:00:58,468
+Gunakan tombol plus dan minus untuk mengatur jumlahnya.
+
+12
+00:00:59,290 --> 00:01:06,730
+Periksa ringkasan di samping, lalu ketuk Submit request. Draf tersimpan otomatis, jadi pekerjaan Anda tidak hilang.
+
+13
+00:01:07,181 --> 00:01:13,626
+Berikutnya, Clinic consumables, untuk barang yang dipakai seluruh klinik seperti sarung tangan atau kapas.
+
+14
+00:01:13,626 --> 00:01:17,761
+Pilih Clinic consumables, lalu klinik Anda, dan tambahkan barangnya.
+
+15
+00:01:18,211 --> 00:01:24,591
+Ketuk Submit request. Permintaan ini langsung ke bagian pengadaan, tidak menunggu dokter.
+
+16
+00:01:25,042 --> 00:01:30,599
+Perlengkapan sterilisasi dipesan dengan cara yang sama, sebagai Clinic consumables.
+
+17
+00:01:30,599 --> 00:01:37,762
+Buka daftar klinik, bagian Sterilization ada di atas. Pilih sterilisasi cabang Anda: Buraydah atau Unayzah.
+
+18
+00:01:38,213 --> 00:01:43,903
+Sebuah catatan menunjukkan ke mana pesanan dikirim. Tambahkan barang dan ketuk Submit request.
+
+19
+00:01:46,714 --> 00:01:53,693
+Buka My requests untuk melihat bedanya. Doctor request berstatus Doctor review: menunggu dokter.
+
+20
+00:01:53,693 --> 00:01:58,854
+Permintaan klinik dan sterilisasi berstatus New: langsung ke pengadaan.
+
+21
+00:01:59,305 --> 00:02:06,165
+Ketuk Details untuk melihat semuanya: setiap tahap dan waktunya, barang, dan komentar.
+
+22
+00:02:06,615 --> 00:02:11,612
+Dokter otomatis menerima email. Minta dokter membuka halamannya dan menyetujui.
+
+23
+00:02:11,612 --> 00:02:14,775
+Anda juga bisa menulis komentar sebagai pengingat.
+
+24
+00:02:15,225 --> 00:02:20,245
+Ini halaman dokter. Dokter melihat permintaan yang menunggu persetujuan.
+
+25
+00:02:23,561 --> 00:02:29,991
+Dokter membuka permintaan, bisa mengubah jumlah atau menambah catatan, lalu mengetuk Approve.
+
+26
+00:02:30,454 --> 00:02:35,286
+Setelah disetujui, pengadaan menyiapkan dan mengirim pesanan ke cabang Anda.
+
+27
+00:02:35,286 --> 00:02:38,084
+Anda mendapat notifikasi dan statusnya Sent.
+
+28
+00:02:41,400 --> 00:02:47,735
+Saat kotak tiba, buka My requests dan ketuk Receive and sign. Periksa setiap jumlah.
+
+29
+00:02:47,735 --> 00:02:50,450
+Jika ada yang kurang, ubah angkanya.
+
+30
+00:02:50,900 --> 00:02:57,090
+Tanda tangani kotak dengan jari Anda, lalu ketuk Confirm receipt. Tanda terima dengan tanda tangan Anda tersimpan.
+
+31
+00:02:57,540 --> 00:03:04,057
+Sekarang mengirim pekerjaan ke lab. Pilih Send to lab, pilih dokter, dan tulis nomor berkas pasien.
+
+32
+00:03:04,057 --> 00:03:08,270
+Tanggal scan adalah hari ini, ubah hanya jika scan di hari lain.
+
+33
+00:03:08,720 --> 00:03:14,680
+Tambahkan pekerjaan: pilih lab, jenis pekerjaan, dan tulis catatan seperti nomor gigi dan warna.
+
+34
+00:03:14,680 --> 00:03:20,020
+Anda bisa menambah foto untuk setiap pekerjaan. Tanggal selesai lab dihitung otomatis.
+
+35
+00:03:20,470 --> 00:03:24,120
+Ketuk Send to lab. Sekarang Anda bisa memantaunya di halaman Lab.
+
+36
+00:03:24,591 --> 00:03:30,613
+Saat lab selesai, pekerjaan dikirim kembali ke klinik. Anda akan melihat tombol Confirm receipt.
+
+37
+00:03:30,613 --> 00:03:32,871
+Ketuk saat pekerjaan tiba di klinik.
+
+38
+00:03:33,321 --> 00:03:40,702
+Itu saja. Doctor request perlu persetujuan dokter. Permintaan klinik dan sterilisasi langsung ke pengadaan.
+
+39
+00:03:40,702 --> 00:03:47,531
+Pekerjaan pasien dikirim ke lab. Jika ada masalah, gunakan tombol Report di kartunya. Terima kasih!
