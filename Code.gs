@@ -367,7 +367,10 @@ function doPost(e) {
  * كل دالة معرّفة بالشاشات المسموح لها؛ '*' = أي مستخدم مسجّل.
  */
 function api(token, fn, args, opts) {
-  const out = apiCore_(token, fn, args);
+  NO_PRICES_ = false;
+  let out = apiCore_(token, fn, args);
+  // طبيبة الجلدية: لا تصل لمتصفحها أي أسعار أو قيم (حتى لو كانت مكتوبة في الشيت)
+  if (NO_PRICES_) out = stripPrices_(out);
   return opts && opts.pk ? pack_(out) : out;
 }
 
@@ -1380,6 +1383,27 @@ function userBranch_(user) {
 function applyScope_(user) {
   SCOPE_BRANCH_ = MGMT_SCREENS.indexOf(user.screen) !== -1 && user.screen !== 'admin' ? userBranch_(user) : '';
   user.branch = SCOPE_BRANCH_;
+  NO_PRICES_ = user.screen === 'doctor' && doctorIsDerma_(user);
+  if (NO_PRICES_) user.noPrices = true;
+}
+/* =====================================================================
+ *  طبيب/طبيبة الجلدية: اطلاع واعتماد فقط بدون أي سعر أو قيمة
+ *  القسم من Users.Department للحساب، وإلا من عيادات الطبيب المرتبط به (كلها جلدية)
+ * ===================================================================== */
+let NO_PRICES_ = false;
+function doctorIsDerma_(user) {
+  const dp = userDept_(user);
+  if (dp) return dp === 'جلدية';
+  const docs = allDoctors_().filter(function (d) { return isMyDoctor_(user, d.name); });
+  return docs.length > 0 && docs.every(function (d) { return clinicDept_(d.clinic) === 'جلدية'; });
+}
+const PRICE_KEYS_ = { price: 1, priceIssue: 1, total: 1, value: 1, cost: 1, repairCost: 1, lossValue: 1, activeValue: 1, badPrices: 1, unpriced: 1, lineValue: 1, unitPrice: 1 };
+function stripPrices_(v) {
+  if (v === null || typeof v !== 'object') return v;
+  if (Array.isArray(v)) return v.map(stripPrices_);
+  const o = {};
+  for (const k in v) if (Object.prototype.hasOwnProperty.call(v, k) && !PRICE_KEYS_[k]) o[k] = stripPrices_(v[k]);
+  return o;
 }
 /** فرع صالح من تبويب Clinics (أو فارغ) */
 function validBranch_(b) { b = str_(b); return b && getBranches_().indexOf(b) !== -1 ? b : ''; }

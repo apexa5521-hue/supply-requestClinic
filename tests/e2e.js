@@ -566,6 +566,18 @@ function log(msg) { console.log('  ✔ ' + msg); }
     expect(before === 50 && after === 100, 'lab board pages long lists (50 → 100 after «show more»)');
     await page.evaluate(() => { LAB[LAB.key] = window.__labSaved; resetPage('lab'); renderLabBoard(false); });
   }
+  // طبيبة الجلدية: تقريرها بدون أي سعر أو قيمة
+  {
+    const h = await page.evaluate(() => {
+      const was = S.user.noPrices; S.user.noPrices = true;
+      const out = reportHtml({ doctor: 'د. فهد', generatedAt: new Date(), rows: [{ id: 'REQ-X', date: new Date(), clinic: 'عيادة الجلدية 1', type: 'شهري', status: 'جديد', items: [{ item: 'PROPHY PASTE', qty: 2 }] }],
+        summary: { requests: 1, lines: 1, qty: 2 }, top: [{ item: 'PROPHY PASTE', qty: 2 }] }, {});
+      S.user.noPrices = was;
+      return out + '|' + t('currency') + '|' + t('rep_price') + '|' + t('rep_total');
+    });
+    const [html, cur, priceH, totalH] = h.split('|');
+    expect(html.includes('PROPHY PASTE') && !html.includes(cur) && !html.includes(priceH) && !html.includes(totalH), 'derma doctor report: quantities only, no price/total/currency');
+  }
   // الجداول الطويلة (مثل «طلبات تجاوزت الموعد»): 50 صفاً ثم «عرض المزيد» يكمل في مكانه، والطباعة تعرض الكل
   {
     const first = await page.evaluate(() => {

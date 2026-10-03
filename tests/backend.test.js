@@ -1906,3 +1906,33 @@ test('boxes: dispatch loads the doctor box → driver scan delivers with photo �
   // مدير الفرع/الممرضة لا يرون شاشة البوكسات
   throwsCode(() => api(reem, 'getBoxes'), 'ERR_FORBIDDEN');
 });
+
+test('derma doctor: review and approve without any price or value anywhere (catalog, items, report, detail)', () => {
+  const { api, login } = boot();
+  const a = login('المدير', '1234');
+  api(a, 'createUser', { name: 'د. فهد', password: '8181', role: 'طبيب', doctorName: 'د. فهد' });
+  const sara = login('سارة', '1111');
+  const id = api(sara, 'createRequest', { doctor: 'د. فهد', type: 'طارئ', items: [{ name: 'PROPHY PASTE', qty: 3 }] }).id;
+  const res = api(null, 'login', 'د. فهد', '8181', { doctor: [['getDoctorRequests', []]] });
+  assert.equal(res.user.noPrices, true, 'derma doctor flagged (from her clinic department)');
+  const f = res.token;
+  const priceKey = /"(price|total|value|cost|priceIssue|badPrices|unpriced)"\s*:/;
+  assert.ok(!priceKey.test(JSON.stringify(res)), 'login payload (config + preload) has no prices');
+  const items = api(f, 'getRequestItemsWithCatalog', id);
+  assert.equal(items[0].item, 'PROPHY PASTE');
+  for (const [fn, args] of [['getConfig', []], ['getDoctorRequests', []], ['getRequestItemsWithCatalog', [id]], ['getRequestDetail', [id]], ['getDoctorReport', [{}]],
+    ['batch', [[['getConfig', []], ['getDoctorReport', [{}]]]]]]) {
+    assert.ok(!priceKey.test(JSON.stringify(api(f, fn, ...args))), fn + ' has no prices for the derma doctor');
+  }
+  // الاعتماد يعمل كالمعتاد
+  api(f, 'doctorReview', id, 'اعتمد', '', [{ name: 'PROPHY PASTE', qty: 2 }]);
+  assert.equal(api(sara, 'getRequestDetail', id).status, 'معتمد من الطبيب');
+  // طبيب الأسنان والتموين يرون الأسعار كالمعتاد
+  const k = api(null, 'login', 'د. خالد', '4444');
+  assert.ok(!k.user.noPrices);
+  assert.ok(k.config.catalog.find(c => c.name === 'PROPHY PASTE').price > 0);
+  assert.ok(api(login('علي', '3333'), 'getConfig').catalog.find(c => c.name === 'PROPHY PASTE').price > 0);
+  // قسم الحساب صراحةً (Department = جلدية) يكفي حتى لو عيادته غير ذلك
+  api(a, 'updateUser', 'د. خالد', { role: 'طبيب', department: 'جلدية', doctorName: '' });
+  assert.equal(api(null, 'login', 'د. خالد', '4444').user.noPrices, true);
+});
