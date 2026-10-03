@@ -1,7 +1,8 @@
 /* فيديو تعليمي بالإنجليزية لصفحة الممرضة: الطلب ← المتابعة ← اعتماد الطبيب ← استلام الشحنة.
    يسجّل التطبيق الحقيقي (بيانات تجريبية بأسماء إنجليزية) مع مؤشر وتعليق نصي، ثم يدمج صوت الشرح.
    التشغيل: node tests/tutorial-nurse.js [مجلد الإخراج]
-   يحتاج: pip install gTTS imageio-ffmpeg (للصوت وتحويل MP4) */
+   يحتاج: pip install edge-tts imageio-ffmpeg (صوت Microsoft الطبيعي + تحويل MP4)؛ gTTS احتياطي.
+   الصوت: TUTORIAL_VOICE (الافتراضي en-US-AvaNeural). المزامنة دقيقة: الإطارات تُلتقط بتوقيتها الحقيقي (CDP screencast). */
 const fs = require('fs');
 const path = require('path');
 const { execFileSync } = require('child_process');
@@ -49,10 +50,14 @@ function durationOf(file) {
   const m = /Duration: (\d+):(\d+):([\d.]+)/.exec(txt);
   return m ? (+m[1]) * 3600 + (+m[2]) * 60 + parseFloat(m[3]) : 4;
 }
+const VOICE = process.env.TUTORIAL_VOICE || 'en-US-AvaNeural';
 const voice = {};
 SCENES.forEach(([k, text], i) => {
-  const f = path.join(WORK, String(i).padStart(2, '0') + '-' + k + '.mp3');
-  if (!fs.existsSync(f)) execFileSync('python3', ['-c', 'import sys;from gtts import gTTS;gTTS(sys.argv[1],lang="en",tld="com").save(sys.argv[2])', text, f]);
+  const f = path.join(WORK, String(i).padStart(2, '0') + '-' + k + '-' + VOICE + '.mp3');
+  if (!fs.existsSync(f)) {
+    try { execFileSync('python3', [path.join(__dirname, 'tts-edge.py'), text, VOICE, f, '+4%'], { stdio: ['ignore', 'ignore', 'pipe'] }); if (!fs.statSync(f).size) throw new Error('empty'); }
+    catch (e) { console.log('edge-tts unavailable, falling back to gTTS'); execFileSync('python3', ['-c', 'import sys;from gtts import gTTS;gTTS(sys.argv[1],lang="en",tld="com").save(sys.argv[2])', text, f]); }
+  }
   voice[k] = { file: f, dur: durationOf(f), text };
 });
 console.log('voice-over ready:', SCENES.length, 'clips,', Math.round(Object.values(voice).reduce((a, v) => a + v.dur, 0)), 's');
@@ -137,10 +142,22 @@ const overlayScript = `
 (async () => {
   const browser = await playwright.chromium.launch();
   const W = 1280, H = 720;
-  const ctx = await browser.newContext({ viewport: { width: W, height: H }, deviceScaleFactor: 1, recordVideo: { dir: WORK, size: { width: W, height: H } } });
+  const ctx = await browser.newContext({ viewport: { width: W, height: H }, deviceScaleFactor: 1 });
   await ctx.addInitScript(initScript);
   await ctx.addInitScript(overlayScript);
   const page = await ctx.newPage();
+  // التقاط الإطارات بتوقيتها الحقيقي (تسجيل الفيديو المدمج ينحرف عن الوقت الفعلي فيتأخر الصوت)
+  const FR = path.join(WORK, 'frames');
+  fs.rmSync(FR, { recursive: true, force: true }); fs.mkdirSync(FR, { recursive: true });
+  const frames = [];
+  const cdp = await ctx.newCDPSession(page);
+  cdp.on('Page.screencastFrame', f => {
+    const file = path.join(FR, 'f' + String(frames.length).padStart(6, '0') + '.jpg');
+    fs.writeFileSync(file, Buffer.from(f.data, 'base64'));
+    frames.push({ file, t: f.metadata.timestamp * 1000 });
+    cdp.send('Page.screencastFrameAck', { sessionId: f.sessionId }).catch(() => {});
+  });
+  await cdp.send('Page.startScreencast', { format: 'jpeg', quality: 88, maxWidth: W, maxHeight: H, everyNthFrame: 1 });
   const t0 = Date.now();
   const html = fs.readFileSync(path.join(ROOT, 'Index.html'), 'utf8')
     .replace(/<\?!=\s*include_\('([\w-]+)'\);?\s*\?>/g, (_, f) => fs.readFileSync(path.join(ROOT, f + '.html'), 'utf8'));
@@ -396,19 +413,30 @@ const overlayScript = `
   });
   await page.evaluate(() => { document.getElementById('tvCap').textContent = ''; });
   await wait(800);
-  const total = (Date.now() - t0) / 1000;
-  const vpath = await page.video().path();
+  const tEnd = Date.now();
+  await cdp.send('Page.stopScreencast').catch(() => {});
   await ctx.close();
+  // الإطارات + مدة كل إطار حتى التالي (بالوقت الحقيقي) ← فيديو بالتوقيت الصحيح
+  const base = Math.min(t0, frames.length ? frames[0].t : t0);
+  marks.forEach(m => { m.at = m.at + (t0 - base) / 1000; });
+  const total = (tEnd - base) / 1000;
+  const list = frames.map((fr, i) => "file '" + fr.file + "'\nduration " + (((i + 1 < frames.length ? frames[i + 1].t : tEnd) - fr.t) / 1000).toFixed(3)).join('\n') +
+    "\nfile '" + frames[frames.length - 1].file + "'\n";
+  const listFile = path.join(WORK, 'frames.txt');
+  fs.writeFileSync(listFile, list);
+  const vpath = listFile;
   await browser.close();
 
   /* ---------- الدمج: الفيديو + الصوت في مواضعه → MP4 ---------- */
   const keys = marks.map(m => m.key);
-  const args = ['-y', '-i', vpath];
+  // الإطار الأول يبدأ عند (أول إطار − البداية)؛ نملأ الفجوة بتأخير بسيط إن وُجدت
+  const lead = frames.length ? Math.max(0, (frames[0].t - base) / 1000) : 0;
+  const args = ['-y', '-f', 'concat', '-safe', '0', '-i', vpath];
   keys.forEach(k => args.push('-i', voice[k].file));
   const delays = marks.map((m, i) => '[' + (i + 1) + ':a]adelay=' + Math.round(m.at * 1000) + '|' + Math.round(m.at * 1000) + '[a' + i + ']').join(';');
   const mix = delays + ';' + marks.map((m, i) => '[a' + i + ']').join('') + 'amix=inputs=' + marks.length + ':normalize=0[aout]';
   const mp4 = path.join(OUT, 'masar-nurse-tutorial-en.mp4');
-  args.push('-filter_complex', mix, '-map', '0:v', '-map', '[aout]', '-c:v', 'libx264', '-preset', 'medium', '-crf', '22', '-pix_fmt', 'yuv420p',
+  args.push('-filter_complex', '[0:v]tpad=start_duration=' + lead.toFixed(3) + ':start_mode=clone,fps=25,scale=' + W + ':' + H + ',format=yuv420p[vout];' + mix, '-map', '[vout]', '-map', '[aout]', '-c:v', 'libx264', '-preset', 'medium', '-crf', '22', '-pix_fmt', 'yuv420p',
     '-c:a', 'aac', '-b:a', '128k', '-t', String(Math.ceil(total)), '-movflags', '+faststart', mp4);
   execFileSync(FFMPEG, args, { stdio: ['ignore', 'ignore', 'pipe'] });
   // ملف ترجمة SRT (للمنصات التي تعرض الترجمة)
