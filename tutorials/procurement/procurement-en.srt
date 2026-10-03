@@ -1,0 +1,95 @@
+1
+00:00:00,773 --> 00:00:02,644
+This video is for procurement.
+
+2
+00:00:02,644 --> 00:00:09,753
+You will learn how to prepare requests, send them in shipments, fix a mistake, and manage boxes and custody tools.
+
+3
+00:00:10,204 --> 00:00:17,024
+Sign in with your name and password. Your account shows only your department: dental or dermatology.
+
+4
+00:00:17,475 --> 00:00:22,678
+The Requests page shows all requests. The chips at the top filter by stage:
+
+5
+00:00:22,678 --> 00:00:27,951
+with the doctor, ready to prepare, in preparation, partially sent, and more.
+
+6
+00:00:27,951 --> 00:00:30,795
+You can also filter by branch, or search.
+
+7
+00:00:31,246 --> 00:00:36,327
+Open a request that is ready. You see each item with the quantity the doctor approved.
+
+8
+00:00:36,327 --> 00:00:38,276
+This is exactly what you prepare.
+
+9
+00:00:38,727 --> 00:00:44,694
+Set the status of each item: preparing, waiting for the vendor, or received from the vendor.
+
+10
+00:00:44,694 --> 00:00:47,677
+The request moves to In preparation by itself.
+
+11
+00:00:48,127 --> 00:00:54,706
+To send, tick the items and set the quantity for this shipment. You can send part now and the rest later.
+
+12
+00:00:54,706 --> 00:00:56,147
+Then tap Send shipment.
+
+13
+00:00:56,597 --> 00:01:04,397
+The card shows exactly what is left. When everything is sent, the request becomes Sent, and the nurse is notified.
+
+14
+00:01:04,848 --> 00:01:10,238
+Sent something by mistake? Tap Undo last step, write the reason, and confirm.
+
+15
+00:01:10,238 --> 00:01:13,318
+Every undo is recorded for the quality team.
+
+16
+00:01:13,768 --> 00:01:18,378
+From the request details you can print the request, or save it as PDF.
+
+17
+00:01:18,828 --> 00:01:24,800
+The Boxes page shows where each doctor's box is: ready to deliver, at a branch, or empty.
+
+18
+00:01:24,800 --> 00:01:29,698
+Print the QR stickers, and send the driver tasks link to the driver once.
+
+19
+00:01:30,149 --> 00:01:36,849
+Need a box back? Tap Request move and choose the place. It appears in the driver's tasks right away.
+
+20
+00:01:37,300 --> 00:01:40,250
+Custody is for company tools, like handpieces.
+
+21
+00:01:40,250 --> 00:01:46,920
+Set the standard for each clinic, issue tools with their serial numbers, and handle broken tool reports.
+
+22
+00:01:47,372 --> 00:01:53,249
+Complaints shows problems reported on requests. Read them and reply in the request comments.
+
+23
+00:01:53,249 --> 00:01:55,102
+The quality team closes them.
+
+24
+00:01:55,553 --> 00:02:00,883
+That's it. Prepare approved requests quickly, and send what you have. Thank you!

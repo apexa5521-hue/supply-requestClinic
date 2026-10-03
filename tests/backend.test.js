@@ -1936,3 +1936,16 @@ test('derma doctor: review and approve without any price or value anywhere (cata
   api(a, 'updateUser', 'د. خالد', { role: 'طبيب', department: 'جلدية', doctorName: '' });
   assert.equal(api(null, 'login', 'د. خالد', '4444').user.noPrices, true);
 });
+
+test('iTero: scan date + iTero case No. + file No. + doctor → lab case without work lines, searchable by iTero No.', () => {
+  const { api, login } = boot();
+  const n = login('سارة', '1111');
+  throwsCode(() => api(n, 'createLabCase', { itero: '', doctor: 'د. خالد', fileNo: '55', scanDate: '2020-01-01' }), 'ERR_ITERO_NO');
+  throwsCode(() => api(n, 'createLabCase', { itero: 'IT-1', doctor: 'د. خالد', fileNo: '', scanDate: '2020-01-01' }), 'ERR_REQUIRED');
+  const r = api(n, 'createLabCase', { itero: 'IT-778899', doctor: 'د. خالد', fileNo: '55', scanDate: '2020-01-01' });
+  const c = api(n, 'getLabCase', r.id);
+  assert.equal(c.iteroNo, 'IT-778899');
+  assert.deepEqual([c.items.length, c.items[0].workType, c.items[0].lab, c.fileNo], [1, 'iTero', 'المعمل الداخلي', '55']);
+  assert.ok(api(login('فني المعمل', '8888'), 'getLabCases', {}).some(x => x.id === r.id && x.iteroNo === 'IT-778899'), 'lab sees the iTero case');
+  assert.equal(api(n, 'findLabCases', 'IT-778899')[0].id, r.id);
+});

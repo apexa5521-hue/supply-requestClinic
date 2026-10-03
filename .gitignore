@@ -1,2 +1,5 @@
 node_modules/
 tests/screenshots/
+tutorials/.work/
+tutorials/*.mp4
+tutorials/**/*.mp4

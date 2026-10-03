@@ -549,6 +549,21 @@ function log(msg) { console.log('  ✔ ' + msg); }
   await page.waitForSelector('#labList .lab-card');
   const labId = (await page.textContent('#labList .lab-card .req-id')).trim();
   expect(/^LAB-\d{6}-\d{3}$/.test(labId), 'nurse sees the case in her lab list (' + labId + ')');
+  // iTero: تبويب ثالث بجانب حالة جديدة والإعادة — تاريخ السكان، رقم الآيتيرو، رقم الملف، الطبيب ثم إرسال
+  await page.evaluate(() => go('new'));
+  await page.click('[data-seg-name="reqKind"][data-v="lab"]');
+  await page.click('[data-seg-name="labMode"][data-v="itero"]');
+  await page.waitForSelector('#lItero');
+  expect(!(await page.$('#lLines')) && await page.isVisible('#lScan') && await page.isVisible('#lFile'), 'iTero tab: scan date, iTero No., file No., doctor — no work lines');
+  await page.waitForSelector('#lDoctor option[value="د. خالد"]', { state: 'attached' });
+  await page.selectOption('#lDoctor', 'د. خالد');
+  await page.fill('#lFile', 'F-2002');
+  await page.fill('#lItero', 'IT-5566');
+  await shot(page, 'lab-itero-form', true);
+  await page.click('#lSubmit');
+  expect(await toastHas(page, 'للمعمل'), 'iTero scan sent to the lab');
+  await page.waitForSelector('#labList .tag.itero');
+  expect((await page.textContent('#labList .tag.itero')).includes('IT-5566'), 'iTero case shows its iTero number on the card');
   await logout(page);
   await login(page, 'فني المعمل', '8888');
   await page.waitForSelector('#labList .lab-card');
@@ -653,7 +668,7 @@ function log(msg) { console.log('  ✔ ' + msg); }
   await login(page, 'د. خالد', 'dr-khaled-7');
   await page.click('.sidebar [data-view="labdoc"]');
   await page.waitForSelector('#labList .lab-card');
-  expect(await page.locator('#labList .lab-card').count() === 2, 'doctor follows his patient cases (original + redo)');
+  expect(await page.locator('#labList .lab-card').count() === 3, 'doctor follows his patient cases (original + redo + iTero)');
   await page.click('#labList .lab-card.redo [data-act="labOpen"] >> nth=0');
   await page.waitForSelector('.modal #lcBody');
   expect((await page.textContent('.modal #lcBody')).includes('أغمق'), 'doctor sees the redo problem');

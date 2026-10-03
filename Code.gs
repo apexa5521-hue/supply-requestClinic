@@ -49,7 +49,7 @@ const SCHEMA = {
   // إعدادات عامة قابلة للتعديل من الشيت (مثل LabTurnaroundDays = أيام تنفيذ المعمل الافتراضية)
   Settings:     ['Key', 'Value', 'Notes'],
   LabCases:     ['CaseID', 'Date', 'Nurse', 'Doctor', 'Clinic', 'Branch', 'Patient', 'FileNo', 'NeededBy', 'Urgent',
-                 'RedoOf', 'RedoReason', 'RedoNote', 'Attachments', 'ClientKey', 'ScanDate', 'Notes', 'Source'],
+                 'RedoOf', 'RedoReason', 'RedoNote', 'Attachments', 'ClientKey', 'ScanDate', 'Notes', 'Source', 'IteroNo'],
   LabItems:     ['ItemID', 'CaseID', 'Lab', 'LabType', 'WorkType', 'Details', 'Status', 'ReceivedAt', 'StartedAt',
                  'ExternalLab', 'ExternalAt', 'ExpectedAt', 'ReadyAt', 'SentAt', 'DeliveredAt', 'Cost', 'RedoOfItem', 'RedoReason', 'UpdatedBy',
                  'Material', 'PatientAt', 'Attachments'],
@@ -3751,6 +3751,13 @@ function saveLabPhoto_(fileName, dataUrl) {
  *             redoOf, redoItems:[ItemID], redoReason, redoNote, redoScanDate, redoLab, photos:[dataUrl], clientKey }
  * موعد المعمل يُحسب تلقائياً: تاريخ السكان + أيام التنفيذ (Settings / Labs.TurnaroundDays).
  */
+/** معمل سكانات iTero: من Settings (IteroLab) إن كان معملاً نشطاً، وإلا أول معمل داخلي، وإلا أول معمل */
+function iteroLab_(labs) {
+  const set = str_(getSetting_('IteroLab', ''));
+  if (set && labs[set]) return set;
+  const names = Object.keys(labs);
+  return names.filter(function (n) { return /داخل|internal/i.test(str_(labs[n].type)); })[0] || names[0] || '';
+}
 function createLabCase_(user, payload) {
   payload = payload || {};
   const doctor = str_(payload.doctor);
@@ -3781,7 +3788,11 @@ function createLabCase_(user, payload) {
   if (!scan) throw new Error('ERR_SCAN_DATE');
   if (scan.getTime() > today.getTime()) throw new Error('ERR_SCAN_FUTURE');
 
-  const lines = redoOf
+  // iTero: سكان رقمي — رقم الحالة في الآيتيرو بدل الأعمال؛ يذهب لمعمل الآيتيرو (Settings ← IteroLab، وإلا المعمل الداخلي)
+  const isItero = !redoOf && payload.itero !== undefined && payload.itero !== null;
+  const iteroNo = isItero ? clean_(payload.itero, 40) : '';
+  if (isItero && !iteroNo) throw new Error('ERR_ITERO_NO');
+  const lines = isItero ? [{ lab: iteroLab_(labs), workType: 'iTero', details: 'iTero #' + iteroNo }] : redoOf
     ? redoLines.map(function (it) {
         return { lab: str_(payload.redoLab) || str_(it.Lab), workType: str_(it.WorkType), material: str_(it.Material), details: str_(it.Details), redoOfItem: str_(it.ItemID) };
       })
@@ -3793,7 +3804,7 @@ function createLabCase_(user, payload) {
   if (lines.length > LAB_MAX_ITEMS) throw new Error('ERR_TOO_MANY_ITEMS');
   lines.forEach(function (l) {
     if (!labs[l.lab] && !(redoOf && !str_(payload.redoLab))) throw new Error('ERR_BAD_LAB');
-    if (!l.workType || (types.indexOf(l.workType) === -1 && !redoOf)) throw new Error('ERR_BAD_WORKTYPE');
+    if (!l.workType || (types.indexOf(l.workType) === -1 && !redoOf && !isItero)) throw new Error('ERR_BAD_WORKTYPE');
     if (!redoOf && l.material && materials.indexOf(l.material) === -1) throw new Error('ERR_BAD_MATERIAL'); // المادة اختيارية
   });
   const needed = labDueFrom_(scan, lines.map(function (l) { return l.lab; }), labs);
@@ -3834,7 +3845,7 @@ function createLabCase_(user, payload) {
         CaseID: id, Date: now, Nurse: user.name, Doctor: doctorName, Clinic: clinic, Branch: branch, Patient: pName, FileNo: fileNum,
         NeededBy: needed, Urgent: payload.urgent ? 'نعم' : '', RedoOf: redoOf, RedoReason: redoOf ? str_(payload.redoReason) : '',
         RedoNote: redoOf ? clean_(payload.redoNote, 1000) : '', Attachments: urls.join(' '), ClientKey: clientKey,
-        ScanDate: scan, Notes: clean_(payload.notes, 1000), Source: delivered ? 'إدخال سابق' : ''
+        ScanDate: scan, Notes: clean_(payload.notes, 1000), Source: delivered ? 'إدخال سابق' : '', IteroNo: iteroNo
       });
       if (redoOf) highlightLastRow_('LabCases', id, '#FFE0B2'); // الإعادة برتقالية في الشيت
       lines.forEach(function (l, i) {
@@ -3843,7 +3854,7 @@ function createLabCase_(user, payload) {
           RedoOfItem: l.redoOfItem || '', RedoReason: l.redoOfItem ? str_(payload.redoReason) : '' });
       });
     } catch (e) { if (ckKey) cache.remove(ckKey); throw e; }
-    logAction_(id, redoOf ? 'إعادة للمعمل (' + redoOf + '): ' + payload.redoReason : (delivered ? 'حالة معمل سابقة (مسلّمة)' : 'حالة جديدة للمعمل'), user.name);
+    logAction_(id, redoOf ? 'إعادة للمعمل (' + redoOf + '): ' + payload.redoReason : (delivered ? 'حالة معمل سابقة (مسلّمة)' : isItero ? 'سكان iTero للمعمل (#' + iteroNo + ')' : 'حالة جديدة للمعمل'), user.name);
   }
   if (!res.duplicate && !delivered) {
     const body = 'رقم الحالة: ' + res.id + '\nرقم الملف: ' + fileNum + (pName ? ' — ' + pName : '') + '\nالطبيب: ' + doctorName + (clinic ? '\nالعيادة: ' + clinic : '') +
@@ -3986,7 +3997,7 @@ function findLabCases_(user, q) {
   const byCase = {};
   read_('LabItems').rows.forEach(function (it) { (byCase[str_(it.CaseID)] = byCase[str_(it.CaseID)] || []).push(it); });
   return read_('LabCases').rows.filter(function (c) {
-    return str_(c.CaseID) && (str_(c.FileNo).toLowerCase() === q || str_(c.CaseID).toLowerCase() === q);
+    return str_(c.CaseID) && (str_(c.FileNo).toLowerCase() === q || str_(c.CaseID).toLowerCase() === q || str_(c.IteroNo).toLowerCase() === q);
   }).map(function (c) { return mapLabCase_(c, byCase[str_(c.CaseID)] || [], now); })
     .sort(function (a, b) { return toMs_(b.date) - toMs_(a.date); }).slice(0, 30);
 }
@@ -4032,7 +4043,7 @@ function mapLabCase_(c, items, now) {
   return {
     id: str_(c.CaseID), date: c.Date, nurse: str_(c.Nurse), doctor: str_(c.Doctor), clinic: str_(c.Clinic), branch: str_(c.Branch),
     patient: str_(c.Patient), fileNo: str_(c.FileNo), neededBy: c.NeededBy, urgent: isYes_(c.Urgent),
-    scanDate: c.ScanDate, caseNotes: str_(c.Notes), source: str_(c.Source),
+    scanDate: c.ScanDate, caseNotes: str_(c.Notes), source: str_(c.Source), iteroNo: str_(c.IteroNo),
     root: str_(c.CaseID).replace(/-R\d+$/, ''), remakeNo: Number((/-R(\d+)$/.exec(str_(c.CaseID)) || [])[1]) || 0,
     redoOf: str_(c.RedoOf), redoReason: str_(c.RedoReason), redoNote: str_(c.RedoNote),
     attachments: str_(c.Attachments).split(/\s+/).filter(String), items: its, status: caseStatus_(its),
