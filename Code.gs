@@ -1222,6 +1222,7 @@ function boxDeliver_(p) {
     const dup = read_('BoxMoves').rows.filter(function (r) { return str_(r.ClientKey) === clientKey && str_(r.BoxID) === str_(pre.BoxID); })[0];
     if (dup) return { ok: true, duplicate: true, box: boxInfo_(p) };
   }
+  if (to === (str_(pre.Location) || BOX_HOME)) throw new Error('ERR_SAME_PLACE');
   if (!p.photo) throw new Error('ERR_PHOTO_REQUIRED');
   const photo = saveLabPhoto_(str_(pre.BoxID) + '-' + Date.now(), p.photo);
   let notify = [];
@@ -1229,6 +1230,8 @@ function boxDeliver_(p) {
     resetMemo_();
     const row = boxByToken_(p);
     const b = mapBox_(row);
+    // البوكس موجود أصلاً في هذا المكان: لا تسليم مكرر
+    if (to === b.location) throw new Error('ERR_SAME_PLACE');
     const now = new Date();
     const atBranch = to !== BOX_HOME;
     const status = b.loads.length ? (atBranch ? BX_ST.DELIVERED : BX_ST.READY) : BX_ST.EMPTY;

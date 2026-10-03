@@ -1870,9 +1870,11 @@ test('boxes: dispatch loads the doctor box → driver scan delivers with photo �
   throwsCode(() => api(null, 'boxDeliver', Object.assign({}, d, { driver: '' })), 'ERR_DRIVER_NAME');
   throwsCode(() => api(null, 'boxDeliver', Object.assign({}, d, { to: 'الدمام' })), 'ERR_BAD_PLACE');
   throwsCode(() => api(null, 'boxDeliver', Object.assign({}, d, { k: 'x' })), 'ERR_BAD_LINK');
+  throwsCode(() => api(null, 'boxDeliver', Object.assign({}, d, { to: 'التموين' })), 'ERR_SAME_PLACE');
   const res = api(null, 'boxDeliver', d);
   assert.deepEqual([res.box.status, res.box.location], ['وصل الفرع', 'جدة']);
   assert.equal(api(null, 'boxDeliver', d).duplicate, true, 'double tap is ignored');
+  throwsCode(() => api(null, 'boxDeliver', Object.assign({}, d, { clientKey: 'dlv-000009' })), 'ERR_SAME_PLACE');
   assert.equal(rows(gas, 'BoxMoves').filter(m => m.Action === 'تسليم').length, 1);
   // الممرضة: الطلب «وصل الفرع» + تنبيه + تعليق
   const mine = api(reem, 'getMyRequests').find(r => r.id === id);

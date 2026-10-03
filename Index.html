@@ -483,6 +483,9 @@ button.kpi[aria-pressed="true"] { border-color: var(--tone); box-shadow: 0 0 0 3
 .drv-places { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 10px; }
 .drv-place { display: flex; align-items: center; justify-content: center; gap: 8px; min-height: 60px; border-radius: 14px; border: 2px solid var(--border); background: var(--surface-2); font: inherit; font-size: 17px; font-weight: 800; color: var(--text); cursor: pointer; }
 .drv-place[aria-pressed="true"] { border-color: var(--primary); background: var(--primary-soft); color: var(--primary); }
+.drv-place:disabled { opacity: .5; cursor: not-allowed; border-style: dashed; }
+.drv-place span { display: flex; flex-direction: column; align-items: center; line-height: 1.2; }
+.drv-place small { font-size: 11px; font-weight: 600; color: var(--muted); }
 .drv-photo { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; min-height: 150px; border: 2px dashed var(--border-strong, var(--border)); border-radius: 14px; color: var(--muted); font-weight: 700; cursor: pointer; background: var(--surface-2) center / cover no-repeat; }
 .drv-photo .i { width: 30px; height: 30px; }
 .drv-photo.has { min-height: 220px; border-style: solid; border-color: var(--t-green); }

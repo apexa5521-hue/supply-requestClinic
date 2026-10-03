@@ -421,6 +421,7 @@ function log(msg) { console.log('  ✔ ' + msg); }
   await page.click('.drv-task');
   await page.waitForSelector('#drvGo');
   expect(await page.getAttribute('.drv-place[data-p="' + bx.destination + '"]', 'aria-pressed') === 'true', 'destination branch preselected');
+  expect(await page.isDisabled('.drv-place[data-p="التموين"]'), 'the place where the box already is cannot be chosen');
   await page.fill('#drvName', 'أبو فهد');
   await page.click('#drvGo');
   expect((await page.textContent('#drvErr')).includes('صوّر'), 'photo is required before delivery');
