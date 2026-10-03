@@ -1,99 +1,147 @@
 1
-00:00:01,028 --> 00:00:07,748
+00:00:00,996 --> 00:00:07,716
 Welcome to Supply Flow. This video shows nurses everything they need, step by step, in a simple way.
 
 2
-00:00:08,199 --> 00:00:13,069
+00:00:08,167 --> 00:00:13,037
 Open the system link. Write your name and your password, then tap Sign in.
 
 3
-00:00:13,519 --> 00:00:35,119
-On the New request page, there are three choices at the top. One: Doctor request, for supplies used by one doctor. The doctor must approve it. Two: Clinic consumables, for supplies used by the whole clinic, and for sterilization. No doctor approval is needed. Three: Send to lab, for patient work that goes to the dental lab.
+00:00:13,505 --> 00:00:21,129
+On the New request page, there are three choices at the top. One: Doctor request, for supplies used by one doctor.
 
 4
-00:00:35,570 --> 00:00:41,710
-Let's start with a Doctor request. Choose the doctor. The clinic and the branch are filled in for you.
+00:00:21,129 --> 00:00:28,752
+The doctor must approve it. Two: Clinic consumables, for supplies used by the whole clinic, and for sterilization.
 
 5
-00:00:42,161 --> 00:00:48,521
-Choose the type. Monthly is your normal monthly order. Emergency is only for urgent needs.
+00:00:28,752 --> 00:00:35,105
+No doctor approval is needed. Three: Send to lab, for patient work that goes to the dental lab.
 
 6
-00:00:48,971 --> 00:00:54,441
-Now add the items. Tap the search box, write part of the name, and tap the item.
+00:00:35,555 --> 00:00:41,695
+Let's start with a Doctor request. Choose the doctor. The clinic and the branch are filled in for you.
 
 7
-00:00:55,857 --> 00:00:58,807
-Use plus and minus to set how many you need.
+00:00:42,145 --> 00:00:48,505
+Choose the type. Monthly is your normal monthly order. Emergency is only for urgent needs.
 
 8
-00:00:59,684 --> 00:01:07,124
-Check the summary on the side, then tap Submit request. Your draft is saved by itself, so you never lose your work.
+00:00:48,956 --> 00:00:54,426
+Now add the items. Tap the search box, write part of the name, and tap the item.
 
 9
-00:01:07,575 --> 00:01:18,155
-Next, Clinic consumables. Use it for things the whole clinic uses, like gloves or cotton. Choose Clinic consumables, then choose your clinic, and add the items.
+00:00:55,832 --> 00:00:58,782
+Use plus and minus to set how many you need.
 
 10
-00:01:18,606 --> 00:01:24,986
-Tap Submit request. This request goes straight to procurement. It does not wait for a doctor.
+00:00:59,632 --> 00:01:07,072
+Check the summary on the side, then tap Submit request. Your draft is saved by itself, so you never lose your work.
 
 11
-00:01:25,437 --> 00:01:38,157
-Sterilization supplies are ordered the same way, as Clinic consumables. Open the clinic list. The Sterilization section is at the top. Choose the sterilization of your branch: Buraydah or Unayzah.
+00:01:07,522 --> 00:01:13,444
+Next, Clinic consumables. Use it for things the whole clinic uses, like gloves or cotton.
 
 12
-00:01:38,609 --> 00:01:44,299
-A note shows exactly where the order will be delivered. Add the items and tap Submit request.
+00:01:13,444 --> 00:01:18,102
+Choose Clinic consumables, then choose your clinic, and add the items.
 
 13
-00:01:47,304 --> 00:01:59,444
-Now open My requests. Here you can see the difference. The doctor request shows Doctor review: it waits for the doctor. The clinic and sterilization requests show New: they went straight to procurement.
+00:01:18,552 --> 00:01:24,932
+Tap Submit request. This request goes straight to procurement. It does not wait for a doctor.
 
 14
-00:01:59,894 --> 00:02:06,754
-Tap Details to see everything about a request: each step and its time, the items, and the comments.
+00:01:25,383 --> 00:01:31,449
+Sterilization supplies are ordered the same way, as Clinic consumables. Open the clinic list.
 
 15
-00:02:07,204 --> 00:02:15,364
-The doctor gets an email automatically. Ask the doctor to open their page and approve. You can also write a comment here as a reminder.
+00:01:31,449 --> 00:01:38,103
+The Sterilization section is at the top. Choose the sterilization of your branch: Buraydah or Unayzah.
 
 16
-00:02:15,815 --> 00:02:20,835
-This is the doctor's page. The doctor sees the requests that are waiting for approval.
+00:01:38,554 --> 00:01:44,244
+A note shows exactly where the order will be delivered. Add the items and tap Submit request.
 
 17
-00:02:23,240 --> 00:02:29,670
-The doctor opens the request. The doctor can change a quantity or add a note, and then taps Approve.
+00:01:47,081 --> 00:01:54,268
+Now open My requests. Here you can see the difference. The doctor request shows Doctor review: it waits for the doctor.
 
 18
-00:02:30,128 --> 00:02:37,758
-After approval, procurement prepares the order and sends it to your branch. You get an alert, and the request shows Sent.
+00:01:54,268 --> 00:01:59,221
+The clinic and sterilization requests show New: they went straight to procurement.
 
 19
-00:02:40,776 --> 00:02:49,826
-When the box arrives, open My requests and tap Receive and sign. Check each quantity. If something is missing, change the number.
+00:01:59,671 --> 00:02:06,531
+Tap Details to see everything about a request: each step and its time, the items, and the comments.
 
 20
-00:02:50,277 --> 00:02:56,467
-Sign in the box with your finger, then tap Confirm receipt. A receipt with your signature is saved.
+00:02:06,982 --> 00:02:12,219
+The doctor gets an email automatically. Ask the doctor to open their page and approve.
 
 21
-00:02:56,919 --> 00:03:07,649
-Now, sending work to the lab. Choose Send to lab, choose the doctor, and write the patient file number. The scan date is today. Change it only if the scan was on another day.
+00:02:12,219 --> 00:02:15,142
+You can also write a comment here as a reminder.
 
 22
-00:03:08,100 --> 00:03:19,400
-Add the work: choose the lab, the type of work, and write notes, like the tooth number and the shade. You can add a photo for each work. The date the lab must finish is calculated for you.
+00:02:15,592 --> 00:02:20,612
+This is the doctor's page. The doctor sees the requests that are waiting for approval.
 
 23
-00:03:19,850 --> 00:03:23,500
-Tap Send to lab. Now you can follow it on the Lab page.
+00:02:23,895 --> 00:02:30,325
+The doctor opens the request. The doctor can change a quantity or add a note, and then taps Approve.
 
 24
-00:03:23,956 --> 00:03:32,236
-When the lab finishes, it sends the work back to the clinic. You will see the button Confirm receipt. Tap it when the work reaches your clinic.
+00:02:30,782 --> 00:02:35,551
+After approval, procurement prepares the order and sends it to your branch.
 
 25
-00:03:32,686 --> 00:03:46,896
-That's all. Doctor requests need the doctor's approval. Clinic and sterilization requests go straight to procurement. Lab work goes to the lab. If there is any problem, use the Report button on the card. Thank you!
+00:02:35,551 --> 00:02:38,412
+You get an alert, and the request shows Sent.
+
+26
+00:02:41,280 --> 00:02:47,290
+When the box arrives, open My requests and tap Receive and sign. Check each quantity.
+
+27
+00:02:47,290 --> 00:02:50,330
+If something is missing, change the number.
+
+28
+00:02:50,781 --> 00:02:56,971
+Sign in the box with your finger, then tap Confirm receipt. A receipt with your signature is saved.
+
+29
+00:02:57,421 --> 00:03:03,809
+Now, sending work to the lab. Choose Send to lab, choose the doctor, and write the patient file number.
+
+30
+00:03:03,809 --> 00:03:08,151
+The scan date is today. Change it only if the scan was on another day.
+
+31
+00:03:08,602 --> 00:03:14,705
+Add the work: choose the lab, the type of work, and write notes, like the tooth number and the shade.
+
+32
+00:03:14,705 --> 00:03:19,902
+You can add a photo for each work. The date the lab must finish is calculated for you.
+
+33
+00:03:20,352 --> 00:03:24,002
+Tap Send to lab. Now you can follow it on the Lab page.
+
+34
+00:03:24,459 --> 00:03:30,348
+When the lab finishes, it sends the work back to the clinic. You will see the button Confirm receipt.
+
+35
+00:03:30,348 --> 00:03:32,739
+Tap it when the work reaches your clinic.
+
+36
+00:03:33,190 --> 00:03:40,995
+That's all. Doctor requests need the doctor's approval. Clinic and sterilization requests go straight to procurement.
+
+37
+00:03:40,995 --> 00:03:47,400
+Lab work goes to the lab. If there is any problem, use the Report button on the card. Thank you!

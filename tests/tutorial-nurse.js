@@ -174,8 +174,7 @@ const overlayScript = `
   async function scene(key, step, fn) {
     const v = voice[key];
     const start = Date.now();
-    marks.push({ key, at: (start - t0) / 1000 });
-    await page.evaluate(([txt, stp]) => { document.getElementById('tvCap').textContent = txt; document.getElementById('tvStep').textContent = stp || ''; }, [v.text, step]);
+    marks.push({ key, step: step || '', at: (start - t0) / 1000 });
     await fn();
     const left = v.dur * 1000 + 450 - (Date.now() - start);
     if (left > 0) await wait(left);
@@ -411,7 +410,6 @@ const overlayScript = `
     await wait(900);
     await point('#mineList .req [data-act="complaint"]');
   });
-  await page.evaluate(() => { document.getElementById('tvCap').textContent = ''; });
   await wait(800);
   const tEnd = Date.now();
   await cdp.send('Page.stopScreencast').catch(() => {});
@@ -427,6 +425,40 @@ const overlayScript = `
   const vpath = listFile;
   await browser.close();
 
+  /* ---------- الترجمة في شريط أسفل الصفحة (لا تغطي التطبيق) ----------
+     كل جملة طويلة تُقسم لمقاطع قصيرة (سطران كحد أقصى) بتوقيت متناسب مع طولها داخل مدة الصوت */
+  const STRIP = 120, VH = H + STRIP;
+  function chunks(text) {
+    const sent = text.match(/[^.!?:]+[.!?:]?/g).map(x => x.trim()).filter(Boolean);
+    const out = [];
+    sent.forEach(x => {
+      if (out.length && (out[out.length - 1] + ' ' + x).length <= 120) out[out.length - 1] += ' ' + x;
+      else if (x.length <= 120) out.push(x);
+      else { const w = x.split(' '); let cur = ''; w.forEach(z => { if ((cur + ' ' + z).trim().length > 110) { out.push(cur.trim()); cur = z; } else cur += ' ' + z; }); if (cur.trim()) out.push(cur.trim()); }
+    });
+    return out;
+  }
+  const cues = [];
+  marks.forEach(m => {
+    const v = voice[m.key], parts = chunks(v.text), tot = parts.reduce((a, x) => a + x.length, 0);
+    let t = m.at;
+    parts.forEach(x => { const d = v.dur * x.length / tot; cues.push({ a: t, b: t + d, text: x, step: m.step }); t += d; });
+  });
+  const assT = s => { const cs = Math.round(s * 100); return Math.floor(cs / 360000) + ':' + String(Math.floor(cs % 360000 / 6000)).padStart(2, '0') + ':' + String(Math.floor(cs % 6000 / 100)).padStart(2, '0') + '.' + String(cs % 100).padStart(2, '0'); };
+  const assEsc = x => x.replace(/[{}]/g, '').replace(/\n/g, ' ');
+  const ass = ['[Script Info]', 'ScriptType: v4.00+', 'PlayResX: ' + W, 'PlayResY: ' + VH, 'WrapStyle: 0', '',
+    '[V4+ Styles]',
+    'Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding',
+    'Style: Cap,DejaVu Sans,27,&H00FFFFFF,&H00FFFFFF,&H00000000,&H00000000,-1,0,0,0,100,100,0,0,1,0,0,5,250,40,0,1',
+    'Style: Step,DejaVu Sans,19,&H00F7C36B,&H00F7C36B,&H00000000,&H00000000,-1,0,0,0,100,100,0,0,1,0,0,4,28,0,0,1', '',
+    '[Events]', 'Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text'];
+  cues.forEach(c => {
+    ass.push('Dialogue: 0,' + assT(c.a) + ',' + assT(c.b) + ',Cap,,0,0,0,,{\\pos(' + Math.round((250 + W - 40) / 2) + ',' + (H + STRIP / 2) + ')}' + assEsc(c.text));
+    if (c.step) ass.push('Dialogue: 0,' + assT(c.a) + ',' + assT(c.b) + ',Step,,0,0,0,,{\\pos(28,' + (H + STRIP / 2) + ')}' + assEsc(c.step));
+  });
+  const assFile = path.join(WORK, 'captions.ass');
+  fs.writeFileSync(assFile, ass.join('\n'));
+
   /* ---------- الدمج: الفيديو + الصوت في مواضعه → MP4 ---------- */
   const keys = marks.map(m => m.key);
   // الإطار الأول يبدأ عند (أول إطار − البداية)؛ نملأ الفجوة بتأخير بسيط إن وُجدت
@@ -436,11 +468,11 @@ const overlayScript = `
   const delays = marks.map((m, i) => '[' + (i + 1) + ':a]adelay=' + Math.round(m.at * 1000) + '|' + Math.round(m.at * 1000) + '[a' + i + ']').join(';');
   const mix = delays + ';' + marks.map((m, i) => '[a' + i + ']').join('') + 'amix=inputs=' + marks.length + ':normalize=0[aout]';
   const mp4 = path.join(OUT, 'masar-nurse-tutorial-en.mp4');
-  args.push('-filter_complex', '[0:v]tpad=start_duration=' + lead.toFixed(3) + ':start_mode=clone,fps=25,scale=' + W + ':' + H + ',format=yuv420p[vout];' + mix, '-map', '[vout]', '-map', '[aout]', '-c:v', 'libx264', '-preset', 'medium', '-crf', '22', '-pix_fmt', 'yuv420p',
+  args.push('-filter_complex', '[0:v]tpad=start_duration=' + lead.toFixed(3) + ':start_mode=clone,fps=25,scale=' + W + ':' + H + ',pad=' + W + ':' + VH + ':0:0:color=0x0f172a,ass=' + assFile + ',format=yuv420p[vout];' + mix, '-map', '[vout]', '-map', '[aout]', '-c:v', 'libx264', '-preset', 'medium', '-crf', '22', '-pix_fmt', 'yuv420p',
     '-c:a', 'aac', '-b:a', '128k', '-t', String(Math.ceil(total)), '-movflags', '+faststart', mp4);
   execFileSync(FFMPEG, args, { stdio: ['ignore', 'ignore', 'pipe'] });
   // ملف ترجمة SRT (للمنصات التي تعرض الترجمة)
   const ts = s => { const ms = Math.round(s * 1000); const h = Math.floor(ms / 36e5), m = Math.floor(ms % 36e5 / 6e4), sec = Math.floor(ms % 6e4 / 1000); return [h, m, sec].map(x => String(x).padStart(2, '0')).join(':') + ',' + String(ms % 1000).padStart(3, '0'); };
-  fs.writeFileSync(path.join(OUT, 'masar-nurse-tutorial-en.srt'), marks.map((m, i) => (i + 1) + '\n' + ts(m.at) + ' --> ' + ts(m.at + voice[m.key].dur) + '\n' + voice[m.key].text + '\n').join('\n'));
+  fs.writeFileSync(path.join(OUT, 'masar-nurse-tutorial-en.srt'), cues.map((c, i) => (i + 1) + '\n' + ts(c.a) + ' --> ' + ts(c.b) + '\n' + c.text + '\n').join('\n'));
   console.log('video:', mp4, '(' + Math.round(total) + ' s)');
 })().catch(e => { console.error('TUTORIAL FAILED', e); process.exit(1); });
