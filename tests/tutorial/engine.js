@@ -122,6 +122,8 @@ function seedScript() {
     g.__gas = gas;
     (function () {
       ${fs.readFileSync(path.join(ROOT, 'Code.gs'), 'utf8')}
+      // بيانات العرض بأسماء عيادات ثابتة: لا ترحيل للقائمة الرسمية ولا أدوات TEST101
+      migrateClinics_ = function () {}; seedDemoAssets_ = function () {};
       g.__api = api;
     })();
     // إرساليات معمل وعهدة وبوكسات عبر واجهة النظام نفسها
@@ -212,6 +214,7 @@ async function makeTutorial(cfg) {
   await ctx.route(/fonts\.(googleapis|gstatic)\.com|cdnjs/, r => r.abort());
   const errors = [];
   page.on('pageerror', e => errors.push(e.message));
+  page.on('console', m => { if (m.type() === 'error' && /demo seed/.test(m.text())) console.log('[' + cfg.id + '] ' + m.text()); });
   await page.goto('http://masar.demo/');
   await page.waitForSelector('#loginView:not(.hidden)');
   await page.waitForTimeout(600);
