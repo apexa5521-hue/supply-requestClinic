@@ -1,0 +1,55 @@
+1
+00:00:00,797 --> 00:00:05,744
+This video is for branch managers. Your account shows only your branch:
+
+2
+00:00:05,744 --> 00:00:11,597
+its requests, its lab cases, its custody tools, and its complaints. It is view only.
+
+3
+00:00:12,047 --> 00:00:16,707
+Sign in with your name and password. Your branch appears next to your name.
+
+4
+00:00:19,296 --> 00:00:26,356
+The Overview shows this month in numbers: how many requests, how many are received, and how many are still open.
+
+5
+00:00:26,808 --> 00:00:32,398
+Below, you see the trend over the last months, and the requests of each clinic in your branch.
+
+6
+00:00:32,849 --> 00:00:37,409
+Tap any request to see its items, its stages, and its comments.
+
+7
+00:00:37,859 --> 00:00:43,549
+Follow-up shows late requests in your branch: who is holding each one, and for how long.
+
+8
+00:00:44,000 --> 00:00:47,650
+Tap Nudge to send a reminder to whoever is holding the request.
+
+9
+00:00:50,244 --> 00:00:55,237
+Reports gives you the month for your branch: by clinic, by doctor and by item.
+
+10
+00:00:55,237 --> 00:00:57,734
+You can print it or export it to Excel.
+
+11
+00:00:59,461 --> 00:01:05,771
+Lab KPIs show your branch cases: turnaround, on-time rate, redos and overdue work.
+
+12
+00:01:06,222 --> 00:01:12,702
+The Custody dashboard shows the tools in your clinics, any shortage against the standard, and the open tickets.
+
+13
+00:01:13,153 --> 00:01:17,453
+Complaints shows the problems reported in your branch, and whether they are solved.
+
+14
+00:01:18,694 --> 00:01:24,114
+That's it. Check your branch every day, and nudge anything that is late. Thank you!

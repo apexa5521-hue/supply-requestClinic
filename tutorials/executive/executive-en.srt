@@ -1,0 +1,55 @@
+1
+00:00:00,786 --> 00:00:06,576
+This video is for the executive manager. You will see the whole company at a glance:
+
+2
+00:00:06,576 --> 00:00:11,056
+requests, spending, lab work and custody tools, for every branch.
+
+3
+00:00:11,506 --> 00:00:14,026
+Sign in with your name and password.
+
+4
+00:00:17,022 --> 00:00:19,421
+The Overview shows the key numbers:
+
+5
+00:00:19,421 --> 00:00:25,522
+total requests, average fulfilment time, emergencies, the received rate, and open issues.
+
+6
+00:00:25,972 --> 00:00:29,792
+Choose a month, or All time, and every number updates.
+
+7
+00:00:30,846 --> 00:00:36,346
+The charts show the fulfilment time trend, each clinic, and the most requested items.
+
+8
+00:00:36,797 --> 00:00:44,262
+Reports compares branches, clinics and doctors: requests, value, approval time and dispatch time.
+
+9
+00:00:44,262 --> 00:00:47,187
+Filter by branch, and export to Excel.
+
+10
+00:00:48,632 --> 00:00:53,652
+You can also open any doctor's report with prices, for one month or cumulative.
+
+11
+00:00:54,102 --> 00:00:59,932
+Lab KPIs show turnaround, on-time rate, redos, and what the external labs cost.
+
+12
+00:01:00,430 --> 00:01:07,290
+The Custody dashboard shows damaged and lost tools, repair cost, and any clinic below its standard.
+
+13
+00:01:07,743 --> 00:01:14,893
+Workflow explains the full journey of a request, from the nurse to receipt, and who is responsible at each step.
+
+14
+00:01:15,343 --> 00:01:20,623
+That's it. Everything you see is live, straight from the system. Thank you!
