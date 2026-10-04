@@ -130,7 +130,7 @@ const COMPLAINT_TYPES = ['تأخير', 'نقص', 'زيادة', 'أخرى'];
  *  التجهيز التلقائي بعد النشر (مرة واحدة لكل إصدار) — بلا أي خطوة يدوية:
  *  تبويبات الإعداد (Settings / LabMaterials)، قائمة العيادات المعتمدة، المشغّلات (النسخ الليلي + onChange)
  * ===================================================================== */
-const SETUP_VERSION_ = '2026-10-setup-v4';
+const SETUP_VERSION_ = '2026-10-setup-v5';
 function autoSetup_() {
   try {
     const cache = CacheService.getScriptCache();
@@ -157,6 +157,7 @@ function runSetupSteps_(force) {
     ['lab', 'إعدادات المعمل (Settings / LabMaterials)', seedLabSetup_],
     ['clinics', 'قائمة العيادات المعتمدة', function () { migrateClinics_(force); }],
     ['triage', 'غرفة الفرز لكل فرع (مستهلكات عيادة)', ensureTriageRooms_],
+    ['unayzah', 'عيادات الأسنان في عنيزة (حتى 10)', ensureUnayzahClinics_],
     ['perms', 'صلاحية العهدة للإدارة والجودة والمالية', function () { grantPerm_('assets', ['executive', 'quality', 'finance']); }],
     ['doctors_live', 'صفحة «الأطباء — مباشر» للجودة والتنفيذي', function () { grantPerm_('doctors_live', ['executive', 'quality']); }],
     ['demo', 'أدوات العهدة التجريبية TEST101', function () { seedDemoAssets_(force); }],
@@ -287,11 +288,12 @@ function migrateClinics_(force) {
 }
 
 /** العيادات الافتراضية لتجهيز نظام جديد فقط — بعدها تبويب Clinics هو المرجع (أضف/احذف صفوفاً منه مباشرة) */
+const UNAYZAH_DENTAL_ = 10;
 const DEFAULT_CLINICS_ = (function () {
   const out = [];
   for (let i = 1; i <= 12; i++) out.push(['Dental Clinic ' + i + ' - Buraydah', 'Buraydah', 'Dentistry']);
   ['Derma Hydrafacial', 'Derma Clarity', 'Derma Gentle Pro', 'Derma CLINIC'].forEach(function (n) { out.push([n, 'Buraydah', 'Dermatology']); });
-  for (let j = 1; j <= 4; j++) out.push(['Dental Clinic ' + j + ' - Unayzah', 'Unayzah', 'Dentistry']);
+  for (let j = 1; j <= UNAYZAH_DENTAL_; j++) out.push(['Dental Clinic ' + j + ' - Unayzah', 'Unayzah', 'Dentistry']);
   out.push(['Sterilization - Buraydah', 'Buraydah', 'Sterilization'], ['Sterilization - Unayzah', 'Unayzah', 'Sterilization']);
   return out;
 })();
@@ -309,6 +311,18 @@ function ensureTriageRooms_() {
     if (cs.some(function (c) { return c.branch === b && /triage|فرز/i.test(c.name + ' ' + c.type); })) return;
     append_('Clinics', { ClinicName: 'Triage Room - ' + b, Branch: b, Type: 'Triage' });
   });
+}
+
+/** عيادات الأسنان في عنيزة حتى 10 — تُضاف الناقصة فقط (لا يُحذف ولا يُعاد ترتيب شيء) */
+function ensureUnayzahClinics_() {
+  const cs = getClinics_();
+  if (!cs.some(function (c) { return /unayzah|عنيزة/i.test(c.branch); })) return; // شيت بلا فرع عنيزة
+  const branch = (cs.filter(function (c) { return /unayzah|عنيزة/i.test(c.branch); })[0] || {}).branch;
+  for (let i = 1; i <= UNAYZAH_DENTAL_; i++) {
+    const name = 'Dental Clinic ' + i + ' - Unayzah';
+    if (cs.some(function (c) { return clinicMatchKey_(c.name) === clinicMatchKey_(name); })) continue;
+    append_('Clinics', { ClinicName: name, Branch: branch, Type: 'Dentistry' });
+  }
 }
 
 function setupSheets() {
@@ -3903,8 +3917,10 @@ function labDueFrom_(scanDate, labNames, labs) {
   return parseDay_(Utilities.formatDate(d, TZ, 'yyyy-MM-dd'), true);
 }
 function getLabConfig_() {
-  return { labs: getLabs_(), workTypes: getLabWorkTypes_(), materials: getLabMaterials_(), redoReasons: LAB_REDO_REASONS,
-    statuses: LAB_ORDER, turnaround: labTurnaroundDefault_() };
+  const labs = getLabs_(), byName = {};
+  labs.forEach(function (l) { byName[l.name] = l; });
+  return { labs: labs, workTypes: getLabWorkTypes_(), materials: getLabMaterials_(), redoReasons: LAB_REDO_REASONS,
+    statuses: LAB_ORDER, turnaround: labTurnaroundDefault_(), iteroLab: iteroLab_(byName) };
 }
 
 
@@ -3967,7 +3983,8 @@ function createLabCase_(user, payload) {
   const isItero = !redoOf && payload.itero !== undefined && payload.itero !== null;
   const iteroNo = isItero ? clean_(payload.itero, 40) : '';
   if (isItero && !iteroNo) throw new Error('ERR_ITERO_NO');
-  const lines = isItero ? [{ lab: iteroLab_(labs), workType: 'iTero', details: 'iTero #' + iteroNo }] : redoOf
+  if (isItero && str_(payload.lab) && !labs[str_(payload.lab)]) throw new Error('ERR_BAD_LAB');
+  const lines = isItero ? [{ lab: str_(payload.lab) || iteroLab_(labs), workType: 'iTero', details: 'iTero #' + iteroNo }] : redoOf
     ? redoLines.map(function (it) {
         return { lab: str_(payload.redoLab) || str_(it.Lab), workType: str_(it.WorkType), material: str_(it.Material), details: str_(it.Details), redoOfItem: str_(it.ItemID) };
       })

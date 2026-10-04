@@ -588,6 +588,9 @@ function log(msg) { console.log('  ✔ ' + msg); }
   await page.selectOption('#lDoctor', 'د. خالد');
   await page.fill('#lFile', 'F-2002');
   await page.fill('#lItero', 'IT-5566');
+  await page.waitForSelector('#lIteroLab option[value="معمل النخبة"]', { state: 'attached' });
+  expect(await page.inputValue('#lIteroLab') === 'المعمل الداخلي' && (await page.textContent('#lIteroLab')).includes('خارجي'), 'iTero: lab dropdown (internal by default, external labs listed)');
+  await page.selectOption('#lIteroLab', 'معمل النخبة');
   await shot(page, 'lab-itero-form', true);
   await page.click('#lSubmit');
   expect(await toastHas(page, 'للمعمل'), 'iTero scan sent to the lab');
@@ -596,6 +599,8 @@ function log(msg) { console.log('  ✔ ' + msg); }
   await logout(page);
   await login(page, 'فني المعمل', '8888');
   await page.waitForSelector('#labList .lab-card');
+  await page.waitForSelector('#labList .tag.ext-lab');
+  expect((await page.textContent('#labList .lab-card:has(.tag.itero) .tag.ext-lab')).includes('معمل النخبة'), 'lab board: a case sent to an external lab is flagged «FYI — not for you»');
   // قائمة طويلة: «عرض المزيد» في لوحة المعمل يضيف دفعة (كان يرمي خطأ)
   {
     const before = await page.evaluate(() => {
@@ -976,7 +981,7 @@ function log(msg) { console.log('  ✔ ' + msg); }
   expect(await toastHas(page, 'تم أخذ نسخة احتياطية') && await page.isVisible('#bkBox a:has-text("فتح آخر نسخة")'), 'admin takes a backup now and can open it');
   await page.locator('#bkBox').scrollIntoViewIfNeeded();
   await shot(page, 'admin-backup');
-  await page.waitForFunction(() => /2026-10-setup-v4/.test((document.getElementById('suBox') || {}).textContent || ''));
+  await page.waitForFunction(() => /2026-10-setup-v5/.test((document.getElementById('suBox') || {}).textContent || ''));
   await page.click('#suBtn');
   expect(await toastHas(page, 'اكتمل التجهيز') || await toastHas(page, 'التجهيز فيه خطوات'), 'admin sees the setup status (code version + steps) and can re-run it');
   // صلاحيات الدور: الأدمن يحدد ما يظهر لكل دور

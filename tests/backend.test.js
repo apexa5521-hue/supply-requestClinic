@@ -939,7 +939,7 @@ test('backup: full copy of the spreadsheet into its own Drive folder, keeps the 
   assert.ok(rows(gas, 'Log').some(r => String(r.Action).indexOf('نسخة احتياطية') === 0), 'logged');
 });
 
-test('auto setup: the clinic sheet (Buraydah/Unayzah) becomes the approved 22 clinics on first run, references fixed, backup taken, runs once', () => {
+test('auto setup: the clinic sheet (Buraydah/Unayzah) becomes the approved 28 clinics on first run, references fixed, backup taken, runs once', () => {
   const sheetNow = [];
   for (let i = 1; i <= 8; i++) sheetNow.push(['Dental Clinic ' + i + ' - Buraydah', 'Buraydah', 'Dentistry']);
   for (let i = 1; i <= 4; i++) sheetNow.push(['Dental Clinic ' + i + ' - Unayzah', 'Unayzah', 'Dentistry']);
@@ -954,16 +954,16 @@ test('auto setup: the clinic sheet (Buraydah/Unayzah) becomes the approved 22 cl
   });
   const a = login('المدير', '1234');
   const cl = rows(gas, 'Clinics').filter(r => r.ClinicName);
-  assert.equal(cl.length, 24, '22 clinics + a triage room per branch');
+  assert.equal(cl.length, 30, '28 clinics (10 dental in Unayzah) + a triage room per branch');
   assert.deepEqual(cl.filter(r => r.Branch === 'Unayzah').map(r => r.ClinicName),
-    ['Dental Clinic 1 - Unayzah', 'Dental Clinic 2 - Unayzah', 'Dental Clinic 3 - Unayzah', 'Dental Clinic 4 - Unayzah', 'Sterilization - Unayzah', 'Triage Room - Unayzah']);
+    [1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map(i => 'Dental Clinic ' + i + ' - Unayzah').concat(['Sterilization - Unayzah', 'Triage Room - Unayzah']));
   assert.deepEqual(cl.filter(r => r.Type === 'Dermatology').map(r => r.ClinicName), ['Derma Hydrafacial', 'Derma Clarity', 'Derma Gentle Pro', 'Derma CLINIC']);
   assert.equal(cl.filter(r => r.Branch === 'Buraydah' && r.Type === 'Dentistry').length, 12);
-  assert.equal(api(a, 'getConfig').clinics.length, 24, 'the app sees the new list right away');
+  assert.equal(api(a, 'getConfig').clinics.length, 30, 'the app sees the new list right away');
   const users = Object.fromEntries(rows(gas, 'Users').map(u => [u.Name, u.Clinic]));
   assert.equal(users['هند'], 'Sterilization - Buraydah', 'typo in the user clinic fixed');
   assert.equal(users['نورة'], 'Dental Clinic 8 - Buraydah, Dermatology Clinic 1 - Buraydah', 'unknown old names are left and reported');
-  assert.ok(rows(gas, 'Log').some(r => /22 عيادة/.test(r.Action) && /Dermatology Clinic 1 - Buraydah/.test(r.Action)), 'change + names needing attention are logged');
+  assert.ok(rows(gas, 'Log').some(r => /28 عيادة/.test(r.Action) && /Dermatology Clinic 1 - Buraydah/.test(r.Action)), 'change + names needing attention are logged');
   assert.equal(gas.globals.DriveApp.createFolder._folder.copies.length, 1, 'a backup was taken before changing the sheet');
   assert.ok(rows(gas, 'Settings').some(r => r.Key === 'LabTurnaroundDays') && rows(gas, 'LabMaterials').length === 8, 'lab settings seeded automatically');
   const demo = rows(gas, 'ItemsCatalog').filter(r => /TEST101$/.test(r.ItemName));
@@ -1953,6 +1953,26 @@ test('iTero: scan date + iTero case No. + file No. + doctor → lab case without
   assert.deepEqual([c.items.length, c.items[0].workType, c.items[0].lab, c.fileNo], [1, 'iTero', 'المعمل الداخلي', '55']);
   assert.ok(api(login('فني المعمل', '8888'), 'getLabCases', {}).some(x => x.id === r.id && x.iteroNo === 'IT-778899'), 'lab sees the iTero case');
   assert.equal(api(n, 'findLabCases', 'IT-778899')[0].id, r.id);
+  // اختيار المعمل من القائمة (داخلي أو خارجي)
+  assert.equal(api(n, 'getLabConfig').iteroLab, 'المعمل الداخلي', 'default iTero lab is sent to the form');
+  const ext = api(n, 'createLabCase', { itero: 'IT-5', lab: 'معمل النخبة', doctor: 'د. خالد', fileNo: '56', scanDate: '2020-01-01' });
+  assert.equal(api(n, 'getLabCase', ext.id).items[0].lab, 'معمل النخبة');
+  throwsCode(() => api(n, 'createLabCase', { itero: 'IT-6', lab: 'معمل غير موجود', doctor: 'د. خالد', fileNo: '57', scanDate: '2020-01-01' }), 'ERR_BAD_LAB');
+});
+
+test('setup adds the missing Unayzah dental clinics up to 10 (keeps everything else)', () => {
+  const { api, login, gas } = boot(g => {
+    g.seed('Clinics', ['ClinicName', 'Branch', 'Type'], [
+      ['Dental Clinic 1 - Buraydah', 'Buraydah', 'Dentistry'], ['Dental Clinic 1 - Unayzah', 'Unayzah', 'Dentistry'],
+      ['Dental Clinic 2 - Unayzah', 'Unayzah', 'Dentistry'], ['My Renamed Clinic', 'Unayzah', 'Dentistry']]);
+    // نظام قائم سبق تجهيزه بإصدار أقدم: الترحيل الأول لا يُعاد
+    g.globals.PropertiesService.getScriptProperties().setProperty('setup:done', '2026-10-setup-v4');
+  });
+  const cfg = api(login('المدير', '1234'), 'getConfig');
+  const un = cfg.clinics.filter(c => c.branch === 'Unayzah' && /^Dental Clinic \d+ - Unayzah$/.test(c.name)).map(c => c.name);
+  assert.equal(un.length, 10);
+  assert.ok(cfg.clinics.some(c => c.name === 'My Renamed Clinic'), 'other clinics are kept');
+  assert.equal(rows(gas, 'Clinics').filter(r => r.ClinicName === 'Dental Clinic 1 - Unayzah').length, 1, 'no duplicates');
 });
 
 test('backdated requests: nurse records a past received request, tagged and kept out of timing KPIs; closes by setting', () => {
