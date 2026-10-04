@@ -175,8 +175,9 @@ test('config: nurse sees every clinic (own clinics flagged) and no prices; clini
   const cfg = api(n, 'getConfig');
   assert.ok(cfg.clinics.length >= 5 && cfg.clinics.some(c => c.name === 'Sterilization'));
   assert.deepEqual(cfg.myClinics.sort(), ['عيادة الأسنان 1', 'عيادة الجلدية 1'].sort());
-  const r = api(n, 'createRequest', { clinic: 'عيادة الأسنان 2', type: 'شهري', items: [{ name: 'PROPHY PASTE', qty: 1 }] });
-  assert.match(r.id, /^REQ-/, 'clinic consumables for a clinic that is not hers');
+  throwsCode(() => api(n, 'createRequest', { clinic: 'عيادة الأسنان 2', type: 'شهري', items: [{ name: 'PROPHY PASTE', qty: 1 }] }), 'ERR_CLINIC_SHARED_ONLY');
+  const r = api(n, 'createRequest', { clinic: 'Sterilization', branch: 'جدة', type: 'شهري', items: [{ name: 'PROPHY PASTE', qty: 1 }] });
+  assert.match(r.id, /^REQ-/, 'clinic consumables: sterilization / triage in any branch');
   assert.ok(cfg.catalog.length >= 7);
   assert.ok(cfg.catalog.every(c => c.price === undefined));
   const proc = api(login('علي', '3333'), 'getConfig');
@@ -190,7 +191,8 @@ test('createRequest: validation', () => {
   const n = login('سارة', '1111');
   const base = { clinic: 'عيادة الأسنان 1', doctor: 'د. خالد', type: 'شهري', items: [{ name: 'PROPHY PASTE', qty: 2 }] };
   throwsCode(() => api(n, 'createRequest', Object.assign({}, base, { clinic: 'عيادة الأسنان 2' })), 'ERR_FORBIDDEN');
-  throwsCode(() => api(n, 'createRequest', Object.assign({}, base, { doctor: 'د. فهد' })), 'ERR_BAD_DOCTOR');
+  throwsCode(() => api(n, 'createRequest', Object.assign({}, base, { doctor: 'د. غير موجود' })), 'ERR_BAD_DOCTOR');
+  assert.ok(api(n, 'getDoctors', 'عيادة الأسنان 1', { all: true }).some(d => d.name === 'د. فهد'), 'any listed doctor can be chosen: doctors are not tied to one clinic');
   throwsCode(() => api(n, 'createRequest', Object.assign({}, base, { type: 'x' })), 'ERR_BAD_TYPE');
   throwsCode(() => api(n, 'createRequest', Object.assign({}, base, { items: [] })), 'ERR_NO_ITEMS');
   // لا يمكن طلب صفر (ولا سالب ولا فارغ) — أقل كمية 1
@@ -898,7 +900,9 @@ test('doctors match clinics by name, list, specialty or branch; empty clinic = a
   assert.deepEqual(names('Derma Clinic 2 - Riyadh'), ['Dr Anywhere', 'Dr Derma', 'Dr List']);
   assert.deepEqual(names('عيادة الأسنان 1'), ['Dr Anywhere', 'Dr ArabicSpecialty', 'Dr BySpecialty', 'Dr List']);
   assert.match(api(n, 'createRequest', { clinic: 'Dental Clinic 8 - Buraydah', doctor: 'Dr BySpecialty', type: 'شهري', items: [{ name: 'DENTAL FLOSS', qty: 1 }] }).id, /^REQ-/);
-  throwsCode(() => api(n, 'createRequest', { clinic: 'Dental Clinic 8 - Buraydah', doctor: 'Dr Derma', type: 'شهري', items: [{ name: 'DENTAL FLOSS', qty: 1 }] }), 'ERR_BAD_DOCTOR');
+  throwsCode(() => api(n, 'createRequest', { clinic: 'Dental Clinic 8 - Buraydah', doctor: 'Dr Nobody', type: 'شهري', items: [{ name: 'DENTAL FLOSS', qty: 1 }] }), 'ERR_BAD_DOCTOR');
+  const all = api(n, 'getDoctors', 'Dental Clinic 8 - Buraydah', { all: true });
+  assert.ok(all.some(d => d.name === 'Dr Derma' && !d.here) && all.some(d => d.name === 'Dr Exact' && d.here), 'full list, with the clinic doctors flagged');
 });
 
 test('same clinic name in two branches (Sterilization): each request keeps its branch and reports split them', () => {
@@ -950,12 +954,12 @@ test('auto setup: the clinic sheet (Buraydah/Unayzah) becomes the approved 22 cl
   });
   const a = login('المدير', '1234');
   const cl = rows(gas, 'Clinics').filter(r => r.ClinicName);
-  assert.equal(cl.length, 22);
+  assert.equal(cl.length, 24, '22 clinics + a triage room per branch');
   assert.deepEqual(cl.filter(r => r.Branch === 'Unayzah').map(r => r.ClinicName),
-    ['Dental Clinic 1 - Unayzah', 'Dental Clinic 2 - Unayzah', 'Dental Clinic 3 - Unayzah', 'Dental Clinic 4 - Unayzah', 'Sterilization - Unayzah']);
+    ['Dental Clinic 1 - Unayzah', 'Dental Clinic 2 - Unayzah', 'Dental Clinic 3 - Unayzah', 'Dental Clinic 4 - Unayzah', 'Sterilization - Unayzah', 'Triage Room - Unayzah']);
   assert.deepEqual(cl.filter(r => r.Type === 'Dermatology').map(r => r.ClinicName), ['Derma Hydrafacial', 'Derma Clarity', 'Derma Gentle Pro', 'Derma CLINIC']);
   assert.equal(cl.filter(r => r.Branch === 'Buraydah' && r.Type === 'Dentistry').length, 12);
-  assert.equal(api(a, 'getConfig').clinics.length, 22, 'the app sees the new list right away');
+  assert.equal(api(a, 'getConfig').clinics.length, 24, 'the app sees the new list right away');
   const users = Object.fromEntries(rows(gas, 'Users').map(u => [u.Name, u.Clinic]));
   assert.equal(users['هند'], 'Sterilization - Buraydah', 'typo in the user clinic fixed');
   assert.equal(users['نورة'], 'Dental Clinic 8 - Buraydah, Dermatology Clinic 1 - Buraydah', 'unknown old names are left and reported');
@@ -1168,7 +1172,7 @@ test('departments: dental/derma consumables, requests take the clinic department
   assert.deepEqual(cat.map(c => [c.name, c.dept || '']), [['DENTAL FLOSS', 'أسنان'], ['PROPHY PASTE', 'أسنان'], ['Botox Needle', 'جلدية'], ['FACE MASK BRUSH', 'جلدية'], ['قفازات طبية M', '']]);
   throwsCode(() => api(n, 'createRequest', { clinic: 'عيادة الأسنان 1', doctor: 'د. خالد', type: 'شهري', items: [{ name: 'Botox Needle', qty: 1 }] }), 'ERR_ITEM_DEPT');
   const dental = api(n, 'createRequest', { clinic: 'عيادة الأسنان 1', doctor: 'د. خالد', type: 'شهري', items: [{ name: 'DENTAL FLOSS', qty: 2 }, { name: 'قفازات طبية M', qty: 1 }] }).id;
-  const derma = api(n, 'createRequest', { clinic: 'عيادة الجلدية 1', type: 'شهري', items: [{ name: 'Botox Needle', qty: 5 }] }).id;
+  const derma = api(n, 'createRequest', { clinic: 'عيادة الجلدية 1', doctor: 'د. نورة', type: 'شهري', items: [{ name: 'Botox Needle', qty: 5 }] }).id;
   const steril = api(n, 'createRequest', { clinic: 'Sterilization', type: 'شهري', items: [{ name: 'قفازات طبية M', qty: 3 }, { name: 'DENTAL FLOSS', qty: 1 }] }).id;
   assert.deepEqual(rows(gas, 'Requests').filter(r => [dental, derma, steril].includes(r.RequestID)).map(r => r.Department), ['أسنان', 'جلدية', '']);
   // حسابات تموين مقسمة
@@ -1183,7 +1187,7 @@ test('departments: dental/derma consumables, requests take the clinic department
   assert.equal(api(pk, 'getConfig').user.department, 'جلدية');
   // الإيميل يصل لتموين القسم فقط (والعام)
   gas.mails.length = 0;
-  api(n, 'createRequest', { clinic: 'عيادة الجلدية 1', type: 'طارئ', items: [{ name: 'FACE MASK BRUSH', qty: 1 }] });
+  api(n, 'createRequest', { clinic: 'عيادة الجلدية 1', doctor: 'د. نورة', type: 'طارئ', items: [{ name: 'FACE MASK BRUSH', qty: 1 }] });
   const to = gas.mails.map(m => m.to).join(',');
   assert.ok(to.includes('pk@example.com') && to.includes('ali@example.com') && !to.includes('pd@example.com'), to);
   // تعديل القسم ينعكس فوراً
@@ -1325,13 +1329,14 @@ test('doctor-based request: clinic is optional (derived from the doctor); clinic
   assert.equal(q1.Branch, 'الرياض');
   assert.equal(q1.Status, 'مراجعة الطبيب');
   assert.equal(api(login('د. خالد', '4444'), 'getDoctorRequests').length, 1);
-  throwsCode(() => api(n, 'createRequest', { doctor: 'د. سعد', type: 'شهري', items }), 'ERR_BAD_DOCTOR');
+  throwsCode(() => api(n, 'createRequest', { doctor: 'د. غير موجود', type: 'شهري', items }), 'ERR_BAD_DOCTOR');
   // مستهلكات العيادة: بدون طبيب، العيادة إلزامية، وتذهب للتموين مباشرة
   throwsCode(() => api(n, 'createRequest', { type: 'شهري', items }), 'ERR_REQUIRED');
-  assert.match(api(n, 'createRequest', { clinic: 'عيادة الأسنان 2', type: 'شهري', items }).id, /^REQ-/, 'clinic consumables are open to every clinic');
-  const r2 = api(n, 'createRequest', { clinic: 'عيادة الجلدية 1', type: 'شهري', items: [{ name: 'قفازات طبية M', qty: 5 }] });
+  throwsCode(() => api(n, 'createRequest', { clinic: 'عيادة الأسنان 2', type: 'شهري', items }), 'ERR_CLINIC_SHARED_ONLY');
+  throwsCode(() => api(n, 'createRequest', { clinic: 'عيادة الجلدية 1', type: 'شهري', items }), 'ERR_CLINIC_SHARED_ONLY');
+  const r2 = api(n, 'createRequest', { clinic: 'Sterilization', branch: 'الرياض', type: 'شهري', items: [{ name: 'قفازات طبية M', qty: 5 }] });
   const q2 = rows(gas, 'Requests').find(r => r.RequestID === r2.id);
-  assert.deepEqual([q2.Doctor, q2.Clinic, q2.Status], ['', 'عيادة الجلدية 1', 'جديد']);
+  assert.deepEqual([q2.Doctor, q2.Clinic, q2.Status], ['', 'Sterilization', 'جديد']);
   const p = login('علي', '3333');
   const all = api(p, 'getRequests', {});
   const got = (all.rows || all).find(r => r.id === r2.id);
@@ -1780,7 +1785,7 @@ test('packed responses (columnar lists) round-trip exactly and are smaller', () 
     return Object.fromEntries(Object.keys(v).map(k => [k, unpack(v[k])]));
   };
   const n = login('سارة', '1111');
-  for (let i = 0; i < 10; i++) api(n, 'createRequest', { clinic: 'عيادة الأسنان 1', type: 'شهري', items: [{ name: 'PROPHY PASTE', qty: 1 + i }] });
+  for (let i = 0; i < 10; i++) api(n, 'createRequest', { clinic: 'Sterilization', branch: 'الرياض', type: 'شهري', items: [{ name: 'PROPHY PASTE', qty: 1 + i }] });
   const plain = api(p, 'getRequests', {});
   const packed = JSON.parse(JSON.stringify(ctx.api(p, 'getRequests', [{}], { pk: 1 })));
   assert.ok(plain.length >= 10);
@@ -1804,8 +1809,8 @@ test('branch manager: sees only his branch (requests, details, reports, monitor,
   assert.equal(api(a, 'getUsers').find(u => u.name === 'مدير جدة').branch, 'جدة');
   assert.equal(api(a, 'getUsers').find(u => u.name === 'مدير غلط').branch, '', 'unknown branch is not saved');
   const sara = login('سارة', '1111'), reem = login('ريم', '2222');
-  const riyadh = api(sara, 'createRequest', { clinic: 'عيادة الأسنان 1', type: 'طارئ', items: [{ name: 'PROPHY PASTE', qty: 1 }] }).id;
-  const jeddah = api(reem, 'createRequest', { clinic: 'عيادة الأسنان 2', type: 'طارئ', items: [{ name: 'PROPHY PASTE', qty: 2 }] }).id;
+  const riyadh = api(sara, 'createRequest', { clinic: 'Sterilization', branch: 'الرياض', type: 'طارئ', items: [{ name: 'PROPHY PASTE', qty: 1 }] }).id;
+  const jeddah = api(reem, 'createRequest', { clinic: 'Sterilization', branch: 'جدة', type: 'طارئ', items: [{ name: 'PROPHY PASTE', qty: 2 }] }).id;
   const labR = api(sara, 'createLabCase', { doctor: 'د. خالد', fileNo: '11', scanDate: '2020-01-01', lines: [{ lab: 'المعمل الداخلي', workType: 'Denture', material: 'Acrylic' }] }).id;
   const labJ = api(reem, 'createLabCase', { doctor: 'د. سعد', fileNo: '22', scanDate: '2020-01-01', lines: [{ lab: 'المعمل الداخلي', workType: 'Denture', material: 'Acrylic' }] }).id;
   api(sara, 'addComplaint', riyadh, 'تأخير', 'من الرياض');
