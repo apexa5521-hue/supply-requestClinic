@@ -934,7 +934,11 @@ function log(msg) { console.log('  ✔ ' + msg); }
   await page.click('[data-act="userNew"]');
   await page.fill('#uName', 'هند');
   await page.fill('#uPass', '7777');
+  await page.selectOption('#uRole', 'طبيب');
+  expect(await page.isVisible('#uPriceView') && await page.locator('#uPriceView option').count() === 5, 'doctor account: admin chooses which prices the doctor sees (auto / all / consumables / materials / none)');
+  await shot(page, 'admin-doctor-price-view');
   await page.selectOption('#uRole', 'ممرضة');
+  expect(!(await page.isVisible('#uPriceView')), 'price view applies to doctors only');
   await page.click('#uClinics .chip >> nth=1');
   await shot(page, 'admin-new-user');
   await page.click('#uSave');
