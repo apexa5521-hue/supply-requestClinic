@@ -28,7 +28,7 @@ const SCHEMA = {
   Requests:     ['RequestID', 'Date', 'Clinic', 'Doctor', 'Nurse', 'Type', 'Status',
                  'SubmittedAt', 'SentAt', 'ReceivedAt', 'ReceiverName', 'SignatureURL',
                  'PrepAt', 'VendorWaitAt', 'VendorReceivedAt', 'ReviewAt', 'ReviewedAt',
-                 'RejectionReason', 'ReceiptURL', 'Branch', 'ApprovedAt', 'ClientKey', 'Department'],
+                 'RejectionReason', 'ReceiptURL', 'Branch', 'ApprovedAt', 'ClientKey', 'Department', 'Backdated'],
   // ItemStatus: حالة الصنف داخل الطلبية (قيد التجهيز / بانتظار المندوب / استلم المندوب) قبل إرساله
   RequestItems: ['RequestID', 'ItemName', 'RequestedQty', 'ApprovedQty', 'ReceivedQty', 'DispatchedAt', 'DispatchBatch', 'ItemStatus', 'ItemStatusAt', 'ItemStatusBy'],
   // سجل التراجعات: كل تراجع عن خطوة (شحنة أُرسلت بالغلط، حالة طلب، حالة صنف) مع السبب والوقت — تراه الجودة والإدارة
@@ -1589,6 +1589,21 @@ function migrateRoles_() {
   });
 }
 
+/* =====================================================================
+ *  الطلبات السابقة بأثر رجعي (مؤقتة): الممرضة تُدخل طلبات قديمة استُلمت قبل النظام
+ *  متاحة حتى BACKDATE_UNTIL_DEFAULT_ — أو حتى تاريخ Settings.BackdateUntil (YYYY-MM-DD)، و«off» يقفلها فوراً
+ *  الطلب يُسجَّل «تم الاستلام» بتاريخه ويُعلَّم Backdated، ولا يدخل في مؤشرات الأزمنة والتأخير
+ * ===================================================================== */
+const BACKDATE_UNTIL_DEFAULT_ = '2026-11-04';
+const BACKDATE_MAX_DAYS_ = 400;
+function backdateUntil_() {
+  let v = getSetting_('BackdateUntil', BACKDATE_UNTIL_DEFAULT_);
+  if (v instanceof Date) v = riyadh_(v.getTime()).slice(0, 10);
+  v = str_(v).slice(0, 10);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(v)) return '';
+  return riyadh_(Date.now()).slice(0, 10) <= v ? v : '';
+}
+
 function getConfig_(user) {
   // كل العيادات متاحة للجميع في «مستهلكات عيادة» (مثل طلبات التعقيم لأي فرع)؛ عيادات المستخدم تُعرض أولاً
   user.department = userDept_(user);
@@ -1600,6 +1615,7 @@ function getConfig_(user) {
     catalog: getCatalog_(user.screen !== 'nurse'),
     roles: (user.perms || []).indexOf('users') !== -1 ? getRoles_() : [],
     hasAdmin: (user.perms || []).indexOf('users') !== -1 ? hasAdmin_() : true,
+    backdateUntil: user.screen === 'nurse' ? backdateUntil_() : '',
     serverTime: new Date()
   };
 }
@@ -1739,7 +1755,8 @@ function mapRequest_(r) {
     vendorReceivedAt: r.VendorReceivedAt, reviewAt: r.ReviewAt, reviewedAt: r.ReviewedAt,
     sentAt: r.SentAt, receivedAt: r.ReceivedAt, receiver: str_(r.ReceiverName), approvedAt: r.ApprovedAt,
     signature: str_(r.SignatureURL), receiptUrl: str_(r.ReceiptURL),
-    rejectionReason: str_(r.RejectionReason)
+    rejectionReason: str_(r.RejectionReason),
+    backdated: isBackdated_(r)
   };
 }
 
@@ -1809,7 +1826,7 @@ function nextMonthStart_(ym) {
 function deadline_(r, nowMs) {
   const now = nowMs || Date.now();
   const sub = toMs_(r.submittedAt || r.date);
-  if (!sub) return { dueAt: '', overdue: false, atRisk: false, lateSubmit: false };
+  if (!sub || r.backdated) return { dueAt: '', overdue: false, atRisk: false, lateSubmit: false };
   // الرفع بعد يوم 20 مسموح عادي، لكنه يُعلَّم «رُفع متأخراً» (قبل 15 = مبكر، لا مشكلة)
   let due, lateSubmit = false;
   if (r.type === 'طارئ') due = sub + EMERGENCY_DUE_HOURS * 36e5;
@@ -1863,7 +1880,7 @@ function getMonitor_(user, opts) {
   const H = 36e5;
   function hrs(a, b) { const x = toMs_(a), y = toMs_(b); return x && y && y >= x ? (y - x) / H : null; }
   function avg(a) { return a.length ? round1_(a.reduce(function (x, y) { return x + y; }, 0) / a.length) : null; }
-  const inMonth = all.filter(function (r) { return monthOf_(r.submittedAt || r.date) === month; });
+  const inMonth = all.filter(function (r) { return !r.backdated && monthOf_(r.submittedAt || r.date) === month; });
   const toPrep = [], toSend = [], toRecv = [], emergencyHrs = [];
   let received = 0, onTime = 0, lateSubmits = 0, monthly = 0, emergency = 0;
   inMonth.forEach(function (r) {
@@ -2214,6 +2231,7 @@ function createRequest_(user, payload) {
     it.name = canon;
   });
   if (items.length > 200) throw new Error('ERR_TOO_MANY_ITEMS');
+  if (str_(payload.backdate)) return createBackdated_(user, payload, { clinic: clinic, branch: branch, doctor: doctor, type: type, dept: dept, items: items });
 
   // منع الإرسال المزدوج لنفس الطلب خلال دقيقتين
   const sig = [user.name, clinic, branch, doctor, type].concat(items.map(function (i) { return i.name + ':' + i.qty; })).join('|');
@@ -2266,6 +2284,30 @@ function createRequest_(user, payload) {
       (clinicOnly ? 'تم رفع طلب مستهلكات عيادة (بدون طبيب — لا يحتاج اعتماداً).' : 'تم رفع طلب جديد (الطبيب ليس له حساب — لا يحتاج اعتماداً في النظام).') + details);
   }
   return { id: id, duplicate: false };
+}
+
+/** طلب سابق بأثر رجعي: يُسجَّل مستلَماً بتاريخه (بلا اعتماد ولا إشعارات) ويُعلَّم Backdated */
+function isBackdated_(r) { return r.Backdated === true || /^(true|نعم|1)$/i.test(str_(r.Backdated)); }
+function createBackdated_(user, payload, o) {
+  if (user.screen !== 'nurse' || !backdateUntil_()) throw new Error('ERR_BACKDATE_CLOSED');
+  const day = str_(payload.backdate).slice(0, 10);
+  const at = /^\d{4}-\d{2}-\d{2}$/.test(day) ? new Date(day + 'T12:00:00+03:00') : null;
+  if (!at || isNaN(at.getTime()) || day >= riyadh_(Date.now()) || Date.now() - at.getTime() > BACKDATE_MAX_DAYS_ * 864e5) throw new Error('ERR_BACKDATE_DATE');
+  const clientKey = /^[A-Za-z0-9-]{8,64}$/.test(str_(payload.clientKey)) ? str_(payload.clientKey) : '';
+  if (clientKey) {
+    const same = requestRows_().filter(function (r) { return str_(r.ClientKey) === clientKey && str_(r.Nurse) === user.name; })[0];
+    if (same) return { duplicate: true, id: str_(same.RequestID) };
+  }
+  const id = reserveId_('REQ-', function (prefix) { return maxSeq_(freshTable_('Requests').rows, 'RequestID', prefix); }, function () { return null; }).id;
+  append_('Requests', {
+    RequestID: id, Date: at, Clinic: o.clinic, Branch: o.branch, Doctor: o.doctor, Nurse: user.name, Type: o.type, Status: ST.RECEIVED,
+    SubmittedAt: at, ApprovedAt: at, SentAt: at, ReceivedAt: at, ReceiverName: user.name, ClientKey: clientKey, Department: o.dept, Backdated: true
+  });
+  o.items.forEach(function (it) {
+    append_('RequestItems', { RequestID: id, ItemName: it.name, RequestedQty: it.qty, ApprovedQty: it.qty, ReceivedQty: it.qty, DispatchedAt: at, DispatchBatch: 1 });
+  });
+  logAction_(id, 'إدخال طلب سابق بأثر رجعي (' + day + ')', user.name);
+  return { id: id, duplicate: false, backdated: true };
 }
 
 function itemsOf_(requestId) {
@@ -3380,8 +3422,8 @@ function getStatsReport_(user, opts) {
         items[k].qty += q; items[k].value = round2_(items[k].value + v); items[k].requests++;
       });
     }
-    const approvalH = r.approvedAt || r.status === ST.REJECTED ? hrs(r.reviewAt || r.submittedAt, r.reviewedAt || r.approvedAt) : null;
-    const fulfilH = hrs(r.submittedAt, r.sentAt);
+    const approvalH = r.backdated ? null : r.approvedAt || r.status === ST.REJECTED ? hrs(r.reviewAt || r.submittedAt, r.reviewedAt || r.approvedAt) : null;
+    const fulfilH = r.backdated ? null : hrs(r.submittedAt, r.sentAt);
     if (r.sentQty > 0 && r.remainingQty > 0) partial++;
     statuses[r.status] = (statuses[r.status] || 0) + 1;
     [sum, byDoc[r.doctor || CLINIC_ONLY_LABEL] = byDoc[r.doctor || CLINIC_ONLY_LABEL] || bucket(), byBranch[r.branch || '—'] = byBranch[r.branch || '—'] || bucket(),
@@ -3427,7 +3469,7 @@ function getReportDoctors_() {
 
 function getQualityReport_(month) {
   const rows = queryRequests_(month ? { month: month } : {})
-    .filter(function (r) { return toMs_(r.submittedAt) && toMs_(r.sentAt); })
+    .filter(function (r) { return !r.backdated && toMs_(r.submittedAt) && toMs_(r.sentAt); })
     .map(function (r) {
       return { id: r.id, branch: r.branch, clinic: r.clinic, doctor: r.doctor, type: r.type, status: r.status,
         hours: round1_((toMs_(r.sentAt) - toMs_(r.submittedAt)) / 36e5) };
@@ -3446,7 +3488,7 @@ function getQualityTrend_(monthsBack) {
   const byMonth = {};
   requestRows_().forEach(function (r) {
     const a = toMs_(r.SubmittedAt), b = toMs_(r.SentAt);
-    if (!a || !b) return;
+    if (!a || !b || isBackdated_(r)) return;
     const m = monthOf_(r.Date || r.SubmittedAt);
     (byMonth[m] = byMonth[m] || []).push((b - a) / 36e5);
   });

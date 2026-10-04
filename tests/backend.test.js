@@ -1949,3 +1949,39 @@ test('iTero: scan date + iTero case No. + file No. + doctor → lab case without
   assert.ok(api(login('فني المعمل', '8888'), 'getLabCases', {}).some(x => x.id === r.id && x.iteroNo === 'IT-778899'), 'lab sees the iTero case');
   assert.equal(api(n, 'findLabCases', 'IT-778899')[0].id, r.id);
 });
+
+test('backdated requests: nurse records a past received request, tagged and kept out of timing KPIs; closes by setting', () => {
+  const { api, login, gas } = boot();
+  const n = login('سارة', '1111');
+  const cfg = api(n, 'getConfig');
+  assert.match(cfg.backdateUntil, /^\d{4}-\d{2}-\d{2}$/, 'open window is sent to the nurse');
+  assert.equal(api(login('علي', '3333'), 'getConfig').backdateUntil, '', 'nurses only');
+  const day = new Date(Date.now() - 40 * 864e5 + 3 * 36e5).toISOString().slice(0, 10);
+  const base = { clinic: 'عيادة الأسنان 1', doctor: 'د. خالد', type: 'شهري', items: [{ name: 'PROPHY PASTE', qty: 3 }, { name: 'DENTAL FLOSS', qty: 2 }] };
+  throwsCode(() => api(n, 'createRequest', Object.assign({}, base, { backdate: todayISO() })), 'ERR_BACKDATE_DATE');
+  throwsCode(() => api(n, 'createRequest', Object.assign({}, base, { backdate: '2020-01-01' })), 'ERR_BACKDATE_DATE');
+  throwsCode(() => api(n, 'createRequest', Object.assign({}, base, { backdate: 'x' })), 'ERR_BACKDATE_DATE');
+  const mails = gas.mails.length;
+  const id = api(n, 'createRequest', Object.assign({}, base, { backdate: day, clientKey: 'bd-key-0001' })).id;
+  assert.equal(api(n, 'createRequest', Object.assign({}, base, { backdate: day, clientKey: 'bd-key-0001' })).duplicate, true);
+  assert.equal(gas.mails.length, mails, 'no doctor/procurement notifications');
+  const r = api(n, 'getMyRequests').find(x => x.id === id);
+  assert.equal(r.status, 'تم الاستلام');
+  assert.equal(r.backdated, true);
+  assert.equal(r.pendingShipments, 0);
+  assert.equal(new Date(r.date).toISOString().slice(0, 10), day);
+  const it = rows(gas, 'RequestItems').filter(x => x.RequestID === id);
+  assert.deepEqual(it.map(x => [x.RequestedQty, x.ApprovedQty, x.ReceivedQty]), [[3, 3, 3], [2, 2, 2]]);
+  // لا يظهر لدى الطبيب للمراجعة، ولا يدخل في الأزمنة
+  const q = login('منى', '5555');
+  const st = api(q, 'getStatsReport', { all: true });
+  assert.ok(st.summary.requests >= 1);
+  const mon = api(q, 'getMonitor', day.slice(0, 7));
+  assert.ok(!mon.late.some(x => x.id === id));
+  assert.equal(mon.kpis.requests, 0, 'kept out of the monthly performance KPIs');
+  // الإقفال من Settings
+  const off = boot(g => g.seed('Settings', ['Key', 'Value', 'Notes'], [['BackdateUntil', 'off', '']]));
+  const n2 = off.login('سارة', '1111');
+  assert.equal(off.api(n2, 'getConfig').backdateUntil, '');
+  throwsCode(() => off.api(n2, 'createRequest', Object.assign({}, base, { backdate: day })), 'ERR_BACKDATE_CLOSED');
+});

@@ -46,7 +46,7 @@ const I18N = {
     items_empty_title: 'لم تُضف أصنافاً بعد', items_empty_sub: 'ابحث في الكتالوج أو اختر من البكج المعتاد للطبيب.',
     summary: 'ملخص الطلب', sum_items: 'عدد الأصناف', sum_units: 'إجمالي القطع', submit_request: 'إرسال الطلب',
     clear_items: 'مسح الأصناف', draft_restored: 'تمت استعادة المسودة غير المرسلة', send_auto_retry: 'الخادم لم يستجب الآن — طلبك محفوظ وسيُرسل تلقائياً خلال ثوانٍ، لا تحتاجين للضغط مرة ثانية', draft_pending: 'بانتظار الإرسال التلقائي · محفوظ على الجهاز ({t})', send_resuming: 'جارٍ إرسال طلبك المحفوظ…', more: 'المزيد', save_draft: 'حفظ كمسودة', draft_saved: 'محفوظ كمسودة على هذا الجهاز · {t}', draft_offline: 'لا يوجد اتصال — طلبك محفوظ كمسودة ({t})، أرسله عند عودة الاتصال', draft_saved_toast: 'حُفظت المسودة — تجدها هنا حتى لو أغلقت الصفحة أو انتهت الجلسة', offline_kept: 'لا يوجد اتصال بالإنترنت — طلبك محفوظ كمسودة، أرسله عند عودة الاتصال', send_failed_kept: 'تعذّر الإرسال (انقطع الاتصال أو الخادم مشغول) — طلبك محفوظ كمسودة ولن يضيع، اضغط «إرسال» مرة أخرى', session_draft_kept: 'انتهت الجلسة — طلبك محفوظ كمسودة، سجّل الدخول وستجده كما هو', offline_now: 'انقطع الاتصال — تقدر تكمل تعبئة الطلب وسيُحفظ كمسودة', online_back: 'عاد الاتصال ✓', err_fill_all: 'اختر العيادة والطبيب وأضف صنفاً واحداً على الأقل',
-    request_sent: 'تم إرسال الطلب {id}', duplicate_request: 'هذه المسودة وصلت للخادم سابقاً برقم {id} — لم يُكرَّر الطلب',
+    request_sent: 'تم إرسال الطلب {id}', bd_toggle: 'طلب سابق (بأثر رجعي)', bd_date: 'تاريخ الطلب الفعلي', bd_hint: 'خاصية مؤقتة حتى {d} لإدخال الطلبات التي استُلمت قبل النظام: يُسجَّل الطلب «تم الاستلام» بتاريخه، بدون اعتماد الطبيب أو إشعارات، ويظهر للجميع بعلامة «أثر رجعي».', bd_sent: 'سُجّل الطلب السابق {id} بأثر رجعي', tag_backdated: 'أثر رجعي', tag_backdated_hint: 'طلب سابق أُدخل بأثر رجعي — لا يدخل في مؤشرات الأزمنة والتأخير', ERR_BACKDATE_DATE: 'اختر تاريخ الطلب الفعلي (قبل اليوم وخلال آخر سنة)', ERR_BACKDATE_CLOSED: 'انتهت فترة إدخال الطلبات السابقة', duplicate_request: 'هذه المسودة وصلت للخادم سابقاً برقم {id} — لم يُكرَّر الطلب',
     emergency_note: 'الطلبات الطارئة تُنبَّه لها إدارة التموين فوراً', remove: 'حذف', qty: 'الكمية',
     receive_btn: 'استلام وتوقيع', details: 'التفاصيل', notes: 'الملاحظات', report: 'إبلاغ عن مشكلة',
     no_requests: 'لا توجد طلبات', no_requests_sub: 'ستظهر الطلبات هنا فور رفعها.', no_match: 'لا توجد نتائج مطابقة', no_match_sub: 'جرّب تغيير الفلاتر أو كلمة البحث.',
@@ -147,7 +147,7 @@ const I18N = {
     items_empty_title: 'No items yet', items_empty_sub: "Search the catalog or pick from the doctor's usual package.",
     summary: 'Summary', sum_items: 'Items', sum_units: 'Total units', submit_request: 'Submit request',
     clear_items: 'Clear items', draft_restored: 'Unsent draft restored', send_auto_retry: 'The server did not respond — your request is saved and will be sent automatically in a few seconds; no need to press again', draft_pending: 'Waiting to send automatically · saved on this device ({t})', send_resuming: 'Sending your saved request…', more: 'More', save_draft: 'Save draft', draft_saved: 'Saved as a draft on this device · {t}', draft_offline: 'Offline — your request is saved as a draft ({t}); send it when you are back online', draft_saved_toast: 'Draft saved — it stays here even if you close the page or your session expires', offline_kept: 'No internet connection — your request is saved as a draft; send it when you are back online', send_failed_kept: 'Could not send (connection lost or server busy) — your request is kept as a draft; press “Send” again', session_draft_kept: 'Session expired — your request is saved as a draft; sign in again to continue', offline_now: 'You are offline — keep filling in the request; it is saved as a draft', online_back: 'Back online ✓', err_fill_all: 'Pick clinic and doctor and add at least one item',
-    request_sent: 'Request {id} sent', duplicate_request: 'This draft already reached the server as {id} — no duplicate was created',
+    request_sent: 'Request {id} sent', bd_toggle: 'Past request (backdated)', bd_date: 'Actual request date', bd_hint: 'Temporary until {d} to enter requests received before the system: the request is saved as Received on its date, without doctor approval or notifications, and shows a “Backdated” tag for everyone.', bd_sent: 'Past request {id} recorded as backdated', tag_backdated: 'Backdated', tag_backdated_hint: 'Past request entered retroactively — excluded from timing and delay KPIs', ERR_BACKDATE_DATE: 'Choose the actual request date (before today, within the last year)', ERR_BACKDATE_CLOSED: 'The period for entering past requests has ended', duplicate_request: 'This draft already reached the server as {id} — no duplicate was created',
     emergency_note: 'Procurement is alerted immediately for emergency requests', remove: 'Remove', qty: 'Qty',
     receive_btn: 'Receive & sign', details: 'Details', notes: 'Notes', report: 'Report issue',
     no_requests: 'No requests', no_requests_sub: 'Requests will appear here once submitted.', no_match: 'No matching results', no_match_sub: 'Try changing filters or search.',
@@ -709,6 +709,8 @@ function typeTag(ty) {
     ? '<span class="tag emergency">' + icon('zap') + esc(t('type_emergency')) + '</span>'
     : '<span class="tag">' + icon('calendar') + esc(t('type_monthly')) + '</span>';
 }
+/* طلب سابق أُدخل بأثر رجعي (خاصية مؤقتة) */
+function bdTag(r) { return r && r.backdated ? '<span class="tag backdated" title="' + esc(t('tag_backdated_hint')) + '">' + icon('clock') + esc(t('tag_backdated')) + '</span>' : ''; }
 function progressBar(s) {
   const m = stMeta(s);
   const pct = s === ST.REJECTED ? 40 : Math.round((m.step / 5) * 100);
@@ -1107,6 +1109,7 @@ function applyConfig(cfg) {
   S.clinics = cfg.clinics || [];
   S.myClinics = cfg.myClinics || [];
   S.branches = cfg.branches || [];
+  S.backdateUntil = cfg.backdateUntil || '';
   S.catalog = cfg.catalog || [];
   S.roles = cfg.roles || [];
   S.hasAdmin = cfg.hasAdmin !== false;
@@ -1428,7 +1431,7 @@ function renderDetail(m, d) {
     const oldFoot = m.el.querySelector('.modal > .modal-foot'); if (oldFoot) oldFoot.remove();
     const canReceive = S.user.screen === 'nurse' && d.status !== ST.RECEIVED && (d.shipments || []).some(g => !g.received);
     body.innerHTML =
-      '<div class="between">' + '<div class="row-wrap">' + badge(d.status) + typeTag(d.type) + branchTag(d.branch) + '</div>' +
+      '<div class="between">' + '<div class="row-wrap">' + badge(d.status) + typeTag(d.type) + bdTag(d) + branchTag(d.branch) + '</div>' +
         '<span class="muted" style="font-size:13px">' + esc(fmtDateTime(d.submittedAt || d.date)) + '</span></div>' +
       stepperHtml(d) +
       (d.rejectionReason ? '<div class="reject-box">' + icon('xc') + '<div><b>' + esc(t('rejection_reason')) + ':</b> ' + esc(d.rejectionReason) + '</div></div>' : '') +
@@ -1602,7 +1605,10 @@ VIEWS.new = {
             '<div class="field"><span class="label">' + esc(t('type')) + '</span><div>' +
               segmented('reqType', [{ v: 'شهري', label: t('type_monthly'), icon: 'calendar' }, { v: 'طارئ', label: t('type_emergency'), icon: 'zap' }], d.type, d.type === 'طارئ' ? 'emergency' : '') +
               '</div><div class="hint' + (d.type === 'طارئ' ? '' : ' hidden') + '" id="emgHint">' + icon('info', 'i-sm') + ' ' + esc(t('emergency_note')) + '</div>' +
-              '<div class="hint' + (d.type !== 'طارئ' && pastMonthlyWindow() ? '' : ' hidden') + '" id="winHint" style="color:var(--t-amber)">' + icon('calendar', 'i-sm') + ' ' + esc(t('monthly_late_note')) + '</div></div>' +
+              '<div class="hint' + (d.type !== 'طارئ' && pastMonthlyWindow() && !bdOn(d) ? '' : ' hidden') + '" id="winHint" style="color:var(--t-amber)">' + icon('calendar', 'i-sm') + ' ' + esc(t('monthly_late_note')) + '</div></div>' +
+            (S.backdateUntil ? '<div class="field bd-field" id="fBd"><label class="check-row"><input type="checkbox" class="check" id="fBackdate" data-change="nBackdate"' + (d.backdate ? ' checked' : '') + '><span><b>' + esc(t('bd_toggle')) + '</b></span></label>' +
+              '<div class="' + (d.backdate ? '' : 'hidden') + '" id="fBdBox"><label for="fBdDate">' + esc(t('bd_date')) + '</label><input class="input" type="date" id="fBdDate" data-change="nBdDate" max="' + esc(bdMax()) + '" value="' + esc(d.bdDate || '') + '"></div>' +
+              '<div class="hint">' + icon('info', 'i-sm') + ' ' + esc(t('bd_hint', { d: fmtDate(S.backdateUntil + 'T12:00:00+03:00') })) + '</div></div>' : '') +
           '</div></section>' +
           '<section class="card hidden" id="pkgCard"><div class="card-head"><h3>' + icon('layers') + esc(t('pkg_title')) + ' <span class="hint" style="font-weight:500">' + esc(t('pkg_hint')) + '</span></h3>' +
             '<button class="btn btn-soft btn-sm" data-act="pkgAll">' + icon('plus', 'i-sm') + esc(t('pkg_add_all')) + '</button></div><div class="card-body"><div class="pkg-chips" id="pkgChips"></div></div></section>' +
@@ -1656,6 +1662,10 @@ ACT.nClinic = el => {
   const sn = $('#sterilNote'); if (sn) sn.innerHTML = sterilNote(d);
   saveDraft(); loadDoctors(); renderSummary();
 };
+const bdOn = d => !!(S.backdateUntil && d.backdate);
+const bdMax = () => { const x = new Date(Date.now() - 864e5 + 3 * 36e5); return x.toISOString().slice(0, 10); };
+ACT.nBackdate = el => { const d = nurseDraft(); d.backdate = el.checked; saveDraft(); $('#fBdBox').classList.toggle('hidden', !el.checked); $('#winHint').classList.toggle('hidden', d.type === 'طارئ' || !pastMonthlyWindow() || el.checked); renderSummary(); };
+ACT.nBdDate = el => { nurseDraft().bdDate = el.value; saveDraft(); renderSummary(); const e = $('#submitErr'); if (e && el.value) e.classList.add('hidden'); };
 ACT.nBranch = el => { nurseDraft().branch = el.value; saveDraft(); renderSummary(); };
 ACT.nDoctor = el => { nurseDraft().doctor = el.value; syncDoctorBranch(); saveDraft(); loadProfile(); renderSummary(); };
 /* طلب الطبيب: الفرع الافتراضي = فرع عيادة الطبيب (إن عُرفت) */
@@ -1755,6 +1765,7 @@ function renderSummary() {
         '<div class="sum-row"><span class="muted">' + esc(t('req_kind')) + '</span><b>' + esc(t('kind_clinic')) + '</b></div>'
       : '<div class="sum-row"><span class="muted">' + esc(t('doctor')) + '</span><b>' + esc(d.doctor || '—') + '</b></div>') +
     '<div class="sum-row"><span class="muted">' + esc(t('type')) + '</span>' + typeTag(d.type) + '</div>' +
+    (bdOn(d) ? '<div class="sum-row"><span class="muted">' + bdTag({ backdated: true }) + '</span><b>' + esc(d.bdDate ? fmtDate(d.bdDate + 'T12:00:00+03:00') : '—') + '</b></div>' : '') +
     '<div class="sum-row"><span class="muted">' + esc(t('sum_items')) + '</span><b>' + d.items.length + '</b></div>' +
     '<div class="sum-row"><span class="muted">' + esc(t('sum_units')) + '</span><b>' + fmtNum(units, 0) + '</b></div>';
   $('#clearBtn').classList.toggle('hidden', !d.items.length);
@@ -1892,6 +1903,7 @@ ACT.submitRequest = el => {
     err.querySelector('span').textContent = t('err_fill_all'); err.classList.remove('hidden');
     return;
   }
+  if (bdOn(d) && !(d.bdDate && d.bdDate <= bdMax())) { err.querySelector('span').textContent = t('ERR_BACKDATE_DATE'); err.classList.remove('hidden'); const f = $('#fBdDate'); if (f) f.focus(); return; }
   saveDraft(); // قبل الإرسال: المسودة محفوظة على الجهاز مهما حدث
   sendDraft(el, false);
 };
@@ -1909,13 +1921,13 @@ function sendDraft(el, auto) {
   AUTO_SEND.sending = true;
   if (el) busy(el, true, t('sending'));
   const byClinic = d.kind === 'clinic';
-  call('createRequest', { clinic: byClinic ? d.clinic : '', branch: d.branch || '', doctor: byClinic ? '' : d.doctor, type: d.type, items: d.items.map(i => ({ name: i.name, qty: Number(i.qty) })), clientKey: d.key })
+  call('createRequest', { clinic: byClinic ? d.clinic : '', branch: d.branch || '', doctor: byClinic ? '' : d.doctor, type: d.type, items: d.items.map(i => ({ name: i.name, qty: Number(i.qty) })), clientKey: d.key, backdate: bdOn(d) ? d.bdDate || '' : '' })
     .then(res => {
       AUTO_SEND.sending = false; AUTO_SEND.tries = 0;
       if (el) busy(el, false);
       // duplicate = هذه المسودة وصلت الخادم سابقاً (مثلاً انقطع الاتصال قبل وصول الرد) — لا طلب مكرر
       if (res && res.duplicate) toast(t('duplicate_request', { id: res.id }), 'info', 5000);
-      else toast(t('request_sent', { id: res.id }), 'success', 5000);
+      else toast(t(res && res.backdated ? 'bd_sent' : 'request_sent', { id: res.id }), 'success', 5000);
       d.items = []; d.key = uid(); d.pending = false; saveDraft();
       if (err) err.classList.add('hidden');
       if (S.view === 'new') renderItems();
@@ -1992,7 +2004,7 @@ function renderMineList(animate) {
   setList(box, pageOf('mine', list).map((r, i) => stagger(
     '<article class="req' + (r.type === 'طارئ' ? ' urgent' : '') + '">' +
       '<div class="req-main clickable" data-act="detail" data-id="' + esc(r.id) + '">' +
-        '<div class="grow"><div class="row-wrap"><span class="req-id">' + esc(r.id) + '</span>' + typeTag(r.type) + branchTag(r.branch) + (r.atBranch ? '<span class="tag arrived">' + icon('truck') + esc(t('box_arrived')) + '</span>' : '') + '</div>' +
+        '<div class="grow"><div class="row-wrap"><span class="req-id">' + esc(r.id) + '</span>' + typeTag(r.type) + bdTag(r) + branchTag(r.branch) + (r.atBranch ? '<span class="tag arrived">' + icon('truck') + esc(t('box_arrived')) + '</span>' : '') + '</div>' +
           '<div class="req-sub"><span>' + icon('building') + esc(r.clinic || '—') + '</span><span>' + icon('steth') + esc(docLabel(r)) + '</span>' + stageStamp(r) + '<span>' + icon('package') + esc(t('items_count', { n: r.itemCount || 0 })) + '</span></div>' + shipTrack(r) +
           (r.status === ST.REJECTED && r.rejectionReason ? '<div class="reject-box" style="margin-top:8px">' + icon('xc') + '<div><b>' + esc(t('rejection_reason')) + ':</b> ' + esc(r.rejectionReason) + '</div></div>' : '') + '</div>' +
         '<div class="req-side">' + badge(r.status) + progressBar(r.status) + '</div>' +
@@ -2302,7 +2314,7 @@ function procCard(r) {
   return '<article class="req' + (sel ? ' selected' : '') + (open ? ' open' : '') + (r.type === 'طارئ' ? ' urgent' : '') + '" data-rid="' + esc(r.id) + '">' +
     '<div class="req-main">' +
       '<input type="checkbox" class="check" data-change="procSel" data-id="' + esc(r.id) + '"' + (sel ? ' checked' : '') + ' aria-label="' + esc(r.id) + '">' +
-      '<div class="grow clickable" data-act="procToggle" data-id="' + esc(r.id) + '" style="cursor:pointer"><div class="row-wrap"><span class="req-id">' + esc(r.id) + '</span>' + typeTag(r.type) + branchTag(r.branch) + deptTag(r.department, true) +
+      '<div class="grow clickable" data-act="procToggle" data-id="' + esc(r.id) + '" style="cursor:pointer"><div class="row-wrap"><span class="req-id">' + esc(r.id) + '</span>' + typeTag(r.type) + bdTag(r) + branchTag(r.branch) + deptTag(r.department, true) +
         '</div>' +
         '<div class="req-sub"><span>' + icon('building') + esc(r.clinic || '—') + '</span><span>' + icon('steth') + esc(docLabel(r)) + '</span><span>' + icon('user') + esc(r.nurse) + '</span>' + stageStamp(r) + '<span>' + icon('package') + esc(t('items_count', { n: r.itemCount || 0 })) + '</span></div>' + shipTrack(r) + '</div>' +
       '<div class="req-side">' + badge(r.status) + progressBar(r.status) + '</div>' +
@@ -2655,7 +2667,7 @@ function reportHtml(d, range) {
       .map((x, i) => '<div' + (i === 3 ? ' class="grand"' : '') + '><span>' + esc(x[0]) + '</span><b>' + esc(x[1]) + '</b></div>').join('') + '</div>';
   const reqs = d.rows.map(r =>
     '<section class="rep-req"><div class="rep-req-head"><span class="mono"><b>' + esc(r.id) + '</b></span>' +
-      '<span>' + esc(fmtDate(r.date)) + '</span>' + (r.branch ? branchTag(r.branch) : '') + '<span class="muted">' + esc(r.clinic) + '</span>' + typeTag(r.type) + badge(r.status) + '</div>' +
+      '<span>' + esc(fmtDate(r.date)) + '</span>' + (r.branch ? branchTag(r.branch) : '') + '<span class="muted">' + esc(r.clinic) + '</span>' + typeTag(r.type) + bdTag(r) + badge(r.status) + '</div>' +
     '<table class="table rep-table"><thead><tr><th>' + esc(t('items')) + '</th><th class="num">' + esc(t('qty')) + '</th>' + (np ? '' : '<th class="num">' + esc(t('rep_price')) + '</th><th class="num">' + esc(t('rep_line_total')) + '</th>') + '</tr></thead><tbody>' +
       r.items.map(it => '<tr><td><div style="font-weight:600">' + esc(it.item) + '</div>' + (it.commercial || it.category ? '<div class="hint">' + esc([it.commercial, it.category].filter(Boolean).join(' · ')) + '</div>' : '') + '</td>' +
         '<td class="num">' + fmtNum(it.qty, 0) + '</td>' + (np ? '' : '<td class="num">' + (it.price ? fmtNum(it.price, 2) : '—') + '</td><td class="num">' + fmtNum(it.total, 2) + '</td>') + '</tr>').join('') +
@@ -2675,7 +2687,7 @@ function requestPrintHtml(d) {
   const qty = v => v === '' || v === null || v === undefined ? '—' : fmtNum(v, 0);
   const head = '<div class="rep-head">' + logo +
     '<div class="rep-meta"><h2>' + esc(t('req_print_title')) + ' <span class="mono">' + esc(d.id) + '</span></h2>' +
-      '<div class="row-wrap">' + badge(d.status) + typeTag(d.type) + '</div>' +
+      '<div class="row-wrap">' + badge(d.status) + typeTag(d.type) + bdTag(d) + '</div>' +
       '<div><b>' + esc(t('req_print_date')) + ':</b> ' + esc(fmtDateTime(d.submittedAt || d.date)) + '</div>' +
       '<div class="muted">' + esc(t('rep_generated')) + ' ' + esc(fmtDateTime(new Date())) + ' · ' + esc(S.user.name) + '</div></div></div>';
   const meta = '<dl class="meta-grid">' +
@@ -2997,7 +3009,7 @@ function renderDoc(animate, keepKpis) {
   if (!list.length) { box.innerHTML = emptyState(g.id === 'review' ? 'checkc' : 'clipboard', t('no_requests'), g.id === 'review' ? t('no_complaints_sub') : ''); return; }
   setList(box, pageOf('doc', list).map((r, i) => stagger(
     '<article class="req' + (r.type === 'طارئ' ? ' urgent' : '') + '"><div class="req-main clickable" data-act="review" data-id="' + esc(r.id) + '">' +
-      '<div class="grow"><div class="row-wrap"><span class="req-id">' + esc(r.id) + '</span>' + typeTag(r.type) + branchTag(r.branch) + '</div>' +
+      '<div class="grow"><div class="row-wrap"><span class="req-id">' + esc(r.id) + '</span>' + typeTag(r.type) + bdTag(r) + branchTag(r.branch) + '</div>' +
         '<div class="req-sub"><span>' + icon('building') + esc(r.clinic) + '</span><span>' + icon('user') + esc(r.nurse) + '</span>' + stageStamp(r) + '<span>' + icon('package') + esc(t('items_count', { n: r.itemCount || 0 })) + '</span></div></div>' +
       '<div class="req-side">' + badge(r.status) + (r.status === ST.REVIEW ? '<span class="btn btn-primary btn-sm">' + esc(t('review_title')) + icon('chevr', 'i-sm flip') + '</span>' : '') + '</div>' +
     '</div></article>', i)).join('') + moreBtn('doc', list.length) + archiveBtn('doc', S.doc.archive), animate);
@@ -3009,7 +3021,7 @@ function openReview(id) {
   const m = openModal({
     title: esc(t('review_title')) + ' · <span class="mono">' + esc(id) + '</span>',
     sub: esc([r.clinic, r.nurse, fmtDate(r.date)].filter(Boolean).join(' · ')), icon: 'steth', size: 'lg',
-    body: '<div class="row-wrap">' + badge(r.status) + typeTag(r.type) + branchTag(r.branch) + '</div>' +
+    body: '<div class="row-wrap">' + badge(r.status) + typeTag(r.type) + bdTag(r) + branchTag(r.branch) + '</div>' +
       (r.rejectionReason ? '<div class="reject-box">' + icon('xc') + '<div><b>' + esc(t('rejection_reason')) + ':</b> ' + esc(r.rejectionReason) + '</div></div>' : '') +
       '<div id="rvItems">' + skeletonList(1) + '</div>' +
       (canReview
@@ -3189,7 +3201,7 @@ function renderDash(silent) {
   const rows = (rep && rep.rows) || [];
   $('#dashRows').innerHTML = rows.length
     ? '<div class="table-wrap" style="max-height:420px;overflow:auto"><table class="table"><thead><tr><th>#</th><th>' + esc(t('branch')) + '</th><th>' + esc(t('clinic')) + '</th><th>' + esc(t('doctor')) + '</th><th>' + esc(t('type')) + '</th><th class="num">' + esc(t('hours')) + '</th></tr></thead><tbody>' +
-      pagedRows(rows, r => '<tr><td><button class="btn btn-ghost btn-sm mono" data-act="detail" data-id="' + esc(r.id) + '" style="min-height:26px;padding:2px 6px">' + esc(r.id) + '</button></td><td>' + esc(r.branch || '—') + '</td><td>' + esc(r.clinic || '—') + '</td><td>' + esc(docLabel(r)) + '</td><td>' + typeTag(r.type) + '</td><td class="num"' + (r.hours > (r.type === 'طارئ' ? 24 : 72) ? ' style="color:var(--t-red);font-weight:700"' : '') + '>' + fmtNum(r.hours) + '</td></tr>', 6) +
+      pagedRows(rows, r => '<tr><td><button class="btn btn-ghost btn-sm mono" data-act="detail" data-id="' + esc(r.id) + '" style="min-height:26px;padding:2px 6px">' + esc(r.id) + '</button></td><td>' + esc(r.branch || '—') + '</td><td>' + esc(r.clinic || '—') + '</td><td>' + esc(docLabel(r)) + '</td><td>' + typeTag(r.type) + bdTag(r) + '</td><td class="num"' + (r.hours > (r.type === 'طارئ' ? 24 : 72) ? ' style="color:var(--t-red);font-weight:700"' : '') + '>' + fmtNum(r.hours) + '</td></tr>', 6) +
       '</tbody></table></div>'
     : emptyState('clock', t('no_data'));
 
@@ -3451,7 +3463,7 @@ function monHtml(m) {
     '</div></section>';
   const lateCols = extra => [
     { h: '#', v: r => '<button class="btn btn-ghost btn-sm mono" data-act="detail" data-id="' + esc(r.id) + '" style="min-height:26px;padding:2px 6px">' + esc(r.id) + '</button>' },
-    { h: t('type'), v: r => typeTag(r.type) + (r.lateSubmit ? ' <span class="tag risk" title="' + esc(t('monthly_late_note')) + '">' + esc(t('tag_late_submit')) + '</span>' : '') },
+    { h: t('type'), v: r => typeTag(r.type) + bdTag(r) + (r.lateSubmit ? ' <span class="tag risk" title="' + esc(t('monthly_late_note')) + '">' + esc(t('tag_late_submit')) + '</span>' : '') },
     { h: t('doctor'), v: r => esc(docLabel(r)) + '<div class="muted" style="font-size:12px">' + esc(r.clinic || '—') + (r.branch ? ' · ' + esc(r.branch) : '') + '</div>' },
     { h: t('mon_stage'), v: r => stageTag(r) },
     { h: t('mon_due'), v: r => esc(fmtDateTime(r.dueAt)) },

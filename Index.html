@@ -276,6 +276,10 @@ button, input, select, textarea { font: inherit; color: inherit; }
 .as-report-cta { border-color: color-mix(in srgb, var(--t-red) 30%, var(--border)); background: color-mix(in srgb, var(--t-red) 4%, var(--surface)); }
 .as-report-cta h2 { display: flex; align-items: center; gap: 8px; font-size: 17px; }
 .tag.remake { color: #fff; background: var(--t-orange); border-color: transparent; font-weight: 800; letter-spacing: .02em; }
+.tag.backdated { --tone: var(--t-amber); color: var(--tone); background: color-mix(in srgb, var(--tone) 12%, transparent); border-color: color-mix(in srgb, var(--tone) 32%, transparent); font-weight: 800; }
+.bd-field { border: 1px dashed color-mix(in srgb, var(--t-amber) 45%, transparent); border-radius: 12px; padding: 10px 12px; background: color-mix(in srgb, var(--t-amber) 6%, transparent); }
+.bd-field .check-row { display: flex; align-items: center; gap: 8px; cursor: pointer; }
+.bd-field #fBdBox { margin-top: 8px; display: grid; gap: 6px; }
 .tag.itero { --tone: var(--t-indigo); color: var(--tone); background: color-mix(in srgb, var(--tone) 12%, transparent); border-color: color-mix(in srgb, var(--tone) 30%, transparent); font-weight: 800; }
 .lab-due { color: var(--primary); font-weight: 600; }
 .lab-due:empty { display: none; }
