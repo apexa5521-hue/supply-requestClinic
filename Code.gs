@@ -24,8 +24,7 @@ const SCHEMA = {
   Doctors:      ['DoctorName', 'Clinic', 'NurseName', 'Subspecialty', 'Billing'],
   // Ownership: مستهلك (افتراضي) أو عهدة (على حساب الشركة) · Serialized: نعم للأدوات ذات الرقم التسلسلي (الهاندبيس…)
   // Department: أسنان / جلدية (فارغ = مشترك يظهر للقسمين)
-  // ItemType: مستهلك / ماتيريال (فارغ = مستهلك) — يحدد أي أسعار يراها الطبيب حسب صلاحيته (Users.PriceView)
-  ItemsCatalog: ['ItemName', 'CommercialName', 'Category', 'Price', 'Ownership', 'Serialized', 'Department', 'ItemType'],
+  ItemsCatalog: ['ItemName', 'CommercialName', 'Category', 'Price', 'Ownership', 'Serialized', 'Department'],
   Requests:     ['RequestID', 'Date', 'Clinic', 'Doctor', 'Nurse', 'Type', 'Status',
                  'SubmittedAt', 'SentAt', 'ReceivedAt', 'ReceiverName', 'SignatureURL',
                  'PrepAt', 'VendorWaitAt', 'VendorReceivedAt', 'ReviewAt', 'ReviewedAt',
@@ -104,12 +103,12 @@ const DEFAULT_ROLES = [
  * notices: إرسال التنبيهات · monitor: متابعة التموين والمواعيد · finance: شاشة المالية
  * prices_edit: تعديل أسعار الكتالوج · users: المستخدمون والأدوار
  */
-const PERMS = ['overview', 'reports', 'complaints', 'complaints_close', 'notices', 'monitor', 'finance', 'prices_edit', 'lab_view', 'assets', 'users', 'doctors_live', 'surveys'];
+const PERMS = ['overview', 'reports', 'complaints', 'complaints_close', 'notices', 'monitor', 'finance', 'prices_edit', 'lab_view', 'assets', 'users', 'doctors_live', 'surveys', 'doctor_prices'];
 const DEFAULT_PERMS = {
   admin: PERMS,
-  executive: ['overview', 'reports', 'complaints', 'complaints_close', 'notices', 'monitor', 'lab_view', 'assets', 'doctors_live', 'surveys'],
-  quality: ['overview', 'reports', 'complaints', 'complaints_close', 'notices', 'monitor', 'lab_view', 'assets', 'doctors_live', 'surveys'],
-  finance: ['finance', 'prices_edit', 'reports', 'monitor', 'assets'],
+  executive: ['overview', 'reports', 'complaints', 'complaints_close', 'notices', 'monitor', 'lab_view', 'assets', 'doctors_live', 'surveys', 'doctor_prices'],
+  quality: ['overview', 'reports', 'complaints', 'complaints_close', 'notices', 'monitor', 'lab_view', 'assets', 'doctors_live', 'surveys', 'doctor_prices'],
+  finance: ['finance', 'prices_edit', 'reports', 'monitor', 'assets', 'doctor_prices'],
   dashboard: ['overview', 'reports', 'complaints', 'notices'],
   // مدير الفرع: مشاهدة فرعه + تقاريره ومؤشراته + التنبيه والشكاوى (بدون اعتماد أو إرسال)
   branch: ['overview', 'reports', 'complaints', 'monitor', 'lab_view', 'assets']
@@ -133,7 +132,7 @@ const COMPLAINT_TYPES = ['تأخير', 'نقص', 'زيادة', 'أخرى'];
  *  التجهيز التلقائي بعد النشر (مرة واحدة لكل إصدار) — بلا أي خطوة يدوية:
  *  تبويبات الإعداد (Settings / LabMaterials)، قائمة العيادات المعتمدة، المشغّلات (النسخ الليلي + onChange)
  * ===================================================================== */
-const SETUP_VERSION_ = '2026-10-setup-v6';
+const SETUP_VERSION_ = '2026-10-setup-v7';
 function autoSetup_() {
   try {
     const cache = CacheService.getScriptCache();
@@ -161,6 +160,7 @@ function runSetupSteps_(force) {
     ['clinics', 'قائمة العيادات المعتمدة', function () { migrateClinics_(force); }],
     ['triage', 'غرفة الفرز لكل فرع (مستهلكات عيادة)', ensureTriageRooms_],
     ['unayzah', 'عيادات الأسنان في عنيزة (حتى 10)', ensureUnayzahClinics_],
+    ['doctor_prices', 'صلاحية منح الأسعار للأطباء (التنفيذي والجودة والمالية)', function () { grantPerm_('doctor_prices', ['executive', 'quality', 'finance']); }],
     ['survey', 'استبيان الأطباء (الأسئلة + صلاحية النتائج للجودة والتنفيذي)', function () { seedSurvey_(); grantPerm_('surveys', ['executive', 'quality']); }],
     ['perms', 'صلاحية العهدة للإدارة والجودة والمالية', function () { grantPerm_('assets', ['executive', 'quality', 'finance']); }],
     ['doctors_live', 'صفحة «الأطباء — مباشر» للجودة والتنفيذي', function () { grantPerm_('doctors_live', ['executive', 'quality']); }],
@@ -611,6 +611,8 @@ const API_ = {
   getMonitor:                { screens: [], perm: 'monitor', fn: getMonitor_ },
   getDoctorsLive:            { screens: [], perm: 'doctors_live', fn: getDoctorsLive_ },
   getMySurvey:               { screens: ['doctor'], fn: getMySurvey_ },
+  getDoctorPriceAccess:      { screens: [], perm: 'doctor_prices', fn: getDoctorPriceAccess_ },
+  setDoctorPriceAccess:      { screens: [], perm: 'doctor_prices', fn: setDoctorPriceAccess_ },
   submitSurvey:              { screens: ['doctor'], fn: submitSurvey_ },
   getSurveyResults:          { screens: [], perm: 'surveys', fn: getSurveyResults_ },
   remindSurvey:              { screens: [], perm: 'surveys', fn: remindSurvey_ },
@@ -1432,33 +1434,40 @@ function applyScope_(user) {
   if (user.screen === 'doctor') user.priceView = PRICE_VIEW_;
 }
 /* =====================================================================
- *  أسعار الطبيب (Users.PriceView لكل حساب طبيب، من شاشة المستخدمين أو الشيت):
- *  كل الأسعار / المستهلكات فقط / الماتيريال فقط / بدون أسعار — فارغ = تلقائي (الجلدية بدون أسعار، الأسنان كل الأسعار)
- *  نوع الصنف من ItemsCatalog.ItemType. الأسعار المخفية لا تصل لمتصفح الطبيب أصلاً
+ *  أسعار الطبيب: الأطباء لا يرون أي سعر أو قيمة إلا بمنح من الإدارة التنفيذية أو الجودة أو المالية
+ *  (صلاحية «أسعار الأطباء» — صفحة «أسعار الأطباء»، أو الأدمن من شاشة المستخدمين، أو عمود Users.PriceView)
+ *  القيم: «يرى الأسعار» أو «بدون أسعار» (الافتراضي). الأسعار المحجوبة لا تصل لمتصفح الطبيب أصلاً
  * ===================================================================== */
 let PRICE_VIEW_ = 'all';
-const PRICE_VIEWS_ = ['all', 'consumables', 'materials', 'none'];
 function parsePriceView_(v) {
   v = str_(v);
   if (!v) return '';
-  if (PRICE_VIEWS_.indexOf(v) !== -1) return v;
-  if (/بدون|none|لا يرى/i.test(v)) return 'none';
-  const c = /مستهلك|consum/i.test(v), m = /ماتيريال|ماتريال|مواد|material/i.test(v);
-  if (c && m) return 'all';
-  if (c) return 'consumables';
-  if (m) return 'materials';
-  return /كل|all/i.test(v) ? 'all' : '';
+  if (v === 'all' || v === 'none') return v;
+  if (/بدون|none|لا يرى|^لا$|no/i.test(v)) return 'none';
+  return /يرى|كل|all|نعم|yes/i.test(v) ? 'all' : 'none'; // القيم القديمة (المستهلكات/الماتيريال فقط) تُعامل «بدون أسعار»
 }
-const PRICE_VIEW_LABEL_ = { all: 'كل الأسعار', consumables: 'المستهلكات فقط', materials: 'الماتيريال فقط', none: 'بدون أسعار' };
+const PRICE_VIEW_LABEL_ = { all: 'يرى الأسعار', none: 'بدون أسعار' };
 function userPriceView_(user) {
   if (user.screen !== 'doctor') return 'all';
   const r = read_('Users').rows.filter(function (u) { return str_(u.Name) === user.name; })[0];
-  const pv = r ? parsePriceView_(r.PriceView) : '';
-  return pv || (doctorIsDerma_(user) ? 'none' : 'all');
+  return (r && parsePriceView_(r.PriceView)) || 'none';
 }
-function itemKind_(v) { return /ماتيريال|ماتريال|مواد|material/i.test(str_(v)) ? 'material' : 'consumable'; }
-function priceVisible_(kind) {
-  return PRICE_VIEW_ === 'all' || (PRICE_VIEW_ === 'consumables' && kind === 'consumable') || (PRICE_VIEW_ === 'materials' && kind === 'material');
+function priceVisible_() { return PRICE_VIEW_ === 'all'; }
+/** صفحة «أسعار الأطباء»: حسابات الأطباء ومن يرى الأسعار */
+function getDoctorPriceAccess_(user) {
+  return getUsers_().filter(function (u) { return u.screen === 'doctor'; }).map(function (u) {
+    const i = surveyDoctorInfo_(u);
+    return { name: u.name, doctor: i.doctor, branch: i.branch, department: u.department || '', allowed: u.priceView === 'all' };
+  }).filter(function (d) { return inScope_(d.branch) || !d.branch; }).sort(function (a, b) { return a.doctor.localeCompare(b.doctor); });
+}
+function setDoctorPriceAccess_(user, name, allow) {
+  name = str_(name);
+  const t = read_('Users');
+  const row = t.rows.filter(function (r) { return str_(r.Name) === name && roleScreen_(r.Role) === 'doctor'; })[0];
+  if (!row) throw new Error('ERR_NOT_FOUND');
+  setCells_(t, row, { PriceView: PRICE_VIEW_LABEL_[allow ? 'all' : 'none'] });
+  logAction_('', (allow ? 'منح الأسعار للطبيب: ' : 'حجب الأسعار عن الطبيب: ') + name, user.name);
+  return getDoctorPriceAccess_(user);
 }
 /* =====================================================================
  *  طبيب/طبيبة الجلدية: اطلاع واعتماد فقط بدون أي سعر أو قيمة
@@ -1579,8 +1588,7 @@ function getCatalog_(withPrice) {
     const o = { name: str_(r.ItemName), commercial: str_(r.CommercialName), category: str_(r.Category) };
     if (isAssetOwnership_(r.Ownership)) { o.asset = true; o.serialized = isYes_(r.Serialized); }
     const dp = normDept_(r.Department); if (dp) o.dept = dp;
-    o.kind = itemKind_(r.ItemType);
-    if (withPrice && !priceVisible_(o.kind)) o.priceHidden = true;
+    if (withPrice && !priceVisible_()) o.priceHidden = true;
     else if (withPrice) {
       o.price = price_(r.Price) || 0;
       const issue = priceProblem_(r.Price);

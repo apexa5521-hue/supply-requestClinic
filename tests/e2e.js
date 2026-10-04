@@ -896,6 +896,16 @@ function log(msg) { console.log('  ✔ ' + msg); }
   // ---------- Quality: deadlines & procurement follow-up ----------
   const qNav = await page.$$eval('.sidebar .nav-item', els => els.map(e => e.dataset.view));
   expect(qNav.includes('monitor') && !qNav.includes('users') && !qNav.includes('finance'), 'quality menu follows its permissions (follow-up yes, users/finance no): ' + qNav.join(','));
+  // أسعار الأطباء: الجودة تمنح/تحجب
+  expect(qNav.includes('docprices'), 'quality sees «Doctor prices»');
+  await page.click('.sidebar [data-view="docprices"]');
+  await page.waitForSelector('#dpBody [data-act="dpSet"]');
+  expect((await page.textContent('#dpBody')).includes('د. خالد') && await page.locator('#dpBody .tag.pv').count() >= 1, 'doctor list with who sees prices');
+  await page.click('#dpBody [data-act="dpSet"][data-u="د. خالد"]');
+  expect(await toastHas(page, 'حُجبت الأسعار'), 'quality withholds prices from a doctor');
+  await page.click('#dpBody [data-act="dpSet"][data-u="د. خالد"]');
+  expect(await toastHas(page, 'رؤية الأسعار'), 'and grants them back');
+  await shot(page, 'quality-doctor-prices');
   // نتائج استبيان الأطباء
   expect(qNav.includes('surveys'), 'quality sees «Doctor survey»');
   await page.click('.sidebar [data-view="surveys"]');
@@ -964,7 +974,7 @@ function log(msg) { console.log('  ✔ ' + msg); }
   await page.fill('#uName', 'هند');
   await page.fill('#uPass', '7777');
   await page.selectOption('#uRole', 'طبيب');
-  expect(await page.isVisible('#uPriceView') && await page.locator('#uPriceView option').count() === 5, 'doctor account: admin chooses which prices the doctor sees (auto / all / consumables / materials / none)');
+  expect(await page.isVisible('#uPriceView') && await page.locator('#uPriceView option').count() === 2 && await page.inputValue('#uPriceView') === '', 'doctor account: no prices by default, admin can grant');
   await shot(page, 'admin-doctor-price-view');
   await page.selectOption('#uRole', 'ممرضة');
   expect(!(await page.isVisible('#uPriceView')), 'price view applies to doctors only');
@@ -1005,7 +1015,7 @@ function log(msg) { console.log('  ✔ ' + msg); }
   expect(await toastHas(page, 'تم أخذ نسخة احتياطية') && await page.isVisible('#bkBox a:has-text("فتح آخر نسخة")'), 'admin takes a backup now and can open it');
   await page.locator('#bkBox').scrollIntoViewIfNeeded();
   await shot(page, 'admin-backup');
-  await page.waitForFunction(() => /2026-10-setup-v6/.test((document.getElementById('suBox') || {}).textContent || ''));
+  await page.waitForFunction(() => /2026-10-setup-v7/.test((document.getElementById('suBox') || {}).textContent || ''));
   await page.click('#suBtn');
   expect(await toastHas(page, 'اكتمل التجهيز') || await toastHas(page, 'التجهيز فيه خطوات'), 'admin sees the setup status (code version + steps) and can re-run it');
   // صلاحيات الدور: الأدمن يحدد ما يظهر لكل دور

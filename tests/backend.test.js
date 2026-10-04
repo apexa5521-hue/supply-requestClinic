@@ -1402,7 +1402,7 @@ test('roles split: legacy quality/executive/finance migrate; executive keeps ful
   throwsCode(() => api(e, 'getUsers'), 'ERR_FORBIDDEN'); // بعد وجود الأدمن: صلاحيات التنفيذي الافتراضية فقط (فوراً)
   assert.ok(api(e, 'getExecutiveStats'));
   const a = login('admin', '9999');
-  assert.equal(api(a, 'getConfig').user.perms.length, 13);
+  assert.equal(api(a, 'getConfig').user.perms.length, 14);
   const f = login('نواف', '7777');
   assert.ok(api(f, 'getFinance', {}).summary);
   throwsCode(() => api(f, 'getComplaints'), 'ERR_FORBIDDEN');
@@ -1543,7 +1543,7 @@ test('management roles (finance…) are added automatically when missing, so the
   api(a, 'createUser', { name: 'المالية', password: '2468', role: 'مالية', email: 'finance@example.com' });
   const f = api(null, 'login', 'المالية', '2468');
   assert.equal(f.user.screen, 'finance');
-  assert.deepEqual(f.user.perms.slice().sort(), ['assets', 'finance', 'monitor', 'prices_edit', 'reports'].sort());
+  assert.deepEqual(f.user.perms.slice().sort(), ['assets', 'doctor_prices', 'finance', 'monitor', 'prices_edit', 'reports'].sort());
   login('المدير', '1234');
   assert.equal(rows(gas, 'Roles').filter(r => r.RoleName === 'مالية').length, 1, 'added once only');
 });
@@ -2053,47 +2053,36 @@ test('doctors live: open requests per doctor by stage, for quality/executive onl
   throwsCode(() => api(login('علي', '3333'), 'getDoctorsLive'), 'ERR_FORBIDDEN');
 });
 
-test('doctor price view: admin chooses all / consumables only / materials only / none per doctor (sheet or screen)', () => {
-  const { api, login, gas } = boot(g => {
-    g.seed('ItemsCatalog', ['ItemName', 'CommercialName', 'Category', 'Price', 'Ownership', 'Serialized', 'Department', 'ItemType'], [
-      ['PROPHY PASTE', 'Nupro', 'Hygiene', 60, '', '', '', 'مستهلك'],
-      ['Ivoclar Tetric-N A2', 'Tetric N-Ceram', 'Composite', 120, '', '', '', 'ماتيريال'],
-      ['DENTAL FLOSS', 'Oral-B', 'Hygiene', 12.5, '', '', '', '']
-    ]);
-  });
-  const n = login('سارة', '1111'), a = login('المدير', '1234');
-  const id = api(n, 'createRequest', { clinic: 'عيادة الأسنان 1', doctor: 'د. خالد', type: 'شهري', items: [{ name: 'PROPHY PASTE', qty: 2 }, { name: 'Ivoclar Tetric-N A2', qty: 1 }, { name: 'DENTAL FLOSS', qty: 4 }] }).id;
-  const setPv = pv => api(a, 'updateUser', 'د. خالد', Object.assign({}, api(a, 'getUsers').find(u => u.name === 'د. خالد'), { priceView: pv, password: '' }));
-  const view = () => {
-    const d = login('د. خالد', '4444');
-    const items = Object.fromEntries(api(d, 'getRequestItemsWithCatalog', id).map(i => [i.item, i]));
-    const rep = api(d, 'getDoctorReport', {});
-    return { user: api(d, 'getConfig').user, items, rep };
-  };
+test('doctor prices: no prices by default; executive / quality / finance grant or withhold per doctor', () => {
+  const { api, login, gas } = boot();
+  const n = login('سارة', '1111');
+  const id = api(n, 'createRequest', { clinic: 'عيادة الأسنان 1', doctor: 'د. سعد', type: 'شهري', items: [{ name: 'PROPHY PASTE', qty: 2 }] }).id;
+  const a = login('المدير', '1234');
+  api(a, 'createUser', { name: 'د. سعد', password: '9876', role: 'طبيب' });
+  const view = () => { const d = login('د. سعد', '9876'); return { user: api(d, 'getConfig').user, items: api(d, 'getRequestItemsWithCatalog', id), rep: api(d, 'getDoctorReport', {}) }; };
   let v = view();
-  assert.equal(v.user.priceView, 'all', 'dental doctor sees all prices by default');
-  assert.equal(v.items['Ivoclar Tetric-N A2'].price, 120);
-  setPv('consumables');
-  v = view();
-  assert.equal(v.user.priceView, 'consumables');
-  assert.equal(v.items['PROPHY PASTE'].price, 60);
-  assert.equal(v.items['DENTAL FLOSS'].price, 12.5, 'empty ItemType = consumable');
-  assert.ok(v.items['Ivoclar Tetric-N A2'].price === undefined && v.items['Ivoclar Tetric-N A2'].priceHidden, 'material price never reaches the browser');
-  assert.equal(v.rep.summary.total, 170, 'total counts only the visible prices: ' + JSON.stringify(v.rep.summary));
-  assert.equal(v.rep.summary.hidden, 1);
-  const hid = v.rep.rows[0].items.find(i => i.item === 'Ivoclar Tetric-N A2');
-  assert.ok(hid.priceHidden && hid.price === undefined && hid.total === undefined && v.rep.top.find(x => x.item === 'Ivoclar Tetric-N A2').total === undefined, 'no trace of the hidden price');
-  assert.equal(rows(gas, 'Users').find(u => u.Name === 'د. خالد').PriceView, 'المستهلكات فقط', 'saved readable in the sheet');
-  setPv('materials');
-  v = view();
-  assert.ok(v.items['PROPHY PASTE'].priceHidden && v.items['Ivoclar Tetric-N A2'].price === 120);
-  setPv('none');
-  v = view();
+  assert.equal(v.user.priceView, 'none', 'dental doctor sees no prices by default');
   assert.equal(v.user.noPrices, true);
-  assert.ok(!JSON.stringify(v.items).match(/"price"/));
-  // من الشيت مباشرة بالعربي
-  const t2 = boot(g => g.seed('Users', ['Name', 'Password', 'Role', 'Clinic', 'Email', 'PriceView'], [['د. خالد', '4444', 'طبيب', '', '', 'الماتيريال فقط'], ['المدير', '1234', 'أدمن', '', '', '']]));
-  assert.equal(t2.api(t2.login('د. خالد', '4444'), 'getConfig').user.priceView, 'materials');
+  assert.ok(!JSON.stringify(v.items).match(/"price"/) && v.rep.summary.total === undefined, 'no price or value reaches the browser');
+  // الجودة / التنفيذي / المالية يمنحون الأسعار
+  for (const [who, pass] of [['منى', '5555'], ['فيصل', '6666'], ['نواف', '7777']]) {
+    assert.ok(api(login(who, pass), 'getDoctorPriceAccess').some(x => x.name === 'د. سعد'), who + ' manages doctor prices');
+  }
+  const q = login('منى', '5555');
+  const list = api(q, 'setDoctorPriceAccess', 'د. سعد', true);
+  assert.equal(list.find(x => x.name === 'د. سعد').allowed, true);
+  assert.equal(rows(gas, 'Users').find(u => u.Name === 'د. سعد').PriceView, 'يرى الأسعار', 'saved readable in the sheet');
+  v = view();
+  assert.equal(v.user.priceView, 'all');
+  assert.equal(v.items[0].price, 60);
+  assert.equal(v.rep.summary.total, 120);
+  api(q, 'setDoctorPriceAccess', 'د. سعد', false);
+  assert.equal(view().user.noPrices, true, 'withheld again');
+  throwsCode(() => api(login('علي', '3333'), 'getDoctorPriceAccess'), 'ERR_FORBIDDEN');
+  throwsCode(() => api(q, 'setDoctorPriceAccess', 'علي', true), 'ERR_NOT_FOUND');
+  // القيم القديمة «المستهلكات فقط» تُعامل بدون أسعار
+  const t2 = boot(g => g.seed('Users', ['Name', 'Password', 'Role', 'Clinic', 'Email', 'PriceView'], [['د. خالد', '4444', 'طبيب', '', '', 'المستهلكات فقط'], ['المدير', '1234', 'أدمن', '', '', '']]));
+  assert.equal(t2.api(t2.login('د. خالد', '4444'), 'getConfig').user.priceView, 'none');
 });
 
 test('doctor survey: every 50 days, open 10 days; reminders for those who did not answer; results for quality/executive', () => {
