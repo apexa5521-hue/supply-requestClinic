@@ -224,10 +224,31 @@ function log(msg) { console.log('  ✔ ' + msg); }
   expect(/تم إرسال الطلب REQ-/.test(tt), 'request submitted: ' + tt);
   const newId = /REQ-[\d-]+/.exec(tt)[0];
   expect(await page.locator('.item-line').count() === 0, 'form is cleared after submit');
+  // طلب سابق بأثر رجعي (خاصية مؤقتة): يُسجَّل مستلَماً بتاريخه ويظهر بعلامة «أثر رجعي»
+  expect(await page.isVisible('#fBackdate'), 'backdate option is shown while the window is open');
+  await page.check('#fBackdate');
+  await page.waitForSelector('#fBdDate');
+  await page.fill('#itemSearch', 'floss'); await page.waitForSelector('.combo-opt'); await page.keyboard.press('Enter'); await page.keyboard.press('Escape');
+  await page.click('#submitBtn');
+  expect((await page.textContent('#submitErr')).includes('تاريخ الطلب الفعلي'), 'backdated request needs its actual date');
+  const bdDay = new Date(Date.now() - 20 * 864e5 + 3 * 36e5).toISOString().slice(0, 10);
+  await page.fill('#fBdDate', bdDay); await page.dispatchEvent('#fBdDate', 'change');
+  expect((await page.textContent('#sumBox')).includes('أثر رجعي'), 'summary shows the backdated date');
+  await shot(page, 'nurse-backdated-form');
+  await page.evaluate(() => document.querySelectorAll('.toast').forEach(x => x.remove()));
+  await page.click('#submitBtn');
+  tt = await toastText(page);
+  expect(/بأثر رجعي/.test(tt), 'backdated request recorded: ' + tt);
+  const bdId = /REQ-[\d-]+/.exec(tt)[0];
+  await page.uncheck('#fBackdate');
 
   await page.click('.sidebar [data-view="mine"]');
   await page.waitForSelector('#mineList .req');
   expect(await page.isVisible(`text=${newId}`), 'new request appears in "my requests"');
+  await page.click('#mineChips .chip[data-g="all"]').catch(() => {});
+  await page.waitForSelector(`.req:has-text("${bdId}") .tag.backdated`);
+  expect(await page.locator(`.req:has-text("${bdId}") .badge:has-text("تم الاستلام")`).count() >= 1, 'backdated request is received and tagged «أثر رجعي»');
+  await shot(page, 'nurse-backdated-tag');
   expect((await page.textContent(`.req:has-text("${newId}") .tag.branch`)).includes('جدة'), 'request card shows its branch');
   expect(await page.locator(`.req:has-text("${newId}") .tag.branch`).count() === 1, 'branch tag appears once');
   expect((await page.textContent(`.req:has-text("${newId}") .stage-at`)).includes('رُفع'), 'card shows the time of the current stage (submitted)');
