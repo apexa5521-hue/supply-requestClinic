@@ -1402,7 +1402,7 @@ test('roles split: legacy quality/executive/finance migrate; executive keeps ful
   throwsCode(() => api(e, 'getUsers'), 'ERR_FORBIDDEN'); // بعد وجود الأدمن: صلاحيات التنفيذي الافتراضية فقط (فوراً)
   assert.ok(api(e, 'getExecutiveStats'));
   const a = login('admin', '9999');
-  assert.equal(api(a, 'getConfig').user.perms.length, 11);
+  assert.equal(api(a, 'getConfig').user.perms.length, 12);
   const f = login('نواف', '7777');
   assert.ok(api(f, 'getFinance', {}).summary);
   throwsCode(() => api(f, 'getComplaints'), 'ERR_FORBIDDEN');
@@ -1989,4 +1989,46 @@ test('backdated requests: nurse records a past received request, tagged and kept
   const n2 = off.login('سارة', '1111');
   assert.equal(off.api(n2, 'getConfig').backdateUntil, '');
   throwsCode(() => off.api(n2, 'createRequest', Object.assign({}, base, { backdate: day })), 'ERR_BACKDATE_CLOSED');
+});
+
+test('doctor billing: fixed (clinic) doctors carry their whole clinic, box doctors only their own requests — each request once', () => {
+  const { api, login } = boot(g => {
+    g.seed('Doctors', ['DoctorName', 'Clinic', 'NurseName', 'Subspecialty', 'Billing'], [
+      ['د. خالد', 'عيادة الأسنان 1', 'سارة', 'تقويم', 'عيادة'],
+      ['د. نورة', 'عيادة الأسنان 1', 'سارة', '', 'بوكس'],
+      ['د. فهد', 'عيادة الجلدية 1', 'سارة', 'ليزر', 'عيادة'],
+      ['د. سعد', 'عيادة الأسنان 2', 'ريم', '', '']
+    ]);
+  });
+  const n = login('سارة', '1111');
+  const mk = (doctor, clinic, qty) => api(n, 'createRequest', { clinic, doctor, type: 'شهري', items: [{ name: 'PROPHY PASTE', qty }] });
+  mk('د. نورة', 'عيادة الأسنان 1', 1);   // بوكس → نورة
+  mk('د. فهد', 'عيادة الأسنان 1', 2);    // ثابت في عيادة أخرى، طلب في عيادة خالد → خالد
+  mk('د. خالد', 'عيادة الأسنان 1', 3);   // → خالد
+  api(n, 'createRequest', { clinic: 'Sterilization', branch: 'الرياض', type: 'شهري', items: [{ name: 'PROPHY PASTE', qty: 4 }] }); // بلا طبيب
+  const st = api(login('منى', '5555'), 'getStatsReport', {});
+  const b = Object.fromEntries(st.billing.map(x => [x.name, x]));
+  assert.deepEqual([b['د. خالد'].basis, b['د. خالد'].clinic, b['د. خالد'].requests, b['د. خالد'].value], ['clinic', 'عيادة الأسنان 1', 2, 300]);
+  assert.deepEqual([b['د. نورة'].basis, b['د. نورة'].requests, b['د. نورة'].value], ['box', 1, 60]);
+  assert.equal(b[''].value, 240, 'shared areas are not billed to a doctor');
+  assert.equal(st.billing.reduce((s, x) => s + x.value, 0), st.summary.value, 'every riyal counted exactly once');
+  assert.ok(!b['د. فهد'], 'his request in another fixed clinic goes to that clinic');
+});
+
+test('doctors live: open requests per doctor by stage, for quality/executive only', () => {
+  const { api, login } = boot();
+  const n = login('سارة', '1111');
+  const items = [{ name: 'PROPHY PASTE', qty: 1 }];
+  const a = api(n, 'createRequest', { clinic: 'عيادة الأسنان 1', doctor: 'د. خالد', type: 'شهري', items }).id; // له حساب → مراجعة الطبيب
+  api(n, 'createRequest', { clinic: 'عيادة الأسنان 1', doctor: 'د. خالد', type: 'طارئ', items });
+  const c = api(n, 'createRequest', { clinic: 'عيادة الأسنان 1', doctor: 'د. نورة', type: 'شهري', items }).id; // بدون حساب → جديد
+  const q = login('منى', '5555');
+  const live = api(q, 'getDoctorsLive');
+  const k = live.rows.find(r => r.doctor === 'د. خالد'), nr = live.rows.find(r => r.doctor === 'د. نورة');
+  assert.equal(k.ids.review.length, 2);
+  assert.ok(k.ids.review.includes(a));
+  assert.deepEqual(nr.ids.new, [c]);
+  assert.ok(live.totals.review >= 2 && live.totals.new >= 1);
+  assert.deepEqual(live.cols, ['review', 'new', 'approved', 'prep', 'sent']);
+  throwsCode(() => api(login('علي', '3333'), 'getDoctorsLive'), 'ERR_FORBIDDEN');
 });

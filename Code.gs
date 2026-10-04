@@ -21,7 +21,7 @@ const SCHEMA = {
   Users:        ['Name', 'Password', 'Role', 'Clinic', 'Email', 'PasswordChangedAt', 'DoctorName', 'Department', 'Branch'],
   Roles:        ['RoleName', 'Screen', 'Permissions'],
   Clinics:      ['ClinicName', 'Branch', 'Type'],
-  Doctors:      ['DoctorName', 'Clinic', 'NurseName', 'Subspecialty'],
+  Doctors:      ['DoctorName', 'Clinic', 'NurseName', 'Subspecialty', 'Billing'],
   // Ownership: مستهلك (افتراضي) أو عهدة (على حساب الشركة) · Serialized: نعم للأدوات ذات الرقم التسلسلي (الهاندبيس…)
   // Department: أسنان / جلدية (فارغ = مشترك يظهر للقسمين)
   ItemsCatalog: ['ItemName', 'CommercialName', 'Category', 'Price', 'Ownership', 'Serialized', 'Department'],
@@ -100,11 +100,11 @@ const DEFAULT_ROLES = [
  * notices: إرسال التنبيهات · monitor: متابعة التموين والمواعيد · finance: شاشة المالية
  * prices_edit: تعديل أسعار الكتالوج · users: المستخدمون والأدوار
  */
-const PERMS = ['overview', 'reports', 'complaints', 'complaints_close', 'notices', 'monitor', 'finance', 'prices_edit', 'lab_view', 'assets', 'users'];
+const PERMS = ['overview', 'reports', 'complaints', 'complaints_close', 'notices', 'monitor', 'finance', 'prices_edit', 'lab_view', 'assets', 'users', 'doctors_live'];
 const DEFAULT_PERMS = {
   admin: PERMS,
-  executive: ['overview', 'reports', 'complaints', 'complaints_close', 'notices', 'monitor', 'lab_view', 'assets'],
-  quality: ['overview', 'reports', 'complaints', 'complaints_close', 'notices', 'monitor', 'lab_view', 'assets'],
+  executive: ['overview', 'reports', 'complaints', 'complaints_close', 'notices', 'monitor', 'lab_view', 'assets', 'doctors_live'],
+  quality: ['overview', 'reports', 'complaints', 'complaints_close', 'notices', 'monitor', 'lab_view', 'assets', 'doctors_live'],
   finance: ['finance', 'prices_edit', 'reports', 'monitor', 'assets'],
   dashboard: ['overview', 'reports', 'complaints', 'notices'],
   // مدير الفرع: مشاهدة فرعه + تقاريره ومؤشراته + التنبيه والشكاوى (بدون اعتماد أو إرسال)
@@ -129,7 +129,7 @@ const COMPLAINT_TYPES = ['تأخير', 'نقص', 'زيادة', 'أخرى'];
  *  التجهيز التلقائي بعد النشر (مرة واحدة لكل إصدار) — بلا أي خطوة يدوية:
  *  تبويبات الإعداد (Settings / LabMaterials)، قائمة العيادات المعتمدة، المشغّلات (النسخ الليلي + onChange)
  * ===================================================================== */
-const SETUP_VERSION_ = '2026-10-setup-v3';
+const SETUP_VERSION_ = '2026-10-setup-v4';
 function autoSetup_() {
   try {
     const cache = CacheService.getScriptCache();
@@ -157,6 +157,7 @@ function runSetupSteps_(force) {
     ['clinics', 'قائمة العيادات المعتمدة', function () { migrateClinics_(force); }],
     ['triage', 'غرفة الفرز لكل فرع (مستهلكات عيادة)', ensureTriageRooms_],
     ['perms', 'صلاحية العهدة للإدارة والجودة والمالية', function () { grantPerm_('assets', ['executive', 'quality', 'finance']); }],
+    ['doctors_live', 'صفحة «الأطباء — مباشر» للجودة والتنفيذي', function () { grantPerm_('doctors_live', ['executive', 'quality']); }],
     ['demo', 'أدوات العهدة التجريبية TEST101', function () { seedDemoAssets_(force); }],
     ['triggers', 'المشغّلات (النسخ الليلي + تغييرات الشيت)', function () { if (typeof ScriptApp !== 'undefined') installTriggers(); }]
   ];
@@ -589,6 +590,7 @@ const API_ = {
   deleteUser:                { screens: [], perm: 'users', fn: deleteUser_ },
   getRoles:                  { screens: [], perm: 'users', fn: function () { return getRoles_(); } },
   getMonitor:                { screens: [], perm: 'monitor', fn: getMonitor_ },
+  getDoctorsLive:            { screens: [], perm: 'doctors_live', fn: getDoctorsLive_ },
   // المعمل
   getLabConfig:              { screens: ['nurse', 'doctor', 'lab'], perm: 'lab_view', fn: getLabConfig_ },
   createLabCase:             { screens: ['nurse'], fn: createLabCase_ },
@@ -1691,6 +1693,7 @@ function allDoctors_() {
   return read_('Doctors').rows.filter(function (r) { return str_(r.DoctorName); }).map(function (r) {
     return {
       name: str_(r.DoctorName), clinic: str_(r.Clinic), nurse: str_(r.NurseName), subspecialty: str_(r.Subspecialty),
+      billing: /عياد|clinic/i.test(str_(r.Billing || r['طريقة الحسبة'])) ? 'clinic' : 'box',
       specialty: str_(r.Specialty || r.Type || r['التخصص'] || r['النوع'])
     };
   });
@@ -2121,7 +2124,7 @@ function getFinance_(user, opts) {
     summary: { requests: rep.summary.requests - rep.summary.rejected, requested: round2_(requested), approved: rep.summary.value,
       dispatched: round2_(dispatched), received: round2_(received), reviewSaving: round2_(Math.max(0, requested - rep.summary.value)),
       avgValue: rep.summary.avgValue, emergency: rep.summary.emergency },
-    byType: byType, branches: rep.branches, clinics: rep.clinics, doctors: rep.doctors, topItems: rep.topItems,
+    byType: byType, branches: rep.branches, clinics: rep.clinics, doctors: rep.doctors, billing: rep.billing, topItems: rep.topItems,
     badPrices: rep.badPrices, trend: trend
   };
 }
@@ -3439,6 +3442,7 @@ function getStatsReport_(user, opts) {
   function bucket() { return { requests: 0, approved: 0, rejected: 0, pending: 0, received: 0, emergency: 0, value: 0, qty: 0, approvalHrs: [], fulfilHrs: [] }; }
   function avg(a) { return a.length ? round1_(a.reduce(function (x, y) { return x + y; }, 0) / a.length) : null; }
   const sum = bucket(), byDoc = {}, byBranch = {}, byClinic = {}, items = {}, statuses = {};
+  const bill = billingIndex_(), byBill = {};
   let partial = 0;
   reqs.forEach(function (r) {
     let value = 0, qty = 0;
@@ -3453,6 +3457,11 @@ function getStatsReport_(user, opts) {
     const approvalH = r.backdated ? null : r.approvedAt || r.status === ST.REJECTED ? hrs(r.reviewAt || r.submittedAt, r.reviewedAt || r.approvedAt) : null;
     const fulfilH = r.backdated ? null : hrs(r.submittedAt, r.sentAt);
     if (r.sentQty > 0 && r.remainingQty > 0) partial++;
+    if (r.status !== ST.REJECTED) {
+      const who = billedTo_(r, bill), bk = who || '';
+      const e = byBill[bk] || (byBill[bk] = { name: who, basis: who && bill.doctors[who] ? bill.doctors[who].basis : '', clinic: who && bill.doctors[who] ? bill.doctors[who].clinic : '', requests: 0, value: 0, qty: 0 });
+      e.requests++; e.value = round2_(e.value + value); e.qty += qty;
+    }
     statuses[r.status] = (statuses[r.status] || 0) + 1;
     [sum, byDoc[r.doctor || CLINIC_ONLY_LABEL] = byDoc[r.doctor || CLINIC_ONLY_LABEL] || bucket(), byBranch[r.branch || '—'] = byBranch[r.branch || '—'] || bucket(),
       byClinic[clinicKey_(r.clinic, r.branch)] = byClinic[clinicKey_(r.clinic, r.branch)] || bucket()].forEach(function (b) {
@@ -3480,8 +3489,65 @@ function getStatsReport_(user, opts) {
     from: from, to: to, branch: branch, generatedAt: new Date(),
     summary: Object.assign(out('', sum), { partial: partial }),
     doctors: list(byDoc), branches: list(byBranch), clinics: list(byClinic), statuses: statuses, badPrices: badPrices,
+    billing: Object.keys(byBill).map(function (k) { return byBill[k]; }).sort(function (a, b) { return (a.name ? 0 : 1) - (b.name ? 0 : 1) || b.value - a.value; }),
     topItems: Object.keys(items).map(function (k) { return items[k]; }).sort(function (a, b) { return b.value - a.value || b.qty - a.qty; }).slice(0, 12)
   };
+}
+
+/* =====================================================================
+ *  الحسبة المالية للطبيب (عمود Billing في Doctors):
+ *  «عيادة» = طبيب ثابت في عيادته (أول عيادة في عمود Clinic): كل مستهلكات عيادته تُحسب عليه
+ *  «بوكس» (الافتراضي) = يُحسب عليه ما يُطلب باسمه فقط، في أي عيادة
+ *  كل طلب يُحسب مرة واحدة: طبيب البوكس صاحب الطلب ← وإلا الطبيب الثابت في العيادة ← وإلا صاحب الطلب ← وإلا بلا طبيب
+ * ===================================================================== */
+function billingIndex_() {
+  if (MEMO_.bill) return MEMO_.bill;
+  const doctors = {}, fixed = {};
+  allDoctors_().forEach(function (d) {
+    const clinic = d.billing === 'clinic' ? str_(d.clinic).split(/[,،]/)[0].trim() : '';
+    doctors[d.name] = { basis: d.billing, clinic: clinic };
+    if (clinic && !fixed[clinic]) fixed[clinic] = d.name;
+  });
+  return (MEMO_.bill = { doctors: doctors, fixed: fixed });
+}
+function billedTo_(r, bill) {
+  const d = r.doctor && bill.doctors[r.doctor];
+  if (d && d.basis === 'box') return r.doctor;
+  return bill.fixed[r.clinic] || r.doctor || '';
+}
+
+/* =====================================================================
+ *  الأطباء — مباشر: الطلبات المفتوحة لكل طبيب حسب المرحلة (للجودة والتنفيذي)
+ * ===================================================================== */
+const LIVE_COLS_ = ['review', 'new', 'approved', 'prep', 'sent'];
+function liveCol_(r) {
+  if (r.status === ST.REVIEW) return 'review';
+  if (r.status === ST.NEW) return 'new';
+  if (r.status === ST.APPROVED) return 'approved';
+  if ([ST.PREP, ST.VENDOR_WAIT, ST.VENDOR_RECV].indexOf(r.status) !== -1) return 'prep';
+  if (r.status === ST.SENT) return 'sent';
+  return '';
+}
+function getDoctorsLive_(user) {
+  const rows = {};
+  const now = Date.now();
+  queryRequests_({}).forEach(function (r) {
+    const col = liveCol_(r);
+    if (!col) return;
+    const key = r.doctor || ('#' + r.clinic + '|' + r.branch);
+    const row = rows[key] || (rows[key] = { doctor: r.doctor, clinic: r.clinic, branch: r.branch, clinics: [], total: 0, late: 0, oldestHrs: 0, ids: {} });
+    if (row.clinics.indexOf(r.clinic) === -1) row.clinics.push(r.clinic);
+    (row.ids[col] = row.ids[col] || []).push(r.id);
+    row.total++;
+    if (r.overdue) row.late++;
+    const h = (now - toMs_(r.submittedAt || r.date)) / 36e5;
+    if (h > row.oldestHrs) row.oldestHrs = round1_(h);
+  });
+  const list = Object.keys(rows).map(function (k) { return rows[k]; })
+    .sort(function (a, b) { return b.late - a.late || b.total - a.total || b.oldestHrs - a.oldestHrs; });
+  const totals = {};
+  LIVE_COLS_.forEach(function (c) { totals[c] = list.reduce(function (s, x) { return s + (x.ids[c] || []).length; }, 0); });
+  return { at: new Date(), cols: LIVE_COLS_, totals: totals, rows: list };
 }
 
 /** أسماء الأطباء الذين لهم طلبات (لاختيار التقرير من شاشة الإدارة) */
