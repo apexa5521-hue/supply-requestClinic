@@ -129,7 +129,7 @@ const COMPLAINT_TYPES = ['تأخير', 'نقص', 'زيادة', 'أخرى'];
  *  التجهيز التلقائي بعد النشر (مرة واحدة لكل إصدار) — بلا أي خطوة يدوية:
  *  تبويبات الإعداد (Settings / LabMaterials)، قائمة العيادات المعتمدة، المشغّلات (النسخ الليلي + onChange)
  * ===================================================================== */
-const SETUP_VERSION_ = '2026-10-setup-v2';
+const SETUP_VERSION_ = '2026-10-setup-v3';
 function autoSetup_() {
   try {
     const cache = CacheService.getScriptCache();
@@ -154,7 +154,8 @@ function autoSetup_() {
 function runSetupSteps_(force) {
   const steps = [
     ['lab', 'إعدادات المعمل (Settings / LabMaterials)', seedLabSetup_],
-    ['clinics', 'قائمة العيادات المعتمدة', migrateClinics_],
+    ['clinics', 'قائمة العيادات المعتمدة', function () { migrateClinics_(force); }],
+    ['triage', 'غرفة الفرز لكل فرع (مستهلكات عيادة)', ensureTriageRooms_],
     ['perms', 'صلاحية العهدة للإدارة والجودة والمالية', function () { grantPerm_('assets', ['executive', 'quality', 'finance']); }],
     ['demo', 'أدوات العهدة التجريبية TEST101', function () { seedDemoAssets_(force); }],
     ['triggers', 'المشغّلات (النسخ الليلي + تغييرات الشيت)', function () { if (typeof ScriptApp !== 'undefined') installTriggers(); }]
@@ -236,7 +237,9 @@ function clinicMatchKey_(v) { return str_(v).toLowerCase().replace(/steraliz/g, 
  * يجعل تبويب Clinics مطابقاً للقائمة المعتمدة (22 عيادة: بريدة وعنيزة) — فقط في شيت عيادات بريدة/عنيزة.
  * قبل التعديل تُؤخذ نسخة احتياطية، وتُصحَّح أسماء العيادات في Users وDoctors إن تطابقت (مثل Steralization- Buraydah).
  */
-function migrateClinics_() {
+function migrateClinics_(force) {
+  // الترحيل للقائمة الرسمية مرة واحدة فقط (أول تجهيز) — لا يمسح تعديلات الأدمن عند تحديثات لاحقة
+  if (!force && PropertiesService.getScriptProperties().getProperty('setup:done')) return;
   const t = read_('Clinics');
   if (!t.rows.some(function (r) { return /buraydah|unayzah|بريدة|عنيزة/i.test(str_(r.Branch)); })) return; // ليس شيت العيادة
   const target = DEFAULT_CLINICS_;
@@ -290,6 +293,21 @@ const DEFAULT_CLINICS_ = (function () {
   out.push(['Sterilization - Buraydah', 'Buraydah', 'Sterilization'], ['Sterilization - Unayzah', 'Unayzah', 'Sterilization']);
   return out;
 })();
+
+/* =====================================================================
+ *  المناطق المشتركة: «مستهلكات عيادة» (بدون طبيب) للتعقيم وغرفة الفرز فقط
+ *  أما عيادات الأطباء فطلبها «طلب طبيب»: تُختار العيادة ثم الطبيب، والاستهلاك يُحسب على الطبيب
+ * ===================================================================== */
+const SHARED_AREA_RE_ = /ster[ia]li|تعقيم|triage|فرز/i;
+function isSharedArea_(c) { return !!c && SHARED_AREA_RE_.test(str_(c.name) + ' ' + str_(c.type)); }
+function ensureTriageRooms_() {
+  const cs = getClinics_();
+  const branches = cs.map(function (c) { return c.branch; }).filter(function (b, i, a) { return b && a.indexOf(b) === i; });
+  branches.forEach(function (b) {
+    if (cs.some(function (c) { return c.branch === b && /triage|فرز/i.test(c.name + ' ' + c.type); })) return;
+    append_('Clinics', { ClinicName: 'Triage Room - ' + b, Branch: b, Type: 'Triage' });
+  });
+}
 
 function setupSheets() {
   const ss = ss_();
@@ -1678,8 +1696,15 @@ function allDoctors_() {
   });
 }
 
-function getDoctors_(user, clinicFilter) {
+function getDoctors_(user, clinicFilter, opts) {
   clinicFilter = str_(clinicFilter);
+  if (opts && opts.all) {
+    // كل الأطباء (الطبيب يتنقل بين العيادات) — المرتبطون بالعيادة المختارة أولاً
+    const cl = getClinics_().filter(function (c) { return c.name === clinicFilter; })[0] || null;
+    return allDoctors_().map(function (d) {
+      return { name: d.name, clinic: d.clinic, nurse: d.nurse, subspecialty: d.subspecialty || d.specialty, here: !!cl && !!(str_(d.clinic) || d.specialty) && doctorMatchesClinic_(d, cl) };
+    });
+  }
   const clinic = getClinics_().filter(function (c) { return c.name === clinicFilter; })[0] ||
     (clinicFilter ? { name: clinicFilter, type: '', branch: '' } : null);
   let list = allDoctors_().filter(function (d) { return doctorMatchesClinic_(d, clinic); });
@@ -2190,12 +2215,15 @@ function createRequest_(user, payload) {
   if (REQUEST_TYPES.indexOf(type) === -1) throw new Error('ERR_BAD_TYPE');
   const mine = userClinics_(user);
   if (clinic) {
-    // مستهلكات العيادة مفتوحة لكل العيادات؛ طلب الطبيب يبقى ضمن عيادات الممرضة
+    // مستهلكات العيادة للمناطق المشتركة فقط (التعقيم / غرفة الفرز) في أي فرع؛ طلب الطبيب يبقى ضمن عيادات الممرضة
     if (!clinicOnly && mine.length && mine.indexOf(clinic) === -1) throw new Error('ERR_FORBIDDEN');
-    if (!getClinics_().some(function (c) { return c.name === clinic; })) throw new Error('ERR_BAD_CLINIC');
+    const cRows = getClinics_().filter(function (c) { return c.name === clinic; });
+    if (!cRows.length) throw new Error('ERR_BAD_CLINIC');
+    if (clinicOnly && !cRows.some(isSharedArea_)) throw new Error('ERR_CLINIC_SHARED_ONLY');
   }
   if (!clinicOnly) {
-    if (!getDoctors_(user, clinic).some(function (d) { return d.name === doctor; })) throw new Error('ERR_BAD_DOCTOR');
+    // الطبيب غير مرتبط بعيادة ثابتة: يُقبل أي طبيب في القائمة، والعيادة المختارة هي مكان الاستهلاك
+    if (!allDoctors_().some(function (d) { return d.name === doctor; })) throw new Error('ERR_BAD_DOCTOR');
     if (!clinic) clinic = doctorClinic_(user, doctor);
   }
   // الفرع الذي ستُرسل له الطلبية: يختاره المستخدم، والافتراضي فرع العيادة
