@@ -3,3 +3,6 @@ tests/screenshots/
 tutorials/.work/
 tutorials/*.mp4
 tutorials/**/*.mp4
+
+dist/
+masar-web.zip
