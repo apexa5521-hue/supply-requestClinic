@@ -347,6 +347,8 @@ table.table { width: 100%; border-collapse: collapse; font-size: 13.5px; }
 .login-hero p { font-size: 16px; color: rgba(245,248,255,.9); }
 .login-flow { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 28px; }
 .login-flow span { display: inline-flex; align-items: center; gap: 7px; padding: 7px 12px; border-radius: 999px; background: rgba(255,255,255,.1); border: 1px solid rgba(255,255,255,.14); font-size: 13px; backdrop-filter: blur(6px); opacity: 0; animation: rise .6s var(--ease-out) forwards; }
+.app-credit { text-align: center; font-size: 10.5px; letter-spacing: .03em; color: var(--muted, #8a94a6); opacity: .7; padding: 22px 12px 10px; user-select: none; }
+@media print { .app-credit { display: none; } }
 .login-foot { position: relative; font-size: 9.5px; letter-spacing: .04em; color: rgba(255,255,255,.55); }
 .login-panel { display: grid; place-items: center; padding: 32px 20px; position: relative; }
 .login-card { width: 100%; max-width: 400px; }
@@ -1061,7 +1063,7 @@ button.kpi[aria-pressed="true"] { border-color: var(--tone); box-shadow: 0 0 0 3
         <span style="animation-delay:.55s"><svg class="i i-sm"><use href="#i-pen"/></svg><b data-i18n="flow_5"></b></span>
       </div>
     </div>
-    <div class="login-foot" dir="ltr">Built &amp; Developed by Ibrahim Alluhaydi</div>
+    <div class="login-foot" dir="ltr">Built and developed by Mr. Ibrahim Alluhaydi</div>
   </div>
   <div class="login-panel">
     <div class="login-tools">
@@ -1124,6 +1126,7 @@ button.kpi[aria-pressed="true"] { border-color: var(--tone); box-shadow: 0 0 0 3
     <div class="content" id="content">
       <div class="alerts" id="alerts"></div>
       <main id="view"></main>
+      <div class="app-credit" dir="ltr">Built and developed by Mr. Ibrahim Alluhaydi</div>
     </div>
   </div>
   <nav class="bottom-nav" id="bottomNav"></nav>
