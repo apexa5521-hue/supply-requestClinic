@@ -18,13 +18,14 @@ const DUP_WINDOW_SECONDS = 120;
 const SCHEMA = {
   // Department للمستخدم: تموين أسنان / تموين جلدية (فارغ = كل الأقسام)
   // Branch للمستخدم الإداري (مدير فرع): يرى بيانات فرعه فقط (فارغ = كل الفروع)
-  Users:        ['Name', 'Password', 'Role', 'Clinic', 'Email', 'PasswordChangedAt', 'DoctorName', 'Department', 'Branch'],
+  Users:        ['Name', 'Password', 'Role', 'Clinic', 'Email', 'PasswordChangedAt', 'DoctorName', 'Department', 'Branch', 'PriceView'],
   Roles:        ['RoleName', 'Screen', 'Permissions'],
   Clinics:      ['ClinicName', 'Branch', 'Type'],
-  Doctors:      ['DoctorName', 'Clinic', 'NurseName', 'Subspecialty'],
+  Doctors:      ['DoctorName', 'Clinic', 'NurseName', 'Subspecialty', 'Billing'],
   // Ownership: مستهلك (افتراضي) أو عهدة (على حساب الشركة) · Serialized: نعم للأدوات ذات الرقم التسلسلي (الهاندبيس…)
   // Department: أسنان / جلدية (فارغ = مشترك يظهر للقسمين)
-  ItemsCatalog: ['ItemName', 'CommercialName', 'Category', 'Price', 'Ownership', 'Serialized', 'Department'],
+  // ItemType: مستهلك / ماتيريال (فارغ = مستهلك) — يحدد أي أسعار يراها الطبيب حسب صلاحيته (Users.PriceView)
+  ItemsCatalog: ['ItemName', 'CommercialName', 'Category', 'Price', 'Ownership', 'Serialized', 'Department', 'ItemType'],
   Requests:     ['RequestID', 'Date', 'Clinic', 'Doctor', 'Nurse', 'Type', 'Status',
                  'SubmittedAt', 'SentAt', 'ReceivedAt', 'ReceiverName', 'SignatureURL',
                  'PrepAt', 'VendorWaitAt', 'VendorReceivedAt', 'ReviewAt', 'ReviewedAt',
@@ -100,11 +101,11 @@ const DEFAULT_ROLES = [
  * notices: إرسال التنبيهات · monitor: متابعة التموين والمواعيد · finance: شاشة المالية
  * prices_edit: تعديل أسعار الكتالوج · users: المستخدمون والأدوار
  */
-const PERMS = ['overview', 'reports', 'complaints', 'complaints_close', 'notices', 'monitor', 'finance', 'prices_edit', 'lab_view', 'assets', 'users'];
+const PERMS = ['overview', 'reports', 'complaints', 'complaints_close', 'notices', 'monitor', 'finance', 'prices_edit', 'lab_view', 'assets', 'users', 'doctors_live'];
 const DEFAULT_PERMS = {
   admin: PERMS,
-  executive: ['overview', 'reports', 'complaints', 'complaints_close', 'notices', 'monitor', 'lab_view', 'assets'],
-  quality: ['overview', 'reports', 'complaints', 'complaints_close', 'notices', 'monitor', 'lab_view', 'assets'],
+  executive: ['overview', 'reports', 'complaints', 'complaints_close', 'notices', 'monitor', 'lab_view', 'assets', 'doctors_live'],
+  quality: ['overview', 'reports', 'complaints', 'complaints_close', 'notices', 'monitor', 'lab_view', 'assets', 'doctors_live'],
   finance: ['finance', 'prices_edit', 'reports', 'monitor', 'assets'],
   dashboard: ['overview', 'reports', 'complaints', 'notices'],
   // مدير الفرع: مشاهدة فرعه + تقاريره ومؤشراته + التنبيه والشكاوى (بدون اعتماد أو إرسال)
@@ -129,7 +130,7 @@ const COMPLAINT_TYPES = ['تأخير', 'نقص', 'زيادة', 'أخرى'];
  *  التجهيز التلقائي بعد النشر (مرة واحدة لكل إصدار) — بلا أي خطوة يدوية:
  *  تبويبات الإعداد (Settings / LabMaterials)، قائمة العيادات المعتمدة، المشغّلات (النسخ الليلي + onChange)
  * ===================================================================== */
-const SETUP_VERSION_ = '2026-10-setup-v3';
+const SETUP_VERSION_ = '2026-10-setup-v4';
 function autoSetup_() {
   try {
     const cache = CacheService.getScriptCache();
@@ -157,6 +158,7 @@ function runSetupSteps_(force) {
     ['clinics', 'قائمة العيادات المعتمدة', function () { migrateClinics_(force); }],
     ['triage', 'غرفة الفرز لكل فرع (مستهلكات عيادة)', ensureTriageRooms_],
     ['perms', 'صلاحية العهدة للإدارة والجودة والمالية', function () { grantPerm_('assets', ['executive', 'quality', 'finance']); }],
+    ['doctors_live', 'صفحة «الأطباء — مباشر» للجودة والتنفيذي', function () { grantPerm_('doctors_live', ['executive', 'quality']); }],
     ['demo', 'أدوات العهدة التجريبية TEST101', function () { seedDemoAssets_(force); }],
     ['triggers', 'المشغّلات (النسخ الليلي + تغييرات الشيت)', function () { if (typeof ScriptApp !== 'undefined') installTriggers(); }]
   ];
@@ -385,7 +387,7 @@ function doPost(e) {
  * كل دالة معرّفة بالشاشات المسموح لها؛ '*' = أي مستخدم مسجّل.
  */
 function api(token, fn, args, opts) {
-  NO_PRICES_ = false;
+  NO_PRICES_ = false; PRICE_VIEW_ = 'all';
   let out = apiCore_(token, fn, args);
   // طبيبة الجلدية: لا تصل لمتصفحها أي أسعار أو قيم (حتى لو كانت مكتوبة في الشيت)
   if (NO_PRICES_) out = stripPrices_(out);
@@ -589,6 +591,7 @@ const API_ = {
   deleteUser:                { screens: [], perm: 'users', fn: deleteUser_ },
   getRoles:                  { screens: [], perm: 'users', fn: function () { return getRoles_(); } },
   getMonitor:                { screens: [], perm: 'monitor', fn: getMonitor_ },
+  getDoctorsLive:            { screens: [], perm: 'doctors_live', fn: getDoctorsLive_ },
   // المعمل
   getLabConfig:              { screens: ['nurse', 'doctor', 'lab'], perm: 'lab_view', fn: getLabConfig_ },
   createLabCase:             { screens: ['nurse'], fn: createLabCase_ },
@@ -1401,8 +1404,39 @@ function userBranch_(user) {
 function applyScope_(user) {
   SCOPE_BRANCH_ = MGMT_SCREENS.indexOf(user.screen) !== -1 && user.screen !== 'admin' ? userBranch_(user) : '';
   user.branch = SCOPE_BRANCH_;
-  NO_PRICES_ = user.screen === 'doctor' && doctorIsDerma_(user);
+  PRICE_VIEW_ = userPriceView_(user);
+  NO_PRICES_ = PRICE_VIEW_ === 'none';
   if (NO_PRICES_) user.noPrices = true;
+  if (user.screen === 'doctor') user.priceView = PRICE_VIEW_;
+}
+/* =====================================================================
+ *  أسعار الطبيب (Users.PriceView لكل حساب طبيب، من شاشة المستخدمين أو الشيت):
+ *  كل الأسعار / المستهلكات فقط / الماتيريال فقط / بدون أسعار — فارغ = تلقائي (الجلدية بدون أسعار، الأسنان كل الأسعار)
+ *  نوع الصنف من ItemsCatalog.ItemType. الأسعار المخفية لا تصل لمتصفح الطبيب أصلاً
+ * ===================================================================== */
+let PRICE_VIEW_ = 'all';
+const PRICE_VIEWS_ = ['all', 'consumables', 'materials', 'none'];
+function parsePriceView_(v) {
+  v = str_(v);
+  if (!v) return '';
+  if (PRICE_VIEWS_.indexOf(v) !== -1) return v;
+  if (/بدون|none|لا يرى/i.test(v)) return 'none';
+  const c = /مستهلك|consum/i.test(v), m = /ماتيريال|ماتريال|مواد|material/i.test(v);
+  if (c && m) return 'all';
+  if (c) return 'consumables';
+  if (m) return 'materials';
+  return /كل|all/i.test(v) ? 'all' : '';
+}
+const PRICE_VIEW_LABEL_ = { all: 'كل الأسعار', consumables: 'المستهلكات فقط', materials: 'الماتيريال فقط', none: 'بدون أسعار' };
+function userPriceView_(user) {
+  if (user.screen !== 'doctor') return 'all';
+  const r = read_('Users').rows.filter(function (u) { return str_(u.Name) === user.name; })[0];
+  const pv = r ? parsePriceView_(r.PriceView) : '';
+  return pv || (doctorIsDerma_(user) ? 'none' : 'all');
+}
+function itemKind_(v) { return /ماتيريال|ماتريال|مواد|material/i.test(str_(v)) ? 'material' : 'consumable'; }
+function priceVisible_(kind) {
+  return PRICE_VIEW_ === 'all' || (PRICE_VIEW_ === 'consumables' && kind === 'consumable') || (PRICE_VIEW_ === 'materials' && kind === 'material');
 }
 /* =====================================================================
  *  طبيب/طبيبة الجلدية: اطلاع واعتماد فقط بدون أي سعر أو قيمة
@@ -1523,7 +1557,9 @@ function getCatalog_(withPrice) {
     const o = { name: str_(r.ItemName), commercial: str_(r.CommercialName), category: str_(r.Category) };
     if (isAssetOwnership_(r.Ownership)) { o.asset = true; o.serialized = isYes_(r.Serialized); }
     const dp = normDept_(r.Department); if (dp) o.dept = dp;
-    if (withPrice) {
+    o.kind = itemKind_(r.ItemType);
+    if (withPrice && !priceVisible_(o.kind)) o.priceHidden = true;
+    else if (withPrice) {
       o.price = price_(r.Price) || 0;
       const issue = priceProblem_(r.Price);
       if (issue) o.priceIssue = issue;
@@ -1691,6 +1727,7 @@ function allDoctors_() {
   return read_('Doctors').rows.filter(function (r) { return str_(r.DoctorName); }).map(function (r) {
     return {
       name: str_(r.DoctorName), clinic: str_(r.Clinic), nurse: str_(r.NurseName), subspecialty: str_(r.Subspecialty),
+      billing: /عياد|clinic/i.test(str_(r.Billing || r['طريقة الحسبة'])) ? 'clinic' : 'box',
       specialty: str_(r.Specialty || r.Type || r['التخصص'] || r['النوع'])
     };
   });
@@ -2121,7 +2158,7 @@ function getFinance_(user, opts) {
     summary: { requests: rep.summary.requests - rep.summary.rejected, requested: round2_(requested), approved: rep.summary.value,
       dispatched: round2_(dispatched), received: round2_(received), reviewSaving: round2_(Math.max(0, requested - rep.summary.value)),
       avgValue: rep.summary.avgValue, emergency: rep.summary.emergency },
-    byType: byType, branches: rep.branches, clinics: rep.clinics, doctors: rep.doctors, topItems: rep.topItems,
+    byType: byType, branches: rep.branches, clinics: rep.clinics, doctors: rep.doctors, billing: rep.billing, topItems: rep.topItems,
     badPrices: rep.badPrices, trend: trend
   };
 }
@@ -2536,7 +2573,7 @@ function getRequestItemsWithCatalog_(user, requestId) {
     const c = cat[it.item.toLowerCase()] || {};
     it.commercial = c.commercial || '';
     it.category = c.category || '';
-    it.price = c.price || 0;
+    if (c.priceHidden) it.priceHidden = true; else it.price = c.price || 0;
     it.notes = noteMap[it.item] || [];
     return it;
   });
@@ -3385,23 +3422,26 @@ function getDoctorReport_(user, opts) {
     return (!from || ms >= from.getTime()) && (!to || ms <= to.getTime());
   });
   const top = {};
-  const sum = { requests: 0, lines: 0, qty: 0, total: 0, unpriced: 0 };
+  const sum = { requests: 0, lines: 0, qty: 0, total: 0, unpriced: 0, hidden: 0 };
   const rows = reqs.map(function (r) {
     const items = (byReq[r.id] || []).map(function (it) {
       const name = str_(it.ItemName);
       const c = cat[name.toLowerCase()] || {};
       const qty = Number(it.ApprovedQty !== '' && it.ApprovedQty !== null && it.ApprovedQty !== undefined ? it.ApprovedQty : it.RequestedQty) || 0;
-      const price = c.asset ? 0 : (Number(c.price) || 0); // مُنقّى في getCatalog_؛ أصناف العهدة على حساب الشركة لا الطبيب
+      const hidden = !!c.priceHidden; // السعر خارج صلاحية الطبيب: لا يظهر ولا يدخل في الإجمالي
+      const price = c.asset || hidden ? 0 : (Number(c.price) || 0); // مُنقّى في getCatalog_؛ أصناف العهدة على حساب الشركة لا الطبيب
       const total = round2_(qty * price);
-      if (!price && !c.asset) sum.unpriced++;
+      if (hidden) sum.hidden++;
+      else if (!price && !c.asset) sum.unpriced++;
       if (c.priceIssue) badPrices[name] = c.priceIssue;
       const k = name.toLowerCase();
-      top[k] = top[k] || { item: name, qty: 0, total: 0 };
-      top[k].qty += qty; top[k].total = round2_(top[k].total + total);
+      top[k] = top[k] || (hidden ? { item: name, qty: 0, priceHidden: true } : { item: name, qty: 0, total: 0 });
+      top[k].qty += qty; if (!hidden) top[k].total = round2_(top[k].total + total);
       sum.lines++; sum.qty += qty;
-      return { item: name, commercial: c.commercial || '', category: c.category || '', qty: qty, price: price, total: total, company: !!c.asset };
+      return hidden ? { item: name, commercial: c.commercial || '', category: c.category || '', qty: qty, priceHidden: true, company: !!c.asset }
+        : { item: name, commercial: c.commercial || '', category: c.category || '', qty: qty, price: price, total: total, company: !!c.asset };
     });
-    const total = round2_(items.reduce(function (a, i) { return a + i.total; }, 0));
+    const total = round2_(items.reduce(function (a, i) { return a + (i.total || 0); }, 0));
     sum.requests++; sum.total = round2_(sum.total + total);
     return { id: r.id, date: r.submittedAt || r.date, clinic: r.clinic, branch: r.branch, type: r.type, status: r.status, items: items, total: total };
   }).sort(function (a, b) { return toMs_(a.date) - toMs_(b.date); });
@@ -3409,7 +3449,7 @@ function getDoctorReport_(user, opts) {
     doctor: isDoctor ? user.name : doctor,
     from: from, to: to, generatedAt: new Date(), rows: rows, summary: sum,
     badPrices: Object.keys(badPrices).map(function (k) { return { item: k, issue: badPrices[k] }; }),
-    top: Object.keys(top).map(function (k) { return top[k]; }).sort(function (a, b) { return b.total - a.total || b.qty - a.qty; }).slice(0, 8)
+    top: Object.keys(top).map(function (k) { return top[k]; }).sort(function (a, b) { return (b.total || 0) - (a.total || 0) || b.qty - a.qty; }).slice(0, 8)
   };
 }
 
@@ -3439,6 +3479,7 @@ function getStatsReport_(user, opts) {
   function bucket() { return { requests: 0, approved: 0, rejected: 0, pending: 0, received: 0, emergency: 0, value: 0, qty: 0, approvalHrs: [], fulfilHrs: [] }; }
   function avg(a) { return a.length ? round1_(a.reduce(function (x, y) { return x + y; }, 0) / a.length) : null; }
   const sum = bucket(), byDoc = {}, byBranch = {}, byClinic = {}, items = {}, statuses = {};
+  const bill = billingIndex_(), byBill = {};
   let partial = 0;
   reqs.forEach(function (r) {
     let value = 0, qty = 0;
@@ -3453,6 +3494,11 @@ function getStatsReport_(user, opts) {
     const approvalH = r.backdated ? null : r.approvedAt || r.status === ST.REJECTED ? hrs(r.reviewAt || r.submittedAt, r.reviewedAt || r.approvedAt) : null;
     const fulfilH = r.backdated ? null : hrs(r.submittedAt, r.sentAt);
     if (r.sentQty > 0 && r.remainingQty > 0) partial++;
+    if (r.status !== ST.REJECTED) {
+      const who = billedTo_(r, bill), bk = who || '';
+      const e = byBill[bk] || (byBill[bk] = { name: who, basis: who && bill.doctors[who] ? bill.doctors[who].basis : '', clinic: who && bill.doctors[who] ? bill.doctors[who].clinic : '', requests: 0, value: 0, qty: 0 });
+      e.requests++; e.value = round2_(e.value + value); e.qty += qty;
+    }
     statuses[r.status] = (statuses[r.status] || 0) + 1;
     [sum, byDoc[r.doctor || CLINIC_ONLY_LABEL] = byDoc[r.doctor || CLINIC_ONLY_LABEL] || bucket(), byBranch[r.branch || '—'] = byBranch[r.branch || '—'] || bucket(),
       byClinic[clinicKey_(r.clinic, r.branch)] = byClinic[clinicKey_(r.clinic, r.branch)] || bucket()].forEach(function (b) {
@@ -3480,8 +3526,65 @@ function getStatsReport_(user, opts) {
     from: from, to: to, branch: branch, generatedAt: new Date(),
     summary: Object.assign(out('', sum), { partial: partial }),
     doctors: list(byDoc), branches: list(byBranch), clinics: list(byClinic), statuses: statuses, badPrices: badPrices,
+    billing: Object.keys(byBill).map(function (k) { return byBill[k]; }).sort(function (a, b) { return (a.name ? 0 : 1) - (b.name ? 0 : 1) || b.value - a.value; }),
     topItems: Object.keys(items).map(function (k) { return items[k]; }).sort(function (a, b) { return b.value - a.value || b.qty - a.qty; }).slice(0, 12)
   };
+}
+
+/* =====================================================================
+ *  الحسبة المالية للطبيب (عمود Billing في Doctors):
+ *  «عيادة» = طبيب ثابت في عيادته (أول عيادة في عمود Clinic): كل مستهلكات عيادته تُحسب عليه
+ *  «بوكس» (الافتراضي) = يُحسب عليه ما يُطلب باسمه فقط، في أي عيادة
+ *  كل طلب يُحسب مرة واحدة: طبيب البوكس صاحب الطلب ← وإلا الطبيب الثابت في العيادة ← وإلا صاحب الطلب ← وإلا بلا طبيب
+ * ===================================================================== */
+function billingIndex_() {
+  if (MEMO_.bill) return MEMO_.bill;
+  const doctors = {}, fixed = {};
+  allDoctors_().forEach(function (d) {
+    const clinic = d.billing === 'clinic' ? str_(d.clinic).split(/[,،]/)[0].trim() : '';
+    doctors[d.name] = { basis: d.billing, clinic: clinic };
+    if (clinic && !fixed[clinic]) fixed[clinic] = d.name;
+  });
+  return (MEMO_.bill = { doctors: doctors, fixed: fixed });
+}
+function billedTo_(r, bill) {
+  const d = r.doctor && bill.doctors[r.doctor];
+  if (d && d.basis === 'box') return r.doctor;
+  return bill.fixed[r.clinic] || r.doctor || '';
+}
+
+/* =====================================================================
+ *  الأطباء — مباشر: الطلبات المفتوحة لكل طبيب حسب المرحلة (للجودة والتنفيذي)
+ * ===================================================================== */
+const LIVE_COLS_ = ['review', 'new', 'approved', 'prep', 'sent'];
+function liveCol_(r) {
+  if (r.status === ST.REVIEW) return 'review';
+  if (r.status === ST.NEW) return 'new';
+  if (r.status === ST.APPROVED) return 'approved';
+  if ([ST.PREP, ST.VENDOR_WAIT, ST.VENDOR_RECV].indexOf(r.status) !== -1) return 'prep';
+  if (r.status === ST.SENT) return 'sent';
+  return '';
+}
+function getDoctorsLive_(user) {
+  const rows = {};
+  const now = Date.now();
+  queryRequests_({}).forEach(function (r) {
+    const col = liveCol_(r);
+    if (!col) return;
+    const key = r.doctor || ('#' + r.clinic + '|' + r.branch);
+    const row = rows[key] || (rows[key] = { doctor: r.doctor, clinic: r.clinic, branch: r.branch, clinics: [], total: 0, late: 0, oldestHrs: 0, ids: {} });
+    if (row.clinics.indexOf(r.clinic) === -1) row.clinics.push(r.clinic);
+    (row.ids[col] = row.ids[col] || []).push(r.id);
+    row.total++;
+    if (r.overdue) row.late++;
+    const h = (now - toMs_(r.submittedAt || r.date)) / 36e5;
+    if (h > row.oldestHrs) row.oldestHrs = round1_(h);
+  });
+  const list = Object.keys(rows).map(function (k) { return rows[k]; })
+    .sort(function (a, b) { return b.late - a.late || b.total - a.total || b.oldestHrs - a.oldestHrs; });
+  const totals = {};
+  LIVE_COLS_.forEach(function (c) { totals[c] = list.reduce(function (s, x) { return s + (x.ids[c] || []).length; }, 0); });
+  return { at: new Date(), cols: LIVE_COLS_, totals: totals, rows: list };
 }
 
 /** أسماء الأطباء الذين لهم طلبات (لاختيار التقرير من شاشة الإدارة) */
@@ -3592,7 +3695,7 @@ function getUsers_() {
   requestRows_().forEach(function (r) { if (str_(r.Doctor)) real[str_(r.Doctor)] = true; });
   Object.keys(acc).forEach(function (n) { if (n !== acc[n] || real[n]) (linked[acc[n]] = linked[acc[n]] || []).push(n); });
   return read_('Users').rows.filter(function (r) { return str_(r.Name); }).map(function (r) {
-    const u = { name: str_(r.Name), role: str_(r.Role), clinic: str_(r.Clinic), email: str_(r.Email), screen: roleScreen_(r.Role), doctorName: str_(r.DoctorName), department: normDept_(r.Department), branch: str_(r.Branch) };
+    const u = { name: str_(r.Name), role: str_(r.Role), clinic: str_(r.Clinic), email: str_(r.Email), screen: roleScreen_(r.Role), doctorName: str_(r.DoctorName), department: normDept_(r.Department), branch: str_(r.Branch), priceView: parsePriceView_(r.PriceView) };
     if (u.screen === 'doctor') u.linked = linked[u.name] || [];
     return u;
   });
@@ -3656,11 +3759,12 @@ function createUser_(user, u) {
   const password = String(u.password || '');
   if (!name || !password) throw new Error('ERR_REQUIRED');
   if (password.length < 4) throw new Error('ERR_WEAK_PASSWORD');
-  const fields = { role: str_(u.role), clinic: clean_(u.clinic, 500), email: str_(u.email), doctorName: clean_(u.doctorName, 120), department: normDept_(u.department), branch: validBranch_(u.branch) };
+  const fields = { role: str_(u.role), clinic: clean_(u.clinic, 500), email: str_(u.email), doctorName: clean_(u.doctorName, 120), department: normDept_(u.department), branch: validBranch_(u.branch), priceView: parsePriceView_(u.priceView) };
   validateUserFields_(fields);
   if (getUsers_().some(function (x) { return loginKey_(x.name) === loginKey_(name); })) throw new Error('ERR_USER_EXISTS');
   append_('Users', { Name: name, Password: hashPassword_(latinDigits_(password).trim()), Role: fields.role, Clinic: fields.clinic, Email: fields.email,
-    DoctorName: roleScreen_(fields.role) === 'doctor' ? fields.doctorName : '', Department: fields.department, Branch: fields.branch });
+    DoctorName: roleScreen_(fields.role) === 'doctor' ? fields.doctorName : '', Department: fields.department, Branch: fields.branch,
+    PriceView: roleScreen_(fields.role) === 'doctor' && fields.priceView ? PRICE_VIEW_LABEL_[fields.priceView] : '' });
   logAction_('', 'إنشاء مستخدم: ' + name, user.name);
   return getUsers_();
 }
@@ -3674,12 +3778,13 @@ function updateUser_(user, name, u) {
   const t = read_('Users');
   const row = t.rows.filter(function (r) { return str_(r.Name) === str_(name); })[0];
   if (!row) throw new Error('ERR_NOT_FOUND');
-  const fields = { role: str_(u.role), clinic: clean_(u.clinic, 500), email: str_(u.email), doctorName: clean_(u.doctorName, 120), department: normDept_(u.department), branch: validBranch_(u.branch) };
+  const fields = { role: str_(u.role), clinic: clean_(u.clinic, 500), email: str_(u.email), doctorName: clean_(u.doctorName, 120), department: normDept_(u.department), branch: validBranch_(u.branch), priceView: parsePriceView_(u.priceView) };
   validateUserFields_(fields);
   if (roleScreen_(row.Role) === 'admin' && roleScreen_(fields.role) !== 'admin' && countAdmins_(str_(name)) === 0) {
     throw new Error('ERR_LAST_ADMIN');
   }
-  const upd = { Role: fields.role, Clinic: fields.clinic, Email: fields.email, DoctorName: roleScreen_(fields.role) === 'doctor' ? fields.doctorName : '', Department: fields.department, Branch: fields.branch };
+  const upd = { Role: fields.role, Clinic: fields.clinic, Email: fields.email, DoctorName: roleScreen_(fields.role) === 'doctor' ? fields.doctorName : '', Department: fields.department, Branch: fields.branch,
+    PriceView: roleScreen_(fields.role) === 'doctor' && fields.priceView ? PRICE_VIEW_LABEL_[fields.priceView] : '' };
   if (u.password) {
     if (String(u.password).length < 4) throw new Error('ERR_WEAK_PASSWORD');
     upd.Password = hashPassword_(latinDigits_(String(u.password)).trim());

@@ -852,7 +852,8 @@ function log(msg) { console.log('  ✔ ' + msg); }
   await page.click('[data-act="rpGo"]');
   await page.waitForSelector('#rpStats .rp-tile');
   expect(await page.locator('#rpStats .rp-tile').count() === 8, 'statistics page shows 8 summary figures');
-  expect(await page.locator('#rpStats .rp-table').count() === 4, 'tables by doctor, branch, clinic and top items');
+  expect(await page.locator('#rpStats .rp-table').count() === 5, 'tables by doctor, doctor billing, branch, clinic and top items');
+  expect((await page.textContent('#rpStats')).includes('الحسبة المالية للأطباء') && await page.locator('#rpStats .tag.bill-box').count() >= 1, 'doctor billing table (clinic / box) is shown');
   expect((await page.textContent('#rpStats .rp-table >> nth=0')).includes('د. خالد'), 'doctor table lists doctors');
   await page.waitForSelector('#rpDoctor option[value="د. خالد"], #rpDoctor option:has-text("د. خالد")', { state: 'attached' });
   await page.selectOption('#rpDoctor', 'د. خالد');
@@ -872,6 +873,17 @@ function log(msg) { console.log('  ✔ ' + msg); }
   // ---------- Quality: deadlines & procurement follow-up ----------
   const qNav = await page.$$eval('.sidebar .nav-item', els => els.map(e => e.dataset.view));
   expect(qNav.includes('monitor') && !qNav.includes('users') && !qNav.includes('finance'), 'quality menu follows its permissions (follow-up yes, users/finance no): ' + qNav.join(','));
+  // الأطباء — مباشر
+  expect(qNav.includes('doctorslive'), 'quality sees «Doctors — live»');
+  await page.click('.sidebar [data-view="doctorslive"]');
+  await page.waitForSelector('#dlBody .rp-table');
+  expect(await page.locator('#dlTiles .rp-tile').count() === 5 && (await page.textContent('#dlTiles')).includes('مراجعة الطبيب'), 'totals by stage at the top (review, new, approved, prep, sent)');
+  expect((await page.textContent('#dlBody')).includes('د. خالد'), 'one row per doctor');
+  await page.click('#dlBody .dl-n >> nth=0');
+  await page.waitForSelector('.modal [data-act="detail"]');
+  expect(await page.locator('.modal [data-act="detail"]').count() >= 1, 'a count opens the requests behind it');
+  await shot(page, 'doctors-live', true);
+  await page.keyboard.press('Escape');
   await page.click('.sidebar [data-view="monitor"]');
   await page.waitForSelector('#monBody .rp-tile');
   expect(await page.locator('#monBody .mon-doc').count() === 4, 'monthly cycle is tracked per doctor (not per clinic)');
@@ -922,7 +934,11 @@ function log(msg) { console.log('  ✔ ' + msg); }
   await page.click('[data-act="userNew"]');
   await page.fill('#uName', 'هند');
   await page.fill('#uPass', '7777');
+  await page.selectOption('#uRole', 'طبيب');
+  expect(await page.isVisible('#uPriceView') && await page.locator('#uPriceView option').count() === 5, 'doctor account: admin chooses which prices the doctor sees (auto / all / consumables / materials / none)');
+  await shot(page, 'admin-doctor-price-view');
   await page.selectOption('#uRole', 'ممرضة');
+  expect(!(await page.isVisible('#uPriceView')), 'price view applies to doctors only');
   await page.click('#uClinics .chip >> nth=1');
   await shot(page, 'admin-new-user');
   await page.click('#uSave');
@@ -960,7 +976,7 @@ function log(msg) { console.log('  ✔ ' + msg); }
   expect(await toastHas(page, 'تم أخذ نسخة احتياطية') && await page.isVisible('#bkBox a:has-text("فتح آخر نسخة")'), 'admin takes a backup now and can open it');
   await page.locator('#bkBox').scrollIntoViewIfNeeded();
   await shot(page, 'admin-backup');
-  await page.waitForFunction(() => /2026-10-setup-v3/.test((document.getElementById('suBox') || {}).textContent || ''));
+  await page.waitForFunction(() => /2026-10-setup-v4/.test((document.getElementById('suBox') || {}).textContent || ''));
   await page.click('#suBtn');
   expect(await toastHas(page, 'اكتمل التجهيز') || await toastHas(page, 'التجهيز فيه خطوات'), 'admin sees the setup status (code version + steps) and can re-run it');
   // صلاحيات الدور: الأدمن يحدد ما يظهر لكل دور
