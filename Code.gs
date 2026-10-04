@@ -49,6 +49,9 @@ const SCHEMA = {
   LabMaterials: ['Material'],
   // إعدادات عامة قابلة للتعديل من الشيت (مثل LabTurnaroundDays = أيام تنفيذ المعمل الافتراضية)
   Settings:     ['Key', 'Value', 'Notes'],
+  // الاستبيان: الأسئلة تُعدَّل من الشيت (Type: stars = 1–5 · nps = 0–10 · text) — والإجابات سطر لكل سؤال
+  SurveyQuestions: ['QID', 'Question', 'QuestionEn', 'Type', 'Section', 'Required', 'Active', 'Order'],
+  SurveyResponses: ['Timestamp', 'Cycle', 'User', 'Doctor', 'Branch', 'QID', 'Question', 'Score', 'Answer'],
   LabCases:     ['CaseID', 'Date', 'Nurse', 'Doctor', 'Clinic', 'Branch', 'Patient', 'FileNo', 'NeededBy', 'Urgent',
                  'RedoOf', 'RedoReason', 'RedoNote', 'Attachments', 'ClientKey', 'ScanDate', 'Notes', 'Source', 'IteroNo'],
   LabItems:     ['ItemID', 'CaseID', 'Lab', 'LabType', 'WorkType', 'Details', 'Status', 'ReceivedAt', 'StartedAt',
@@ -101,11 +104,11 @@ const DEFAULT_ROLES = [
  * notices: إرسال التنبيهات · monitor: متابعة التموين والمواعيد · finance: شاشة المالية
  * prices_edit: تعديل أسعار الكتالوج · users: المستخدمون والأدوار
  */
-const PERMS = ['overview', 'reports', 'complaints', 'complaints_close', 'notices', 'monitor', 'finance', 'prices_edit', 'lab_view', 'assets', 'users', 'doctors_live'];
+const PERMS = ['overview', 'reports', 'complaints', 'complaints_close', 'notices', 'monitor', 'finance', 'prices_edit', 'lab_view', 'assets', 'users', 'doctors_live', 'surveys'];
 const DEFAULT_PERMS = {
   admin: PERMS,
-  executive: ['overview', 'reports', 'complaints', 'complaints_close', 'notices', 'monitor', 'lab_view', 'assets', 'doctors_live'],
-  quality: ['overview', 'reports', 'complaints', 'complaints_close', 'notices', 'monitor', 'lab_view', 'assets', 'doctors_live'],
+  executive: ['overview', 'reports', 'complaints', 'complaints_close', 'notices', 'monitor', 'lab_view', 'assets', 'doctors_live', 'surveys'],
+  quality: ['overview', 'reports', 'complaints', 'complaints_close', 'notices', 'monitor', 'lab_view', 'assets', 'doctors_live', 'surveys'],
   finance: ['finance', 'prices_edit', 'reports', 'monitor', 'assets'],
   dashboard: ['overview', 'reports', 'complaints', 'notices'],
   // مدير الفرع: مشاهدة فرعه + تقاريره ومؤشراته + التنبيه والشكاوى (بدون اعتماد أو إرسال)
@@ -130,7 +133,7 @@ const COMPLAINT_TYPES = ['تأخير', 'نقص', 'زيادة', 'أخرى'];
  *  التجهيز التلقائي بعد النشر (مرة واحدة لكل إصدار) — بلا أي خطوة يدوية:
  *  تبويبات الإعداد (Settings / LabMaterials)، قائمة العيادات المعتمدة، المشغّلات (النسخ الليلي + onChange)
  * ===================================================================== */
-const SETUP_VERSION_ = '2026-10-setup-v5';
+const SETUP_VERSION_ = '2026-10-setup-v6';
 function autoSetup_() {
   try {
     const cache = CacheService.getScriptCache();
@@ -158,6 +161,7 @@ function runSetupSteps_(force) {
     ['clinics', 'قائمة العيادات المعتمدة', function () { migrateClinics_(force); }],
     ['triage', 'غرفة الفرز لكل فرع (مستهلكات عيادة)', ensureTriageRooms_],
     ['unayzah', 'عيادات الأسنان في عنيزة (حتى 10)', ensureUnayzahClinics_],
+    ['survey', 'استبيان الأطباء (الأسئلة + صلاحية النتائج للجودة والتنفيذي)', function () { seedSurvey_(); grantPerm_('surveys', ['executive', 'quality']); }],
     ['perms', 'صلاحية العهدة للإدارة والجودة والمالية', function () { grantPerm_('assets', ['executive', 'quality', 'finance']); }],
     ['doctors_live', 'صفحة «الأطباء — مباشر» للجودة والتنفيذي', function () { grantPerm_('doctors_live', ['executive', 'quality']); }],
     ['demo', 'أدوات العهدة التجريبية TEST101', function () { seedDemoAssets_(force); }],
@@ -606,6 +610,10 @@ const API_ = {
   getRoles:                  { screens: [], perm: 'users', fn: function () { return getRoles_(); } },
   getMonitor:                { screens: [], perm: 'monitor', fn: getMonitor_ },
   getDoctorsLive:            { screens: [], perm: 'doctors_live', fn: getDoctorsLive_ },
+  getMySurvey:               { screens: ['doctor'], fn: getMySurvey_ },
+  submitSurvey:              { screens: ['doctor'], fn: submitSurvey_ },
+  getSurveyResults:          { screens: [], perm: 'surveys', fn: getSurveyResults_ },
+  remindSurvey:              { screens: [], perm: 'surveys', fn: remindSurvey_ },
   // المعمل
   getLabConfig:              { screens: ['nurse', 'doctor', 'lab'], perm: 'lab_view', fn: getLabConfig_ },
   createLabCase:             { screens: ['nurse'], fn: createLabCase_ },
@@ -3334,6 +3342,8 @@ function getAlerts_(user) {
   } else if (user.screen === 'doctor') {
     const pending = queryRequests_({ doctorUser: user }).filter(function (r) { return r.awaitingDoctor; }).length;
     if (pending) alerts.push({ type: 'warning', code: 'alert_pending_review', n: pending });
+    const sv = surveyCycle_();
+    if (sv.open && !surveyDone_(sv.id, user.name)) alerts.push({ type: 'info', code: 'alert_survey', n: Math.max(0, Math.ceil((toMs_(sv.closes) - now) / 864e5)) });
   } else {
     const perms = user.perms || [];
     const open = perms.indexOf('complaints') !== -1 ? getComplaints_(user, true).length : 0;
@@ -3599,6 +3609,190 @@ function getDoctorsLive_(user) {
   const totals = {};
   LIVE_COLS_.forEach(function (c) { totals[c] = list.reduce(function (s, x) { return s + (x.ids[c] || []).length; }, 0); });
   return { at: new Date(), cols: LIVE_COLS_, totals: totals, rows: list };
+}
+
+/* =====================================================================
+ *  استبيان الأطباء: دورة كل SurveyEveryDays (افتراضياً 50) يوماً تبقى مفتوحة SurveyOpenDays (10) أيام
+ *  تبدأ من SurveyStart (يُكتب تلقائياً يوم التجهيز). الأسئلة من تبويب SurveyQuestions، وتُثبَّت لكل دورة عند فتحها
+ *  فتعديلها يطبَّق من الدورة التالية. الإجابات باسم الطبيب، والنتائج لمن لديه صلاحية «الاستبيان» (الجودة والتنفيذي)
+ * ===================================================================== */
+const SURVEY_DEFAULT_ = [
+  ['Q1', 'سهولة استخدام الموقع', 'Ease of using the system', 'stars', 'الموقع'],
+  ['Q2', 'سرعة فتح الموقع والدخول', 'Speed of opening and signing in', 'stars', 'الموقع'],
+  ['Q3', 'وضوح متابعة حالة طلباتك', 'Clarity of tracking your requests', 'stars', 'الموقع'],
+  ['Q4', 'سهولة مراجعة الطلب واعتماده', 'Ease of reviewing and approving requests', 'stars', 'الطلبات'],
+  ['Q5', 'اكتمال الإرساليات ودقة الكميات', 'Complete shipments and accurate quantities', 'stars', 'الإرساليات'],
+  ['Q6', 'الالتزام بموعد توصيل الإرساليات', 'On-time delivery of shipments', 'stars', 'الإرساليات'],
+  ['Q7', 'حالة البوكس والتغليف عند الوصول', 'Box and packaging condition on arrival', 'stars', 'الإرساليات'],
+  ['Q8', 'جودة أعمال المعمل', 'Quality of lab work', 'stars', 'المعمل'],
+  ['Q9', 'التزام المعمل بموعد التسليم', 'Lab on-time delivery', 'stars', 'المعمل'],
+  ['Q10', 'سرعة استجابة التموين لملاحظاتك', 'Procurement response to your notes', 'stars', 'التواصل'],
+  ['Q11', 'التواصل مع التمريض في عيادتك', 'Communication with your clinic nursing', 'stars', 'التواصل'],
+  ['Q12', 'ما مدى احتمال أن توصي بالنظام لزميل؟', 'How likely are you to recommend the system to a colleague?', 'nps', 'الرضا العام'],
+  ['Q13', 'ما أكثر شيء يزعجك حالياً؟', 'What bothers you most right now?', 'text', 'ملاحظات', 'لا'],
+  ['Q14', 'اقتراحك للتحسين', 'Your suggestion for improvement', 'text', 'ملاحظات', 'لا']
+];
+function seedSurvey_() {
+  if (!read_('SurveyQuestions').rows.some(function (r) { return str_(r.QID); })) {
+    SURVEY_DEFAULT_.forEach(function (q, i) {
+      append_('SurveyQuestions', { QID: q[0], Question: q[1], QuestionEn: q[2], Type: q[3], Section: q[4], Required: q[5] || 'نعم', Active: 'نعم', Order: i + 1 });
+    });
+  }
+  if (!str_(getSetting_('SurveyStart', ''))) {
+    append_('Settings', { Key: 'SurveyStart', Value: "'" + riyadh_(Date.now()), Notes: 'تاريخ أول دورة لاستبيان الأطباء (YYYY-MM-DD)' });
+  }
+}
+function surveyNum_(key, def, min, max) { const n = Math.floor(num_(getSetting_(key, def))); return n >= min && n <= max ? n : def; }
+/** الدورة الحالية: { id, n, opens, closes, open } — n يبدأ من 1 */
+function surveyCycle_(nowMs) {
+  if (MEMO_.svc && !nowMs) return MEMO_.svc;
+  let st = getSetting_('SurveyStart', '');
+  if (st instanceof Date) st = riyadh_(st.getTime());
+  st = str_(st).replace(/^'/, '').slice(0, 10);
+  const every = surveyNum_('SurveyEveryDays', 50, 7, 365), openDays = Math.min(surveyNum_('SurveyOpenDays', 10, 1, 60), every);
+  const start = /^\d{4}-\d{2}-\d{2}$/.test(st) ? new Date(st + 'T00:00:00+03:00').getTime() : NaN;
+  const now = nowMs || Date.now();
+  let out;
+  if (isNaN(start) || now < start || str_(getSetting_('SurveyEnabled', 'نعم')) === 'لا') out = { id: '', n: 0, open: false, every: every, openDays: openDays };
+  else {
+    const n = Math.floor((now - start) / (every * 864e5));
+    const opens = start + n * every * 864e5, closes = opens + openDays * 864e5;
+    out = { id: 'S' + (n + 1) + '-' + riyadh_(opens), n: n + 1, opens: new Date(opens), closes: new Date(closes), open: now < closes, every: every, openDays: openDays };
+  }
+  if (!nowMs) MEMO_.svc = out;
+  return out;
+}
+function surveyQuestions_(cycleId) {
+  const live = function () {
+    return read_('SurveyQuestions').rows.filter(function (r) { return str_(r.QID) && str_(r.Question) && !/^(لا|no|0|false)$/i.test(str_(r.Active)); })
+      .sort(function (a, b) { return (num_(a.Order) || 999) - (num_(b.Order) || 999); })
+      .map(function (r) {
+        const ty = /nps|0.?10/i.test(str_(r.Type)) ? 'nps' : /text|نص/i.test(str_(r.Type)) ? 'text' : 'stars';
+        return { id: str_(r.QID), q: str_(r.Question), qEn: str_(r.QuestionEn), type: ty, section: str_(r.Section), required: !/^(لا|no|0|false)$/i.test(str_(r.Required)) };
+      });
+  };
+  if (!cycleId) return live();
+  // تثبيت أسئلة الدورة أول مرة تُفتح فيها (التعديل في الشيت يطبَّق من الدورة التالية)
+  const props = PropertiesService.getScriptProperties(), key = 'survey:q:' + cycleId;
+  let saved = null;
+  try { saved = JSON.parse(props.getProperty(key) || 'null'); } catch (e) { saved = null; }
+  if (saved && saved.length) return saved;
+  const qs = live();
+  try { props.setProperty(key, JSON.stringify(qs)); } catch (e) { /* حجم كبير — نستخدم الحالية */ }
+  return qs;
+}
+function surveyDone_(cycleId, userName) {
+  return !!cycleId && read_('SurveyResponses').rows.some(function (r) { return str_(r.Cycle) === cycleId && str_(r.User) === userName; });
+}
+function getMySurvey_(user) {
+  const c = surveyCycle_();
+  if (!c.open) return { open: false };
+  return { open: true, cycle: c.id, n: c.n, closes: c.closes, done: surveyDone_(c.id, user.name), questions: surveyQuestions_(c.id) };
+}
+/** الطبيب المرتبط بالحساب وفرعه (للنتائج حسب الفرع) */
+function surveyDoctorInfo_(u) {
+  const names = Object.keys(doctorAccounts_()).filter(function (n) { return doctorAccounts_()[n] === u.name; });
+  const d = allDoctors_().filter(function (x) { return names.indexOf(x.name) !== -1; })[0];
+  const cl = d ? str_(d.clinic).split(/[,،]/)[0].trim() : '';
+  return { doctor: d ? d.name : (u.doctorName || u.name), branch: str_(u.branch) || (cl ? clinicBranch_(cl) : '') };
+}
+function submitSurvey_(user, answers) {
+  answers = answers || {};
+  const c = surveyCycle_();
+  if (!c.open) throw new Error('ERR_SURVEY_CLOSED');
+  const qs = surveyQuestions_(c.id);
+  const rowsOut = qs.map(function (q) {
+    const v = answers[q.id];
+    if (q.type === 'text') {
+      const txt = clean_(v, 1000);
+      if (q.required && !txt) throw new Error('ERR_SURVEY_REQUIRED');
+      return { q: q, score: '', text: txt };
+    }
+    const n = v === '' || v === null || v === undefined ? NaN : Number(v);
+    const ok = q.type === 'nps' ? n >= 0 && n <= 10 : n >= 1 && n <= 5;
+    if (!(ok && Math.floor(n) === n)) { if (q.required || !isNaN(n)) throw new Error('ERR_SURVEY_REQUIRED'); return { q: q, score: '', text: '' }; }
+    return { q: q, score: n, text: '' };
+  });
+  let dup = false;
+  withLock_(function () {
+    resetMemo_();
+    if (surveyDone_(c.id, user.name)) { dup = true; return; }
+    const info = surveyDoctorInfo_(getUsers_().filter(function (u) { return u.name === user.name; })[0] || { name: user.name });
+    const now = new Date();
+    rowsOut.forEach(function (x) {
+      if (x.score === '' && !x.text) return;
+      append_('SurveyResponses', { Timestamp: now, Cycle: c.id, User: user.name, Doctor: info.doctor, Branch: info.branch, QID: x.q.id, Question: x.q.q, Score: x.score, Answer: x.text });
+    });
+    // إجابة فارغة كلها (أسئلة اختيارية فقط) تُسجَّل بسطر حتى لا يظهر الاستبيان مرة أخرى
+    if (!rowsOut.some(function (x) { return x.score !== '' || x.text; })) append_('SurveyResponses', { Timestamp: now, Cycle: c.id, User: user.name, Doctor: info.doctor, Branch: info.branch });
+  });
+  if (!dup) logAction_('', 'استبيان الأطباء ' + c.id, user.name);
+  return { ok: true, duplicate: dup };
+}
+function getSurveyResults_(user, cycleId) {
+  const cur = surveyCycle_();
+  const all = read_('SurveyResponses').rows.filter(function (r) { return str_(r.Cycle); });
+  const cycles = [];
+  all.forEach(function (r) { const c = str_(r.Cycle); if (cycles.indexOf(c) === -1) cycles.push(c); });
+  if (cur.id && cycles.indexOf(cur.id) === -1) cycles.push(cur.id);
+  const order = function (c) { return Number((/^S(\d+)/.exec(c) || [0, 0])[1]); };
+  cycles.sort(function (a, b) { return order(b) - order(a); });
+  const sel = cycles.indexOf(str_(cycleId)) !== -1 ? str_(cycleId) : (cycles[0] || '');
+  const doctors = getUsers_().filter(function (u) { return u.screen === 'doctor'; }).map(function (u) { const i = surveyDoctorInfo_(u); return { user: u.name, doctor: i.doctor, branch: i.branch, email: !!u.email }; })
+    .filter(function (d) { return inScope_(d.branch) || !d.branch; });
+  const rows = all.filter(function (r) { return str_(r.Cycle) === sel && (inScope_(str_(r.Branch)) || !str_(r.Branch)); });
+  const qs = sel ? surveyQuestions_(sel) : surveyQuestions_('');
+  const by = {};
+  rows.forEach(function (r) {
+    const u = str_(r.User);
+    const e = by[u] || (by[u] = { user: u, doctor: str_(r.Doctor), branch: str_(r.Branch), at: r.Timestamp, answers: {} });
+    if (str_(r.QID)) e.answers[str_(r.QID)] = str_(r.Answer) || (r.Score === '' ? '' : Number(r.Score));
+  });
+  const responses = Object.keys(by).map(function (k) { return by[k]; }).sort(function (a, b) { return toMs_(b.at) - toMs_(a.at); });
+  const stats = qs.map(function (q) {
+    const vals = responses.map(function (x) { return x.answers[q.id]; }).filter(function (v) { return typeof v === 'number'; });
+    const o = { id: q.id, q: q.q, qEn: q.qEn, type: q.type, section: q.section, n: vals.length };
+    if (q.type === 'text') { o.texts = responses.filter(function (x) { return x.answers[q.id]; }).map(function (x) { return { doctor: x.doctor, text: x.answers[q.id] }; }); return o; }
+    o.avg = vals.length ? round1_(vals.reduce(function (a, b) { return a + b; }, 0) / vals.length) : null;
+    if (q.type === 'nps' && vals.length) {
+      const pro = vals.filter(function (v) { return v >= 9; }).length, det = vals.filter(function (v) { return v <= 6; }).length;
+      o.nps = Math.round((pro - det) / vals.length * 100);
+    }
+    o.dist = q.type === 'nps' ? [] : [1, 2, 3, 4, 5].map(function (s) { return vals.filter(function (v) { return v === s; }).length; });
+    return o;
+  });
+  const starAvg = function (list) {
+    const v = []; list.forEach(function (x) { qs.forEach(function (q) { if (q.type === 'stars' && typeof x.answers[q.id] === 'number') v.push(x.answers[q.id]); }); });
+    return v.length ? round1_(v.reduce(function (a, b) { return a + b; }, 0) / v.length) : null;
+  };
+  const branches = {};
+  responses.forEach(function (x) { (branches[x.branch || '—'] = branches[x.branch || '—'] || []).push(x); });
+  // الاتجاه: متوسط أسئلة النجوم لكل دورة
+  const trend = cycles.slice().reverse().map(function (c) {
+    const v = all.filter(function (r) { return str_(r.Cycle) === c && typeof r.Score === 'number' && r.Score >= 1 && r.Score <= 5 && (inScope_(str_(r.Branch)) || !str_(r.Branch)); }).map(function (r) { return r.Score; });
+    const people = {}; all.forEach(function (r) { if (str_(r.Cycle) === c) people[str_(r.User)] = 1; });
+    return { cycle: c, avg: v.length ? round1_(v.reduce(function (a, b) { return a + b; }, 0) / v.length) : null, responses: Object.keys(people).length };
+  });
+  const answered = {}; responses.forEach(function (x) { answered[x.user] = true; });
+  return {
+    current: cur.id ? { id: cur.id, open: cur.open, opens: cur.opens, closes: cur.closes, every: cur.every, openDays: cur.openDays } : null,
+    cycles: cycles, cycle: sel, questions: stats, responses: responses, trend: trend,
+    total: doctors.length, answered: responses.length, avg: starAvg(responses),
+    pending: sel === cur.id ? doctors.filter(function (d) { return !answered[d.user]; }) : [],
+    branches: Object.keys(branches).map(function (b) { return { branch: b, responses: branches[b].length, avg: starAvg(branches[b]) }; })
+  };
+}
+function remindSurvey_(user, names) {
+  const c = surveyCycle_();
+  if (!c.open) throw new Error('ERR_SURVEY_CLOSED');
+  const list = (Array.isArray(names) ? names : [names]).map(str_).filter(String).slice(0, 200);
+  let sent = 0;
+  list.forEach(function (n) {
+    if (surveyDone_(c.id, n)) return;
+    if (notifyUser_(n, 'استبيان رضا الأطباء — بانتظارك', 'نرجو تعبئة استبيان الرضا (دقيقتان) من داخل النظام قبل ' + riyadh_(toMs_(c.closes)) + '.\nيظهر لك عند الدخول أعلى صفحتك. شكراً لك.')) sent++;
+  });
+  logAction_('', 'تذكير استبيان الأطباء (' + list.length + ')', user.name);
+  return { sent: sent, total: list.length };
 }
 
 /** أسماء الأطباء الذين لهم طلبات (لاختيار التقرير من شاشة الإدارة) */

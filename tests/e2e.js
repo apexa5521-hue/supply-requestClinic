@@ -306,6 +306,24 @@ function log(msg) { console.log('  ✔ ' + msg); }
 
   // ---------- Doctor ----------
   await login(page, 'د. خالد', '4444');
+  // استبيان الرضا: نافذة عند الدخول (مرة باليوم) + شريط حتى يُعبّأ
+  await page.waitForSelector('.modal .sv-form', { timeout: 8000 });
+  expect(await page.locator('.modal .sv-stars').count() === 11 && await page.locator('.modal .sv-nps').count() === 1, 'survey pops up on login: 11 star questions + recommend 0–10 + free text');
+  await page.click('#svSend');
+  expect(await page.isVisible('#svErr:not(.hidden)') && await page.locator('.sv-q.missing').count() === 12, 'required questions are flagged');
+  await page.click('.modal [data-close]');
+  await page.waitForSelector('#alerts .alert:has-text("استبيان الرضا") [data-act="surveyOpen"]');
+  expect(true, 'after «Later» the survey stays as a notice at the top');
+  await page.click('[data-act="surveyOpen"]');
+  await page.waitForSelector('.modal .sv-form');
+  for (let i = 0; i < 11; i++) await page.click('.modal .sv-stars >> nth=' + i + ' >> .sv-b >> nth=3');
+  await page.click('.modal .sv-nps .sv-b[data-v="9"]');
+  await page.fill('.modal textarea[data-q="Q14"]', 'تتبع البوكس ممتاز');
+  await shot(page, 'doctor-survey');
+  await page.click('#svSend');
+  expect(await toastHas(page, 'وصلنا رأيك'), 'doctor submits the survey');
+  await page.waitForFunction(() => !document.querySelector('#alerts [data-act="surveyOpen"]'));
+  expect(true, 'the notice disappears after answering');
   await page.waitForSelector('#docList .req');
   await shot(page, 'doctor-reviews');
   await page.click(`#docList [data-id="${newId}"]`);
@@ -878,6 +896,12 @@ function log(msg) { console.log('  ✔ ' + msg); }
   // ---------- Quality: deadlines & procurement follow-up ----------
   const qNav = await page.$$eval('.sidebar .nav-item', els => els.map(e => e.dataset.view));
   expect(qNav.includes('monitor') && !qNav.includes('users') && !qNav.includes('finance'), 'quality menu follows its permissions (follow-up yes, users/finance no): ' + qNav.join(','));
+  // نتائج استبيان الأطباء
+  expect(qNav.includes('surveys'), 'quality sees «Doctor survey»');
+  await page.click('.sidebar [data-view="surveys"]');
+  await page.waitForSelector('#svBody .rp-tile');
+  expect((await page.textContent('#svBody')).includes('تتبع البوكس ممتاز') && (await page.textContent('#svBody')).includes('د. خالد'), 'survey results: per question, written feedback and each doctor answer');
+  await shot(page, 'quality-survey', true);
   // الأطباء — مباشر
   expect(qNav.includes('doctorslive'), 'quality sees «Doctors — live»');
   await page.click('.sidebar [data-view="doctorslive"]');
@@ -981,7 +1005,7 @@ function log(msg) { console.log('  ✔ ' + msg); }
   expect(await toastHas(page, 'تم أخذ نسخة احتياطية') && await page.isVisible('#bkBox a:has-text("فتح آخر نسخة")'), 'admin takes a backup now and can open it');
   await page.locator('#bkBox').scrollIntoViewIfNeeded();
   await shot(page, 'admin-backup');
-  await page.waitForFunction(() => /2026-10-setup-v5/.test((document.getElementById('suBox') || {}).textContent || ''));
+  await page.waitForFunction(() => /2026-10-setup-v6/.test((document.getElementById('suBox') || {}).textContent || ''));
   await page.click('#suBtn');
   expect(await toastHas(page, 'اكتمل التجهيز') || await toastHas(page, 'التجهيز فيه خطوات'), 'admin sees the setup status (code version + steps) and can re-run it');
   // صلاحيات الدور: الأدمن يحدد ما يظهر لكل دور
@@ -1192,6 +1216,11 @@ function log(msg) { console.log('  ✔ ' + msg); }
   const mRole = async (name, pass, views) => {
     await mLogout(m);
     await login(m, name, pass);
+    // استبيان الطبيب يظهر عند الدخول: نتحقق أنه يناسب الجوال ثم «لاحقاً»
+    if (await m.waitForSelector('.modal .sv-form', { timeout: 2500 }).then(() => true, () => false)) {
+      await mCheck(m, name + ' / survey');
+      await m.click('.modal [data-close]'); await m.waitForTimeout(400);
+    }
     for (const v of views) {
       await m.evaluate(v => go(v), v);
       await m.waitForTimeout(900);

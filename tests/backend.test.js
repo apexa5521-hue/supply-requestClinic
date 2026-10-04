@@ -1402,7 +1402,7 @@ test('roles split: legacy quality/executive/finance migrate; executive keeps ful
   throwsCode(() => api(e, 'getUsers'), 'ERR_FORBIDDEN'); // بعد وجود الأدمن: صلاحيات التنفيذي الافتراضية فقط (فوراً)
   assert.ok(api(e, 'getExecutiveStats'));
   const a = login('admin', '9999');
-  assert.equal(api(a, 'getConfig').user.perms.length, 12);
+  assert.equal(api(a, 'getConfig').user.perms.length, 13);
   const f = login('نواف', '7777');
   assert.ok(api(f, 'getFinance', {}).summary);
   throwsCode(() => api(f, 'getComplaints'), 'ERR_FORBIDDEN');
@@ -2094,4 +2094,40 @@ test('doctor price view: admin chooses all / consumables only / materials only /
   // من الشيت مباشرة بالعربي
   const t2 = boot(g => g.seed('Users', ['Name', 'Password', 'Role', 'Clinic', 'Email', 'PriceView'], [['د. خالد', '4444', 'طبيب', '', '', 'الماتيريال فقط'], ['المدير', '1234', 'أدمن', '', '', '']]));
   assert.equal(t2.api(t2.login('د. خالد', '4444'), 'getConfig').user.priceView, 'materials');
+});
+
+test('doctor survey: every 50 days, open 10 days; reminders for those who did not answer; results for quality/executive', () => {
+  const { api, login, gas, ctx } = boot();
+  const a = login('المدير', '1234');
+  assert.ok(rows(gas, 'SurveyQuestions').length >= 14, 'default questions seeded in the sheet');
+  assert.ok(rows(gas, 'Settings').some(r => r.Key === 'SurveyStart'), 'first cycle starts on setup day');
+  const d = login('د. خالد', '4444');
+  const my = api(d, 'getMySurvey');
+  assert.equal(my.open, true); assert.equal(my.done, false);
+  assert.ok(api(d, 'getAlerts').some(x => x.code === 'alert_survey'), 'doctor is notified until he answers');
+  const ans = {};
+  my.questions.forEach(q => { ans[q.id] = q.type === 'nps' ? 9 : q.type === 'stars' ? 4 : ''; });
+  throwsCode(() => api(d, 'submitSurvey', Object.assign({}, ans, { Q1: 7 })), 'ERR_SURVEY_REQUIRED');
+  throwsCode(() => api(d, 'submitSurvey', Object.assign({}, ans, { Q2: '' })), 'ERR_SURVEY_REQUIRED');
+  ans.Q14 = 'أسرع لو سمحتوا';
+  assert.equal(api(d, 'submitSurvey', ans).ok, true);
+  assert.equal(api(d, 'submitSurvey', ans).duplicate, true, 'one answer per cycle');
+  assert.equal(api(d, 'getMySurvey').done, true);
+  assert.ok(!api(d, 'getAlerts').some(x => x.code === 'alert_survey'), 'notice disappears after answering');
+  const q = login('منى', '5555');
+  const res = api(q, 'getSurveyResults', '');
+  assert.equal(res.answered, 1);
+  assert.ok(res.total >= 1 && res.pending.every(p => p.user !== 'د. خالد'));
+  assert.equal(res.questions.find(x => x.id === 'Q1').avg, 4);
+  assert.equal(res.questions.find(x => x.id === 'Q12').nps, 100);
+  assert.equal(res.questions.find(x => x.id === 'Q14').texts[0].text, 'أسرع لو سمحتوا');
+  assert.equal(res.responses[0].doctor, 'د. خالد', 'answers are by doctor name');
+  assert.equal(res.avg, 4);
+  throwsCode(() => api(login('علي', '3333'), 'getSurveyResults', ''), 'ERR_FORBIDDEN');
+  // الدورة: مفتوحة 10 أيام من كل 50
+  const start = new Date(ctx.surveyCycle_().opens).getTime();
+  assert.equal(ctx.surveyCycle_(start + 9.9 * 864e5).open, true);
+  assert.equal(ctx.surveyCycle_(start + 10.1 * 864e5).open, false);
+  const c2 = ctx.surveyCycle_(start + 50.5 * 864e5);
+  assert.ok(c2.open && c2.n === 2);
 });
