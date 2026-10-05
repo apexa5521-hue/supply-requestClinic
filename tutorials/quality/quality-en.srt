@@ -1,63 +1,91 @@
 1
-00:00:00,780 --> 00:00:03,064
+00:00:00,919 --> 00:00:03,203
 This video is for the quality team.
 
 2
-00:00:03,064 --> 00:00:10,570
+00:00:03,203 --> 00:00:10,709
 You will learn how to follow deadlines, nudge late requests, review every undo, close complaints, and send notices.
 
 3
-00:00:11,047 --> 00:00:13,567
+00:00:11,160 --> 00:00:13,680
 Sign in with your name and password.
 
 4
-00:00:16,484 --> 00:00:19,279
+00:00:16,771 --> 00:00:19,566
 Deadlines and follow-up is your main page.
 
 5
-00:00:19,279 --> 00:00:24,670
+00:00:19,566 --> 00:00:24,957
 Monthly requests are submitted from the 15th to the 20th and received by the 1st.
 
 6
-00:00:24,670 --> 00:00:27,864
+00:00:24,957 --> 00:00:28,151
 Emergency requests must be sent within 24 hours.
 
 7
-00:00:28,314 --> 00:00:31,864
+00:00:28,601 --> 00:00:32,151
 The monthly cycle shows which doctors have not submitted yet.
 
 8
-00:00:31,864 --> 00:00:35,414
+00:00:32,151 --> 00:00:35,701
 The cards count overdue requests, and the time of each stage.
 
 9
-00:00:35,865 --> 00:00:40,801
+00:00:36,152 --> 00:00:41,088
 The past due list shows each late request, where it is stuck, and for how long.
 
 10
-00:00:40,801 --> 00:00:43,425
+00:00:41,088 --> 00:00:43,712
 Tap Nudge to remind whoever is holding it.
 
 11
-00:00:43,876 --> 00:00:51,656
+00:00:44,163 --> 00:00:51,943
 At the bottom, the undo log lists every step that procurement undid, with the reason, the person and the time.
 
 12
-00:00:52,107 --> 00:00:59,067
+00:00:52,393 --> 00:00:59,353
 Complaints shows every problem reported by the nurses. Open the request to check, then tap Close when it is solved.
 
 13
-00:00:59,517 --> 00:01:06,117
+00:00:59,804 --> 00:01:06,404
 Reports gives you the month by doctor, branch and clinic, with approval time and dispatch time.
 
 14
-00:01:07,650 --> 00:01:13,929
+00:01:07,920 --> 00:01:14,199
 To send a notice, choose who receives it: procurement, nursing, doctors, or everyone.
 
 15
-00:01:13,929 --> 00:01:18,140
+00:01:14,199 --> 00:01:18,410
 Write the message and tap Send. It appears on their page.
 
 16
-00:01:21,330 --> 00:01:28,120
+00:01:21,828 --> 00:01:30,031
+Doctors live shows every doctor's open requests by stage: doctor review, new, approved, in preparation and sent.
+
+17
+00:01:30,031 --> 00:01:34,718
+It refreshes every minute. Tap any number to see those requests.
+
+18
+00:01:35,169 --> 00:01:39,045
+Doctor survey shows the satisfaction results of each cycle:
+
+19
+00:01:39,045 --> 00:01:45,747
+response rate, average stars, the recommend score, every question, branches, trends and written notes.
+
+20
+00:01:45,747 --> 00:01:50,149
+While the survey is open, remind the doctors who have not answered.
+
+21
+00:01:50,599 --> 00:01:58,373
+Doctor prices: by default, doctors see no prices. From this page you grant or withhold prices for each doctor.
+
+22
+00:01:58,373 --> 00:02:01,059
+Every change is logged with your name.
+
+23
+00:02:01,511 --> 00:02:08,301
 That's it. Check the late list every morning, and close complaints as soon as they are solved. Thank you!

@@ -22,10 +22,17 @@ const scenes = {
     ar: 'لوحة «العهدة» تعرض الأدوات التالفة والمفقودة، وتكلفة الإصلاح، وأي عيادة أقل من معيارها.' },
   workflow: { en: 'Workflow explains the full journey of a request, from the nurse to receipt, and who is responsible at each step.',
     ar: 'صفحة «سير العمل» تشرح رحلة الطلب كاملة من الممرضة حتى الاستلام، ومن المسؤول في كل خطوة.' },
+  live: { en: 'Doctors live shows every doctor\'s open requests by stage: doctor review, new, approved, in preparation and sent. It refreshes every minute. Tap any number to see those requests.',
+    ar: 'صفحة «الأطباء — مباشر» تعرض طلبات كل طبيب المفتوحة حسب المرحلة: مراجعة الطبيب، جديد، معتمد، قيد التجهيز، تم الإرسال، وتتحدث كل دقيقة. اضغط أي رقم لفتح طلباته.' },
+  survey: { en: 'Doctor survey shows the satisfaction results of each cycle: response rate, average stars, the recommend score, every question, branches, trends and written notes. While the survey is open, remind the doctors who have not answered.',
+    ar: 'صفحة «استبيان الأطباء» تعرض نتائج كل دورة: نسبة الإجابة، ومتوسط النجوم، ومؤشر التوصية، وكل سؤال، والفروع، والاتجاه، والملاحظات المكتوبة. وأثناء فتح الاستبيان ذكّر الأطباء الذين لم يجيبوا.' },
+  prices: { en: 'Doctor prices: by default, doctors see no prices. From this page you grant or withhold prices for each doctor. Every change is logged with your name.',
+    ar: 'صفحة «أسعار الأطباء»: افتراضيًا لا يرى الأطباء أي أسعار، ومن هنا تمنح الأسعار لأي طبيب أو تحجبها، وكل تغيير يُسجَّل باسمك.' },
   done: { en: 'That\'s it. Everything you see is live, straight from the system. Thank you!',
     ar: 'هذا كل شيء. كل ما تراه مباشر من النظام. شكرًا لك!' }
 };
 const steps = {
+  live: { en: 'Doctors — live', ar: 'الأطباء — مباشر' }, survey: { en: 'Doctor survey', ar: 'استبيان الأطباء' }, prices: { en: 'Doctor prices', ar: 'أسعار الأطباء' },
   login: { en: 'Sign in', ar: 'تسجيل الدخول' }, ov: { en: 'Overview', ar: 'نظرة عامة' }, rep: { en: 'Reports', ar: 'التقارير' },
   lab: { en: 'Lab', ar: 'المعمل' }, cus: { en: 'Custody', ar: 'العهدة' }, wf: { en: 'Workflow', ar: 'سير العمل' }
 };
@@ -76,6 +83,26 @@ async function flow(h) {
   await scene('workflow', 'wf', async () => {
     await h.nav('workflow'); await wait(1200);
     await h.scroll(500); await wait(1500);
+  });
+  await scene('live', 'live', async () => {
+    await h.nav('doctorslive');
+    await page.waitForSelector('#dlBody .rp-table'); await wait(600);
+    await highlight('#dlTiles', 1500);
+    await click('#dlBody .dl-n >> nth=0'); await wait(1600);
+    await page.keyboard.press('Escape');
+  });
+  await scene('survey', 'survey', async () => {
+    await h.nav('surveys');
+    await page.waitForSelector('#svBody .rp-tile'); await wait(600);
+    await highlight('#svBody .rp-tiles', 1600);
+    if (await page.$('#svBody [data-act="svRemind"]')) { await point('#svBody [data-act="svRemind"] >> nth=0'); await highlight('#svBody [data-act="svRemind"] >> nth=0', 900); }
+    await h.scroll(700); await wait(1500);
+  });
+  await scene('prices', 'prices', async () => {
+    await h.nav('docprices');
+    await page.waitForSelector('#dpBody [data-act="dpSet"]'); await wait(500);
+    await highlight('#dpBody .rp-table', 1200);
+    await click('#dpBody [data-act="dpSet"][data-u="Dr. Saad"]'); await wait(1200);
   });
   await scene('done', '', async () => { await h.nav('overview'); });
 }

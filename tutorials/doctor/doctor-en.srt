@@ -1,71 +1,91 @@
 1
-00:00:00,784 --> 00:00:02,313
+00:00:00,913 --> 00:00:02,481
 This video is for doctors.
 
 2
-00:00:02,313 --> 00:00:08,017
-You will learn how to review and approve your nurse's requests, read your report, and follow your
+00:00:02,481 --> 00:00:08,812
+You will learn how to review and approve your requests, read your report, follow your patients' lab work,
 
 3
-00:00:08,017 --> 00:00:09,134
-patients' lab work.
+00:00:08,812 --> 00:00:10,923
+and answer the satisfaction survey.
 
 4
-00:00:09,585 --> 00:00:14,005
+00:00:11,376 --> 00:00:15,796
 Open the system link, write your name and password, and tap Sign in.
 
 5
-00:00:15,382 --> 00:00:19,923
-Your page opens on Reviews. The cards at the top count your requests:
+00:00:17,418 --> 00:00:23,443
+Every 50 days, a short satisfaction survey opens for ten days. It appears when you sign in.
 
 6
-00:00:19,923 --> 00:00:27,162
-waiting for your review, approved, sent to the branch, and received. Tap any card to show only those requests.
+00:00:23,443 --> 00:00:29,269
+Tap the stars, choose a number from zero to ten, write a note if you like, and tap Send.
 
 7
-00:00:27,612 --> 00:00:33,952
-Tap a request to open it. You see each item, the quantity the nurse asked for, and the price.
+00:00:29,269 --> 00:00:33,308
+If you tap Later, a notice stays at the top until you answer.
 
 8
-00:00:34,402 --> 00:00:40,572
-If a quantity is too much or too little, change it. You can also write a note on any item.
+00:00:33,759 --> 00:00:38,300
+Your page opens on Reviews. The cards at the top count your requests:
 
 9
-00:00:41,022 --> 00:00:46,782
-Then tap Approve. The request goes to procurement right away, and the nurse can follow it.
+00:00:38,300 --> 00:00:45,539
+waiting for your review, approved, sent to the branch, and received. Tap any card to show only those requests.
 
 10
-00:00:47,232 --> 00:00:50,812
-If something is wrong, write the reason and tap Reject.
+00:00:45,989 --> 00:00:51,057
+Tap a request to open it. You see each item and the quantity the nurse asked for.
 
 11
-00:00:50,812 --> 00:00:54,912
-The request goes back to the nurse to fix it and send it again.
+00:00:51,057 --> 00:00:54,749
+Prices appear only if the management gave you price access.
 
 12
-00:00:57,558 --> 00:01:03,008
-Tap Requests report to see what you ordered. Choose one month, or cumulative until a date.
+00:00:55,200 --> 00:01:01,370
+If a quantity is too much or too little, change it. You can also write a note on any item.
 
 13
-00:01:03,459 --> 00:01:11,139
-The report shows each request with its items, quantities, prices and the total. You can print it or save it as PDF.
+00:01:01,822 --> 00:01:07,582
+Then tap Approve. The request goes to procurement right away, and the nurse can follow it.
 
 14
-00:01:11,590 --> 00:01:17,400
-On the Lab page, you follow your patients' lab work: where each case is now, and when it is due.
+00:01:08,034 --> 00:01:11,614
+If something is wrong, write the reason and tap Reject.
 
 15
-00:01:18,148 --> 00:01:22,405
-A note for dermatology doctors: your page shows no prices at all.
+00:01:11,614 --> 00:01:15,714
+The request goes back to the nurse to fix it and send it again.
 
 16
-00:01:22,405 --> 00:01:27,578
-You see only the items and quantities, and you review and approve the same way.
+00:01:18,504 --> 00:01:23,954
+Tap Requests report to see what you ordered. Choose one month, or cumulative until a date.
 
 17
-00:01:31,458 --> 00:01:37,678
-To change your password, tap the lock icon at the bottom, then write the old and the new password.
+00:01:24,405 --> 00:01:30,554
+The report shows each request with its items and quantities, and the prices if you have price access.
 
 18
-00:01:38,129 --> 00:01:44,419
+00:01:30,554 --> 00:01:32,685
+You can print it or save it as PDF.
+
+19
+00:01:33,136 --> 00:01:38,946
+On the Lab page, you follow your patients' lab work: where each case is now, and when it is due.
+
+20
+00:01:39,792 --> 00:01:46,951
+By default, doctors see no prices at all, for dental and dermatology. Only the items and quantities.
+
+21
+00:01:46,951 --> 00:01:51,962
+Price access is given by the executive management, quality or finance.
+
+22
+00:01:53,377 --> 00:01:59,597
+To change your password, tap the lock icon at the bottom, then write the old and the new password.
+
+23
+00:02:00,048 --> 00:02:06,338
 That's it. Please review your requests quickly, so your clinic gets its supplies on time. Thank you!

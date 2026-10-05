@@ -1,55 +1,55 @@
 1
-00:00:00,797 --> 00:00:05,744
+00:00:00,881 --> 00:00:05,828
 This video is for branch managers. Your account shows only your branch:
 
 2
-00:00:05,744 --> 00:00:11,597
+00:00:05,828 --> 00:00:11,681
 its requests, its lab cases, its custody tools, and its complaints. It is view only.
 
 3
-00:00:12,047 --> 00:00:16,707
+00:00:12,134 --> 00:00:16,794
 Sign in with your name and password. Your branch appears next to your name.
 
 4
-00:00:19,296 --> 00:00:26,356
+00:00:19,993 --> 00:00:27,053
 The Overview shows this month in numbers: how many requests, how many are received, and how many are still open.
 
 5
-00:00:26,808 --> 00:00:32,398
+00:00:27,503 --> 00:00:33,093
 Below, you see the trend over the last months, and the requests of each clinic in your branch.
 
 6
-00:00:32,849 --> 00:00:37,409
+00:00:33,545 --> 00:00:38,105
 Tap any request to see its items, its stages, and its comments.
 
 7
-00:00:37,859 --> 00:00:43,549
+00:00:38,556 --> 00:00:44,246
 Follow-up shows late requests in your branch: who is holding each one, and for how long.
 
 8
-00:00:44,000 --> 00:00:47,650
+00:00:44,697 --> 00:00:48,347
 Tap Nudge to send a reminder to whoever is holding the request.
 
 9
-00:00:50,244 --> 00:00:55,237
+00:00:51,036 --> 00:00:56,029
 Reports gives you the month for your branch: by clinic, by doctor and by item.
 
 10
-00:00:55,237 --> 00:00:57,734
+00:00:56,029 --> 00:00:58,526
 You can print it or export it to Excel.
 
 11
-00:00:59,461 --> 00:01:05,771
+00:01:00,329 --> 00:01:06,639
 Lab KPIs show your branch cases: turnaround, on-time rate, redos and overdue work.
 
 12
-00:01:06,222 --> 00:01:12,702
+00:01:07,090 --> 00:01:13,570
 The Custody dashboard shows the tools in your clinics, any shortage against the standard, and the open tickets.
 
 13
-00:01:13,153 --> 00:01:17,453
+00:01:14,020 --> 00:01:18,320
 Complaints shows the problems reported in your branch, and whether they are solved.
 
 14
-00:01:18,694 --> 00:01:24,114
+00:01:19,667 --> 00:01:25,087
 That's it. Check your branch every day, and nudge anything that is late. Thank you!

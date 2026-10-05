@@ -20,10 +20,17 @@ const scenes = {
     ar: 'صفحة «التقارير» تعطيك الشهر حسب الطبيب والفرع والعيادة، مع زمن الاعتماد وزمن الإرسال.' },
   notices: { en: 'To send a notice, choose who receives it: procurement, nursing, doctors, or everyone. Write the message and tap Send. It appears on their page.',
     ar: 'لإرسال تعميم اختر الجهة: التموين أو التمريض أو الأطباء أو الجميع، واكتب الرسالة واضغط «إرسال»، فتظهر في صفحتهم.' },
+  live: { en: 'Doctors live shows every doctor\'s open requests by stage: doctor review, new, approved, in preparation and sent. It refreshes every minute. Tap any number to see those requests.',
+    ar: 'صفحة «الأطباء — مباشر» تعرض طلبات كل طبيب المفتوحة حسب المرحلة: مراجعة الطبيب، جديد، معتمد، قيد التجهيز، تم الإرسال، وتتحدث كل دقيقة. اضغط أي رقم لفتح طلباته.' },
+  survey: { en: 'Doctor survey shows the satisfaction results of each cycle: response rate, average stars, the recommend score, every question, branches, trends and written notes. While the survey is open, remind the doctors who have not answered.',
+    ar: 'صفحة «استبيان الأطباء» تعرض نتائج كل دورة: نسبة الإجابة، ومتوسط النجوم، ومؤشر التوصية، وكل سؤال، والفروع، والاتجاه، والملاحظات المكتوبة. وأثناء فتح الاستبيان ذكّر الأطباء الذين لم يجيبوا.' },
+  prices: { en: 'Doctor prices: by default, doctors see no prices. From this page you grant or withhold prices for each doctor. Every change is logged with your name.',
+    ar: 'صفحة «أسعار الأطباء»: افتراضيًا لا يرى الأطباء أي أسعار، ومن هنا تمنح الأسعار لأي طبيب أو تحجبها، وكل تغيير يُسجَّل باسمك.' },
   done: { en: 'That\'s it. Check the late list every morning, and close complaints as soon as they are solved. Thank you!',
     ar: 'هذا كل شيء. راجع قائمة المتأخر كل صباح، وأغلق البلاغات فور حلها. شكرًا لك!' }
 };
 const steps = {
+  live: { en: 'Doctors — live', ar: 'الأطباء — مباشر' }, survey: { en: 'Doctor survey', ar: 'استبيان الأطباء' }, prices: { en: 'Doctor prices', ar: 'أسعار الأطباء' },
   login: { en: 'Sign in', ar: 'تسجيل الدخول' }, mon: { en: 'Follow-up', ar: 'المتابعة' }, undo: { en: 'Undo log', ar: 'سجل التراجعات' },
   comp: { en: 'Complaints', ar: 'البلاغات' }, rep: { en: 'Reports', ar: 'التقارير' }, not: { en: 'Notices', ar: 'التعاميم' }
 };
@@ -78,6 +85,26 @@ async function flow(h) {
     await type('#noticeMsg', 'Please confirm receipt on the same day the box arrives.');
     await click('[data-act="sendNotice"]'); await wait(1500);
     await highlight('#noticeList', 1200);
+  });
+  await scene('live', 'live', async () => {
+    await h.nav('doctorslive');
+    await page.waitForSelector('#dlBody .rp-table'); await wait(600);
+    await highlight('#dlTiles', 1500);
+    await click('#dlBody .dl-n >> nth=0'); await wait(1600);
+    await page.keyboard.press('Escape');
+  });
+  await scene('survey', 'survey', async () => {
+    await h.nav('surveys');
+    await page.waitForSelector('#svBody .rp-tile'); await wait(600);
+    await highlight('#svBody .rp-tiles', 1600);
+    if (await page.$('#svBody [data-act="svRemind"]')) { await point('#svBody [data-act="svRemind"] >> nth=0'); await highlight('#svBody [data-act="svRemind"] >> nth=0', 900); }
+    await h.scroll(700); await wait(1500);
+  });
+  await scene('prices', 'prices', async () => {
+    await h.nav('docprices');
+    await page.waitForSelector('#dpBody [data-act="dpSet"]'); await wait(500);
+    await highlight('#dpBody .rp-table', 1200);
+    await click('#dpBody [data-act="dpSet"][data-u="Dr. Saad"]'); await wait(1200);
   });
   await scene('done', '', async () => { await h.nav('monitor'); });
 }

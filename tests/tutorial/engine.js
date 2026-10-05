@@ -52,18 +52,19 @@ function fontsDir() {
 }
 
 /* ---------- بيانات تجريبية بالإنجليزية لكل الأدوار + سجل تاريخي للوحات ---------- */
-function seedScript() {
+function seedScript(cfg) {
+  cfg = cfg || {};
   return [
     fs.readFileSync(path.join(ROOT, 'tests', 'gas-mock.js'), 'utf8'),
     `(function () {
     const gas = GasMock.createGas();
     const D = 864e5, Hr = 36e5, now = Date.now();
     gas.seed('Roles', ['RoleName', 'Screen'], [['Nurse', 'nurse'], ['Procurement', 'procurement'], ['Doctor', 'doctor'], ['Lab', 'lab'], ['Quality', 'quality'], ['Executive', 'executive'], ['Finance', 'finance'], ['Branch manager', 'branch'], ['Admin', 'admin']]);
-    gas.seed('Users', ['Name', 'Password', 'Role', 'Clinic', 'Email', 'PasswordChangedAt', 'DoctorName', 'Department', 'Branch'], [
+    gas.seed('Users', ['Name', 'Password', 'Role', 'Clinic', 'Email', 'PasswordChangedAt', 'DoctorName', 'Department', 'Branch', 'PriceView'], [
       ['Sara', '1111', 'Nurse', 'Dental Clinic 1', 'sara@example.com', '', '', '', ''],
       ['Mona', '1212', 'Nurse', 'Dental Clinic 2', 'mona@example.com', '', '', '', ''],
       ['Huda', '1313', 'Nurse', 'Derma Clinic 1', 'huda@example.com', '', '', '', ''],
-      ['Dr. Khalid', '4444', 'Doctor', '', 'khalid@example.com', '', 'Dr. Khalid', '', ''],
+      ['Dr. Khalid', '4444', 'Doctor', '', 'khalid@example.com', '', 'Dr. Khalid', '', '', 'يرى الأسعار'],
       ['Dr. Saad', '4545', 'Doctor', '', 'saad@example.com', '', 'Dr. Saad', '', ''],
       ['Dr. Lama', '4646', 'Doctor', '', 'lama@example.com', '', 'Dr. Lama', 'جلدية', ''],
       ['Ali', '3333', 'Procurement', '', 'ali@example.com', '', '', 'أسنان', ''],
@@ -72,12 +73,15 @@ function seedScript() {
       ['Noor', '5555', 'Quality', '', 'noor@example.com', '', '', '', ''],
       ['Faisal', '6666', 'Executive', '', 'faisal@example.com', '', '', '', ''],
       ['Nawaf', '7777', 'Branch manager', '', 'nawaf@example.com', '', '', '', 'Buraydah'],
+      ['Hessa', '2222', 'Finance', '', 'hessa@example.com', '', '', '', ''],
       ['Admin', '9999', 'Admin', '', '', '', '', '', '']
     ]);
+    // الاستبيان مفتوح في العرض (في النظام الحقيقي أول دورة بعد 50 يوماً من التحديث)
+    gas.seed('Settings', ['Key', 'Value', 'Notes'], [['SurveyStart', new Date(now - 3 * D).toISOString().slice(0, 10), '']]);
     gas.seed('Clinics', ['ClinicName', 'Branch', 'Type'], [['Sterilization', 'Buraydah', 'Sterilization'], ['Sterilization', 'Unayzah', 'Sterilization'],
       ['Dental Clinic 1', 'Buraydah', 'Dentistry'], ['Derma Clinic 1', 'Buraydah', 'Dermatology'], ['Dental Clinic 2', 'Unayzah', 'Dentistry']]);
-    gas.seed('Doctors', ['DoctorName', 'Clinic', 'NurseName', 'Subspecialty'], [['Dr. Khalid', 'Dental Clinic 1', 'Sara', 'Orthodontics'], ['Dr. Noura', 'Dental Clinic 1', 'Sara', ''],
-      ['Dr. Lama', 'Derma Clinic 1', 'Huda', 'Laser'], ['Dr. Saad', 'Dental Clinic 2', 'Mona', '']]);
+    gas.seed('Doctors', ['DoctorName', 'Clinic', 'NurseName', 'Subspecialty', 'Billing'], [['Dr. Khalid', 'Dental Clinic 1', 'Sara', 'Orthodontics', 'عيادة'], ['Dr. Noura', 'Dental Clinic 1', 'Sara', '', ''],
+      ['Dr. Lama', 'Derma Clinic 1', 'Huda', 'Laser', ''], ['Dr. Saad', 'Dental Clinic 2', 'Mona', '', '']]);
     gas.seed('Labs', ['LabName', 'Type', 'Email', 'Phone', 'Active', 'TurnaroundDays'], [['Internal Lab', 'داخلي', 'lab@example.com', '', 'نعم', 7], ['Elite Dental Lab', 'خارجي', 'elite@example.com', '', 'نعم', 10]]);
     gas.seed('LabWorkTypes', ['WorkType'], [['Crown'], ['Bridge'], ['Denture'], ['Night guard']]);
     gas.seed('LabMaterials', ['Material'], [['Zirconia'], ['Emax'], ['Acrylic']]);
@@ -123,7 +127,7 @@ function seedScript() {
     (function () {
       ${fs.readFileSync(path.join(ROOT, 'Code.gs'), 'utf8')}
       // بيانات العرض بأسماء عيادات ثابتة: لا ترحيل للقائمة الرسمية ولا أدوات TEST101
-      migrateClinics_ = function () {}; seedDemoAssets_ = function () {};
+      migrateClinics_ = function () {}; seedDemoAssets_ = function () {}; ensureUnayzahClinics_ = function () {};
       g.__api = api;
     })();
     // إرساليات معمل وعهدة وبوكسات عبر واجهة النظام نفسها
@@ -142,6 +146,17 @@ function seedScript() {
       g.__api(ali, 'issueAssets', [{ clinic: 'Dental Clinic 2', item: 'Handpiece Low Speed', serials: ['NSK-2001', 'NSK-2002', 'NSK-2003'] }]);
       g.__api(ali, 'issueAssets', [{ clinic: 'Dental Clinic 1', item: 'Curing Light', qty: 1 }]);
       g.__api(ali, 'addBox', ['Dr. Khalid']); g.__api(ali, 'addBox', ['Dr. Saad']); g.__api(ali, 'addBox', ['Dr. Lama']);
+      // حالة iTero لمعمل خارجي (تظهر للمعمل «للعلم فقط»)
+      g.__api(sara, 'createLabCase', [{ itero: '77120', lab: 'Elite Dental Lab', doctor: 'Dr. Khalid', fileNo: '20990', scanDate: scan(1) }]);
+      // إجابات استبيان الأطباء (إلا الطبيب الذي يُعرض له الاستبيان في الفيديو)
+      const svAns = [[4, 5, 4, 5, 4, 3, 4, 5, 4, 4, 5, 9, 'Box sometimes arrives late on Thursdays', 'Add a shipment ETA'], [5, 4, 5, 5, 3, 4, 4, 4, 3, 5, 4, 8, '', 'Great tracking'], [4, 4, 4, 5, 5, 4, 5, 4, 4, 4, 4, 10, '', '']];
+      [['Dr. Saad', '4545'], ['Dr. Lama', '4646'], ['Dr. Khalid', '4444']].forEach(([n, pw], i) => {
+        if (${JSON.stringify(cfg.surveyFor || '')} === n) return;
+        const tk = T(n, pw), sv = g.__api(tk, 'getMySurvey', []);
+        if (!sv.open || sv.done) return;
+        const a = {}; sv.questions.forEach((q, k) => { a[q.id] = svAns[i][k]; });
+        g.__api(tk, 'submitSurvey', [a]);
+      });
       g.__api(null, 'logout', []);
     } catch (e) { console.error('demo seed', e); }
     function runner() {
@@ -193,7 +208,7 @@ async function makeTutorial(cfg) {
 
   const browser = await playwright.chromium.launch();
   const ctx = await browser.newContext({ viewport: { width: W, height: H }, deviceScaleFactor: 1 });
-  await ctx.addInitScript(seedScript());
+  await ctx.addInitScript(seedScript(cfg));
   await ctx.addInitScript(overlayScript);
   const page = await ctx.newPage();
   const FR = path.join(WORK, 'frames');

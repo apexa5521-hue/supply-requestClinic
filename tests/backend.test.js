@@ -2120,3 +2120,21 @@ test('doctor survey: every 50 days, open 10 days; reminders for those who did no
   const c2 = ctx.surveyCycle_(start + 50.5 * 864e5);
   assert.ok(c2.open && c2.n === 2);
 });
+
+test('survey: the first cycle opens 50 days after the update (an earlier auto start is deferred once)', () => {
+  const day = ms => new Date(ms + 3 * 36e5).toISOString().slice(0, 10);
+  const fresh = boot(g => g.seed('Settings', ['Key', 'Value', 'Notes'], []));
+  const d = fresh.login('د. خالد', '4444');
+  assert.equal(fresh.api(d, 'getMySurvey').open, false, 'nothing pops up right after the update');
+  assert.ok(!fresh.api(d, 'getAlerts').some(x => x.code === 'alert_survey'));
+  assert.equal(String(rows(fresh.gas, 'Settings').find(r => r.Key === 'SurveyStart').Value).replace(/^'/, ''), day(Date.now() + 50 * 864e5));
+  // نظام حُدّث سابقاً وكتب تاريخ اليوم تلقائياً ولم يُجب أحد: يُؤجَّل 50 يوماً
+  const old = boot(g => {
+    g.seed('Settings', ['Key', 'Value', 'Notes'], [['SurveyStart', day(Date.now()), 'تاريخ أول دورة لاستبيان الأطباء (YYYY-MM-DD)']]);
+    g.globals.PropertiesService.getScriptProperties().setProperty('setup:done', '2026-10-setup-v7');
+  });
+  assert.equal(old.api(old.login('د. خالد', '4444'), 'getMySurvey').open, false, 'an already-open first cycle is pushed back');
+  // تاريخ وضعه الأدمن بنفسه لا يُلمس
+  const manual = boot();
+  assert.equal(manual.api(manual.login('د. خالد', '4444'), 'getMySurvey').open, true);
+});

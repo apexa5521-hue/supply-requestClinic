@@ -132,7 +132,7 @@ const COMPLAINT_TYPES = ['تأخير', 'نقص', 'زيادة', 'أخرى'];
  *  التجهيز التلقائي بعد النشر (مرة واحدة لكل إصدار) — بلا أي خطوة يدوية:
  *  تبويبات الإعداد (Settings / LabMaterials)، قائمة العيادات المعتمدة، المشغّلات (النسخ الليلي + onChange)
  * ===================================================================== */
-const SETUP_VERSION_ = '2026-10-setup-v7';
+const SETUP_VERSION_ = '2026-10-setup-v8';
 function autoSetup_() {
   try {
     const cache = CacheService.getScriptCache();
@@ -3646,10 +3646,23 @@ function seedSurvey_() {
       append_('SurveyQuestions', { QID: q[0], Question: q[1], QuestionEn: q[2], Type: q[3], Section: q[4], Required: q[5] || 'نعم', Active: 'نعم', Order: i + 1 });
     });
   }
-  if (!str_(getSetting_('SurveyStart', ''))) {
-    append_('Settings', { Key: 'SurveyStart', Value: "'" + riyadh_(Date.now()), Notes: 'تاريخ أول دورة لاستبيان الأطباء (YYYY-MM-DD)' });
+  const every = surveyNum_('SurveyEveryDays', 50, 7, 365);
+  const t = read_('Settings');
+  const row = t.rows.filter(function (r) { return str_(r.Key) === 'SurveyStart'; })[0];
+  if (!row) {
+    // أول دورة بعد 50 يوماً من التحديث (لا يظهر الاستبيان فوراً)
+    append_('Settings', { Key: 'SurveyStart', Value: "'" + riyadh_(Date.now() + every * 864e5), Notes: SURVEY_START_NOTE_ });
+    return;
+  }
+  // تحديث سابق كتب تاريخ اليوم تلقائياً: نؤجّل أول دورة 50 يوماً (إن لم يُجب أحد بعد ولم يعدّله الأدمن)
+  if (str_(row.Notes) === 'تاريخ أول دورة لاستبيان الأطباء (YYYY-MM-DD)' && !read_('SurveyResponses').rows.some(function (r) { return str_(r.Cycle); })) {
+    let v = row.Value; if (v instanceof Date) v = riyadh_(v.getTime());
+    v = str_(v).replace(/^'/, '').slice(0, 10);
+    const ms = /^\d{4}-\d{2}-\d{2}$/.test(v) ? new Date(v + 'T00:00:00+03:00').getTime() : Date.now();
+    setCells_(t, row, { Value: "'" + riyadh_(ms + every * 864e5), Notes: SURVEY_START_NOTE_ });
   }
 }
+const SURVEY_START_NOTE_ = 'تاريخ أول دورة لاستبيان الأطباء (YYYY-MM-DD) — افتراضياً بعد 50 يوماً من التحديث';
 function surveyNum_(key, def, min, max) { const n = Math.floor(num_(getSetting_(key, def))); return n >= min && n <= max ? n : def; }
 /** الدورة الحالية: { id, n, opens, closes, open } — n يبدأ من 1 */
 function surveyCycle_(nowMs) {
