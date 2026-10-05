@@ -1192,6 +1192,7 @@ function log(msg) { console.log('  ✔ ' + msg); }
     await tp.click('.sidebar [data-view="workflow"]');
     await tp.waitForSelector('.wf-flow');
     expect(await tp.locator('.wf-stage').count() === 6 && await tp.isVisible('.wf-card.mine'), 'workflow page shows 6 stages and highlights your role');
+    expect(await tp.locator('.wf-rolecard').count() === 0, 'nurse does not see the «who does what» block (executive and quality only)');
     await shot(tp, 'workflow', true);
     await logout(tp);
     await login(tp, 'علي', '3333');
@@ -1275,6 +1276,7 @@ function log(msg) { console.log('  ✔ ' + msg); }
   if (await m.$('.modal .stepper')) { await mCheck(m, 'procurement detail'); await m.keyboard.press('Escape'); }
   await mRole('د. خالد', '4444', ['reviews']);
   await mRole('منى', '5555', ['overview', 'monitor', 'reports', 'complaints', 'notices', 'workflow']);
+  expect(await m.evaluate(() => ['executive', 'quality'].indexOf(S.user.screen) !== -1) === (await m.locator('.wf-rolecard').count() > 0), '«who does what» block shows only for executive and quality');
   await mRole('نواف', '7777', ['finance']);
   await mRole('فني المعمل', '8888', ['labboard', 'labkpi']);
   await mRole('سارة', '1111', ['labmine']);

@@ -5655,11 +5655,13 @@ VIEWS.workflow = {
           branch('var(--t-indigo)', 'info', 'nodoc', [ST.NEW], '6') +
         '</div>' +
       '</div></section>' +
+      // «من يفعل ماذا» للإدارة التنفيذية والجودة فقط
+      (['executive', 'quality'].indexOf(S.user.screen) === -1 ? '' :
       '<section class="card"><div class="card-head"><h2>' + icon('users') + esc(t('wf_roles_title')) + '</h2></div><div class="card-body"><div class="wf-grid stagger">' +
         Object.keys(WF_ROLE).map((r, i) => '<div class="wf-rolecard' + (r === mine ? ' mine' : '') + '" style="--tone:' + WF_ROLE[r].tone + ';--i:' + i + '"><div class="head"><span class="ic">' + icon(WF_ROLE[r].ic) + '</span><h3>' + esc(t(WF_ROLE[r].k)) + '</h3>' +
           (r === mine ? '<span class="badge" style="--tone:' + WF_ROLE[r].tone + ';margin-inline-start:auto">' + esc(t('wf_you')) + '</span>' : '') + '</div><ul>' +
           t('wf_do_' + r).split('|').map(x => '<li>' + esc(x) + '</li>').join('') + '</ul></div>').join('') +
-      '</div></div></section>' +
+      '</div></div></section>') +
       '<div class="grid-2">' +
         '<section class="card"><div class="card-head"><h3>' + icon('mega') + esc(t('wf_notif_title')) + '</h3></div><div class="card-body"><div class="table-wrap"><table class="table"><thead><tr><th>' + esc(t('wf_event')) + '</th><th>' + esc(t('wf_to')) + '</th></tr></thead><tbody>' +
           ['wf_n1', 'wf_n2', 'wf_n3', 'wf_n4', 'wf_n5'].map(k => { const p = t(k).split('|'); return '<tr><td>' + esc(p[0]) + '</td><td class="muted">' + esc(p[1]) + '</td></tr>'; }).join('') +
