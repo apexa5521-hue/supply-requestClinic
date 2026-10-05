@@ -1,6 +1,6 @@
-# نشر تلقائي عند كل دمج في main:
-#  1) الواجهة ← GitHub Pages (يحتاج مرة واحدة: Settings ▸ Pages ▸ Source = GitHub Actions)
-#  2) الخادم ← Apps Script عبر clasp (اختياري: يعمل فقط إذا أُضيفت الأسرار CLASPRC_JSON و SCRIPT_ID و DEPLOYMENT_ID)
+# عند كل دمج في main: الاختبارات، ثم رفع الكود لـ Apps Script عبر clasp
+# (اختياري: يعمل فقط إذا أُضيفت الأسرار CLASPRC_JSON و SCRIPT_ID و DEPLOYMENT_ID).
+# الواجهة على GitHub Pages ينشرها GitHub تلقائياً من الفرع (Index.html يحمّل JavaScript.html) — لا نشر ثانٍ هنا.
 name: Deploy
 
 on:
@@ -10,8 +10,6 @@ on:
 
 permissions:
   contents: read
-  pages: write
-  id-token: write
 
 concurrency:
   group: deploy
@@ -26,31 +24,6 @@ jobs:
         with:
           node-version: 20
       - run: npm test
-
-  pages-build:
-    needs: test
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 20
-      - run: node scripts/build-static.js
-      # رابط الفريق الحالي ينتهي بـ Index.html — نفس الصفحة المبنية بالاسمين
-      - run: cp dist/index.html dist/Index.html
-      - uses: actions/upload-pages-artifact@v3
-        with:
-          path: dist
-
-  pages-deploy:
-    needs: pages-build
-    runs-on: ubuntu-latest
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
-    steps:
-      - id: deployment
-        uses: actions/deploy-pages@v4
 
   apps-script:
     needs: test
