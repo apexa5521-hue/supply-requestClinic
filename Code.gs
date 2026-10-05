@@ -23,8 +23,8 @@ const SCHEMA = {
   Clinics:      ['ClinicName', 'Branch', 'Type'],
   Doctors:      ['DoctorName', 'Clinic', 'NurseName', 'Subspecialty', 'Billing'],
   // Ownership: مستهلك (افتراضي) أو عهدة (على حساب الشركة) · Serialized: نعم للأدوات ذات الرقم التسلسلي (الهاندبيس…)
-  // Department: أسنان / جلدية (فارغ = مشترك يظهر للقسمين)
-  ItemsCatalog: ['ItemName', 'CommercialName', 'Category', 'Price', 'Ownership', 'Serialized', 'Department'],
+  // Department: أسنان / جلدية (فارغ = مشترك يظهر للقسمين) · ItemType: مستهلك أو ماتيريال (Category يبقى لتصنيف الصنف)
+  ItemsCatalog: ['ItemName', 'CommercialName', 'Category', 'Price', 'Ownership', 'Serialized', 'Department', 'ItemType'],
   Requests:     ['RequestID', 'Date', 'Clinic', 'Doctor', 'Nurse', 'Type', 'Status',
                  'SubmittedAt', 'SentAt', 'ReceivedAt', 'ReceiverName', 'SignatureURL',
                  'PrepAt', 'VendorWaitAt', 'VendorReceivedAt', 'ReviewAt', 'ReviewedAt',
@@ -132,7 +132,7 @@ const COMPLAINT_TYPES = ['تأخير', 'نقص', 'زيادة', 'أخرى'];
  *  التجهيز التلقائي بعد النشر (مرة واحدة لكل إصدار) — بلا أي خطوة يدوية:
  *  تبويبات الإعداد (Settings / LabMaterials)، قائمة العيادات المعتمدة، المشغّلات (النسخ الليلي + onChange)
  * ===================================================================== */
-const SETUP_VERSION_ = '2026-10-setup-v8';
+const SETUP_VERSION_ = '2026-10-setup-v9';
 function autoSetup_() {
   try {
     const cache = CacheService.getScriptCache();
@@ -165,6 +165,7 @@ function runSetupSteps_(force) {
     ['perms', 'صلاحية العهدة للإدارة والجودة والمالية', function () { grantPerm_('assets', ['executive', 'quality', 'finance']); }],
     ['doctors_live', 'صفحة «الأطباء — مباشر» للجودة والتنفيذي', function () { grantPerm_('doctors_live', ['executive', 'quality']); }],
     ['demo', 'أدوات العهدة التجريبية TEST101', function () { seedDemoAssets_(force); }],
+    ['item_type', 'قائمة «مستهلك / ماتيريال» في عمود ItemType بالكتالوج', itemTypeDropdown_],
     ['triggers', 'المشغّلات (النسخ الليلي + تغييرات الشيت)', function () { if (typeof ScriptApp !== 'undefined') installTriggers(); }]
   ];
   const log = steps.map(function (st) {
@@ -176,6 +177,16 @@ function runSetupSteps_(force) {
   return out;
 }
 
+const ITEM_TYPES_ = ['مستهلك', 'ماتيريال'];
+/** قائمة منسدلة في عمود ItemType (يقبل القيم الأخرى مع تحذير بدل الرفض) */
+function itemTypeDropdown_() {
+  if (typeof SpreadsheetApp === 'undefined' || !SpreadsheetApp.newDataValidation) return;
+  const sh = sheet_('ItemsCatalog');
+  const col = sheetValues_('ItemsCatalog')[0].indexOf('ItemType') + 1;
+  if (!col) return;
+  const rule = SpreadsheetApp.newDataValidation().requireValueInList(ITEM_TYPES_, true).setAllowInvalid(true).build();
+  sh.getRange(2, col, Math.max(sh.getMaxRows() - 1, 1), 1).setDataValidation(rule);
+}
 /** حالة التجهيز للأدمن: إصدار الكود الذي يعمل الآن، آخر تشغيل وخطواته، وعدد أدوات TEST101 */
 function getSetupStatus_() {
   const props = PropertiesService.getScriptProperties();
