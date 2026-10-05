@@ -1,83 +1,83 @@
 1
-00:00:00,853 --> 00:00:06,643
+00:00:00,815 --> 00:00:06,605
 This video is for the executive manager. You will see the whole company at a glance:
 
 2
-00:00:06,643 --> 00:00:11,123
+00:00:06,605 --> 00:00:11,085
 requests, spending, lab work and custody tools, for every branch.
 
 3
-00:00:11,575 --> 00:00:14,095
+00:00:11,536 --> 00:00:14,056
 Sign in with your name and password.
 
 4
-00:00:17,547 --> 00:00:19,946
+00:00:17,003 --> 00:00:19,402
 The Overview shows the key numbers:
 
 5
-00:00:19,946 --> 00:00:26,047
+00:00:19,402 --> 00:00:25,503
 total requests, average fulfilment time, emergencies, the received rate, and open issues.
 
 6
-00:00:26,497 --> 00:00:30,317
+00:00:25,954 --> 00:00:29,774
 Choose a month, or All time, and every number updates.
 
 7
-00:00:31,349 --> 00:00:36,849
+00:00:30,799 --> 00:00:36,299
 The charts show the fulfilment time trend, each clinic, and the most requested items.
 
 8
-00:00:37,301 --> 00:00:44,766
+00:00:36,750 --> 00:00:44,215
 Reports compares branches, clinics and doctors: requests, value, approval time and dispatch time.
 
 9
-00:00:44,766 --> 00:00:47,691
+00:00:44,215 --> 00:00:47,140
 Filter by branch, and export to Excel.
 
 10
-00:00:49,181 --> 00:00:54,201
+00:00:48,508 --> 00:00:53,528
 You can also open any doctor's report with prices, for one month or cumulative.
 
 11
-00:00:54,651 --> 00:01:00,481
+00:00:53,980 --> 00:00:59,810
 Lab KPIs show turnaround, on-time rate, redos, and what the external labs cost.
 
 12
-00:01:00,964 --> 00:01:07,824
+00:01:00,282 --> 00:01:07,142
 The Custody dashboard shows damaged and lost tools, repair cost, and any clinic below its standard.
 
 13
-00:01:08,275 --> 00:01:15,425
+00:01:07,593 --> 00:01:14,743
 Workflow explains the full journey of a request, from the nurse to receipt, and who is responsible at each step.
 
 14
-00:01:15,876 --> 00:01:24,079
+00:01:15,194 --> 00:01:23,397
 Doctors live shows every doctor's open requests by stage: doctor review, new, approved, in preparation and sent.
 
 15
-00:01:24,079 --> 00:01:28,766
+00:01:23,397 --> 00:01:28,084
 It refreshes every minute. Tap any number to see those requests.
 
 16
-00:01:29,217 --> 00:01:33,093
+00:01:28,534 --> 00:01:32,410
 Doctor survey shows the satisfaction results of each cycle:
 
 17
-00:01:33,093 --> 00:01:39,795
+00:01:32,410 --> 00:01:39,112
 response rate, average stars, the recommend score, every question, branches, trends and written notes.
 
 18
-00:01:39,795 --> 00:01:44,197
+00:01:39,112 --> 00:01:43,514
 While the survey is open, remind the doctors who have not answered.
 
 19
-00:01:44,648 --> 00:01:52,422
+00:01:43,964 --> 00:01:51,738
 Doctor prices: by default, doctors see no prices. From this page you grant or withhold prices for each doctor.
 
 20
-00:01:52,422 --> 00:01:55,108
+00:01:51,738 --> 00:01:54,424
 Every change is logged with your name.
 
 21
-00:01:55,558 --> 00:02:00,838
+00:01:54,875 --> 00:02:00,155
 That's it. Everything you see is live, straight from the system. Thank you!

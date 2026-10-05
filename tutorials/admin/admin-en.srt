@@ -1,71 +1,71 @@
 1
-00:00:00,897 --> 00:00:03,121
+00:00:00,825 --> 00:00:03,049
 This video is for the system admin.
 
 2
-00:00:03,121 --> 00:00:09,537
+00:00:03,049 --> 00:00:09,465
 You will learn how to add users, set roles and permissions, take backups, and check the system setup.
 
 3
-00:00:09,989 --> 00:00:13,129
+00:00:09,916 --> 00:00:13,056
 Sign in with the admin account, and open Users.
 
 4
-00:00:17,871 --> 00:00:19,790
+00:00:17,448 --> 00:00:19,367
 This list shows every account:
 
 5
-00:00:19,790 --> 00:00:25,546
+00:00:19,367 --> 00:00:25,123
 the role, the branch, the department, and for doctors, the linked doctor and price access.
 
 6
-00:00:25,546 --> 00:00:31,431
+00:00:25,123 --> 00:00:31,008
 A warning shows doctors without an account, because their requests skip the doctor approval.
 
 7
-00:00:31,882 --> 00:00:38,551
+00:00:31,459 --> 00:00:38,128
 To add a nurse: tap New user, write the name and password, choose the role Nurse, and tap her clinics.
 
 8
-00:00:38,551 --> 00:00:41,362
+00:00:38,128 --> 00:00:40,939
 She will see these clinics in her requests.
 
 9
-00:00:41,813 --> 00:00:49,017
+00:00:41,390 --> 00:00:48,594
 Each role has its own fields. A doctor has the linked doctor name and price access, which is off by default.
 
 10
-00:00:49,017 --> 00:00:54,553
+00:00:48,594 --> 00:00:54,130
 Procurement has a department: dental or dermatology. A branch manager has a branch.
 
 11
-00:00:56,003 --> 00:00:58,678
+00:00:55,354 --> 00:00:58,029
 Tap Save. The account works right away.
 
 12
-00:00:58,678 --> 00:01:04,303
+00:00:58,029 --> 00:01:03,654
 Passwords are saved encrypted, and every user can change their own password later.
 
 13
-00:01:04,753 --> 00:01:11,871
+00:01:04,104 --> 00:01:11,222
 Roles and screens: for each management role, tap Edit and tick the permissions it gets. For example:
 
 14
-00:01:11,871 --> 00:01:19,773
+00:01:11,222 --> 00:01:19,124
 reports, follow-up, finance, doctor prices, or the survey. The server checks these permissions on every action.
 
 15
-00:01:20,224 --> 00:01:27,854
+00:01:19,574 --> 00:01:27,204
 Backups: a full copy of the sheet is taken every night automatically. Tap Backup now before any big change.
 
 16
-00:01:28,305 --> 00:01:33,752
+00:01:27,655 --> 00:01:33,102
 System setup runs by itself after every update, and shows the result of each step.
 
 17
-00:01:33,752 --> 00:01:37,405
+00:01:33,102 --> 00:01:36,755
 If a step fails, you see why, and you can run it again.
 
 18
-00:01:37,856 --> 00:01:43,996
+00:01:37,205 --> 00:01:43,345
 That's it. Keep only active accounts, and give each role only what it needs. Thank you!

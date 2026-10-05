@@ -215,8 +215,8 @@ const I18N = {
     ERR_BAD_RESPONSE: 'Server returned a page instead of data — check deployment settings', ERR_NETWORK: 'Could not reach the server — please retry', ERR_BAD_BATCH: 'Invalid request'
   }
 };
-Object.assign(I18N.ar, { bxp_title: 'البوكس لهذه الشحنة', bxp_sub: 'صاحب البوكس والفرع من الطلب — عدّلهما إن كانت الشحنة لطبيب آخر أو للتعقيم أو الفرز أو عيادة', bxp_owner: 'صاحب البوكس (طبيب / تعقيم / فرز / عيادة)', bxp_branch: 'الفرع', bxp_go: 'تحميل في البوكس وإرسال', bxp_existing: 'سيُحمَّل في بوكسه {id}', bxp_new: 'بوكس جديد يُنشأ له تلقائياً', bx_backfill: 'بوكسات للطلبات السابقة', bx_backfill_hint: 'ينشئ بوكساً لكل طبيب/عيادة في كل فرع أُرسلت له طلبات سابقاً، ويحمّل أي شحنة مرسلة لم تُستلم بعد. التشغيل مرة ثانية لا يكرر شيئاً.', bx_backfill_done: 'أُنشئ {c} بوكس وحُمّلت {l} شحنة ({r} طلب)', bx_branch_any: 'بدون فرع', grp_arrived: 'وصل الفرع', all_doctors: 'كل الأطباء', as_serial_add: 'قطعة أخرى', as_serial_ph: 'الرقم التسلسلي', as_issue_more: 'حفظ وإضافة أداة أخرى', as_units_n: '{n} قطعة' });
-Object.assign(I18N.en, { bxp_title: 'Box for this shipment', bxp_sub: 'Box owner and branch come from the request — change them if it is for another doctor, sterilization, triage or a clinic', bxp_owner: 'Box owner (doctor / sterilization / triage / clinic)', bxp_branch: 'Branch', bxp_go: 'Load into box & send', bxp_existing: 'Goes into box {id}', bxp_new: 'A new box will be created', bx_backfill: 'Boxes for past requests', bx_backfill_hint: 'Creates a box per doctor/clinic per branch for past requests, and loads any sent shipment not yet received. Running it again duplicates nothing.', bx_backfill_done: '{c} box(es) created, {l} shipment(s) loaded ({r} requests)', bx_branch_any: 'No branch', grp_arrived: 'At branch', all_doctors: 'All doctors', as_serial_add: 'Another unit', as_serial_ph: 'Serial number', as_issue_more: 'Save & add another', as_units_n: '{n} unit(s)' });
+Object.assign(I18N.ar, { rp_doc_title_np: 'تقرير طبيب — تاريخ طلباته', t_reports_b_np: 'إحصائيات كل طبيب وفرع وعيادة بالأعداد والأزمنة، وتقرير أي طبيب من قائمة منسدلة مع طباعة وتصدير.', t_doc_report_b_np: 'أصدر تقريراً مرتباً بطلباتك وأصنافها وكمياتها لشهر محدد أو تراكمياً حتى تاريخ، واطبعه أو صدّره.', rep_top_qty: 'الأصناف الأكثر طلباً', bxp_title: 'البوكس لهذه الشحنة', bxp_sub: 'صاحب البوكس والفرع من الطلب — عدّلهما إن كانت الشحنة لطبيب آخر أو للتعقيم أو الفرز أو عيادة', bxp_owner: 'صاحب البوكس (طبيب / تعقيم / فرز / عيادة)', bxp_branch: 'الفرع', bxp_go: 'تحميل في البوكس وإرسال', bxp_existing: 'سيُحمَّل في بوكسه {id}', bxp_new: 'بوكس جديد يُنشأ له تلقائياً', bx_backfill: 'بوكسات للطلبات السابقة', bx_backfill_hint: 'ينشئ بوكساً لكل طبيب/عيادة في كل فرع أُرسلت له طلبات سابقاً، ويحمّل أي شحنة مرسلة لم تُستلم بعد. التشغيل مرة ثانية لا يكرر شيئاً.', bx_backfill_done: 'أُنشئ {c} بوكس وحُمّلت {l} شحنة ({r} طلب)', bx_branch_any: 'بدون فرع', grp_arrived: 'وصل الفرع', all_doctors: 'كل الأطباء', as_serial_add: 'قطعة أخرى', as_serial_ph: 'الرقم التسلسلي', as_issue_more: 'حفظ وإضافة أداة أخرى', as_units_n: '{n} قطعة' });
+Object.assign(I18N.en, { rp_doc_title_np: 'Doctor report — request history', t_reports_b_np: 'Statistics per doctor, branch and clinic with counts and times, and any doctor’s report from a dropdown with print and export.', t_doc_report_b_np: 'Generate a tidy report of your requests with items and quantities for a month or cumulatively up to a date, then print or export it.', rep_top_qty: 'Most requested items', bxp_title: 'Box for this shipment', bxp_sub: 'Box owner and branch come from the request — change them if it is for another doctor, sterilization, triage or a clinic', bxp_owner: 'Box owner (doctor / sterilization / triage / clinic)', bxp_branch: 'Branch', bxp_go: 'Load into box & send', bxp_existing: 'Goes into box {id}', bxp_new: 'A new box will be created', bx_backfill: 'Boxes for past requests', bx_backfill_hint: 'Creates a box per doctor/clinic per branch for past requests, and loads any sent shipment not yet received. Running it again duplicates nothing.', bx_backfill_done: '{c} box(es) created, {l} shipment(s) loaded ({r} requests)', bx_branch_any: 'No branch', grp_arrived: 'At branch', all_doctors: 'All doctors', as_serial_add: 'Another unit', as_serial_ph: 'Serial number', as_issue_more: 'Save & add another', as_units_n: '{n} unit(s)' });
 /* صفحة السواق فقط: بنغالي وهندي (أي نص آخر يرجع للإنجليزي) */
 const DRV_LANGS = [['ar', 'عربي'], ['en', 'English'], ['bn', 'বাংলা'], ['hi', 'हिन्दी']];
 I18N.bn = {
@@ -260,6 +260,8 @@ function esc(s) {
     .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
 }
 function t(key, vars) {
+  // نسخة «بدون أسعار» من النص (المفتاح + _np) تُستخدم تلقائياً لمن لا يرى الأسعار
+  if (S.user && S.user.noPrices && (I18N.ar[key + '_np'] || I18N.en[key + '_np'])) key += '_np';
   let s = (I18N[S.lang] && I18N[S.lang][key]) || (S.lang !== 'ar' && I18N.en[key]) || I18N.ar[key] || key;
   if (vars) Object.keys(vars).forEach(k => { s = s.split('{' + k + '}').join(vars[k]); });
   return s;
@@ -671,6 +673,7 @@ function badge(s) {
 }
 /* لون بطاقة الطلب كاملة حسب حالته (وصل بوكسه الفرع = لون مستقل) */
 const ARRIVED_TONE = 'var(--t-cyan)';
+const topTitle = () => t(noPrices() ? 'rep_top_qty' : 'rep_top');
 function reqTone(r) { return ' data-tone style="--st:' + (r.atBranch && r.status !== ST.RECEIVED ? ARRIVED_TONE : stMeta(r.status).tone) + '"'; }
 function arrivedTag(r) { return r.atBranch ? '<span class="tag arrived">' + icon('truck') + esc(t('box_arrived')) + '</span>' : ''; }
 /* قائمة الأطباء الموجودين في قائمة طلبات */
@@ -2962,7 +2965,7 @@ function reportHtml(d, range) {
       r.items.map(it => '<tr><td><div style="font-weight:600">' + esc(it.item) + '</div>' + (it.commercial || it.category ? '<div class="hint">' + esc([it.commercial, it.category].filter(Boolean).join(' · ')) + '</div>' : '') + '</td>' +
         '<td class="num">' + fmtNum(it.qty, 0) + '</td>' + (np ? '' : it.priceHidden ? '<td class="num muted">—</td><td class="num muted">—</td>' : '<td class="num">' + (it.price ? fmtNum(it.price, 2) : '—') + '</td><td class="num">' + fmtNum(it.total, 2) + '</td>') + '</tr>').join('') +
     '</tbody>' + (np ? '' : '<tfoot><tr><td colspan="3">' + esc(t('rep_subtotal')) + '</td><td class="num">' + fmtNum(r.total, 2) + cur + '</td></tr></tfoot>') + '</table></section>').join('');
-  const top = d.top.length ? '<section class="rep-req"><div class="rep-req-head"><b>' + esc(t('rep_top')) + '</b></div><table class="table rep-table"><tbody>' +
+  const top = d.top.length ? '<section class="rep-req"><div class="rep-req-head"><b>' + esc(topTitle()) + '</b></div><table class="table rep-table"><tbody>' +
     d.top.map((x, i) => '<tr><td class="muted" style="width:1%">' + (i + 1) + '</td><td style="font-weight:600">' + esc(x.item) + '</td><td class="num">' + fmtNum(x.qty, 0) + '</td>' + (np ? '' : '<td class="num">' + (x.priceHidden ? '—' : fmtNum(x.total, 2) + cur) + '</td>') + '</tr>').join('') + '</tbody></table></section>' : '';
   return '<div class="rep">' + head + tiles +
     (np ? '' : badPricesHtml(d.badPrices || [])) +
@@ -3179,7 +3182,7 @@ function rpStatsHtml(st, range) {
       '<section class="card"><div class="card-head"><h3>' + icon('pin') + esc(t('rp_by_branch')) + '</h3></div><div class="card-body">' + rpTable(st.branches, areaCols('branch')) + '</div></section>' +
       '<section class="card"><div class="card-head"><h3>' + icon('building') + esc(t('rp_by_clinic')) + '</h3></div><div class="card-body">' + rpTable(st.clinics, areaCols('clinic')) + '</div></section>' +
     '</div>' +
-    '<section class="card"><div class="card-head"><h3>' + icon('package') + esc(t('rep_top')) + '</h3></div><div class="card-body">' +
+    '<section class="card"><div class="card-head"><h3>' + icon('package') + esc(topTitle()) + '</h3></div><div class="card-body">' +
       rpTable(st.topItems.map((x, i) => Object.assign({ n: i + 1 }, x)), [Object.assign(itemCols[0], { v: r => '<span class="muted">' + r.n + '</span>' })].concat(itemCols.slice(1))) + '</div></section>';
 }
 ACT.rpDocOf = el => {
@@ -3222,7 +3225,7 @@ ACT.rpCsv = () => {
     st.billing.forEach(r => lines.push([r.name || t('bill_none'), r.name ? t(r.basis === 'clinic' ? 'bill_clinic' : 'bill_box') : '', r.clinic, r.requests, r.qty, r.value].map(q).join(',')));
   }
   const topHead = [t('items'), t('rp_in_requests'), t('rep_qty'), t('rp_value')], topKeep = csvKeep(topHead);
-  lines.push('', q(t('rep_top')), topKeep(topHead).map(q).join(','));
+  lines.push('', q(topTitle()), topKeep(topHead).map(q).join(','));
   st.topItems.forEach(x => lines.push(topKeep([x.item, x.requests, x.qty, x.value]).map(q).join(',')));
   const blob = new Blob(['\ufeff' + lines.join('\r\n')], { type: 'text/csv;charset=utf-8' });
   const a = document.createElement('a');
@@ -4869,7 +4872,7 @@ ACT.asStd = el => {
 function asIssueModal(clinic, preset) {
   const items = (AS.cfg && AS.cfg.items) || [];
   preset = preset || {};
-  const m = openModal({ title: esc(t('as_issue_title')), sub: esc(clinic + (preset.ticketId ? ' · ' + t('ta_replace') + ' ' + preset.ticketId : '')), icon: 'package', size: 'sm',
+  const m = openModal({ title: esc(t('as_issue_title')), sub: esc(clinic + (preset.ticketId ? ' · ' + t('ta_replace') + ' ' + preset.ticketId : '')), icon: 'package',
     body: '<div class="field"><label for="isItem">' + esc(t('as_item')) + '</label><select class="select" id="isItem"' + (preset.item ? ' disabled' : '') + '>' +
         items.map(i => '<option' + (i.name === preset.item ? ' selected' : '') + '>' + esc(i.name) + '</option>').join('') + '</select></div>' +
       '<div class="field" id="isQtyW"><label for="isQty">' + esc(t('as_qty')) + '</label><input class="input" id="isQty" type="number" min="1" max="500" value="1" inputmode="numeric"></div>' +
@@ -5652,11 +5655,13 @@ VIEWS.workflow = {
           branch('var(--t-indigo)', 'info', 'nodoc', [ST.NEW], '6') +
         '</div>' +
       '</div></section>' +
+      // «من يفعل ماذا» للإدارة التنفيذية والجودة والأدمن فقط
+      (['executive', 'quality', 'admin'].indexOf(S.user.screen) === -1 ? '' :
       '<section class="card"><div class="card-head"><h2>' + icon('users') + esc(t('wf_roles_title')) + '</h2></div><div class="card-body"><div class="wf-grid stagger">' +
         Object.keys(WF_ROLE).map((r, i) => '<div class="wf-rolecard' + (r === mine ? ' mine' : '') + '" style="--tone:' + WF_ROLE[r].tone + ';--i:' + i + '"><div class="head"><span class="ic">' + icon(WF_ROLE[r].ic) + '</span><h3>' + esc(t(WF_ROLE[r].k)) + '</h3>' +
           (r === mine ? '<span class="badge" style="--tone:' + WF_ROLE[r].tone + ';margin-inline-start:auto">' + esc(t('wf_you')) + '</span>' : '') + '</div><ul>' +
           t('wf_do_' + r).split('|').map(x => '<li>' + esc(x) + '</li>').join('') + '</ul></div>').join('') +
-      '</div></div></section>' +
+      '</div></div></section>') +
       '<div class="grid-2">' +
         '<section class="card"><div class="card-head"><h3>' + icon('mega') + esc(t('wf_notif_title')) + '</h3></div><div class="card-body"><div class="table-wrap"><table class="table"><thead><tr><th>' + esc(t('wf_event')) + '</th><th>' + esc(t('wf_to')) + '</th></tr></thead><tbody>' +
           ['wf_n1', 'wf_n2', 'wf_n3', 'wf_n4', 'wf_n5'].map(k => { const p = t(k).split('|'); return '<tr><td>' + esc(p[0]) + '</td><td class="muted">' + esc(p[1]) + '</td></tr>'; }).join('') +

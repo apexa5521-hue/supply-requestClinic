@@ -1046,7 +1046,8 @@ function log(msg) { console.log('  ✔ ' + msg); }
   expect(await toastHas(page, 'تم أخذ نسخة احتياطية') && await page.isVisible('#bkBox a:has-text("فتح آخر نسخة")'), 'admin takes a backup now and can open it');
   await page.locator('#bkBox').scrollIntoViewIfNeeded();
   await shot(page, 'admin-backup');
-  await page.waitForFunction(() => /2026-10-setup-v8/.test((document.getElementById('suBox') || {}).textContent || ''));
+  const setupVer = /SETUP_VERSION_ = '([^']+)'/.exec(fs.readFileSync(path.join(__dirname, '..', 'Code.gs'), 'utf8'))[1];
+  await page.waitForFunction(v => ((document.getElementById('suBox') || {}).textContent || '').includes(v), setupVer);
   await page.click('#suBtn');
   expect(await toastHas(page, 'اكتمل التجهيز') || await toastHas(page, 'التجهيز فيه خطوات'), 'admin sees the setup status (code version + steps) and can re-run it');
   // صلاحيات الدور: الأدمن يحدد ما يظهر لكل دور
@@ -1191,6 +1192,7 @@ function log(msg) { console.log('  ✔ ' + msg); }
     await tp.click('.sidebar [data-view="workflow"]');
     await tp.waitForSelector('.wf-flow');
     expect(await tp.locator('.wf-stage').count() === 6 && await tp.isVisible('.wf-card.mine'), 'workflow page shows 6 stages and highlights your role');
+    expect(await tp.locator('.wf-rolecard').count() === 0, 'nurse does not see the «who does what» block (executive, quality and admin only)');
     await shot(tp, 'workflow', true);
     await logout(tp);
     await login(tp, 'علي', '3333');
@@ -1274,6 +1276,7 @@ function log(msg) { console.log('  ✔ ' + msg); }
   if (await m.$('.modal .stepper')) { await mCheck(m, 'procurement detail'); await m.keyboard.press('Escape'); }
   await mRole('د. خالد', '4444', ['reviews']);
   await mRole('منى', '5555', ['overview', 'monitor', 'reports', 'complaints', 'notices', 'workflow']);
+  expect(await m.evaluate(() => ['executive', 'quality', 'admin'].indexOf(S.user.screen) !== -1) === (await m.locator('.wf-rolecard').count() > 0), '«who does what» block shows only for executive, quality and admin');
   await mRole('نواف', '7777', ['finance']);
   await mRole('فني المعمل', '8888', ['labboard', 'labkpi']);
   await mRole('سارة', '1111', ['labmine']);

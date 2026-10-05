@@ -93,10 +93,10 @@ const scenes = {
     id: 'Dokter membuka permintaan, bisa mengubah jumlah atau menambah catatan, lalu mengetuk Approve.'
   },
   sent: {
-    en: 'After approval, procurement prepares the order and sends it to your branch. You get an alert, and the request shows Sent.',
-    ar: 'بعد الاعتماد يجهّز التموين الطلب ويرسله لفرعك، ويصلك تنبيه وتصبح حالته «تم الإرسال».',
-    ur: 'منظوری کے بعد پروکیورمنٹ آرڈر تیار کر کے آپ کی برانچ بھیجتا ہے۔ آپ کو الرٹ ملتا ہے اور اسٹیٹس سینٹ ہو جاتا ہے۔',
-    id: 'Setelah disetujui, pengadaan menyiapkan dan mengirim pesanan ke cabang Anda. Anda mendapat notifikasi dan statusnya Sent.'
+    en: 'After approval, procurement sends the order in the doctor\'s box. When the driver delivers the box to your branch, you get an alert, and the card turns to Arrived at branch. The Arrived chip shows these requests.',
+    ar: 'بعد الاعتماد يرسل التموين الطلب في بوكس الطبيب، وعندما يسلّم السواق البوكس لفرعك يصلك تنبيه وتتلوّن البطاقة بحالة «وصل الفرع»، وزر «وصل الفرع» يعرض هذه الطلبات.',
+    ur: 'منظوری کے بعد پروکیورمنٹ آرڈر ڈاکٹر کے باکس میں بھیجتا ہے۔ جب ڈرائیور باکس آپ کی برانچ پہنچاتا ہے تو آپ کو الرٹ ملتا ہے اور کارڈ "برانچ پہنچ گیا" ہو جاتا ہے۔ "پہنچ گیا" بٹن یہ درخواستیں دکھاتا ہے۔',
+    id: 'Setelah disetujui, pengadaan mengirim pesanan di kotak dokter. Saat sopir mengantar kotak ke cabang Anda, Anda mendapat notifikasi dan kartunya menjadi Tiba di cabang. Tombol Tiba menampilkan permintaan ini.'
   },
   receive: {
     en: 'When the box arrives, open My requests and tap Receive and sign. Check each quantity. If something is missing, change the number.',
@@ -230,12 +230,20 @@ async function flow(h) {
   });
   await h.api('bulkUpdateStatus', [[reqId], 'قيد التجهيز'], ['Ali', '3333']);
   await h.api('dispatchItems', [reqId, ['PROPHY PASTE', 'DENTAL FLOSS']], ['Ali', '3333']);
+  // السواق يسلّم البوكس للفرع ← «وصل الفرع»
+  await page.evaluate(([rid, png]) => {
+    const d = __gas.dump('Boxes'), H = d[0];
+    const row = d.slice(1).find(r => String(r[H.indexOf('Loads')]).indexOf(rid + '#') !== -1);
+    __api(null, 'boxDeliver', [{ box: row[H.indexOf('BoxID')], k: row[H.indexOf('Token')], to: 'Buraydah', driver: 'Hamad', photo: 'data:image/png;base64,' + png, clientKey: 'tut-' + rid }]);
+  }, [reqId, h.png.toString('base64')]);
   await scene('sent', 'receive', async () => {
     await h.logout(); await h.login('Sara', '1111');
     if (await page.isVisible('.alert.info')) await highlight('.alert.info', 1200);
     await h.nav('mine');
     await page.waitForSelector(`.req:has-text("${reqId}") [data-act="receive"]`);
-    await highlight(`.req:has-text("${reqId}") .badge`, 1200);
+    await highlight(`.req:has-text("${reqId}") .tag.arrived`, 1400);
+    await click('#mineChips [data-g="arrived"]'); await wait(1200);
+    await click('#mineChips [data-g="all"]'); await page.waitForSelector(`.req:has-text("${reqId}") [data-act="receive"]`);
   });
   await scene('receive', 'receive', async () => {
     await click(`.req:has-text("${reqId}") [data-act="receive"]`);

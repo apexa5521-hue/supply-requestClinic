@@ -2204,3 +2204,10 @@ test('survey: the first cycle opens 50 days after the update (an earlier auto st
   const manual = boot();
   assert.equal(manual.api(manual.login('د. خالد', '4444'), 'getMySurvey').open, true);
 });
+
+test('catalog: ItemType column (مستهلك / ماتيريال) is added to ItemsCatalog automatically, Category untouched', () => {
+  const { login, gas } = boot();
+  login('ريم', '2222');
+  const h = gas.dump('ItemsCatalog')[0];
+  assert.ok(h.includes('ItemType') && h.includes('Category'));
+});

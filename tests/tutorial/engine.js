@@ -1,6 +1,6 @@
 /* محرك الفيديوهات التعليمية: يسجّل التطبيق الحقيقي (بيانات تجريبية بالإنجليزية) بمؤشر ظاهر،
    صوت شرح إنجليزي طبيعي (Edge — Ava)، ومزامنة دقيقة (إطارات CDP بتوقيتها)، وترجمة في شريط أسفل الصفحة
-   لكل لغة مطلوبة (ar / ur / id) → MP4 لكل لغة + ملفات SRT.
+   لكل لغة مطلوبة (ar / ur / id / bn / hi) → MP4 لكل لغة + ملفات SRT.
    يحتاج: pip install edge-tts imageio-ffmpeg (gTTS احتياطي) */
 const fs = require('fs');
 const path = require('path');
@@ -19,6 +19,8 @@ const LANGS = {
   ar: { name: 'Arabic', font: 'Noto Naskh Arabic', file: 'NotoNaskhArabic.ttf', url: 'https://cdn.jsdelivr.net/gh/google/fonts@main/ofl/notonaskharabic/NotoNaskhArabic%5Bwght%5D.ttf', size: 44, rtl: true },
   ur: { name: 'Urdu', font: 'Noto Nastaliq Urdu', file: 'NotoNastaliqUrdu.ttf', url: 'https://cdn.jsdelivr.net/gh/google/fonts@main/ofl/notonastaliqurdu/NotoNastaliqUrdu%5Bwght%5D.ttf', size: 58, rtl: true },
   id: { name: 'Indonesian', font: 'DejaVu Sans', size: 25 },
+  bn: { name: 'Bengali', font: 'Noto Sans Bengali', file: 'NotoSansBengali.ttf', url: 'https://cdn.jsdelivr.net/gh/google/fonts@main/ofl/notosansbengali/NotoSansBengali%5Bwdth%2Cwght%5D.ttf', size: 34 },
+  hi: { name: 'Hindi', font: 'Noto Sans Devanagari', file: 'NotoSansDevanagari.ttf', url: 'https://cdn.jsdelivr.net/gh/google/fonts@main/ofl/notosansdevanagari/NotoSansDevanagari%5Bwdth%2Cwght%5D.ttf', size: 34 },
   en: { name: 'English', font: 'DejaVu Sans', size: 25 }
 };
 
@@ -233,6 +235,16 @@ async function makeTutorial(cfg) {
   await page.goto('http://masar.demo/');
   await page.waitForSelector('#loginView:not(.hidden)');
   await page.waitForTimeout(600);
+  // فيديو بلا أسعار: أي سعر/قيمة/تكلفة يظهر على الشاشة ولو لحظة يُفشل التسجيل
+  if (cfg.noMoney) await page.evaluate(() => {
+    window.__money = [];
+    const re = /\bSAR\b|ر\.س|\bprices?\b|\bcosts?\b|\bvalue\b|est\.? total|\btotal \(/i;
+    setInterval(() => {
+      const txt = document.body.innerText || '';
+      const m = re.exec(txt);
+      if (m && window.__money.length < 20) window.__money.push(txt.slice(Math.max(0, m.index - 60), m.index + 40).replace(/\s+/g, ' '));
+    }, 250);
+  });
 
   const wait = ms => page.waitForTimeout(ms);
   const marks = [];
@@ -309,6 +321,10 @@ async function makeTutorial(cfg) {
   try { await cfg.flow(h); }
   catch (e) { await page.screenshot({ path: path.join(WORK, 'fail.png') }); throw e; }
   await wait(900);
+  if (cfg.noMoney) {
+    const hits = await page.evaluate(() => window.__money || []);
+    if (hits.length) { await browser.close(); throw new Error('money shown in a no-price video: ' + Array.from(new Set(hits)).slice(0, 5).join(' || ')); }
+  }
   const tEnd = Date.now();
   await cdp.send('Page.stopScreencast').catch(() => {});
   await ctx.close(); await browser.close();
