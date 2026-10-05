@@ -1,79 +1,79 @@
 1
-00:00:00,930 --> 00:00:02,775
+00:00:00,789 --> 00:00:02,634
 This video is for the lab team.
 
 2
-00:00:02,775 --> 00:00:08,964
+00:00:02,634 --> 00:00:08,823
 You will learn how to receive cases from the clinics, move each work through its stages, use an external
 
 3
-00:00:08,964 --> 00:00:10,630
+00:00:08,823 --> 00:00:10,489
 lab, and send the work back.
 
 4
-00:00:11,080 --> 00:00:15,210
+00:00:10,940 --> 00:00:15,070
 Sign in with your name and password. You land on the Lab board.
 
 5
-00:00:17,232 --> 00:00:22,105
+00:00:16,552 --> 00:00:21,425
 Every case from the nurses appears here. The chips filter by stage:
 
 6
-00:00:22,105 --> 00:00:26,542
+00:00:21,425 --> 00:00:25,862
 new, in work, at an external lab, ready to send, and overdue.
 
 7
-00:00:26,993 --> 00:00:33,768
+00:00:26,313 --> 00:00:33,088
 Each card shows the file number, the doctor, the clinic, the scan date and the due date, and every work
 
 8
-00:00:33,768 --> 00:00:35,083
+00:00:33,088 --> 00:00:34,403
 with its own status.
 
 9
-00:00:35,533 --> 00:00:40,333
+00:00:34,854 --> 00:00:39,654
 When the case reaches you, tap Receive. Then tap Start work when you begin.
 
 10
-00:00:41,471 --> 00:00:44,957
+00:00:40,647 --> 00:00:44,133
 If the work goes to an outside lab, tap External lab.
 
 11
-00:00:44,957 --> 00:00:49,561
+00:00:44,133 --> 00:00:48,737
 Choose the lab, the expected return date, and the cost if you know it.
 
 12
-00:00:50,015 --> 00:00:55,605
+00:00:49,187 --> 00:00:54,777
 When the work is finished, tap Ready. The nurse and the doctor are notified right away.
 
 13
-00:00:56,055 --> 00:01:00,595
+00:00:55,228 --> 00:00:59,768
 Then tap Send to clinic. The nurse confirms receipt from her page.
 
 14
-00:01:01,045 --> 00:01:06,515
+00:01:00,219 --> 00:01:05,689
 iTero cases have their own tag with the iTero case number, so you can match the scan quickly.
 
 15
-00:01:06,966 --> 00:01:14,144
+00:01:06,140 --> 00:01:13,318
 When the nurse sends a case directly to an external lab, it shows with a purple tag: External lab, FYI only.
 
 16
-00:01:14,144 --> 00:01:17,866
+00:01:13,318 --> 00:01:17,040
 The case left the clinic, but it is not directed to you.
 
 17
-00:01:18,317 --> 00:01:25,057
+00:01:17,491 --> 00:01:24,231
 Tap Details to see the full timeline of a case: who did each step, and when. You can also write a note here.
 
 18
-00:01:25,507 --> 00:01:30,497
+00:01:24,682 --> 00:01:29,672
 To find a case, type the patient file number or the case number in the search box.
 
 19
-00:01:30,949 --> 00:01:38,819
+00:01:30,123 --> 00:01:37,993
 Lab KPIs show the average turnaround, on-time rate, redo rate, external work and its cost, and the overdue work.
 
 20
-00:01:39,269 --> 00:01:46,489
+00:01:38,444 --> 00:01:45,664
 That's it. Update every case as soon as it moves, so the clinics always know where their work is. Thank you!
