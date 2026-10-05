@@ -1,0 +1,81 @@
+# نشر تلقائي عند كل دمج في main:
+#  1) الواجهة ← GitHub Pages (يحتاج مرة واحدة: Settings ▸ Pages ▸ Source = GitHub Actions)
+#  2) الخادم ← Apps Script عبر clasp (اختياري: يعمل فقط إذا أُضيفت الأسرار CLASPRC_JSON و SCRIPT_ID و DEPLOYMENT_ID)
+name: Deploy
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: deploy
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - run: npm test
+
+  pages-build:
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - run: node scripts/build-static.js
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist
+
+  pages-deploy:
+    needs: pages-build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4
+
+  apps-script:
+    needs: test
+    runs-on: ubuntu-latest
+    env:
+      CLASPRC_JSON: ${{ secrets.CLASPRC_JSON }}
+      SCRIPT_ID: ${{ secrets.SCRIPT_ID }}
+      DEPLOYMENT_ID: ${{ secrets.DEPLOYMENT_ID }}
+    steps:
+      - uses: actions/checkout@v4
+        if: env.CLASPRC_JSON != '' && env.SCRIPT_ID != ''
+      - uses: actions/setup-node@v4
+        if: env.CLASPRC_JSON != '' && env.SCRIPT_ID != ''
+        with:
+          node-version: 20
+      - name: Push code and update the web app deployment
+        if: env.CLASPRC_JSON != '' && env.SCRIPT_ID != ''
+        run: |
+          npm install -g @google/clasp@2
+          printf '%s' "$CLASPRC_JSON" > ~/.clasprc.json
+          printf '{"scriptId":"%s","rootDir":"."}' "$SCRIPT_ID" > .clasp.json
+          clasp push --force
+          if [ -n "$DEPLOYMENT_ID" ]; then
+            clasp deploy --deploymentId "$DEPLOYMENT_ID" --description "auto ${GITHUB_SHA::7}"
+          else
+            clasp version "auto ${GITHUB_SHA::7}"
+          fi
+      - name: Skipped (no Apps Script secrets)
+        if: env.CLASPRC_JSON == '' || env.SCRIPT_ID == ''
+        run: echo "Apps Script secrets are not set — only GitHub Pages was updated."

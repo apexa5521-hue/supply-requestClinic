@@ -321,3 +321,10 @@ ApexCare (الأسنان والجلدية) ومستودع التموين: تفو
 - ربط بوت Telegram الحالي لإشعار الممرضة مباشرة بدل البريد فقط.
 - تنبيه تلقائي في يوم 15 من كل شهر لتذكير الممرضات برفع الطلب الشهري.
 - تصدير تقرير الجودة الشهري كـ PDF تلقائياً.
+
+## النشر التلقائي من GitHub
+كل دمج في `main` يشغّل `.github/workflows/deploy.yml`: الاختبارات ← بناء الواجهة ونشرها على GitHub Pages ← (اختياري) رفع الكود لـ Apps Script.
+- **مرة واحدة:** Settings ▸ Pages ▸ Source = **GitHub Actions**. الرابط بعدها: `https://apexa5521-hue.github.io/supply-requestClinic/` (يتصل بخادم Apps Script المكتوب في `APPS_SCRIPT_URL`).
+- **رفع Apps Script تلقائياً (اختياري):** أضف في Settings ▸ Secrets and variables ▸ Actions:
+  `CLASPRC_JSON` (محتوى ملف `~/.clasprc.json` بعد `clasp login` على جهازك) · `SCRIPT_ID` (من Apps Script ▸ Project Settings) · `DEPLOYMENT_ID` (من Deploy ▸ Manage deployments — حتى يبقى نفس الرابط).
+  بدونها تُتخطى هذه الخطوة ويُحدَّث GitHub Pages فقط.
