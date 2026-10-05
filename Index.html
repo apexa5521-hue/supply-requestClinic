@@ -286,6 +286,23 @@ button, input, select, textarea { font: inherit; color: inherit; }
 .bd-field { border: 1px dashed color-mix(in srgb, var(--t-amber) 45%, transparent); border-radius: 12px; padding: 10px 12px; background: color-mix(in srgb, var(--t-amber) 6%, transparent); }
 .bd-field .check-row { display: flex; align-items: center; gap: 8px; cursor: pointer; }
 .bd-field #fBdBox { margin-top: 8px; display: grid; gap: 6px; }
+.sv-form { display: grid; gap: 14px; }
+.sv-sec { font-weight: 800; color: var(--primary-strong, var(--primary)); margin-top: 6px; border-bottom: 1px solid var(--border, rgba(0,0,0,.08)); padding-bottom: 4px; }
+.sv-q { display: grid; gap: 8px; padding: 6px 8px; border-radius: 10px; }
+.sv-q.missing { background: color-mix(in srgb, var(--t-red) 8%, transparent); outline: 1px solid color-mix(in srgb, var(--t-red) 35%, transparent); }
+.sv-label { font-weight: 600; }
+.sv-stars, .sv-nps { display: flex; flex-wrap: wrap; gap: 6px; }
+.sv-b { min-width: 38px; min-height: 38px; border-radius: 10px; border: 1px solid var(--border, rgba(0,0,0,.12)); background: var(--surface, transparent); color: inherit; font-weight: 700; cursor: pointer; }
+.sv-b.star { font-size: 22px; line-height: 1; color: #c9ced8; }
+.sv-b.star.on { color: #f5b301; border-color: #f5b301; background: color-mix(in srgb, #f5b301 10%, transparent); }
+.sv-nps .sv-b.on { background: var(--primary); color: #fff; border-color: var(--primary); }
+.sv-avg { font-weight: 800; white-space: nowrap; }
+.sv-star { color: #f5b301; }
+.sv-bar { height: 8px; min-width: 90px; border-radius: 6px; background: color-mix(in srgb, var(--t-gray) 18%, transparent); overflow: hidden; }
+.sv-bar i { display: block; height: 100%; background: linear-gradient(90deg, #f5b301, var(--t-green)); border-radius: 6px; }
+.sv-pending { display: flex; flex-wrap: wrap; gap: 8px; }
+.sv-p { display: inline-flex; align-items: center; gap: 6px; padding: 4px 6px 4px 10px; border: 1px solid var(--border, rgba(0,0,0,.1)); border-radius: 12px; }
+.tag.ext-lab { --tone: var(--t-violet); color: var(--tone); background: color-mix(in srgb, var(--tone) 10%, transparent); border-color: color-mix(in srgb, var(--tone) 30%, transparent); font-weight: 700; }
 .tag.itero { --tone: var(--t-indigo); color: var(--tone); background: color-mix(in srgb, var(--tone) 12%, transparent); border-color: color-mix(in srgb, var(--tone) 30%, transparent); font-weight: 800; }
 .lab-due { color: var(--primary); font-weight: 600; }
 .lab-due:empty { display: none; }

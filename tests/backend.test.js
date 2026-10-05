@@ -939,7 +939,7 @@ test('backup: full copy of the spreadsheet into its own Drive folder, keeps the 
   assert.ok(rows(gas, 'Log').some(r => String(r.Action).indexOf('نسخة احتياطية') === 0), 'logged');
 });
 
-test('auto setup: the clinic sheet (Buraydah/Unayzah) becomes the approved 22 clinics on first run, references fixed, backup taken, runs once', () => {
+test('auto setup: the clinic sheet (Buraydah/Unayzah) becomes the approved 28 clinics on first run, references fixed, backup taken, runs once', () => {
   const sheetNow = [];
   for (let i = 1; i <= 8; i++) sheetNow.push(['Dental Clinic ' + i + ' - Buraydah', 'Buraydah', 'Dentistry']);
   for (let i = 1; i <= 4; i++) sheetNow.push(['Dental Clinic ' + i + ' - Unayzah', 'Unayzah', 'Dentistry']);
@@ -954,16 +954,16 @@ test('auto setup: the clinic sheet (Buraydah/Unayzah) becomes the approved 22 cl
   });
   const a = login('المدير', '1234');
   const cl = rows(gas, 'Clinics').filter(r => r.ClinicName);
-  assert.equal(cl.length, 24, '22 clinics + a triage room per branch');
+  assert.equal(cl.length, 30, '28 clinics (10 dental in Unayzah) + a triage room per branch');
   assert.deepEqual(cl.filter(r => r.Branch === 'Unayzah').map(r => r.ClinicName),
-    ['Dental Clinic 1 - Unayzah', 'Dental Clinic 2 - Unayzah', 'Dental Clinic 3 - Unayzah', 'Dental Clinic 4 - Unayzah', 'Sterilization - Unayzah', 'Triage Room - Unayzah']);
+    [1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map(i => 'Dental Clinic ' + i + ' - Unayzah').concat(['Sterilization - Unayzah', 'Triage Room - Unayzah']));
   assert.deepEqual(cl.filter(r => r.Type === 'Dermatology').map(r => r.ClinicName), ['Derma Hydrafacial', 'Derma Clarity', 'Derma Gentle Pro', 'Derma CLINIC']);
   assert.equal(cl.filter(r => r.Branch === 'Buraydah' && r.Type === 'Dentistry').length, 12);
-  assert.equal(api(a, 'getConfig').clinics.length, 24, 'the app sees the new list right away');
+  assert.equal(api(a, 'getConfig').clinics.length, 30, 'the app sees the new list right away');
   const users = Object.fromEntries(rows(gas, 'Users').map(u => [u.Name, u.Clinic]));
   assert.equal(users['هند'], 'Sterilization - Buraydah', 'typo in the user clinic fixed');
   assert.equal(users['نورة'], 'Dental Clinic 8 - Buraydah, Dermatology Clinic 1 - Buraydah', 'unknown old names are left and reported');
-  assert.ok(rows(gas, 'Log').some(r => /22 عيادة/.test(r.Action) && /Dermatology Clinic 1 - Buraydah/.test(r.Action)), 'change + names needing attention are logged');
+  assert.ok(rows(gas, 'Log').some(r => /28 عيادة/.test(r.Action) && /Dermatology Clinic 1 - Buraydah/.test(r.Action)), 'change + names needing attention are logged');
   assert.equal(gas.globals.DriveApp.createFolder._folder.copies.length, 1, 'a backup was taken before changing the sheet');
   assert.ok(rows(gas, 'Settings').some(r => r.Key === 'LabTurnaroundDays') && rows(gas, 'LabMaterials').length === 8, 'lab settings seeded automatically');
   const demo = rows(gas, 'ItemsCatalog').filter(r => /TEST101$/.test(r.ItemName));
@@ -1402,7 +1402,7 @@ test('roles split: legacy quality/executive/finance migrate; executive keeps ful
   throwsCode(() => api(e, 'getUsers'), 'ERR_FORBIDDEN'); // بعد وجود الأدمن: صلاحيات التنفيذي الافتراضية فقط (فوراً)
   assert.ok(api(e, 'getExecutiveStats'));
   const a = login('admin', '9999');
-  assert.equal(api(a, 'getConfig').user.perms.length, 12);
+  assert.equal(api(a, 'getConfig').user.perms.length, 14);
   const f = login('نواف', '7777');
   assert.ok(api(f, 'getFinance', {}).summary);
   throwsCode(() => api(f, 'getComplaints'), 'ERR_FORBIDDEN');
@@ -1543,7 +1543,7 @@ test('management roles (finance…) are added automatically when missing, so the
   api(a, 'createUser', { name: 'المالية', password: '2468', role: 'مالية', email: 'finance@example.com' });
   const f = api(null, 'login', 'المالية', '2468');
   assert.equal(f.user.screen, 'finance');
-  assert.deepEqual(f.user.perms.slice().sort(), ['assets', 'finance', 'monitor', 'prices_edit', 'reports'].sort());
+  assert.deepEqual(f.user.perms.slice().sort(), ['assets', 'doctor_prices', 'finance', 'monitor', 'prices_edit', 'reports'].sort());
   login('المدير', '1234');
   assert.equal(rows(gas, 'Roles').filter(r => r.RoleName === 'مالية').length, 1, 'added once only');
 });
@@ -1953,6 +1953,26 @@ test('iTero: scan date + iTero case No. + file No. + doctor → lab case without
   assert.deepEqual([c.items.length, c.items[0].workType, c.items[0].lab, c.fileNo], [1, 'iTero', 'المعمل الداخلي', '55']);
   assert.ok(api(login('فني المعمل', '8888'), 'getLabCases', {}).some(x => x.id === r.id && x.iteroNo === 'IT-778899'), 'lab sees the iTero case');
   assert.equal(api(n, 'findLabCases', 'IT-778899')[0].id, r.id);
+  // اختيار المعمل من القائمة (داخلي أو خارجي)
+  assert.equal(api(n, 'getLabConfig').iteroLab, 'المعمل الداخلي', 'default iTero lab is sent to the form');
+  const ext = api(n, 'createLabCase', { itero: 'IT-5', lab: 'معمل النخبة', doctor: 'د. خالد', fileNo: '56', scanDate: '2020-01-01' });
+  assert.equal(api(n, 'getLabCase', ext.id).items[0].lab, 'معمل النخبة');
+  throwsCode(() => api(n, 'createLabCase', { itero: 'IT-6', lab: 'معمل غير موجود', doctor: 'د. خالد', fileNo: '57', scanDate: '2020-01-01' }), 'ERR_BAD_LAB');
+});
+
+test('setup adds the missing Unayzah dental clinics up to 10 (keeps everything else)', () => {
+  const { api, login, gas } = boot(g => {
+    g.seed('Clinics', ['ClinicName', 'Branch', 'Type'], [
+      ['Dental Clinic 1 - Buraydah', 'Buraydah', 'Dentistry'], ['Dental Clinic 1 - Unayzah', 'Unayzah', 'Dentistry'],
+      ['Dental Clinic 2 - Unayzah', 'Unayzah', 'Dentistry'], ['My Renamed Clinic', 'Unayzah', 'Dentistry']]);
+    // نظام قائم سبق تجهيزه بإصدار أقدم: الترحيل الأول لا يُعاد
+    g.globals.PropertiesService.getScriptProperties().setProperty('setup:done', '2026-10-setup-v4');
+  });
+  const cfg = api(login('المدير', '1234'), 'getConfig');
+  const un = cfg.clinics.filter(c => c.branch === 'Unayzah' && /^Dental Clinic \d+ - Unayzah$/.test(c.name)).map(c => c.name);
+  assert.equal(un.length, 10);
+  assert.ok(cfg.clinics.some(c => c.name === 'My Renamed Clinic'), 'other clinics are kept');
+  assert.equal(rows(gas, 'Clinics').filter(r => r.ClinicName === 'Dental Clinic 1 - Unayzah').length, 1, 'no duplicates');
 });
 
 test('backdated requests: nurse records a past received request, tagged and kept out of timing KPIs; closes by setting', () => {
@@ -2033,45 +2053,70 @@ test('doctors live: open requests per doctor by stage, for quality/executive onl
   throwsCode(() => api(login('علي', '3333'), 'getDoctorsLive'), 'ERR_FORBIDDEN');
 });
 
-test('doctor price view: admin chooses all / consumables only / materials only / none per doctor (sheet or screen)', () => {
-  const { api, login, gas } = boot(g => {
-    g.seed('ItemsCatalog', ['ItemName', 'CommercialName', 'Category', 'Price', 'Ownership', 'Serialized', 'Department', 'ItemType'], [
-      ['PROPHY PASTE', 'Nupro', 'Hygiene', 60, '', '', '', 'مستهلك'],
-      ['Ivoclar Tetric-N A2', 'Tetric N-Ceram', 'Composite', 120, '', '', '', 'ماتيريال'],
-      ['DENTAL FLOSS', 'Oral-B', 'Hygiene', 12.5, '', '', '', '']
-    ]);
-  });
-  const n = login('سارة', '1111'), a = login('المدير', '1234');
-  const id = api(n, 'createRequest', { clinic: 'عيادة الأسنان 1', doctor: 'د. خالد', type: 'شهري', items: [{ name: 'PROPHY PASTE', qty: 2 }, { name: 'Ivoclar Tetric-N A2', qty: 1 }, { name: 'DENTAL FLOSS', qty: 4 }] }).id;
-  const setPv = pv => api(a, 'updateUser', 'د. خالد', Object.assign({}, api(a, 'getUsers').find(u => u.name === 'د. خالد'), { priceView: pv, password: '' }));
-  const view = () => {
-    const d = login('د. خالد', '4444');
-    const items = Object.fromEntries(api(d, 'getRequestItemsWithCatalog', id).map(i => [i.item, i]));
-    const rep = api(d, 'getDoctorReport', {});
-    return { user: api(d, 'getConfig').user, items, rep };
-  };
+test('doctor prices: no prices by default; executive / quality / finance grant or withhold per doctor', () => {
+  const { api, login, gas } = boot();
+  const n = login('سارة', '1111');
+  const id = api(n, 'createRequest', { clinic: 'عيادة الأسنان 1', doctor: 'د. سعد', type: 'شهري', items: [{ name: 'PROPHY PASTE', qty: 2 }] }).id;
+  const a = login('المدير', '1234');
+  api(a, 'createUser', { name: 'د. سعد', password: '9876', role: 'طبيب' });
+  const view = () => { const d = login('د. سعد', '9876'); return { user: api(d, 'getConfig').user, items: api(d, 'getRequestItemsWithCatalog', id), rep: api(d, 'getDoctorReport', {}) }; };
   let v = view();
-  assert.equal(v.user.priceView, 'all', 'dental doctor sees all prices by default');
-  assert.equal(v.items['Ivoclar Tetric-N A2'].price, 120);
-  setPv('consumables');
-  v = view();
-  assert.equal(v.user.priceView, 'consumables');
-  assert.equal(v.items['PROPHY PASTE'].price, 60);
-  assert.equal(v.items['DENTAL FLOSS'].price, 12.5, 'empty ItemType = consumable');
-  assert.ok(v.items['Ivoclar Tetric-N A2'].price === undefined && v.items['Ivoclar Tetric-N A2'].priceHidden, 'material price never reaches the browser');
-  assert.equal(v.rep.summary.total, 170, 'total counts only the visible prices: ' + JSON.stringify(v.rep.summary));
-  assert.equal(v.rep.summary.hidden, 1);
-  const hid = v.rep.rows[0].items.find(i => i.item === 'Ivoclar Tetric-N A2');
-  assert.ok(hid.priceHidden && hid.price === undefined && hid.total === undefined && v.rep.top.find(x => x.item === 'Ivoclar Tetric-N A2').total === undefined, 'no trace of the hidden price');
-  assert.equal(rows(gas, 'Users').find(u => u.Name === 'د. خالد').PriceView, 'المستهلكات فقط', 'saved readable in the sheet');
-  setPv('materials');
-  v = view();
-  assert.ok(v.items['PROPHY PASTE'].priceHidden && v.items['Ivoclar Tetric-N A2'].price === 120);
-  setPv('none');
-  v = view();
+  assert.equal(v.user.priceView, 'none', 'dental doctor sees no prices by default');
   assert.equal(v.user.noPrices, true);
-  assert.ok(!JSON.stringify(v.items).match(/"price"/));
-  // من الشيت مباشرة بالعربي
-  const t2 = boot(g => g.seed('Users', ['Name', 'Password', 'Role', 'Clinic', 'Email', 'PriceView'], [['د. خالد', '4444', 'طبيب', '', '', 'الماتيريال فقط'], ['المدير', '1234', 'أدمن', '', '', '']]));
-  assert.equal(t2.api(t2.login('د. خالد', '4444'), 'getConfig').user.priceView, 'materials');
+  assert.ok(!JSON.stringify(v.items).match(/"price"/) && v.rep.summary.total === undefined, 'no price or value reaches the browser');
+  // الجودة / التنفيذي / المالية يمنحون الأسعار
+  for (const [who, pass] of [['منى', '5555'], ['فيصل', '6666'], ['نواف', '7777']]) {
+    assert.ok(api(login(who, pass), 'getDoctorPriceAccess').some(x => x.name === 'د. سعد'), who + ' manages doctor prices');
+  }
+  const q = login('منى', '5555');
+  const list = api(q, 'setDoctorPriceAccess', 'د. سعد', true);
+  assert.equal(list.find(x => x.name === 'د. سعد').allowed, true);
+  assert.equal(rows(gas, 'Users').find(u => u.Name === 'د. سعد').PriceView, 'يرى الأسعار', 'saved readable in the sheet');
+  v = view();
+  assert.equal(v.user.priceView, 'all');
+  assert.equal(v.items[0].price, 60);
+  assert.equal(v.rep.summary.total, 120);
+  api(q, 'setDoctorPriceAccess', 'د. سعد', false);
+  assert.equal(view().user.noPrices, true, 'withheld again');
+  throwsCode(() => api(login('علي', '3333'), 'getDoctorPriceAccess'), 'ERR_FORBIDDEN');
+  throwsCode(() => api(q, 'setDoctorPriceAccess', 'علي', true), 'ERR_NOT_FOUND');
+  // القيم القديمة «المستهلكات فقط» تُعامل بدون أسعار
+  const t2 = boot(g => g.seed('Users', ['Name', 'Password', 'Role', 'Clinic', 'Email', 'PriceView'], [['د. خالد', '4444', 'طبيب', '', '', 'المستهلكات فقط'], ['المدير', '1234', 'أدمن', '', '', '']]));
+  assert.equal(t2.api(t2.login('د. خالد', '4444'), 'getConfig').user.priceView, 'none');
+});
+
+test('doctor survey: every 50 days, open 10 days; reminders for those who did not answer; results for quality/executive', () => {
+  const { api, login, gas, ctx } = boot();
+  const a = login('المدير', '1234');
+  assert.ok(rows(gas, 'SurveyQuestions').length >= 14, 'default questions seeded in the sheet');
+  assert.ok(rows(gas, 'Settings').some(r => r.Key === 'SurveyStart'), 'first cycle starts on setup day');
+  const d = login('د. خالد', '4444');
+  const my = api(d, 'getMySurvey');
+  assert.equal(my.open, true); assert.equal(my.done, false);
+  assert.ok(api(d, 'getAlerts').some(x => x.code === 'alert_survey'), 'doctor is notified until he answers');
+  const ans = {};
+  my.questions.forEach(q => { ans[q.id] = q.type === 'nps' ? 9 : q.type === 'stars' ? 4 : ''; });
+  throwsCode(() => api(d, 'submitSurvey', Object.assign({}, ans, { Q1: 7 })), 'ERR_SURVEY_REQUIRED');
+  throwsCode(() => api(d, 'submitSurvey', Object.assign({}, ans, { Q2: '' })), 'ERR_SURVEY_REQUIRED');
+  ans.Q14 = 'أسرع لو سمحتوا';
+  assert.equal(api(d, 'submitSurvey', ans).ok, true);
+  assert.equal(api(d, 'submitSurvey', ans).duplicate, true, 'one answer per cycle');
+  assert.equal(api(d, 'getMySurvey').done, true);
+  assert.ok(!api(d, 'getAlerts').some(x => x.code === 'alert_survey'), 'notice disappears after answering');
+  const q = login('منى', '5555');
+  const res = api(q, 'getSurveyResults', '');
+  assert.equal(res.answered, 1);
+  assert.ok(res.total >= 1 && res.pending.every(p => p.user !== 'د. خالد'));
+  assert.equal(res.questions.find(x => x.id === 'Q1').avg, 4);
+  assert.equal(res.questions.find(x => x.id === 'Q12').nps, 100);
+  assert.equal(res.questions.find(x => x.id === 'Q14').texts[0].text, 'أسرع لو سمحتوا');
+  assert.equal(res.responses[0].doctor, 'د. خالد', 'answers are by doctor name');
+  assert.equal(res.avg, 4);
+  throwsCode(() => api(login('علي', '3333'), 'getSurveyResults', ''), 'ERR_FORBIDDEN');
+  // الدورة: مفتوحة 10 أيام من كل 50
+  const start = new Date(ctx.surveyCycle_().opens).getTime();
+  assert.equal(ctx.surveyCycle_(start + 9.9 * 864e5).open, true);
+  assert.equal(ctx.surveyCycle_(start + 10.1 * 864e5).open, false);
+  const c2 = ctx.surveyCycle_(start + 50.5 * 864e5);
+  assert.ok(c2.open && c2.n === 2);
 });
