@@ -2085,6 +2085,37 @@ test('doctor prices: no prices by default; executive / quality / finance grant o
   assert.equal(t2.api(t2.login('د. خالد', '4444'), 'getConfig').user.priceView, 'none');
 });
 
+test('branch manager: no prices or values anywhere (requests, reports, lab, custody) unless granted', () => {
+  const { api, login, gas } = boot();
+  const a = login('المدير', '1234');
+  api(a, 'createUser', { name: 'مدير جدة', password: '9090', role: 'مدير فرع', branch: 'جدة' });
+  const reem = login('ريم', '2222');
+  const id = api(reem, 'createRequest', { clinic: 'Sterilization', branch: 'جدة', type: 'طارئ', items: [{ name: 'PROPHY PASTE', qty: 2 }] }).id;
+  api(reem, 'createLabCase', { doctor: 'د. سعد', fileNo: '22', scanDate: '2020-01-01', lines: [{ lab: 'المعمل الداخلي', workType: 'Denture', material: 'Acrylic' }] });
+  const MONEY = /"(price|total|value|avgValue|cost|repairCost|lossValue|activeValue|lineValue|unitPrice|unpriced|badPrices)":/;
+  const look = () => {
+    const m = login('مدير جدة', '9090');
+    const out = { user: api(m, 'getConfig').user, reqs: api(m, 'getRequests', {}), detail: api(m, 'getRequestDetail', id), stats: api(m, 'getStatsReport', {}),
+      exec: api(m, 'getExecutiveStats', ''), lab: api(m, 'getLabStats', {}), cases: api(m, 'getLabCases', {}), assets: api(m, 'getAssetStats', {}), clinics: api(m, 'getClinicAssets', {}) };
+    return out;
+  };
+  let v = look();
+  assert.equal(v.user.noPrices, true, 'branch manager: no prices by default');
+  assert.equal(v.user.priceView, 'none');
+  for (const k of ['reqs', 'detail', 'stats', 'exec', 'lab', 'cases', 'assets', 'clinics']) assert.ok(!MONEY.test(JSON.stringify(v[k])), k + ' carries no price or value');
+  assert.ok(v.exec.count >= 1, 'request count still reaches the overview');
+  // التنفيذي يمنح الأسعار لمدير الفرع من صفحة «أسعار الأطباء»
+  const f = login('فيصل', '6666');
+  assert.equal(api(f, 'getDoctorPriceAccess').find(x => x.name === 'مدير جدة').role, 'branch');
+  api(f, 'setDoctorPriceAccess', 'مدير جدة', true);
+  assert.equal(rows(gas, 'Users').find(u => u.Name === 'مدير جدة').PriceView, 'يرى الأسعار');
+  v = look();
+  assert.equal(v.user.priceView, 'all');
+  assert.ok(v.stats.summary.value > 0, 'granted: values come back');
+  api(f, 'setDoctorPriceAccess', 'مدير جدة', false);
+  assert.equal(look().user.noPrices, true, 'withheld again');
+});
+
 test('doctor survey: every 50 days, open 10 days; reminders for those who did not answer; results for quality/executive', () => {
   const { api, login, gas, ctx } = boot();
   const a = login('المدير', '1234');
