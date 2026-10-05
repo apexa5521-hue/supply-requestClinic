@@ -5655,8 +5655,8 @@ VIEWS.workflow = {
           branch('var(--t-indigo)', 'info', 'nodoc', [ST.NEW], '6') +
         '</div>' +
       '</div></section>' +
-      // «من يفعل ماذا» للإدارة التنفيذية والجودة فقط
-      (['executive', 'quality'].indexOf(S.user.screen) === -1 ? '' :
+      // «من يفعل ماذا» للإدارة التنفيذية والجودة والأدمن فقط
+      (['executive', 'quality', 'admin'].indexOf(S.user.screen) === -1 ? '' :
       '<section class="card"><div class="card-head"><h2>' + icon('users') + esc(t('wf_roles_title')) + '</h2></div><div class="card-body"><div class="wf-grid stagger">' +
         Object.keys(WF_ROLE).map((r, i) => '<div class="wf-rolecard' + (r === mine ? ' mine' : '') + '" style="--tone:' + WF_ROLE[r].tone + ';--i:' + i + '"><div class="head"><span class="ic">' + icon(WF_ROLE[r].ic) + '</span><h3>' + esc(t(WF_ROLE[r].k)) + '</h3>' +
           (r === mine ? '<span class="badge" style="--tone:' + WF_ROLE[r].tone + ';margin-inline-start:auto">' + esc(t('wf_you')) + '</span>' : '') + '</div><ul>' +
