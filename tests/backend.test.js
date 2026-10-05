@@ -1912,6 +1912,41 @@ test('boxes: dispatch loads the doctor box → driver scan delivers with photo �
   throwsCode(() => api(reem, 'getBoxes'), 'ERR_FORBIDDEN');
 });
 
+test('boxes: one box per owner + branch, procurement can change owner/branch on send, past requests get boxes', () => {
+  const { api, login, gas } = boot();
+  const reem = login('ريم', '2222'), p = login('علي', '3333');
+  const mk = n => api(reem, 'createRequest', { doctor: 'د. سعد', type: 'طارئ', items: [{ name: 'PROPHY PASTE', qty: 2 }, { name: 'DENTAL FLOSS', qty: n }] }).id;
+  const a = mk(1), b = mk(2), c = mk(3);
+  assert.equal(new Set([a, b, c]).size, 3);
+  api(p, 'bulkUpdateStatus', [a, b, c], 'قيد التجهيز');
+  // فرع غير صالح يوقف الإرسال بدون كتابة شحنة
+  throwsCode(() => api(p, 'dispatchItems', a, ['PROPHY PASTE'], { owner: 'د. سعد', branch: 'الدمام' }), 'ERR_BAD_PLACE');
+  assert.ok(!(gas.dump('ShipmentItems') || []).some(r => r[0] === a), 'no shipment written');
+  api(p, 'dispatchItems', a, ['PROPHY PASTE'], { owner: 'د. سعد', branch: 'جدة' });
+  api(p, 'dispatchItems', b, ['PROPHY PASTE'], { owner: 'د. سعد', branch: 'جدة' });
+  let bx = api(p, 'getBoxes').boxes;
+  assert.deepEqual(bx.map(x => [x.id, x.owner, x.branch, x.loads.length]), [['BOX-001', 'د. سعد', 'جدة', 2]], 'same doctor + branch → same box');
+  // نفس الطبيب في فرع آخر = بوكس آخر · وصاحب البوكس يمكن تغييره (التعقيم)
+  api(p, 'dispatchItems', c, ['PROPHY PASTE'], { owner: 'د. سعد', branch: 'الرياض' });
+  api(p, 'bulkUpdateStatus', [a], 'تم الإرسال', { [a]: { owner: 'التعقيم', branch: 'جدة' } });
+  bx = api(p, 'getBoxes').boxes;
+  assert.deepEqual(bx.map(x => [x.id, x.owner, x.branch, x.destination]), [['BOX-001', 'د. سعد', 'جدة', 'جدة'], ['BOX-002', 'د. سعد', 'الرياض', 'الرياض'], ['BOX-003', 'التعقيم', 'جدة', 'جدة']]);
+  assert.deepEqual(api(p, 'addBox', 'د. سعد', 'الرياض').id, 'BOX-002', 'manual add finds the doctor box of that branch');
+  throwsCode(() => api(p, 'addBox', 'د. سعد', 'الدمام'), 'ERR_BAD_PLACE');
+  // بأثر رجعي: نمسح البوكسات (كأنها قبل الميزة) ← تُنشأ وتُحمَّل الشحنات غير المستلمة، وتكرار التشغيل لا يكرر شيئاً
+  api(reem, 'receiveShipment', b, 1, [{ name: 'PROPHY PASTE', qty: 2 }], 'ريم', '', '', '');
+  for (const n of ['Boxes', 'BoxMoves']) { const sh = gas.ss.getSheetByName(n); sh._data.splice(1); }
+  const r1 = api(p, 'backfillBoxes');
+  assert.deepEqual([r1.requests, r1.loaded], [3, 3], 'a#1, a#2 and c#1 are sent but not received; b#1 was received');
+  bx = api(p, 'getBoxes').boxes;
+  const saad = bx.find(x => x.owner === 'د. سعد' && x.branch === 'جدة');
+  assert.ok(saad && saad.loads.length === 3 && saad.status === 'جاهز للنقل', 'all 3 unreceived shipments of his جدة requests are in his جدة box');
+  assert.equal(bx.filter(x => x.owner === 'د. سعد').length, 1, 'past requests use the request branch (جدة) and doctor');
+  const r2 = api(p, 'backfillBoxes');
+  assert.deepEqual([r2.created, r2.loaded], [0, 0]);
+  throwsCode(() => api(reem, 'backfillBoxes'), 'ERR_FORBIDDEN');
+});
+
 test('derma doctor: review and approve without any price or value anywhere (catalog, items, report, detail)', () => {
   const { api, login } = boot();
   const a = login('المدير', '1234');

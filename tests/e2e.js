@@ -286,6 +286,13 @@ function log(msg) { console.log('  ✔ ' + msg); }
   await page.selectOption('[data-change="procBranch"]', 'جدة');
   expect(await page.locator(`#procList .req[data-rid="${newId}"]`).count() === 1, 'branch filter shows the order');
   await page.selectOption('[data-change="procBranch"]', '');
+  const newDoc = await page.evaluate(id => S.proc.list.find(r => r.id === id).doctor, newId);
+  const otherDoc = await page.evaluate(d => (S.proc.list.find(r => r.doctor && r.doctor !== d) || {}).doctor || '', newDoc);
+  await page.selectOption('[data-change="procDoctor"]', newDoc);
+  expect(await page.locator(`#procList .req[data-rid="${newId}"]`).count() === 1 && await page.evaluate(d => $$('#procList .req').every(c => S.proc.list.find(r => r.id === c.dataset.rid).doctor === d), newDoc), 'doctor dropdown shows only that doctor\'s requests');
+  if (otherDoc) { await page.selectOption('[data-change="procDoctor"]', otherDoc); expect(await page.locator(`#procList .req[data-rid="${newId}"]`).count() === 0, 'another doctor hides the request'); }
+  await page.selectOption('[data-change="procDoctor"]', '');
+  expect(await page.getAttribute(`#procList .req[data-rid="${newId}"]`, 'data-tone') !== null, 'procurement request cards are colored by status');
   // الطلب الجديد لدى الطبيب أولاً: التموين يراه لكن لا يستطيع تجهيزه
   expect(await page.isVisible('.alert.warning:has-text("لدى الطبيب")'), 'procurement is alerted that an emergency awaits doctor approval');
   expect((await page.textContent(`.req[data-rid="${newId}"] .badge`)).includes('مراجعة الطبيب'), 'new request goes straight to doctor review');
@@ -428,6 +435,12 @@ function log(msg) { console.log('  ✔ ' + msg); }
   const pill = await page.textContent(`#exp-${newId} .dsp-btn .count-pill`);
   expect(pill.startsWith('2 · 3'), 'button shows items and units of this shipment: ' + pill);
   await page.click(`#exp-${newId} [data-act="dispatch"]`);
+  await page.waitForSelector('.modal .bxp-owner');
+  const reqDoc = await page.evaluate(id => S.proc.list.find(r => r.id === id), newId);
+  expect(await page.inputValue('.modal .bxp-owner') === reqDoc.doctor && await page.inputValue('.modal .bxp-branch') === reqDoc.branch, 'send asks for the box: doctor and branch filled from the request');
+  await page.waitForSelector('.modal .bxp-hint:has-text("بوكس جديد")');
+  expect(true, 'first shipment for this doctor+branch → a new box will be created');
+  await page.click('.modal #bxpOk');
   expect(await toastHas(page, 'أُرسلت الشحنة #1'), 'shipment #1 sent (1 of 4 micro brushes + all floss)');
   await page.waitForSelector(`.req[data-rid="${newId}"] .ship-left`);
   const track = await page.textContent(`.req[data-rid="${newId}"] .ship-track`);
@@ -449,6 +462,9 @@ function log(msg) { console.log('  ✔ ' + msg); }
   expect(await page.locator(`#exp-${newId} .dsp:checked`).count() === totalItems - 1, '"select all remaining" ticks every item with quantity left');
   expect(await page.inputValue(qtyInp('MICRO BRUSH FINE')) === '3', 'remaining 3 micro brushes prefilled');
   await page.click(`#exp-${newId} [data-act="dispatch"]`);
+  await page.waitForSelector('.modal .bxp-hint:has-text("BOX-")');
+  expect(true, 'second shipment for the same doctor+branch goes into the existing box');
+  await page.click('.modal #bxpOk');
   expect(await toastHas(page, 'اكتمل'), 'all quantities dispatched → request sent');
   // ---------- البوكسات: الإرسال حمّل بوكس الطبيب ← السواق يمسح ويسلّم بصورة ----------
   await page.click('.sidebar [data-view="boxes"]');
@@ -469,6 +485,12 @@ function log(msg) { console.log('  ✔ ' + msg); }
   await page.waitForSelector('#drvGo');
   expect(await page.getAttribute('.drv-place[data-p="' + bx.destination + '"]', 'aria-pressed') === 'true', 'destination branch preselected');
   expect(await page.isDisabled('.drv-place[data-p="التموين"]'), 'the place where the box already is cannot be chosen');
+  await page.click('.drv-lang[data-l="bn"]');
+  expect((await page.textContent('#drvGo')).includes('ডেলিভারি সম্পন্ন'), 'driver page switches to Bengali');
+  await page.click('.drv-lang[data-l="hi"]');
+  expect((await page.textContent('#drvGo')).includes('डिलीवरी पूरी हुई'), 'driver page switches to Hindi');
+  await page.click('.drv-lang[data-l="ar"]');
+  expect((await page.textContent('#drvGo')).includes('تم التوصيل'), 'Arabic button reads «تم التوصيل»');
   await page.fill('#drvName', 'أبو فهد');
   await page.click('#drvGo');
   expect((await page.textContent('#drvErr')).includes('صوّر'), 'photo is required before delivery');
@@ -489,6 +511,10 @@ function log(msg) { console.log('  ✔ ' + msg); }
   await page.click('.sidebar [data-view="mine"]');
   expect(await page.textContent(`.req:has-text("${newId}") [data-act="receive"] .count-pill`) === '2', 'receive button shows 2 shipments waiting');
   expect(await page.isVisible(`.req:has-text("${newId}") .tag.arrived`), 'request card shows «وصل الفرع» after the driver delivery');
+  expect((await page.getAttribute(`.req:has-text("${newId}")`, 'style') || '').includes('--t-cyan'), 'arrived request card is colored as a whole');
+  await page.click('#mineChips [data-g="arrived"]');
+  expect(await page.isVisible(`.req:has-text("${newId}")`), 'nurse filters «وصل الفرع» requests');
+  await page.click('#mineChips [data-g="all"]');
   const sign = async (dx) => {
     const pad = await page.$('#sigPad');
     const bb = await pad.boundingBox();
@@ -744,7 +770,10 @@ function log(msg) { console.log('  ✔ ' + msg); }
   await page.waitForSelector('.modal #isItem');
   await page.selectOption('.modal #isItem', 'Handpiece Low Speed');
   expect(await page.isVisible('.modal #isSer') && !(await page.isVisible('.modal #isQty')), 'serialized tool asks for serial numbers, not a quantity');
-  await page.fill('.modal #isSer', 'LS-101\nLS-102');
+  await page.fill('.modal #isSer .input >> nth=0', 'LS-101');
+  await page.press('.modal #isSer .input >> nth=0', 'Enter');
+  await page.keyboard.type('LS-102');
+  expect((await page.locator('.modal #isSer .input').count()) === 2 && (await page.textContent('.modal #isSerN')).includes('2'), 'Enter adds the next serial row (2 units counted)');
   await page.click('.modal #isOk');
   expect(await toastHas(page, 'تم صرف 2 قطعة'), 'issued 2 handpieces by serial number');
   await page.waitForTimeout(300);
@@ -800,7 +829,7 @@ function log(msg) { console.log('  ✔ ' + msg); }
   expect((await page.textContent('.modal .modal-body')).includes('1,500'), 'damaged → loss = tool cost (1,500)');
   await page.click('.modal [data-tk-act="replace"]');
   await page.waitForSelector('.modal #isSer');
-  await page.fill('.modal #isSer', 'LS-103');
+  await page.fill('.modal #isSer .input >> nth=0', 'LS-103');
   await page.click('.modal #isOk');
   expect(await toastHas(page, 'تم صرف 1 قطعة'), 'replacement issued manually with a new serial');
   await page.waitForTimeout(500);
@@ -834,6 +863,8 @@ function log(msg) { console.log('  ✔ ' + msg); }
   await shot(page, 'item-statuses', true);
   await page.check('#exp-' + stId + ' [data-change="dspAll"]');
   await page.click('#exp-' + stId + ' [data-act="dispatch"]');
+  await page.waitForSelector('.modal #bxpOk');
+  await page.click('.modal #bxpOk');
   expect(await toastHas(page, 'اكتمل إرسال كل الأصناف'), 'everything sent (by mistake)');
   await page.waitForSelector('[data-rid="' + stId + '"] [data-act="revertStep"]');
   await page.click('[data-rid="' + stId + '"] [data-act="revertStep"]');

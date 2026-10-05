@@ -68,14 +68,14 @@ async function flow(h) {
     await page.waitForSelector(exp + ' .dsp');
     const q = exp + ' input.dsp-qty >> nth=0';
     await point(q); await page.fill(q, '1'); await page.dispatchEvent(q, 'input'); await wait(500);
-    await click(exp + ' [data-act="dispatch"]'); await wait(1200);
+    await click(exp + ' [data-act="dispatch"]'); await page.waitForSelector('.modal #bxpOk'); await wait(900); await click('.modal #bxpOk'); await wait(1200);
   });
   await scene('left', 'ship', async () => {
     await page.waitForSelector(row + ' .ship-left').catch(() => {});
     await highlight(row + ' .ship-left', 1800);
     if (!(await page.$(exp + ' [data-change="dspAll"]'))) await click(row + ' .req-actions [data-act="procToggle"]');
     await page.check(exp + ' [data-change="dspAll"]'); await wait(400);
-    await click(exp + ' [data-act="dispatch"]'); await wait(1200);
+    await click(exp + ' [data-act="dispatch"]'); await page.waitForSelector('.modal #bxpOk'); await wait(900); await click('.modal #bxpOk'); await wait(1200);
     await highlight(row + ' .badge', 1200);
   });
   await scene('undo', 'undo', async () => {
