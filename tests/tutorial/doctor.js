@@ -1,4 +1,4 @@
-/* فيديو الطبيب — صوت إنجليزي + ترجمة عربية */
+/* فيديو الطبيب — صوت إنجليزي + ترجمة عربية · بدون أي ذكر أو ظهور للأسعار (طبيب بلا صلاحية أسعار) */
 const { makeTutorial } = require('./engine');
 
 const scenes = {
@@ -10,8 +10,8 @@ const scenes = {
     ar: 'افتح رابط النظام، واكتب اسمك ورقمك السري، ثم اضغط «تسجيل الدخول».' },
   page: { en: 'Your page opens on Reviews. The cards at the top count your requests: waiting for your review, approved, sent to the branch, and received. Tap any card to show only those requests.',
     ar: 'تفتح صفحتك على «المراجعات». البطاقات بالأعلى تعرض أعداد طلباتك: بانتظار مراجعتك، المعتمدة، المرسلة للفرع، والمستلمة. اضغط أي بطاقة لعرض طلباتها فقط.' },
-  open: { en: 'Tap a request to open it. You see each item and the quantity the nurse asked for. Prices appear only if the management gave you price access.',
-    ar: 'اضغط على الطلب لفتحه، وسترى كل صنف والكمية التي طلبتها الممرضة. الأسعار تظهر فقط إذا منحتك الإدارة صلاحية الأسعار.' },
+  open: { en: 'Tap a request to open it. You see each item and the quantity the nurse asked for.',
+    ar: 'اضغط على الطلب لفتحه، وسترى كل صنف والكمية التي طلبتها الممرضة.' },
   edit: { en: 'If a quantity is too much or too little, change it. You can also write a note on any item.',
     ar: 'إذا كانت الكمية أكثر أو أقل من اللازم عدّلها، ويمكنك كتابة ملاحظة على أي صنف.' },
   approve: { en: 'Then tap Approve. The request goes to procurement right away, and the nurse can follow it.',
@@ -20,12 +20,10 @@ const scenes = {
     ar: 'إذا كان هناك خطأ، اكتب السبب واضغط «رفض»، فيعود الطلب للممرضة لتصحيحه وإرساله مرة أخرى.' },
   report: { en: 'Tap Requests report to see what you ordered. Choose one month, or cumulative until a date.',
     ar: 'اضغط «تقرير الطلبات» لترى ما طلبته: لشهر واحد، أو تراكميًا حتى تاريخ معين.' },
-  reportview: { en: 'The report shows each request with its items and quantities, and the prices if you have price access. You can print it or save it as PDF.',
-    ar: 'يعرض التقرير كل طلب بأصنافه وكمياته، والأسعار إن كانت لديك صلاحيتها، ويمكنك طباعته أو حفظه PDF.' },
+  reportview: { en: 'The report shows each request with its items and quantities. You can print it or save it as PDF.',
+    ar: 'يعرض التقرير كل طلب بأصنافه وكمياته، ويمكنك طباعته أو حفظه PDF.' },
   lab: { en: 'On the Lab page, you follow your patients\' lab work: where each case is now, and when it is due.',
     ar: 'في صفحة «المعمل» تتابع أعمال مرضاك: أين وصلت كل إرسالية، ومتى موعدها.' },
-  derma: { en: 'By default, doctors see no prices at all, for dental and dermatology. Only the items and quantities. Price access is given by the executive management, quality or finance.',
-    ar: 'افتراضيًا لا يرى الأطباء أي أسعار، أسنان أو جلدية، فقط الأصناف والكميات. صلاحية الأسعار تمنحها الإدارة التنفيذية أو الجودة أو المالية.' },
   password: { en: 'To change your password, tap the lock icon at the bottom, then write the old and the new password.',
     ar: 'لتغيير رقمك السري اضغط أيقونة القفل بالأسفل، واكتب الرقم القديم ثم الجديد.' },
   done: { en: 'That\'s it. Please review your requests quickly, so your clinic gets its supplies on time. Thank you!',
@@ -36,21 +34,19 @@ const steps = {
   review: { en: 'Review & approve', ar: 'المراجعة والاعتماد' },
   report: { en: 'Your report', ar: 'تقريرك' },
   lab: { en: 'Lab work', ar: 'المعمل' },
-  derma: { en: 'Prices', ar: 'الأسعار' },
   survey: { en: 'Survey', ar: 'الاستبيان' },
   pw: { en: 'Password', ar: 'الرقم السري' }
 };
 
 async function flow(h) {
   const { page, scene, click, type, point, highlight, wait } = h;
-  // طلبان بانتظار المراجعة (اعتماد ورفض) + طلب لطبيبة الجلدية
-  const r1 = (await h.api('createRequest', [{ branch: 'Buraydah', doctor: 'Dr. Khalid', type: 'شهري', items: [{ name: 'PROPHY PASTE', qty: 6 }, { name: 'Composite A2', qty: 3 }] }], ['Sara', '1111'])).id;
-  const r2 = (await h.api('createRequest', [{ branch: 'Buraydah', doctor: 'Dr. Khalid', type: 'طارئ', items: [{ name: 'Etchant Blue Tip', qty: 10 }] }], ['Sara', '1111'])).id;
-  await h.api('createRequest', [{ branch: 'Buraydah', doctor: 'Dr. Lama', type: 'شهري', items: [{ name: 'Hyaluronic filler 1ml', qty: 4 }, { name: 'Numbing cream', qty: 2 }] }], ['Huda', '1313']);
+  // د. سعد بلا صلاحية أسعار: طلبان بانتظار المراجعة (اعتماد ورفض)
+  const r1 = (await h.api('createRequest', [{ branch: 'Unayzah', doctor: 'Dr. Saad', type: 'شهري', items: [{ name: 'PROPHY PASTE', qty: 6 }, { name: 'Composite A2', qty: 3 }] }], ['Mona', '1212'])).id;
+  const r2 = (await h.api('createRequest', [{ branch: 'Unayzah', doctor: 'Dr. Saad', type: 'طارئ', items: [{ name: 'Etchant Blue Tip', qty: 10 }] }], ['Mona', '1212'])).id;
   await page.evaluate(() => { window.print = () => {}; });
 
   await scene('intro', '', async () => { await wait(500); });
-  await scene('login', 'login', async () => { await h.login('Dr. Khalid', '4444'); });
+  await scene('login', 'login', async () => { await h.login('Dr. Saad', '4545'); });
   await scene('survey', 'survey', async () => {
     await page.waitForSelector('.modal .sv-form', { timeout: 8000 });
     await wait(600);
@@ -110,15 +106,6 @@ async function flow(h) {
     await wait(1500);
     await page.keyboard.press('Escape');
   });
-  await scene('derma', 'derma', async () => {
-    await h.logout(); await h.login('Dr. Lama', '4646');
-    if (!(await page.$('#docList'))) await h.nav('reviews');
-    await page.waitForSelector('#docList .req');
-    await click('#docList .req [data-id]');
-    await page.waitForSelector('#rvItems table'); await wait(800);
-    await highlight('#rvItems table', 2200);
-    await page.keyboard.press('Escape');
-  });
   await scene('password', 'pw', async () => {
     await click('#pwBtn');
     await page.waitForSelector('#pwCur');
@@ -128,5 +115,5 @@ async function flow(h) {
   await scene('done', '', async () => { await wait(600); });
 }
 
-if (require.main === module) makeTutorial({ id: 'doctor', langs: ['ar'], surveyFor: 'Dr. Khalid', scenes, steps, flow }).catch(e => { console.error('TUTORIAL FAILED', e); process.exit(1); });
+if (require.main === module) makeTutorial({ id: 'doctor', langs: ['ar'], surveyFor: 'Dr. Saad', noMoney: true, scenes, steps, flow }).catch(e => { console.error('TUTORIAL FAILED', e); process.exit(1); });
 module.exports = { scenes, steps, flow };

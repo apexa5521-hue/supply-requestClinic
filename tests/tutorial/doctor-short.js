@@ -71,5 +71,5 @@ async function flow(h) {
   await scene('done', '', async () => { await h.nav('reviews'); });
 }
 
-if (require.main === module) makeTutorial({ id: 'doctor-short', langs: ['ar'], scenes, steps, flow }).catch(e => { console.error('TUTORIAL FAILED', e); process.exit(1); });
+if (require.main === module) makeTutorial({ id: 'doctor-short', langs: ['ar'], noMoney: true, scenes, steps, flow }).catch(e => { console.error('TUTORIAL FAILED', e); process.exit(1); });
 module.exports = { scenes, steps, flow };

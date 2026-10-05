@@ -3557,7 +3557,7 @@ function getDoctorReport_(user, opts) {
     doctor: isDoctor ? user.name : doctor,
     from: from, to: to, generatedAt: new Date(), rows: rows, summary: sum,
     badPrices: Object.keys(badPrices).map(function (k) { return { item: k, issue: badPrices[k] }; }),
-    top: Object.keys(top).map(function (k) { return top[k]; }).sort(function (a, b) { return (b.total || 0) - (a.total || 0) || b.qty - a.qty; }).slice(0, 8)
+    top: Object.keys(top).map(function (k) { return top[k]; }).sort(function (a, b) { return (NO_PRICES_ ? 0 : (b.total || 0) - (a.total || 0)) || b.qty - a.qty; }).slice(0, 8)
   };
 }
 
@@ -3629,13 +3629,14 @@ function getStatsReport_(user, opts) {
       rejectRate: b.requests ? Math.round(b.rejected / b.requests * 100) : 0
     };
   }
-  function list(m) { return Object.keys(m).map(function (k) { return out(k, m[k]); }).sort(function (a, b) { return b.value - a.value || b.requests - a.requests; }); }
+  // بدون أسعار: الترتيب بعدد الطلبات والكمية (لا يكشف ترتيب القيمة)
+  function list(m) { return Object.keys(m).map(function (k) { return out(k, m[k]); }).sort(function (a, b) { return (NO_PRICES_ ? 0 : b.value - a.value) || b.requests - a.requests || b.qty - a.qty; }); }
   return {
     from: from, to: to, branch: branch, generatedAt: new Date(),
     summary: Object.assign(out('', sum), { partial: partial }),
     doctors: list(byDoc), branches: list(byBranch), clinics: list(byClinic), statuses: statuses, badPrices: badPrices,
     billing: Object.keys(byBill).map(function (k) { return byBill[k]; }).sort(function (a, b) { return (a.name ? 0 : 1) - (b.name ? 0 : 1) || b.value - a.value; }),
-    topItems: Object.keys(items).map(function (k) { return items[k]; }).sort(function (a, b) { return b.value - a.value || b.qty - a.qty; }).slice(0, 12)
+    topItems: Object.keys(items).map(function (k) { return items[k]; }).sort(function (a, b) { return (NO_PRICES_ ? 0 : b.value - a.value) || b.qty - a.qty; }).slice(0, 12)
   };
 }
 
