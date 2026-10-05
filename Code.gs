@@ -59,7 +59,7 @@ const SCHEMA = {
   LabNotes:     ['Timestamp', 'CaseID', 'ItemID', 'Author', 'Role', 'Message'],
   // عُهدة العيادة: المعيار لكل عيادة، القطع المصروفة (بالرقم التسلسلي)، وبلاغات الأدوات
   // البوكسات: بوكس ثابت لكل طبيب (أو عيادة لمستهلكات العيادة) عليه QR برمز سري؛ وسجل كل حركة بالصورة
-  Boxes:        ['BoxID', 'Owner', 'Token', 'Location', 'Status', 'Loads', 'Destination', 'LoadedAt', 'UpdatedAt', 'UpdatedBy', 'Photo', 'Notes'],
+  Boxes:        ['BoxID', 'Owner', 'Branch', 'Token', 'Location', 'Status', 'Loads', 'Destination', 'LoadedAt', 'UpdatedAt', 'UpdatedBy', 'Photo', 'Notes'],
   BoxMoves:     ['Timestamp', 'BoxID', 'Owner', 'From', 'To', 'Action', 'By', 'Photo', 'RequestID', 'Batch', 'ClientKey'],
   ClinicStandards: ['Clinic', 'Item', 'StandardQty', 'UpdatedBy', 'UpdatedAt'],
   Assets:       ['AssetID', 'Item', 'Serial', 'Clinic', 'Branch', 'Qty', 'Status', 'IssuedAt', 'IssuedBy', 'Cost', 'TicketID', 'Notes', 'UpdatedAt', 'UpdatedBy'],
@@ -646,6 +646,7 @@ const API_ = {
   getBoxes:                  { screens: ['procurement'], fn: getBoxes_ },
   requestBoxMove:            { screens: ['procurement'], fn: requestBoxMove_ },
   addBox:                    { screens: ['procurement'], fn: addBox_ },
+  backfillBoxes:             { screens: ['procurement'], fn: backfillBoxes_ },
   getFinance:                { screens: [], perm: 'finance', fn: getFinance_ },
   getPriceList:              { screens: [], perm: 'prices_edit', fn: getPriceList_ },
   setItemPrice:              { screens: [], perm: 'prices_edit', fn: setItemPrice_ },
@@ -1172,23 +1173,43 @@ const BX_ST = { EMPTY: 'فارغ', READY: 'جاهز للنقل', MOVE: 'مطلو
 const BOX_HOME = 'التموين';
 function boxLoads_(v) { return str_(v).split(',').map(function (x) { return x.trim(); }).filter(String); }
 function mapBox_(r) {
-  return { id: str_(r.BoxID), owner: str_(r.Owner), location: str_(r.Location) || BOX_HOME, status: str_(r.Status) || BX_ST.EMPTY,
+  return { id: str_(r.BoxID), owner: str_(r.Owner), branch: str_(r.Branch), location: str_(r.Location) || BOX_HOME, status: str_(r.Status) || BX_ST.EMPTY,
     loads: boxLoads_(r.Loads), destination: str_(r.Destination), loadedAt: r.LoadedAt, updatedAt: r.UpdatedAt, updatedBy: str_(r.UpdatedBy),
     photo: str_(r.Photo), notes: str_(r.Notes) };
 }
 function newToken_() { return (Utilities.getUuid() + Utilities.getUuid()).replace(/-/g, '').slice(0, 32); }
 function boxOwnerOf_(req) { return str_(req.doctor) || str_(req.clinic); }
-/** بوكس صاحب الطلب (يُنشأ تلقائياً أول مرة) — داخل القفل */
-function ensureBox_(owner, user) {
-  owner = str_(owner);
+/** صاحب البوكس وفرعه للإرسال: من الطلب، ويمكن للتموين تغييرهما (طبيب آخر، التعقيم، الفرز، عيادة…) */
+function boxPick_(req, pick) {
+  pick = pick || {};
+  const owner = clean_(pick.owner, 120) || boxOwnerOf_(req);
+  const branch = str_(pick.branch) || str_(req.branch) || clinicBranch_(req.clinic);
+  if (pick.branch && getBranches_().indexOf(branch) === -1) throw new Error('ERR_BAD_PLACE');
+  return { owner: owner, branch: branch };
+}
+/** بوكس واحد لكل (صاحب + فرع): نفس الطبيب في فرع آخر = بوكس آخر. البوكس القديم بلا فرع يُعتمد لأول فرع يُرسل له */
+function findBox_(rows, owner, branch) {
+  const mine = rows.filter(function (r) { return str_(r.BoxID) && str_(r.Owner) === owner; });
+  return mine.filter(function (r) { return str_(r.Branch) === str_(branch); })[0] ||
+    (branch ? mine.filter(function (r) { return !str_(r.Branch); })[0] : null) || null;
+}
+function nextBoxId_(rows) {
+  let n = 0;
+  rows.forEach(function (r) { const m = /^BOX-(\d+)$/.exec(str_(r.BoxID)); if (m) n = Math.max(n, Number(m[1])); });
+  return 'BOX-' + String(n + 1).padStart(3, '0');
+}
+/** بوكس صاحب الطلب في فرع (يُنشأ تلقائياً أول مرة) — داخل القفل */
+function ensureBox_(owner, user, branch, location) {
+  owner = str_(owner); branch = str_(branch);
   if (!owner) return null;
   const t = read_('Boxes');
-  const have = t.rows.filter(function (r) { return str_(r.Owner) === owner; })[0];
-  if (have) return have;
-  let n = 0;
-  t.rows.forEach(function (r) { const m = /^BOX-(\d+)$/.exec(str_(r.BoxID)); if (m) n = Math.max(n, Number(m[1])); });
-  const id = 'BOX-' + String(n + 1).padStart(3, '0');
-  append_('Boxes', { BoxID: id, Owner: owner, Token: newToken_(), Location: BOX_HOME, Status: BX_ST.EMPTY, UpdatedAt: new Date(), UpdatedBy: user ? user.name : '' });
+  const have = findBox_(t.rows, owner, branch);
+  if (have) {
+    if (branch && !str_(have.Branch)) setMany_(t, [{ row: have, obj: { Branch: branch } }]);
+    return have;
+  }
+  const id = nextBoxId_(t.rows);
+  append_('Boxes', { BoxID: id, Owner: owner, Branch: branch, Token: newToken_(), Location: location || BOX_HOME, Status: BX_ST.EMPTY, UpdatedAt: new Date(), UpdatedBy: user ? user.name : '' });
   return read_('Boxes').rows.filter(function (r) { return str_(r.BoxID) === id; })[0];
 }
 function addBoxMove_(box, from, to, action, by, photo, requestId, batch, clientKey) {
@@ -1196,26 +1217,25 @@ function addBoxMove_(box, from, to, action, by, photo, requestId, batch, clientK
     Photo: photo || '', RequestID: requestId || '', Batch: batch || '', ClientKey: clientKey || '' });
 }
 /** تحميل شحنة في البوكس (من writeShipment_ داخل القفل) — بوكس جديد يُكتب محمّلاً في سطر واحد */
-function loadBox_(req, batch, user, now) {
-  const owner = boxOwnerOf_(req);
+function loadBox_(req, batch, user, now, pick, quiet) {
+  const bp = boxPick_(req, pick);
+  const owner = bp.owner, dest = bp.branch;
   if (!owner) return;
   const key = req.id + '#' + batch;
-  const dest = str_(req.branch) || clinicBranch_(req.clinic);
   const t = read_('Boxes');
-  let row = t.rows.filter(function (r) { return str_(r.Owner) === owner; })[0];
+  let row = findBox_(t.rows, owner, dest);
   let from = BOX_HOME;
   if (row) {
     from = str_(row.Location) || BOX_HOME;
     const loads = boxLoads_(row.Loads);
     if (loads.indexOf(key) === -1) loads.push(key);
-    setMany_(t, [{ row: row, obj: { Location: BOX_HOME, Status: BX_ST.READY, Loads: loads.join(','), Destination: dest, LoadedAt: now, UpdatedAt: now, UpdatedBy: user.name } }]);
+    setMany_(t, [{ row: row, obj: { Branch: dest, Location: BOX_HOME, Status: BX_ST.READY, Loads: loads.join(','), Destination: dest, LoadedAt: now, UpdatedAt: now, UpdatedBy: user.name } }]);
   } else {
-    let n = 0;
-    t.rows.forEach(function (r) { const m = /^BOX-(\d+)$/.exec(str_(r.BoxID)); if (m) n = Math.max(n, Number(m[1])); });
-    row = { BoxID: 'BOX-' + String(n + 1).padStart(3, '0'), Owner: owner };
-    append_('Boxes', { BoxID: row.BoxID, Owner: owner, Token: newToken_(), Location: BOX_HOME, Status: BX_ST.READY, Loads: key, Destination: dest, LoadedAt: now, UpdatedAt: now, UpdatedBy: user.name });
+    row = { BoxID: nextBoxId_(t.rows), Owner: owner };
+    append_('Boxes', { BoxID: row.BoxID, Owner: owner, Branch: dest, Token: newToken_(), Location: BOX_HOME, Status: BX_ST.READY, Loads: key, Destination: dest, LoadedAt: now, UpdatedAt: now, UpdatedBy: user.name });
   }
   addBoxMove_(row, from, BOX_HOME, 'تحميل', user.name, '', req.id, batch);
+  if (quiet) return;
   // تنبيه السواق بالإيميل (اختياري من Settings ← DriverEmail)
   const mail = str_(getSetting_('DriverEmail', ''));
   if (mail) sendMail_(mail, 'بوكس جاهز للنقل: ' + str_(row.BoxID) + ' (' + owner + ') إلى ' + dest,
@@ -1256,7 +1276,7 @@ function loadsInfo_(loads) {
 function boxInfo_(p) {
   const row = boxByToken_(p);
   const b = mapBox_(row);
-  return { id: b.id, owner: b.owner, location: b.location, status: b.status, destination: b.destination,
+  return { id: b.id, owner: b.owner, branch: b.branch, location: b.location, status: b.status, destination: b.destination,
     loads: loadsInfo_(b.loads), places: boxPlaces_() };
 }
 /** «تسليم»: مكان التسليم + صورة البوكس + اسم السواق */
@@ -1323,7 +1343,7 @@ function driverTasks_(p) {
   const boxes = read_('Boxes').rows.map(mapBox_).filter(function (b) { return b.id && (b.status === BX_ST.READY || b.status === BX_ST.MOVE); });
   return boxes.map(function (b) {
     const row = read_('Boxes').rows.filter(function (r) { return str_(r.BoxID) === b.id; })[0];
-    return { id: b.id, owner: b.owner, status: b.status, location: b.location, destination: b.destination, since: b.updatedAt, k: str_(row.Token), count: b.loads.length };
+    return { id: b.id, owner: b.owner, branch: b.branch, status: b.status, location: b.location, destination: b.destination, since: b.updatedAt, k: str_(row.Token), count: b.loads.length };
   }).sort(function (a, b) { return toMs_(a.since) - toMs_(b.since); });
 }
 /** شاشة التموين: كل البوكسات + آخر حركة + رابط الـ QR لكل بوكس + رابط مهام السواق */
@@ -1373,12 +1393,50 @@ function requestBoxMove_(user, boxId, to) {
   return true;
 }
 /** بوكس جديد يدوياً (لطبيب/عيادة قبل أول إرسال، لطباعة الستيكر مبكراً) */
-function addBox_(user, owner) {
-  owner = clean_(owner, 120);
+function addBox_(user, owner, branch) {
+  owner = clean_(owner, 120); branch = str_(branch);
   if (!owner) throw new Error('ERR_REQUIRED');
+  if (branch && getBranches_().indexOf(branch) === -1) throw new Error('ERR_BAD_PLACE');
   let id = '';
-  withLock_(function () { resetMemo_(); id = str_(ensureBox_(owner, user).BoxID); });
+  withLock_(function () { resetMemo_(); id = str_(ensureBox_(owner, user, branch).BoxID); });
   return { id: id };
+}
+/**
+ * بوكسات بأثر رجعي للطلبات السابقة: بوكس لكل (صاحب + فرع) لكل طلب أُرسل له شيء.
+ * الشحنة المستلمة ← البوكس موجود في الفرع فارغاً · الشحنة المرسلة غير المستلمة ← تُحمَّل في البوكس (جاهز للنقل).
+ * تكرار التشغيل آمن: لا يكرر بوكساً ولا تحميلاً.
+ */
+function backfillBoxes_(user) {
+  const out = { created: 0, loaded: 0, requests: 0 };
+  withLock_(function () {
+    resetMemo_();
+    const before = read_('Boxes').rows.filter(function (r) { return str_(r.BoxID); }).length;
+    const loaded = {};
+    read_('Boxes').rows.forEach(function (r) { boxLoads_(r.Loads).forEach(function (k) { loaded[k] = true; }); });
+    const items = {};
+    read_('RequestItems').rows.forEach(function (r) { (items[str_(r.RequestID)] = items[str_(r.RequestID)] || []).push(r); });
+    const now = new Date();
+    read_('Requests').rows.forEach(function (row) {
+      const req = mapRequest_(row);
+      if (!req.id || req.status === ST.REJECTED) return;
+      const st = shipState_(req, items[req.id] || []);
+      if (!st.ships.length) return;
+      const bp = boxPick_(req);
+      if (!bp.owner) return;
+      out.requests++;
+      // بوكس جديد لطلب سابق: مكانه الفرع (آخر ما وصله)؛ وأي شحنة لم تُستلم تُحمَّل فيه
+      ensureBox_(bp.owner, user, bp.branch, bp.branch || BOX_HOME);
+      st.ships.forEach(function (g) {
+        const key = req.id + '#' + g.batch;
+        if (g.received || loaded[key]) return;
+        loadBox_(req, g.batch, user, now, null, true);
+        loaded[key] = true;
+        out.loaded++;
+      });
+    });
+    out.created = read_('Boxes').rows.filter(function (r) { return str_(r.BoxID); }).length - before;
+  });
+  return out;
 }
 /** حالة التوصيل لكل شحنة (للطلبات): آخر «تسليم» لفرع لكل طلب#شحنة */
 function deliveriesIndex_() {
@@ -2541,7 +2599,7 @@ function shipState_(req, rows) {
  * يسجّل شحنة جديدة: lines = [{ name, qty }] (الكمية لا تتجاوز المتبقي).
  * يُحدّث تاريخ اكتمال الصنف في RequestItems عند إرسال كامل كميته.
  */
-function writeShipment_(req, rows, st, lines, user, now) {
+function writeShipment_(req, rows, st, lines, user, now, boxPick) {
   const batch = st.maxBatch + 1;
   const sh = sheet_('ShipmentItems');
   const vals = [headerRow_(sh)];
@@ -2562,7 +2620,7 @@ function writeShipment_(req, rows, st, lines, user, now) {
     const l = lines.filter(function (x) { return x.name === str_(r.ItemName); })[0];
     return i && l && l.qty >= i.remainingQty;
   }).map(function (r) { return { row: r, obj: { DispatchedAt: now, DispatchBatch: batch } }; }));
-  try { loadBox_(req, batch, user, now); } catch (e) { console.error('loadBox_', e); } // التتبع لا يمنع الإرسال أبداً
+  try { loadBox_(req, batch, user, now, boxPick); } catch (e) { console.error('loadBox_', e); } // التتبع لا يمنع الإرسال أبداً
   return batch;
 }
 
@@ -2715,7 +2773,8 @@ function transitionError_(row, newStatus) {
   return '';
 }
 
-function bulkUpdateStatus_(user, requestIds, newStatus) {
+function bulkUpdateStatus_(user, requestIds, newStatus, boxes) {
+  boxes = boxes || {};
   const tr = TRANSITIONS[newStatus];
   // المراجعة تبدأ تلقائياً برفع الممرضة للطلب — التموين لا يرسل للطبيب
   if (!tr || newStatus === ST.REVIEW) throw new Error('ERR_BAD_STATUS');
@@ -2731,6 +2790,9 @@ function bulkUpdateStatus_(user, requestIds, newStatus) {
       const cur = str_(row.Status) || ST.NEW;
       const why = transitionError_(row, newStatus);
       if (why) { result.skipped.push({ id: id, from: cur, reason: why }); return; }
+      if (newStatus === ST.SENT && boxes[id]) {
+        try { boxPick_(mapRequest_(row), boxes[id]); } catch (e) { result.skipped.push({ id: id, from: cur, reason: e.message }); return; }
+      }
       const upd = { Status: newStatus };
       upd[tr.stamp] = new Date();
       if (newStatus === ST.REVIEW) { upd.RejectionReason = ''; upd.ApprovedAt = ''; }
@@ -2742,7 +2804,7 @@ function bulkUpdateStatus_(user, requestIds, newStatus) {
         const mine = read_('RequestItems').rows.filter(function (r) { return str_(r.RequestID) === id; });
         const st = shipState_(req, mine);
         const lines = st.items.filter(function (i) { return i.remainingQty > 0; }).map(function (i) { return { name: i.item, qty: i.remainingQty }; });
-        if (lines.length) writeShipment_(req, mine, st, lines, user, upd.SentAt);
+        if (lines.length) writeShipment_(req, mine, st, lines, user, upd.SentAt, boxes[id]);
       }
       logAction_(id, 'تغيير الحالة: ' + cur + ' ← ' + newStatus, user.name);
       result.updated.push(id);
@@ -2761,7 +2823,7 @@ function bulkUpdateStatus_(user, requestIds, newStatus) {
  * إرسال شحنة: lines = [{ name, qty }] — qty اختيارية (الافتراضي كل المتبقي من الصنف)،
  * ويُقبل أيضاً ['اسم صنف', ...] للتوافق. يبقى الطلب مفتوحاً حتى تُرسل كل الكميات.
  */
-function dispatchItems_(user, requestId, lines) {
+function dispatchItems_(user, requestId, lines, box) {
   lines = (lines || []).map(function (l) {
     if (l && typeof l === 'object') return { name: str_(l.name), qty: l.qty === '' || l.qty === null || l.qty === undefined ? null : Number(l.qty) };
     return { name: str_(l), qty: null };
@@ -2774,6 +2836,7 @@ function dispatchItems_(user, requestId, lines) {
     const cur = str_(f.row.Status);
     if (DISPATCHABLE.indexOf(cur) === -1 || !cleared_(f.row)) throw new Error('ERR_NEEDS_APPROVAL');
     const req = mapRequest_(f.row);
+    if (box) boxPick_(req, box); // فرع غير صالح يوقف الإرسال قبل كتابة أي شيء
     const rows = read_('RequestItems').rows.filter(function (r) { return str_(r.RequestID) === req.id; });
     const st = shipState_(req, rows);
     const byName = {};
@@ -2789,7 +2852,7 @@ function dispatchItems_(user, requestId, lines) {
     });
     if (!out.length) throw new Error('ERR_NO_ITEMS');
     const now = new Date();
-    const batch = writeShipment_(req, rows, st, out, user, now);
+    const batch = writeShipment_(req, rows, st, out, user, now, box);
     const after = shipState_(req, read_('RequestItems').rows.filter(function (r) { return str_(r.RequestID) === req.id; }));
     const units = out.reduce(function (a, l) { return a + l.qty; }, 0);
     logAction_(req.id, 'إرسال الشحنة ' + batch + ': ' + out.map(function (l) {
