@@ -1,0 +1,51 @@
+1
+00:00:00,810 --> 00:00:03,812
+Video singkat ini menunjukkan halaman Custody kepada perawat:
+
+2
+00:00:03,812 --> 00:00:07,700
+alat milik perusahaan di klinik Anda, dan cara melaporkan alat yang bermasalah.
+
+3
+00:00:08,151 --> 00:00:12,451
+Masuk dengan nama dan kata sandi Anda, lalu ketuk Custody di menu.
+
+4
+00:00:15,627 --> 00:00:22,327
+Gulir ke bawah ke klinik Anda. Setiap alat menunjukkan standar, jumlah yang ada di klinik, dan kekurangannya.
+
+5
+00:00:22,778 --> 00:00:28,008
+Setiap handpiece punya nomor seri sendiri, sama dengan nomor di stiker alat.
+
+6
+00:00:28,458 --> 00:00:32,468
+Jika alat bermasalah, ketuk Report di samping nomor serinya.
+
+7
+00:00:32,918 --> 00:00:39,418
+Pilih masalahnya: rusak, kinerja rendah, hilang, atau lainnya. Tulis deskripsi singkat.
+
+8
+00:00:39,869 --> 00:00:46,059
+Ambil foto alat. Untuk alat yang rusak, foto wajib. Lalu ketuk Send.
+
+9
+00:00:46,509 --> 00:00:52,199
+Laporan dikirim ke pengadaan dengan email. Alat keluar dari hitungan klinik Anda sampai kembali.
+
+10
+00:00:52,649 --> 00:00:58,154
+Anda juga bisa memakai tombol merah besar di atas. Pilih klinik, alat dan unitnya.
+
+11
+00:00:58,154 --> 00:01:01,309
+Jika alat belum terdaftar, tulis nomor serinya.
+
+12
+00:01:01,760 --> 00:01:08,430
+Pantau laporan Anda di sini: diterima pengadaan, sedang diperbaiki, kembali ke klinik, atau rusak.
+
+13
+00:01:08,881 --> 00:01:15,431
+Selesai. Laporkan alat yang bermasalah segera, agar klinik Anda selalu lengkap. Terima kasih!

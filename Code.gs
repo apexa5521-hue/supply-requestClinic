@@ -1431,7 +1431,7 @@ function applyScope_(user) {
   PRICE_VIEW_ = userPriceView_(user);
   NO_PRICES_ = PRICE_VIEW_ === 'none';
   if (NO_PRICES_) user.noPrices = true;
-  if (user.screen === 'doctor') user.priceView = PRICE_VIEW_;
+  if (PRICE_GATED_.indexOf(user.screen) !== -1) user.priceView = PRICE_VIEW_;
 }
 /* =====================================================================
  *  أسعار الطبيب: الأطباء لا يرون أي سعر أو قيمة إلا بمنح من الإدارة التنفيذية أو الجودة أو المالية
@@ -1447,26 +1447,28 @@ function parsePriceView_(v) {
   return /يرى|كل|all|نعم|yes/i.test(v) ? 'all' : 'none'; // القيم القديمة (المستهلكات/الماتيريال فقط) تُعامل «بدون أسعار»
 }
 const PRICE_VIEW_LABEL_ = { all: 'يرى الأسعار', none: 'بدون أسعار' };
+const PRICE_GATED_ = ['doctor', 'branch']; // أدوار لا ترى أي سعر إلا بمنح صريح
 function userPriceView_(user) {
-  if (user.screen !== 'doctor') return 'all';
+  if (PRICE_GATED_.indexOf(user.screen) === -1) return 'all';
   const r = read_('Users').rows.filter(function (u) { return str_(u.Name) === user.name; })[0];
   return (r && parsePriceView_(r.PriceView)) || 'none';
 }
 function priceVisible_() { return PRICE_VIEW_ === 'all'; }
 /** صفحة «أسعار الأطباء»: حسابات الأطباء ومن يرى الأسعار */
 function getDoctorPriceAccess_(user) {
-  return getUsers_().filter(function (u) { return u.screen === 'doctor'; }).map(function (u) {
+  return getUsers_().filter(function (u) { return PRICE_GATED_.indexOf(u.screen) !== -1; }).map(function (u) {
+    if (u.screen === 'branch') return { name: u.name, doctor: u.name, branch: u.branch, department: '', role: 'branch', allowed: u.priceView === 'all' };
     const i = surveyDoctorInfo_(u);
-    return { name: u.name, doctor: i.doctor, branch: i.branch, department: u.department || '', allowed: u.priceView === 'all' };
+    return { name: u.name, doctor: i.doctor, branch: i.branch, department: u.department || '', role: 'doctor', allowed: u.priceView === 'all' };
   }).filter(function (d) { return inScope_(d.branch) || !d.branch; }).sort(function (a, b) { return a.doctor.localeCompare(b.doctor); });
 }
 function setDoctorPriceAccess_(user, name, allow) {
   name = str_(name);
   const t = read_('Users');
-  const row = t.rows.filter(function (r) { return str_(r.Name) === name && roleScreen_(r.Role) === 'doctor'; })[0];
+  const row = t.rows.filter(function (r) { return str_(r.Name) === name && PRICE_GATED_.indexOf(roleScreen_(r.Role)) !== -1; })[0];
   if (!row) throw new Error('ERR_NOT_FOUND');
   setCells_(t, row, { PriceView: PRICE_VIEW_LABEL_[allow ? 'all' : 'none'] });
-  logAction_('', (allow ? 'منح الأسعار للطبيب: ' : 'حجب الأسعار عن الطبيب: ') + name, user.name);
+  logAction_('', (allow ? 'منح الأسعار لـ: ' : 'حجب الأسعار عن: ') + name, user.name);
   return getDoctorPriceAccess_(user);
 }
 /* =====================================================================
@@ -1480,7 +1482,7 @@ function doctorIsDerma_(user) {
   const docs = allDoctors_().filter(function (d) { return isMyDoctor_(user, d.name); });
   return docs.length > 0 && docs.every(function (d) { return clinicDept_(d.clinic) === 'جلدية'; });
 }
-const PRICE_KEYS_ = { price: 1, priceIssue: 1, total: 1, value: 1, cost: 1, repairCost: 1, lossValue: 1, activeValue: 1, badPrices: 1, unpriced: 1, lineValue: 1, unitPrice: 1 };
+const PRICE_KEYS_ = { price: 1, priceIssue: 1, total: 1, value: 1, avgValue: 1, cost: 1, repairCost: 1, lossValue: 1, activeValue: 1, badPrices: 1, unpriced: 1, lineValue: 1, unitPrice: 1 };
 function stripPrices_(v) {
   if (v === null || typeof v !== 'object') return v;
   if (Array.isArray(v)) return v.map(stripPrices_);
@@ -3612,7 +3614,7 @@ function getDoctorsLive_(user) {
     const h = (now - toMs_(r.submittedAt || r.date)) / 36e5;
     if (h > row.oldestHrs) row.oldestHrs = round1_(h);
   });
-  const list = Object.keys(rows).map(function (k) { return rows[k]; })
+  const list = Object.keys(rows).map(function (k) { rows[k].count = rows[k].total; return rows[k]; })
     .sort(function (a, b) { return b.late - a.late || b.total - a.total || b.oldestHrs - a.oldestHrs; });
   const totals = {};
   LIVE_COLS_.forEach(function (c) { totals[c] = list.reduce(function (s, x) { return s + (x.ids[c] || []).length; }, 0); });
@@ -3798,7 +3800,7 @@ function getSurveyResults_(user, cycleId) {
   return {
     current: cur.id ? { id: cur.id, open: cur.open, opens: cur.opens, closes: cur.closes, every: cur.every, openDays: cur.openDays } : null,
     cycles: cycles, cycle: sel, questions: stats, responses: responses, trend: trend,
-    total: doctors.length, answered: responses.length, avg: starAvg(responses),
+    total: doctors.length, count: doctors.length, answered: responses.length, avg: starAvg(responses),
     pending: sel === cur.id ? doctors.filter(function (d) { return !answered[d.user]; }) : [],
     branches: Object.keys(branches).map(function (b) { return { branch: b, responses: branches[b].length, avg: starAvg(branches[b]) }; })
   };
@@ -3899,7 +3901,7 @@ function getExecutiveStats_(user, month) {
     .slice(0, 10);
 
   return {
-    total: all.length,
+    total: all.length, count: all.length,
     statusCounts: statusCounts,
     typeCounts: typeCounts,
     overallAvgHours: overallAvg,
@@ -3993,7 +3995,7 @@ function createUser_(user, u) {
   if (getUsers_().some(function (x) { return loginKey_(x.name) === loginKey_(name); })) throw new Error('ERR_USER_EXISTS');
   append_('Users', { Name: name, Password: hashPassword_(latinDigits_(password).trim()), Role: fields.role, Clinic: fields.clinic, Email: fields.email,
     DoctorName: roleScreen_(fields.role) === 'doctor' ? fields.doctorName : '', Department: fields.department, Branch: fields.branch,
-    PriceView: roleScreen_(fields.role) === 'doctor' && fields.priceView ? PRICE_VIEW_LABEL_[fields.priceView] : '' });
+    PriceView: PRICE_GATED_.indexOf(roleScreen_(fields.role)) !== -1 && fields.priceView ? PRICE_VIEW_LABEL_[fields.priceView] : '' });
   logAction_('', 'إنشاء مستخدم: ' + name, user.name);
   return getUsers_();
 }
@@ -4013,7 +4015,7 @@ function updateUser_(user, name, u) {
     throw new Error('ERR_LAST_ADMIN');
   }
   const upd = { Role: fields.role, Clinic: fields.clinic, Email: fields.email, DoctorName: roleScreen_(fields.role) === 'doctor' ? fields.doctorName : '', Department: fields.department, Branch: fields.branch,
-    PriceView: roleScreen_(fields.role) === 'doctor' && fields.priceView ? PRICE_VIEW_LABEL_[fields.priceView] : '' };
+    PriceView: PRICE_GATED_.indexOf(roleScreen_(fields.role)) !== -1 && fields.priceView ? PRICE_VIEW_LABEL_[fields.priceView] : '' };
   if (u.password) {
     if (String(u.password).length < 4) throw new Error('ERR_WEAK_PASSWORD');
     upd.Password = hashPassword_(latinDigits_(String(u.password)).trim());
