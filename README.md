@@ -323,8 +323,7 @@ ApexCare (الأسنان والجلدية) ومستودع التموين: تفو
 - تصدير تقرير الجودة الشهري كـ PDF تلقائياً.
 
 ## النشر التلقائي من GitHub
-كل دمج في `main` يشغّل `.github/workflows/deploy.yml`: الاختبارات ← بناء الواجهة ونشرها على GitHub Pages ← (اختياري) رفع الكود لـ Apps Script.
-- **مرة واحدة:** Settings ▸ Pages ▸ Source = **GitHub Actions**. الرابط بعدها: `https://apexa5521-hue.github.io/supply-requestClinic/` (يتصل بخادم Apps Script المكتوب في `APPS_SCRIPT_URL`).
-- **رفع Apps Script تلقائياً (اختياري):** أضف في Settings ▸ Secrets and variables ▸ Actions:
-  `CLASPRC_JSON` (محتوى ملف `~/.clasprc.json` بعد `clasp login` على جهازك) · `SCRIPT_ID` (من Apps Script ▸ Project Settings) · `DEPLOYMENT_ID` (من Deploy ▸ Manage deployments — حتى يبقى نفس الرابط).
-  بدونها تُتخطى هذه الخطوة ويُحدَّث GitHub Pages فقط.
+- **الواجهة:** GitHub Pages ينشر الفرع `main` تلقائياً بعد كل دمج. رابط الفريق `…/supply-requestClinic/Index.html` يحمّل `JavaScript.html` من نفس المكان، فيصل أي تعديل في الواجهة خلال دقيقة أو اثنتين (تحديث الصفحة بـ Ctrl+Shift+R).
+- **الخادم (Apps Script):** `.github/workflows/deploy.yml` يشغّل الاختبارات، ثم يرفع الكود لـ Apps Script ويحدّث نفس رابط النشر — بشرط إضافة الأسرار في Settings ▸ Secrets and variables ▸ Actions:
+  `CLASPRC_JSON` (محتوى `~/.clasprc.json` بعد `clasp login`) · `SCRIPT_ID` (Apps Script ▸ Project Settings) · `DEPLOYMENT_ID` (Deploy ▸ Manage deployments).
+  بدونها تُتخطى الخطوة، ويُحدَّث Code.gs يدوياً (نسخ ثم New version).
