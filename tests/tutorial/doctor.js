@@ -2,14 +2,16 @@
 const { makeTutorial } = require('./engine');
 
 const scenes = {
-  intro: { en: 'This video is for doctors. You will learn how to review and approve your nurse\'s requests, read your report, and follow your patients\' lab work.',
-    ar: 'هذا الفيديو للأطباء: كيف تراجع طلبات ممرضتك وتعتمدها، وتقرأ تقريرك، وتتابع أعمال مرضاك في المعمل.' },
+  intro: { en: 'This video is for doctors. You will learn how to review and approve your requests, read your report, follow your patients\' lab work, and answer the satisfaction survey.',
+    ar: 'هذا الفيديو للأطباء: كيف تراجع طلباتك وتعتمدها، وتقرأ تقريرك، وتتابع أعمال مرضاك في المعمل، وتجيب على استبيان الرضا.' },
+  survey: { en: 'Every 50 days, a short satisfaction survey opens for ten days. It appears when you sign in. Tap the stars, choose a number from zero to ten, write a note if you like, and tap Send. If you tap Later, a notice stays at the top until you answer.',
+    ar: 'كل 50 يومًا يُفتح استبيان رضا قصير لمدة عشرة أيام، ويظهر لك عند الدخول. اضغط النجوم، واختر رقمًا من صفر إلى عشرة، واكتب ملاحظة إن أردت، ثم «إرسال». وإذا ضغطت «لاحقًا» يبقى تنبيه أعلى صفحتك حتى تجيب.' },
   login: { en: 'Open the system link, write your name and password, and tap Sign in.',
     ar: 'افتح رابط النظام، واكتب اسمك ورقمك السري، ثم اضغط «تسجيل الدخول».' },
   page: { en: 'Your page opens on Reviews. The cards at the top count your requests: waiting for your review, approved, sent to the branch, and received. Tap any card to show only those requests.',
     ar: 'تفتح صفحتك على «المراجعات». البطاقات بالأعلى تعرض أعداد طلباتك: بانتظار مراجعتك، المعتمدة، المرسلة للفرع، والمستلمة. اضغط أي بطاقة لعرض طلباتها فقط.' },
-  open: { en: 'Tap a request to open it. You see each item, the quantity the nurse asked for, and the price.',
-    ar: 'اضغط على الطلب لفتحه، وسترى كل صنف والكمية التي طلبتها الممرضة والسعر.' },
+  open: { en: 'Tap a request to open it. You see each item and the quantity the nurse asked for. Prices appear only if the management gave you price access.',
+    ar: 'اضغط على الطلب لفتحه، وسترى كل صنف والكمية التي طلبتها الممرضة. الأسعار تظهر فقط إذا منحتك الإدارة صلاحية الأسعار.' },
   edit: { en: 'If a quantity is too much or too little, change it. You can also write a note on any item.',
     ar: 'إذا كانت الكمية أكثر أو أقل من اللازم عدّلها، ويمكنك كتابة ملاحظة على أي صنف.' },
   approve: { en: 'Then tap Approve. The request goes to procurement right away, and the nurse can follow it.',
@@ -18,12 +20,12 @@ const scenes = {
     ar: 'إذا كان هناك خطأ، اكتب السبب واضغط «رفض»، فيعود الطلب للممرضة لتصحيحه وإرساله مرة أخرى.' },
   report: { en: 'Tap Requests report to see what you ordered. Choose one month, or cumulative until a date.',
     ar: 'اضغط «تقرير الطلبات» لترى ما طلبته: لشهر واحد، أو تراكميًا حتى تاريخ معين.' },
-  reportview: { en: 'The report shows each request with its items, quantities, prices and the total. You can print it or save it as PDF.',
-    ar: 'يعرض التقرير كل طلب بأصنافه وكمياته وأسعاره والإجمالي، ويمكنك طباعته أو حفظه PDF.' },
+  reportview: { en: 'The report shows each request with its items and quantities, and the prices if you have price access. You can print it or save it as PDF.',
+    ar: 'يعرض التقرير كل طلب بأصنافه وكمياته، والأسعار إن كانت لديك صلاحيتها، ويمكنك طباعته أو حفظه PDF.' },
   lab: { en: 'On the Lab page, you follow your patients\' lab work: where each case is now, and when it is due.',
     ar: 'في صفحة «المعمل» تتابع أعمال مرضاك: أين وصلت كل إرسالية، ومتى موعدها.' },
-  derma: { en: 'A note for dermatology doctors: your page shows no prices at all. You see only the items and quantities, and you review and approve the same way.',
-    ar: 'ملاحظة لأطباء الجلدية: صفحتكم لا تعرض أي أسعار إطلاقًا، فقط الأصناف والكميات، والمراجعة والاعتماد بنفس الطريقة.' },
+  derma: { en: 'By default, doctors see no prices at all, for dental and dermatology. Only the items and quantities. Price access is given by the executive management, quality or finance.',
+    ar: 'افتراضيًا لا يرى الأطباء أي أسعار، أسنان أو جلدية، فقط الأصناف والكميات. صلاحية الأسعار تمنحها الإدارة التنفيذية أو الجودة أو المالية.' },
   password: { en: 'To change your password, tap the lock icon at the bottom, then write the old and the new password.',
     ar: 'لتغيير رقمك السري اضغط أيقونة القفل بالأسفل، واكتب الرقم القديم ثم الجديد.' },
   done: { en: 'That\'s it. Please review your requests quickly, so your clinic gets its supplies on time. Thank you!',
@@ -34,7 +36,8 @@ const steps = {
   review: { en: 'Review & approve', ar: 'المراجعة والاعتماد' },
   report: { en: 'Your report', ar: 'تقريرك' },
   lab: { en: 'Lab work', ar: 'المعمل' },
-  derma: { en: 'Dermatology', ar: 'الجلدية' },
+  derma: { en: 'Prices', ar: 'الأسعار' },
+  survey: { en: 'Survey', ar: 'الاستبيان' },
   pw: { en: 'Password', ar: 'الرقم السري' }
 };
 
@@ -48,6 +51,19 @@ async function flow(h) {
 
   await scene('intro', '', async () => { await wait(500); });
   await scene('login', 'login', async () => { await h.login('Dr. Khalid', '4444'); });
+  await scene('survey', 'survey', async () => {
+    await page.waitForSelector('.modal .sv-form', { timeout: 8000 });
+    await wait(600);
+    const n = await page.locator('.modal .sv-stars').count();
+    for (let i = 0; i < n; i++) {
+      const st = page.locator('.modal .sv-stars').nth(i).locator('.sv-b').nth(i % 3 === 0 ? 3 : 4);
+      await st.scrollIntoViewIfNeeded(); await st.click(); await wait(150);
+    }
+    await page.locator('.modal .sv-nps .sv-b[data-v="9"]').scrollIntoViewIfNeeded();
+    await click('.modal .sv-nps .sv-b[data-v="9"]');
+    await type('.modal textarea[data-q="Q14"]', 'Please add the delivery time to the box');
+    await click('#svSend'); await wait(1200);
+  });
   await scene('page', 'review', async () => {
     await page.waitForSelector('#docList .req');
     for (const i of [1, 2, 3, 4]) await highlight('#docKpis .kpi:nth-child(' + i + ')', 1300);
@@ -112,5 +128,5 @@ async function flow(h) {
   await scene('done', '', async () => { await wait(600); });
 }
 
-if (require.main === module) makeTutorial({ id: 'doctor', langs: ['ar'], scenes, steps, flow }).catch(e => { console.error('TUTORIAL FAILED', e); process.exit(1); });
+if (require.main === module) makeTutorial({ id: 'doctor', langs: ['ar'], surveyFor: 'Dr. Khalid', scenes, steps, flow }).catch(e => { console.error('TUTORIAL FAILED', e); process.exit(1); });
 module.exports = { scenes, steps, flow };

@@ -1,0 +1,35 @@
+1
+00:00:00,905 --> 00:00:07,075
+This video is for the driver. You don't need an account. You only use your phone camera and one link.
+
+2
+00:00:07,526 --> 00:00:12,666
+Procurement sends you the Driver tasks link once. Add it to your phone home screen.
+
+3
+00:00:12,666 --> 00:00:16,506
+It shows every box you need to move, from where, and to where.
+
+4
+00:00:16,957 --> 00:00:24,057
+Every box has a QR sticker. When you deliver a box, scan its sticker with the camera. This page opens.
+
+5
+00:00:24,508 --> 00:00:28,416
+Choose where you delivered the box: the branch or procurement.
+
+6
+00:00:28,416 --> 00:00:34,088
+The destination is chosen for you, and the place where the box already is can't be chosen.
+
+7
+00:00:34,543 --> 00:00:40,973
+Take a photo of the box. The photo is required. Write your name once; the phone remembers it.
+
+8
+00:00:41,424 --> 00:00:48,004
+Tap Deliver. The nurse gets a message that the box arrived, and procurement sees it on the boxes page.
+
+9
+00:00:48,455 --> 00:00:53,635
+That's it: scan, choose the place, photo, deliver. Thank you!

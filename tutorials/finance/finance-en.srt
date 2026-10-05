@@ -1,0 +1,63 @@
+1
+00:00:00,886 --> 00:00:03,191
+This video is for the finance team.
+
+2
+00:00:03,191 --> 00:00:09,975
+You will learn how to follow spending, see what each doctor costs, fix catalog prices, and decide which
+
+3
+00:00:09,975 --> 00:00:11,226
+doctors see prices.
+
+4
+00:00:11,677 --> 00:00:16,337
+Sign in with your name and password. Your page opens on Finance.
+
+5
+00:00:17,454 --> 00:00:25,754
+Choose the period: one month, cumulative up to a date, or all time. You can also filter by branch. Then tap Update.
+
+6
+00:00:26,205 --> 00:00:33,347
+The cards show the value requested, the value approved, what the doctor review saved, what was sent and
+
+7
+00:00:33,347 --> 00:00:35,635
+received, and emergency spending.
+
+8
+00:00:36,086 --> 00:00:41,626
+The chart shows spending over the last twelve months, and the tables split it by branch and by clinic.
+
+9
+00:00:42,078 --> 00:00:46,983
+Doctor billing: a fixed doctor carries all the consumables of their clinic.
+
+10
+00:00:46,983 --> 00:00:52,738
+A box doctor carries only what is requested in their name. Each request is counted once.
+
+11
+00:00:53,188 --> 00:00:55,991
+Catalog prices: edit any price and tap Save.
+
+12
+00:00:55,991 --> 00:01:00,704
+It is written straight to the sheet as a number, and the change is logged.
+
+13
+00:01:00,704 --> 00:01:03,698
+Show only the wrong prices to fix them quickly.
+
+14
+00:01:04,148 --> 00:01:11,608
+Doctor prices: doctors see no prices by default. Grant or withhold prices for each doctor from here.
+
+15
+00:01:12,059 --> 00:01:14,529
+Every table can be exported to Excel.
+
+16
+00:01:16,286 --> 00:01:22,406
+That's it. Review spending every month, and keep catalog prices correct. Thank you!

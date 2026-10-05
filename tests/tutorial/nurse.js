@@ -15,16 +15,16 @@ const scenes = {
     id: 'Buka tautan sistem. Tulis nama dan kata sandi Anda, lalu ketuk Sign in.'
   },
   kinds: {
-    en: 'On the New request page, there are three choices at the top. One: Doctor request, for supplies used by one doctor. The doctor must approve it. Two: Clinic consumables, for supplies used by the whole clinic, and for sterilization. No doctor approval is needed. Three: Send to lab, for patient work that goes to the dental lab.',
-    ar: 'في صفحة «طلب جديد» توجد ثلاثة خيارات بالأعلى. الأول: طلب طبيب، لمستهلكات طبيب واحد، ويجب أن يعتمده الطبيب. الثاني: مستهلكات العيادة، لمستهلكات العيادة كاملة وللتعقيم، ولا يحتاج اعتماد طبيب. الثالث: إرسال للمعمل، لأعمال المريض التي تذهب لمعمل الأسنان.',
-    ur: 'نئی درخواست والے صفحے پر اوپر تین انتخاب ہیں۔ پہلا: ڈاکٹر کی درخواست، ایک ڈاکٹر کے سامان کے لیے، جسے ڈاکٹر منظور کرتا ہے۔ دوسرا: کلینک کا سامان، پورے کلینک اور اسٹرلائزیشن کے لیے، ڈاکٹر کی منظوری ضروری نہیں۔ تیسرا: لیب کو بھیجیں، مریض کا کام جو ڈینٹل لیب جاتا ہے۔',
-    id: 'Di halaman New request ada tiga pilihan di atas. Satu: Doctor request, untuk perlengkapan satu dokter, dan dokter harus menyetujuinya. Dua: Clinic consumables, untuk perlengkapan seluruh klinik dan sterilisasi, tanpa persetujuan dokter. Tiga: Send to lab, untuk pekerjaan pasien yang dikirim ke lab gigi.'
+    en: 'On the New request page, there are three choices at the top. One: Doctor request, for everything used in the clinics. It counts on the doctor, and the doctor approves it. Two: Clinic consumables, only for Sterilization and the Triage room. No doctor approval is needed. Three: Send to lab, for patient work that goes to the lab.',
+    ar: 'في صفحة «طلب جديد» ثلاثة خيارات بالأعلى. الأول: طلب طبيب، لكل ما يُستخدم في العيادات، ويُحسب على الطبيب ويعتمده بنفسه. الثاني: مستهلكات عيادة، للتعقيم وغرفة الفرز فقط، ولا يحتاج اعتماد طبيب. الثالث: إرسال للمعمل، لأعمال المرضى.',
+    ur: 'نئی درخواست کے صفحے پر اوپر تین انتخاب ہیں۔ پہلا: ڈاکٹر کی درخواست، کلینک میں استعمال ہونے والی ہر چیز کے لیے، جو ڈاکٹر کے حساب میں جاتی ہے اور ڈاکٹر منظور کرتا ہے۔ دوسرا: کلینک کا سامان، صرف اسٹرلائزیشن اور ٹرائیج روم کے لیے، ڈاکٹر کی منظوری ضروری نہیں۔ تیسرا: لیب کو بھیجیں، مریض کے کام کے لیے۔',
+    id: 'Di halaman New request ada tiga pilihan di atas. Satu: Doctor request, untuk semua yang dipakai di klinik. Dihitung atas nama dokter, dan dokter menyetujuinya. Dua: Clinic consumables, hanya untuk Sterilisasi dan ruang Triase, tanpa persetujuan dokter. Tiga: Send to lab, untuk pekerjaan pasien.'
   },
   doctor: {
-    en: 'Let\'s start with a Doctor request. Choose the doctor. The clinic and the branch are filled in for you.',
-    ar: 'نبدأ بطلب الطبيب. اختاري الطبيب، والعيادة والفرع يتم تعبئتهما تلقائيًا.',
-    ur: 'ڈاکٹر کی درخواست سے شروع کرتے ہیں۔ ڈاکٹر منتخب کریں، کلینک اور برانچ خود بخود بھر جاتے ہیں۔',
-    id: 'Mari mulai dengan Doctor request. Pilih dokternya. Klinik dan cabang terisi otomatis.'
+    en: 'Let\'s start with a Doctor request. First choose the clinic, then the doctor. The doctors of this clinic are listed first, then all other doctors, because doctors move between clinics. The branch is filled in for you.',
+    ar: 'نبدأ بطلب الطبيب: اختاري العيادة أولًا ثم الطبيب. أطباء العيادة يظهرون أولًا ثم باقي الأطباء، لأن الطبيب يتنقل بين العيادات. والفرع يُعبّأ تلقائيًا.',
+    ur: 'ڈاکٹر کی درخواست سے شروع کرتے ہیں۔ پہلے کلینک چنیں، پھر ڈاکٹر۔ اس کلینک کے ڈاکٹر پہلے آتے ہیں، پھر باقی سب، کیونکہ ڈاکٹر کلینک بدلتے رہتے ہیں۔ برانچ خود بھر جاتی ہے۔',
+    id: 'Mari mulai dengan Doctor request. Pilih klinik dulu, lalu dokternya. Dokter klinik ini tampil lebih dulu, lalu semua dokter lain, karena dokter berpindah antar klinik. Cabang terisi otomatis.'
   },
   type: {
     en: 'Choose the type. Monthly is your normal monthly order. Emergency is only for urgent needs.',
@@ -50,35 +50,23 @@ const scenes = {
     ur: 'سائیڈ پر خلاصہ چیک کریں، پھر سبمٹ دبائیں۔ ڈرافٹ خود محفوظ ہوتا ہے، آپ کا کام ضائع نہیں ہوتا۔',
     id: 'Periksa ringkasan di samping, lalu ketuk Submit request. Draf tersimpan otomatis, jadi pekerjaan Anda tidak hilang.'
   },
-  clinic: {
-    en: 'Next, Clinic consumables. Use it for things the whole clinic uses, like gloves or cotton. Choose Clinic consumables, then choose your clinic, and add the items.',
-    ar: 'التالي: مستهلكات العيادة، للأشياء التي تستخدمها العيادة كاملة مثل القفازات والقطن. اختاري «مستهلكات العيادة»، ثم عيادتك، وأضيفي الأصناف.',
-    ur: 'اگلا: کلینک کا سامان، جیسے دستانے یا روئی جو پورا کلینک استعمال کرتا ہے۔ کلینک کا سامان منتخب کریں، پھر اپنا کلینک، اور اشیاء شامل کریں۔',
-    id: 'Berikutnya, Clinic consumables, untuk barang yang dipakai seluruh klinik seperti sarung tangan atau kapas. Pilih Clinic consumables, lalu klinik Anda, dan tambahkan barangnya.'
-  },
-  clinicsend: {
-    en: 'Tap Submit request. This request goes straight to procurement. It does not wait for a doctor.',
-    ar: 'اضغطي «إرسال الطلب». هذا الطلب يذهب للتموين مباشرة ولا ينتظر الطبيب.',
-    ur: 'سبمٹ دبائیں۔ یہ درخواست سیدھی پروکیورمنٹ کو جاتی ہے، ڈاکٹر کا انتظار نہیں کرتی۔',
-    id: 'Ketuk Submit request. Permintaan ini langsung ke bagian pengadaan, tidak menunggu dokter.'
-  },
   steril: {
-    en: 'Sterilization supplies are ordered the same way, as Clinic consumables. Open the clinic list. The Sterilization section is at the top. Choose the sterilization of your branch: Buraydah or Unayzah.',
-    ar: 'مستلزمات التعقيم تُطلب بنفس الطريقة كمستهلكات عيادة. افتحي قائمة العيادات، قسم التعقيم في الأعلى، واختاري تعقيم فرعك: بريدة أو عنيزة.',
-    ur: 'اسٹرلائزیشن کا سامان بھی اسی طرح کلینک کے سامان میں منگوایا جاتا ہے۔ کلینک کی فہرست کھولیں، اسٹرلائزیشن سب سے اوپر ہے۔ اپنی برانچ منتخب کریں: بریدہ یا عنیزہ۔',
-    id: 'Perlengkapan sterilisasi dipesan dengan cara yang sama, sebagai Clinic consumables. Buka daftar klinik, bagian Sterilization ada di atas. Pilih sterilisasi cabang Anda: Buraydah atau Unayzah.'
+    en: 'Next, Clinic consumables. This is only for Sterilization and the Triage room. Open the list and choose the place in your branch: Buraydah or Unayzah.',
+    ar: 'التالي: مستهلكات العيادة، وهي للتعقيم وغرفة الفرز فقط. افتحي القائمة واختاري المكان في فرعك: بريدة أو عنيزة.',
+    ur: 'اگلا: کلینک کا سامان، جو صرف اسٹرلائزیشن اور ٹرائیج روم کے لیے ہے۔ فہرست کھولیں اور اپنی برانچ کی جگہ چنیں: بریدہ یا عنیزہ۔',
+    id: 'Berikutnya, Clinic consumables, hanya untuk Sterilisasi dan ruang Triase. Buka daftarnya dan pilih tempat di cabang Anda: Buraydah atau Unayzah.'
   },
   sterilsend: {
-    en: 'A note shows exactly where the order will be delivered. Add the items and tap Submit request.',
-    ar: 'تظهر ملاحظة توضح مكان تسليم الطلب بالضبط. أضيفي الأصناف واضغطي «إرسال الطلب».',
-    ur: 'ایک نوٹ بتاتا ہے کہ آرڈر کہاں پہنچے گا۔ اشیاء شامل کریں اور سبمٹ دبائیں۔',
-    id: 'Sebuah catatan menunjukkan ke mana pesanan dikirim. Tambahkan barang dan ketuk Submit request.'
+    en: 'A note shows exactly where the order will be delivered. Add the items and tap Submit request. It goes straight to procurement.',
+    ar: 'تظهر ملاحظة توضح مكان التسليم بالضبط. أضيفي الأصناف واضغطي «إرسال الطلب»، ويذهب للتموين مباشرة.',
+    ur: 'ایک نوٹ بتاتا ہے کہ آرڈر کہاں پہنچے گا۔ اشیاء شامل کریں اور سبمٹ دبائیں۔ یہ سیدھا پروکیورمنٹ کو جاتا ہے۔',
+    id: 'Sebuah catatan menunjukkan ke mana pesanan dikirim. Tambahkan barang dan ketuk Submit request. Langsung ke pengadaan.'
   },
   mine: {
-    en: 'Now open My requests. Here you can see the difference. The doctor request shows Doctor review: it waits for the doctor. The clinic and sterilization requests show New: they went straight to procurement.',
-    ar: 'افتحي «طلباتي» لتري الفرق: طلب الطبيب حالته «مراجعة الطبيب» أي ينتظر الطبيب، وطلبا العيادة والتعقيم حالتهما «جديد» أي ذهبا للتموين مباشرة.',
-    ur: 'اب میری درخواستیں کھولیں۔ ڈاکٹر کی درخواست ڈاکٹر ریویو دکھاتی ہے، یعنی ڈاکٹر کا انتظار۔ کلینک اور اسٹرلائزیشن کی درخواستیں نیو دکھاتی ہیں، یعنی سیدھی پروکیورمنٹ کو گئیں۔',
-    id: 'Buka My requests untuk melihat bedanya. Doctor request berstatus Doctor review: menunggu dokter. Permintaan klinik dan sterilisasi berstatus New: langsung ke pengadaan.'
+    en: 'Now open My requests and see the difference. The doctor request shows Doctor review: it waits for the doctor. The sterilization request shows New: it went straight to procurement.',
+    ar: 'افتحي «طلباتي» لتري الفرق: طلب الطبيب حالته «مراجعة الطبيب» أي ينتظر الطبيب، وطلب التعقيم حالته «جديد» أي ذهب للتموين مباشرة.',
+    ur: 'اب میری درخواستیں کھولیں اور فرق دیکھیں۔ ڈاکٹر کی درخواست ڈاکٹر ریویو دکھاتی ہے، یعنی ڈاکٹر کا انتظار۔ اسٹرلائزیشن کی درخواست نیو دکھاتی ہے، یعنی سیدھی پروکیورمنٹ کو گئی۔',
+    id: 'Buka My requests untuk melihat bedanya. Doctor request berstatus Doctor review: menunggu dokter. Permintaan sterilisasi berstatus New: langsung ke pengadaan.'
   },
   detail: {
     en: 'Tap Details to see everything about a request: each step and its time, the items, and the comments.',
@@ -146,23 +134,28 @@ const scenes = {
     ur: 'جب لیب کام مکمل کرتی ہے تو کلینک واپس بھیجتی ہے۔ وصولی کی تصدیق کا بٹن نظر آئے گا، کام پہنچنے پر اسے دبائیں۔',
     id: 'Saat lab selesai, pekerjaan dikirim kembali ke klinik. Anda akan melihat tombol Confirm receipt. Ketuk saat pekerjaan tiba di klinik.'
   },
+  itero: {
+    en: 'For an iTero digital scan, choose the iTero tab. Write the scan date, the iTero case number, the file number and the doctor. Then choose the lab from the list: the internal lab, or an external lab. Tap Send to lab.',
+    ar: 'لسكان iTero الرقمي اختاري تبويب iTero: اكتبي تاريخ السكان ورقم حالة الآيتيرو ورقم الملف والطبيب، ثم اختاري المعمل من القائمة: الداخلي أو معمل خارجي، واضغطي «إرسال للمعمل».',
+    ur: 'iTero ڈیجیٹل اسکین کے لیے iTero ٹیب چنیں۔ اسکین کی تاریخ، iTero کیس نمبر، فائل نمبر اور ڈاکٹر لکھیں۔ پھر فہرست سے لیب چنیں: اندرونی لیب یا بیرونی لیب۔ لیب کو بھیجیں دبائیں۔',
+    id: 'Untuk scan digital iTero, pilih tab iTero. Tulis tanggal scan, nomor kasus iTero, nomor berkas dan dokter. Lalu pilih lab dari daftar: lab internal atau lab eksternal. Ketuk Send to lab.'
+  },
   done: {
-    en: 'That\'s all. Doctor requests need the doctor\'s approval. Clinic and sterilization requests go straight to procurement. Lab work goes to the lab. If there is any problem, use the Report button on the card. Thank you!',
-    ar: 'هذا كل شيء: طلب الطبيب يحتاج اعتماده، وطلبات العيادة والتعقيم تذهب للتموين مباشرة، وأعمال المرضى تذهب للمعمل. لأي مشكلة استخدمي زر «بلاغ» على الطلب. شكرًا لك!',
-    ur: 'بس اتنا ہی۔ ڈاکٹر کی درخواست کو منظوری چاہیے۔ کلینک اور اسٹرلائزیشن کی درخواستیں سیدھی پروکیورمنٹ کو جاتی ہیں۔ لیب کا کام لیب کو جاتا ہے۔ کسی مسئلے پر رپورٹ کا بٹن استعمال کریں۔ شکریہ!',
-    id: 'Itu saja. Doctor request perlu persetujuan dokter. Permintaan klinik dan sterilisasi langsung ke pengadaan. Pekerjaan pasien dikirim ke lab. Jika ada masalah, gunakan tombol Report di kartunya. Terima kasih!'
+    en: 'That\'s all. Clinic supplies are a Doctor request, approved by the doctor. Sterilization and the Triage room are Clinic consumables. Patient work and iTero scans go to the lab. If there is any problem, use the Report button on the card. Thank you!',
+    ar: 'هذا كل شيء: مستلزمات العيادات «طلب طبيب» يعتمده الطبيب، والتعقيم وغرفة الفرز «مستهلكات عيادة»، وأعمال المرضى وسكانات iTero تذهب للمعمل. لأي مشكلة استخدمي زر «بلاغ» على الطلب. شكرًا لك!',
+    ur: 'بس اتنا ہی۔ کلینک کا سامان ڈاکٹر کی درخواست ہے جو ڈاکٹر منظور کرتا ہے۔ اسٹرلائزیشن اور ٹرائیج روم کلینک کا سامان ہیں۔ مریض کا کام اور iTero اسکین لیب جاتے ہیں۔ کسی مسئلے پر رپورٹ کا بٹن استعمال کریں۔ شکریہ!',
+    id: 'Itu saja. Perlengkapan klinik adalah Doctor request yang disetujui dokter. Sterilisasi dan ruang Triase adalah Clinic consumables. Pekerjaan pasien dan scan iTero dikirim ke lab. Jika ada masalah, gunakan tombol Report di kartunya. Terima kasih!'
   }
 };
 const steps = {
   login: { en: 'Sign in', ar: 'تسجيل الدخول', ur: 'سائن اِن', id: 'Masuk' },
   kinds: { en: 'Three kinds of requests', ar: 'أنواع الطلبات', ur: 'درخواست کی اقسام', id: 'Tiga jenis permintaan' },
   doc: { en: '1 · Doctor request', ar: '١ · طلب طبيب', ur: '١ · ڈاکٹر کی درخواست', id: '1 · Doctor request' },
-  clinic: { en: '2 · Clinic consumables', ar: '٢ · مستهلكات العيادة', ur: '٢ · کلینک کا سامان', id: '2 · Clinic consumables' },
-  steril: { en: '3 · Sterilization', ar: '٣ · التعقيم', ur: '٣ · اسٹرلائزیشن', id: '3 · Sterilisasi' },
+  steril: { en: '2 · Sterilization & Triage', ar: '٢ · التعقيم وغرفة الفرز', ur: '٢ · اسٹرلائزیشن اور ٹرائیج', id: '2 · Sterilisasi & Triase' },
   follow: { en: 'Follow your requests', ar: 'متابعة الطلبات', ur: 'درخواستوں کی نگرانی', id: 'Pantau permintaan' },
   approval: { en: 'Doctor approval', ar: 'اعتماد الطبيب', ur: 'ڈاکٹر کی منظوری', id: 'Persetujuan dokter' },
   receive: { en: 'Receive the shipment', ar: 'استلام الشحنة', ur: 'سامان کی وصولی', id: 'Terima kiriman' },
-  lab: { en: '4 · Send to lab', ar: '٤ · إرسال للمعمل', ur: '٤ · لیب کو بھیجیں', id: '4 · Kirim ke lab' }
+  lab: { en: '3 · Send to lab', ar: '٣ · إرسال للمعمل', ur: '٣ · لیب کو بھیجیں', id: '3 · Kirim ke lab' }
 };
 
 async function flow(h) {
@@ -178,7 +171,10 @@ async function flow(h) {
   });
   await scene('doctor', 'doc', async () => {
     await click('[data-seg-name="reqKind"][data-v="doctor"]');
+    await page.waitForSelector('#fDocClinic');
+    await h.select('#fDocClinic', el => [...el.options].find(o => /Dental Clinic 1/.test(o.textContent)).value);
     await page.waitForSelector('#fDoctor option[value="Dr. Khalid"]', { state: 'attached' });
+    await wait(500);
     await h.select('#fDoctor', 'Dr. Khalid');
     await highlight('#fBranch', 1500);
   });
@@ -187,17 +183,10 @@ async function flow(h) {
   await scene('qty', 'doc', async () => {
     await click('.item-line:nth-child(1) [data-d="1"]'); await click('.item-line:nth-child(1) [data-d="1"]'); await click('.item-line:nth-child(2) [data-d="1"]');
   });
-  let reqId = '', clinicId = '', sterilId = '';
+  let reqId = '', sterilId = '';
   await scene('submit', 'doc', async () => { await highlight('#sumBox', 1400); reqId = await submit(); });
-  await scene('clinic', 'clinic', async () => {
-    await click('[data-seg-name="reqKind"][data-v="clinic"]');
-    await page.waitForSelector('#fClinic');
-    await h.select('#fClinic', el => [...el.options].find(o => /Dental Clinic 1/.test(o.textContent)).value);
-    await addItem('gloves'); await addItem('cotton'); await page.keyboard.press('Escape');
-    await click('.item-line:nth-child(1) [data-d="1"]');
-  });
-  await scene('clinicsend', 'clinic', async () => { clinicId = await submit(); });
   await scene('steril', 'steril', async () => {
+    await click('[data-seg-name="reqKind"][data-v="clinic"]');
     await page.waitForSelector('#fClinic');
     await highlight('#fClinic', 1600);
     await h.select('#fClinic', el => [...el.options].find(o => /Sterilization/.test(o.textContent) && /Buraydah/.test(o.textContent)).value);
@@ -212,7 +201,6 @@ async function flow(h) {
     await h.nav('mine');
     await page.waitForSelector('#mineList .req');
     await highlight(`.req:has-text("${reqId}") .badge`, 2600);
-    await highlight(`.req:has-text("${clinicId}") .badge`, 2000);
     await highlight(`.req:has-text("${sterilId}") .badge`, 2000);
   });
   await scene('detail', 'follow', async () => {
@@ -282,6 +270,20 @@ async function flow(h) {
     await highlight('#labList .lab-card', 1600);
   });
   for (const a of ['start', 'ready', 'send']) await h.api('updateLabItems', [[caseId + '-1'], a, {}], ['Lab Tech', '8888']);
+  await scene('itero', 'lab', async () => {
+    await h.nav('new');
+    await click('[data-seg-name="reqKind"][data-v="lab"]');
+    await click('[data-seg-name="labMode"][data-v="itero"]');
+    await page.waitForSelector('#lItero');
+    await page.waitForSelector('#lDoctor option[value="Dr. Khalid"]', { state: 'attached' });
+    await h.select('#lDoctor', 'Dr. Khalid');
+    await type('#lFile', '10377');
+    await type('#lItero', '88213457');
+    await page.waitForSelector('#lIteroLab option[value="Elite Dental Lab"]', { state: 'attached' });
+    await point('#lIteroLab'); await highlight('#lIteroLab', 1200);
+    await h.select('#lIteroLab', 'Elite Dental Lab');
+    await click('#lSubmit'); await wait(1200);
+  });
   await scene('labback', 'lab', async () => {
     await h.nav('new'); await h.nav('labmine');
     const sel = `#labList .lab-card:has-text("${caseId}") [data-act="labConfirm"]`;

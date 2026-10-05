@@ -1160,12 +1160,15 @@ function surveyAutoPrompt() {
   }).catch(() => {});
 }
 ACT.surveyOpen = () => call('getMySurvey').then(sv => { if (sv && sv.open && !sv.done) openSurvey(sv); else loadAlerts(); }).catch(e => toast(errMsg(e), 'error'));
+/* أقسام الاستبيان مكتوبة بالعربي في الشيت — تُعرض بلغة الواجهة إن كانت من الأقسام المعروفة */
+const SV_SEC = { 'الموقع': 'System', 'الطلبات': 'Requests', 'الإرساليات': 'Shipments', 'المعمل': 'Lab', 'التواصل': 'Communication', 'الرضا العام': 'Overall', 'ملاحظات': 'Notes' };
+const svSec = x => S.lang === 'ar' ? x : (SV_SEC[x] || x);
 function openSurvey(sv) {
   const ans = {};
   const qText = q => S.lang === 'ar' || !q.qEn ? q.q : q.qEn;
   let sec = '';
   const body = '<div class="sv-form">' + sv.questions.map(q => {
-    const head = (q.section && q.section !== sec ? '<div class="sv-sec">' + esc(sec = q.section) + '</div>' : '');
+    const head = (q.section && q.section !== sec ? '<div class="sv-sec">' + esc(svSec(sec = q.section)) + '</div>' : '');
     const inp = q.type === 'text'
       ? '<textarea class="textarea" rows="2" maxlength="1000" data-q="' + esc(q.id) + '"></textarea>'
       : q.type === 'nps'
@@ -1262,7 +1265,7 @@ function svRender() {
       (d.pending.length ? '<div class="sv-pending">' + d.pending.map(p => '<div class="sv-p"><b>' + esc(p.doctor) + '</b> ' + branchTag(p.branch) + '<button class="btn btn-ghost btn-sm" data-act="svRemind" data-u="' + esc(p.user) + '">' + icon('bell', 'i-sm') + esc(t('sv_remind')) + '</button></div>').join('') + '</div>' : emptyState('checkc', t('sv_all_done'))) + '</div></section>' : '') +
     (d.answered ? '<section class="card"><div class="card-head"><h3>' + icon('chart') + esc(t('sv_by_q')) + '</h3></div><div class="card-body">' +
       rpTable(qRows, [
-        { h: t('sv_question'), v: q => '<span class="muted">' + esc(q.section || '') + '</span><div style="font-weight:600">' + esc(svQ(q)) + '</div>' },
+        { h: t('sv_question'), v: q => '<span class="muted">' + esc(svSec(q.section || '')) + '</span><div style="font-weight:600">' + esc(svQ(q)) + '</div>' },
         { h: t('sv_avg'), num: 1, v: q => q.type === 'nps' ? '<b>' + (q.avg === null ? '—' : fmtNum(q.avg, 1) + ' / 10') + '</b>' + (q.nps !== undefined ? '<div class="hint">NPS ' + q.nps + '</div>' : '') : svStars(q.avg) },
         { h: '', v: q => q.type === 'nps' || !q.n ? '' : '<div class="sv-bar"><i style="width:' + Math.round((q.avg || 0) / 5 * 100) + '%"></i></div>' },
         { h: t('sv_n'), num: 1, v: q => fmtNum(q.n, 0) }
@@ -2014,7 +2017,8 @@ function draftDept() {
 }
 function deptTag(dp, short) {
   if (!dp) return short ? '' : '<span class="tag dept shared">' + esc(t('dept_shared')) + '</span>';
-  return '<span class="tag dept ' + (dp === 'جلدية' ? 'derma' : 'dental') + '">' + esc(short ? dp : t(dp === 'جلدية' ? 'dept_derma' : 'dept_dental')) + '</span>';
+  const shortLabel = S.lang === 'ar' ? dp : (dp === 'جلدية' ? 'Derma' : 'Dental');
+  return '<span class="tag dept ' + (dp === 'جلدية' ? 'derma' : 'dental') + '">' + esc(short ? shortLabel : t(dp === 'جلدية' ? 'dept_derma' : 'dept_dental')) + '</span>';
 }
 function setupCombo() {
   const inp = $('#itemSearch'), list = $('#comboList');
@@ -2721,9 +2725,10 @@ ACT.revertStep = el => {
   call('getRevertPlan', id).then(plan => {
     busy(el, false);
     if (!plan.can) { toast(t(plan.reason), 'warning', 6000); return; }
+    const arw = S.lang === 'ar' ? ' ← ' : ' → ';
     const what = plan.kind === 'shipment'
-      ? t('revert_ship', { b: plan.batch, items: plan.items.map(i => i.item + ' ×' + i.qty).join('، ') }) + (plan.status !== plan.to ? ' · ' + plan.status + ' ← ' + plan.to : '')
-      : plan.from + ' ← ' + plan.to;
+      ? t('revert_ship', { b: plan.batch, items: plan.items.map(i => i.item + ' ×' + i.qty).join('، ') }) + (plan.status !== plan.to ? ' · ' + statusLabel(plan.status) + arw + statusLabel(plan.to) : '')
+      : revText(plan.from) + arw + revText(plan.to);
     askReason(t('revert_step') + ' — ' + id, '<b>' + esc(what) + '</b>', (reason, btn, m, fail) => {
       busy(btn, true);
       call('revertStep', id, reason, { kind: plan.kind, batch: plan.batch, status: plan.status }).then(res => {
@@ -4242,7 +4247,9 @@ const LAB_GROUPS_BOARD = [
 function extLabTag(c, role) {
   if (role !== 'lab' || !LAB.cfg || !c.items || !c.items.length) return '';
   const ext = n => { const l = LAB.cfg.labs.find(x => x.name === n); return l && l.type === 'خارجي'; };
-  if (!c.items.every(it => ext(it.lab))) return '';
+  // أُرسلت من العيادة مباشرة لمعمل خارجي — وليست حالة استلمها المعمل الداخلي ثم حوّلها للخارج
+  const direct = it => (it.labType ? it.labType === 'خارجي' : ext(it.lab)) && !it.externalLab && !it.externalAt && !it.receivedAt && !it.startedAt;
+  if (!c.items.every(direct)) return '';
   const names = c.items.map(it => it.lab).filter((n, i, a) => a.indexOf(n) === i).join('، ');
   return '<span class="tag ext-lab" title="' + esc(t('lab_ext_not_you_hint')) + '">' + icon('truck') + esc(t('lab_ext_not_you', { l: names })) + '</span>';
 }
@@ -5679,7 +5686,7 @@ function showDriverBox(id, k, back) {
     DRV.to = b.destination && b.destination !== b.location ? b.destination : (b.places.find(p => p !== b.location) || '');
     drvShell((back ? '<button class="btn btn-ghost btn-sm" data-act="drvBack" style="align-self:flex-start">' + icon('chevr', 'i-sm flip') + esc(t('drv_back')) + '</button>' : '') +
       '<div class="drv-head"><span class="drv-box mono">' + esc(b.id) + '</span><h1>' + esc(b.owner) + '</h1>' + bxBadge(b.status) +
-        '<div class="hint">' + icon('pin', 'i-sm') + ' ' + esc(t('bx_location')) + ': <b>' + esc(b.location) + '</b> · ' +
+        '<div class="hint">' + icon('pin', 'i-sm') + ' ' + esc(t('bx_location')) + ': <b>' + esc(placeLabel(b.location)) + '</b> · ' +
         esc(b.loads.length ? t('drv_loads', { n: b.loads.length }) + ' (' + Array.from(new Set(b.loads.map(l => l.request))).join('، ') + ')' : t('drv_empty_box')) + '</div></div>' +
       '<div class="field"><span class="label">' + esc(t('drv_where')) + '</span><div class="drv-places" id="drvPlaces">' +
         b.places.map(p => '<button type="button" class="drv-place" data-act="drvPlace" data-p="' + esc(p) + '" aria-pressed="' + (p === DRV.to) + '"' + (p === b.location ? ' disabled title="' + esc(t('drv_here_now')) + '"' : '') + '>' + icon(p === BOX_HOME ? 'package' : 'building') + '<span>' + esc(placeLabel(p)) + (p === b.location ? '<small>' + esc(t('drv_here_now')) + '</small>' : '') + '</span></button>').join('') + '</div></div>' +

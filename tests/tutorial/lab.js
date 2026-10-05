@@ -20,6 +20,8 @@ const scenes = {
     ar: 'ثم اضغط «إرسال للعيادة»، والممرضة تؤكد الاستلام من صفحتها.' },
   itero: { en: 'iTero cases have their own tag with the iTero case number, so you can match the scan quickly.',
     ar: 'حالات iTero لها علامة خاصة برقم حالة الآيتيرو، حتى تطابق السكان بسرعة.' },
+  extlab: { en: 'When the nurse sends a case directly to an external lab, it shows with a purple tag: External lab, FYI only. The case left the clinic, but it is not directed to you.',
+    ar: 'عندما ترسل الممرضة حالة مباشرة لمعمل خارجي تظهر بعلامة بنفسجية: «لمعمل خارجي — للعلم فقط»، أي أنها خرجت من العيادة لكنها ليست موجهة لكم.' },
   details: { en: 'Tap Details to see the full timeline of a case: who did each step, and when. You can also write a note here.',
     ar: 'اضغط «التفاصيل» لترى مراحل الإرسالية كاملة: من نفّذ كل خطوة ومتى، ويمكنك كتابة ملاحظة.' },
   search: { en: 'To find a case, type the patient file number or the case number in the search box.',
@@ -71,6 +73,10 @@ async function flow(h) {
   await scene('itero', 'board', async () => {
     await page.$eval('#labList .tag.itero', el => el.scrollIntoView({ block: 'center', behavior: 'smooth' }));
     await wait(700); await highlight('#labList .tag.itero', 2000);
+  });
+  await scene('extlab', 'board', async () => {
+    await page.$eval('#labList .tag.ext-lab', el => el.scrollIntoView({ block: 'center', behavior: 'smooth' })).catch(() => {});
+    await wait(700); await highlight('#labList .lab-card:has(.tag.ext-lab)', 2400);
   });
   await scene('details', 'board', async () => {
     await focus();
