@@ -1,35 +1,43 @@
 1
-00:00:00,905 --> 00:00:07,075
+00:00:00,778 --> 00:00:06,948
 This video is for the driver. You don't need an account. You only use your phone camera and one link.
 
 2
-00:00:07,526 --> 00:00:12,666
+00:00:07,400 --> 00:00:12,540
 Procurement sends you the Driver tasks link once. Add it to your phone home screen.
 
 3
-00:00:12,666 --> 00:00:16,506
+00:00:12,540 --> 00:00:16,380
 It shows every box you need to move, from where, and to where.
 
 4
-00:00:16,957 --> 00:00:24,057
-Every box has a QR sticker. When you deliver a box, scan its sticker with the camera. This page opens.
+00:00:16,830 --> 00:00:20,833
+Every box has a QR sticker with the doctor's name and branch.
 
 5
-00:00:24,508 --> 00:00:28,416
-Choose where you delivered the box: the branch or procurement.
+00:00:20,833 --> 00:00:25,690
+When you deliver a box, scan its sticker with the camera. This page opens.
 
 6
-00:00:28,416 --> 00:00:34,088
-The destination is chosen for you, and the place where the box already is can't be chosen.
+00:00:26,143 --> 00:00:31,083
+Choose your language at the top: Arabic, English, Bengali or Hindi.
 
 7
-00:00:34,543 --> 00:00:40,973
-Take a photo of the box. The photo is required. Write your name once; the phone remembers it.
+00:00:32,562 --> 00:00:36,470
+Choose where you delivered the box: the branch or procurement.
 
 8
-00:00:41,424 --> 00:00:48,004
-Tap Deliver. The nurse gets a message that the box arrived, and procurement sees it on the boxes page.
+00:00:36,470 --> 00:00:42,142
+The destination is chosen for you, and the place where the box already is can't be chosen.
 
 9
-00:00:48,455 --> 00:00:53,635
-That's it: scan, choose the place, photo, deliver. Thank you!
+00:00:42,592 --> 00:00:49,022
+Take a photo of the box. The photo is required. Write your name once; the phone remembers it.
+
+10
+00:00:49,474 --> 00:00:56,094
+Tap Delivered. The nurse gets a message that the box arrived, and procurement sees it on the boxes page.
+
+11
+00:00:56,546 --> 00:01:02,736
+That's it: scan, choose the place, photo, your name, then Delivered. Thank you!

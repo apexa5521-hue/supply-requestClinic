@@ -1,39 +1,39 @@
 1
-00:00:01,100 --> 00:00:07,480
+00:00:00,810 --> 00:00:07,190
 This short video shows doctors how to review and approve their requests, and follow their patients' lab work.
 
 2
-00:00:07,931 --> 00:00:12,351
+00:00:07,640 --> 00:00:12,060
 Open the system link, write your name and password, and tap Sign in.
 
 3
-00:00:14,291 --> 00:00:19,003
+00:00:13,309 --> 00:00:18,021
 Your page opens on Reviews. The cards at the top count your requests:
 
 4
-00:00:19,003 --> 00:00:22,691
+00:00:18,021 --> 00:00:21,709
 waiting for your review, approved, sent, and received.
 
 5
-00:00:23,143 --> 00:00:28,543
+00:00:22,159 --> 00:00:27,559
 Tap a request to open it. You see each item and the quantity the nurse asked for.
 
 6
-00:00:28,994 --> 00:00:35,164
+00:00:28,009 --> 00:00:34,179
 If a quantity is too much or too little, change it. You can also write a note on any item.
 
 7
-00:00:35,615 --> 00:00:39,865
+00:00:34,630 --> 00:00:38,880
 Then tap Approve. The request goes to procurement right away.
 
 8
-00:00:40,317 --> 00:00:46,297
+00:00:39,331 --> 00:00:45,311
 If something is wrong, write the reason and tap Reject. The request goes back to the nurse.
 
 9
-00:00:50,681 --> 00:00:56,561
+00:00:49,597 --> 00:00:55,477
 On the Lab page, follow your patients' lab work: where each case is now, and when it is due.
 
 10
-00:00:57,276 --> 00:01:03,566
+00:00:56,123 --> 00:01:02,413
 That's it. Please review your requests quickly, so your clinic gets its supplies on time. Thank you!
