@@ -1,0 +1,47 @@
+1
+00:00:00,810 --> 00:00:07,700
+This short video shows nurses the Custody page: the company tools in your clinic, and how to report a faulty tool.
+
+2
+00:00:08,151 --> 00:00:12,451
+Sign in with your name and password, then tap Custody in the menu.
+
+3
+00:00:15,627 --> 00:00:22,327
+Scroll down to your clinic. Each tool shows the standard, how many are in the clinic, and any shortage.
+
+4
+00:00:22,778 --> 00:00:28,008
+Every handpiece has its own serial number, the same number as the sticker on the tool.
+
+5
+00:00:28,458 --> 00:00:32,468
+If a tool has a problem, tap Report next to its serial number.
+
+6
+00:00:32,918 --> 00:00:39,418
+Choose the problem: broken, low performance, lost, or other. Write a short description.
+
+7
+00:00:39,869 --> 00:00:46,059
+Take a photo of the tool. For a broken tool, the photo is required. Then tap Send.
+
+8
+00:00:46,509 --> 00:00:52,199
+The ticket goes to procurement with an email. The tool leaves your clinic count until it comes back.
+
+9
+00:00:52,649 --> 00:00:58,001
+You can also use the big red button at the top. Choose the clinic, the tool and the unit.
+
+10
+00:00:58,001 --> 00:01:01,309
+If the tool is not registered, write its serial number.
+
+11
+00:01:01,760 --> 00:01:08,430
+Follow your tickets here: received by procurement, under repair, back in the clinic, or damaged.
+
+12
+00:01:08,881 --> 00:01:15,431
+That's it. Report any faulty tool right away, so your clinic always has its full set. Thank you!
