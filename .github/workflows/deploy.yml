@@ -36,6 +36,8 @@ jobs:
         with:
           node-version: 20
       - run: node scripts/build-static.js
+      # رابط الفريق الحالي ينتهي بـ Index.html — نفس الصفحة المبنية بالاسمين
+      - run: cp dist/index.html dist/Index.html
       - uses: actions/upload-pages-artifact@v3
         with:
           path: dist
