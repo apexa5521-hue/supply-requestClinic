@@ -2251,3 +2251,42 @@ test('procurement cancels requests in bulk with a reason: nurse sees it and is e
   assert.deepEqual(api(p, 'cancelRequests', [a], 'مرة ثانية').skipped.map(x => x.reason), ['ERR_BAD_TRANSITION']);
   assert.ok(!api(p, 'getRequests', {}).find(r => r.id === a).overdue);
 });
+
+test('sheet change trigger: a plain cell edit does not invalidate every lookup cache; row deletes do', () => {
+  const { ctx, login } = boot();
+  login('ريم', '2222');
+  const ver = () => ctx.cache_().get('v:Users');
+  ctx.MEMO_ = {};
+  const v0 = ver();
+  ctx.onSheetChange({ changeType: 'EDIT', source: null });
+  assert.equal(ver(), v0, 'EDIT keeps the Users cache');
+  ctx.onSheetChange({ changeType: 'REMOVE_ROW', source: null });
+  assert.notEqual(ver(), v0, 'REMOVE_ROW refreshes lookups');
+});
+
+test('lab supplies: lab raises a request with no doctor or approval; procurement hands it over directly (no box, no signature)', () => {
+  const { api, login, gas } = boot();
+  const lab = login('فني المعمل', '8888'), p = login('علي', '3333'), reem = login('ريم', '2222');
+  const id = api(lab, 'createRequest', { type: 'شهري', doctor: 'د. سعد', items: [{ name: 'PROPHY PASTE', qty: 4 }, { name: 'DENTAL FLOSS', qty: 2 }] }).id;
+  let r = api(lab, 'getMyRequests').find(x => x.id === id);
+  assert.deepEqual([r.clinic, r.doctor, r.status, r.needsReview], ['مستهلكات المعمل', '', 'جديد', false], 'no doctor even if one is sent, no review');
+  assert.ok(api(p, 'getRequests', {}).some(x => x.id === id), 'procurement sees it');
+  throwsCode(() => api(reem, 'getRequestDetail', id), 'ERR_FORBIDDEN');
+  // جزء الآن ← مستلَم فوراً بلا بوكس ولا توقيع، والطلب يبقى مفتوحاً للباقي
+  api(p, 'bulkUpdateStatus', [id], 'قيد التجهيز');
+  api(p, 'dispatchItems', id, [{ name: 'PROPHY PASTE', qty: 3 }]);
+  r = api(lab, 'getMyRequests').find(x => x.id === id);
+  assert.deepEqual([r.pendingShipments, r.remainingQty, r.status === 'تم الاستلام'], [0, 3, false], 'partial handover: nothing to sign, 3 units left');
+  api(p, 'dispatchItems', id, [{ name: 'PROPHY PASTE' }, { name: 'DENTAL FLOSS' }]);
+  r = api(lab, 'getMyRequests').find(x => x.id === id);
+  assert.deepEqual([r.status, r.pendingShipments], ['تم الاستلام', 0]);
+  assert.equal((api(p, 'getBoxes').boxes || []).length, 0, 'no box for lab supplies');
+  const items = api(lab, 'getRequestDetail', id).items;
+  assert.deepEqual(items.map(i => [i.item, i.receivedQty]).sort(), [['DENTAL FLOSS', 2], ['PROPHY PASTE', 4]]);
+  // الإرسال بالجملة كذلك يسلّم مباشرة
+  const id2 = api(lab, 'createRequest', { type: 'طارئ', items: [{ name: 'DENTAL FLOSS', qty: 1 }] }).id;
+  api(p, 'bulkUpdateStatus', [id2], 'قيد التجهيز');
+  api(p, 'bulkUpdateStatus', [id2], 'تم الإرسال', {});
+  assert.equal(api(lab, 'getMyRequests').find(x => x.id === id2).status, 'تم الاستلام');
+  assert.ok(!(gas.dump('Boxes') || [[]]).slice(1).length);
+});

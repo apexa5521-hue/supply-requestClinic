@@ -74,6 +74,9 @@ const ST = {
   REVIEW: 'مراجعة الطبيب', APPROVED: 'معتمد من الطبيب', REJECTED: 'مرفوض',
   SENT: 'تم الإرسال', RECEIVED: 'تم الاستلام', CANCELLED: 'ملغي'
 };
+/** مستهلكات المعمل: يرفعها مسؤول المعمل بلا طبيب ولا اعتماد، وتُسلَّم يداً بيد (المعمل بجانب التموين) — لا بوكس ولا توقيع */
+const LAB_SUPPLY_ = 'مستهلكات المعمل';
+function isLabSupply_(req) { return str_(req && (req.clinic !== undefined ? req.clinic : req.Clinic)) === LAB_SUPPLY_; }
 /** طلب منتهٍ بلا استلام (مرفوض أو ملغي): لا يُحسب متأخراً ولا يدخل القيمة */
 function isOff_(s) { return s === ST.REJECTED || s === ST.CANCELLED; }
 
@@ -578,8 +581,8 @@ const API_ = {
   getNotices:                { screens: ALL, fn: getNotices_ },
   getDoctors:                { screens: ['nurse'], fn: getDoctors_ },
   getDoctorProfile:          { screens: ['nurse'], fn: getDoctorProfile_ },
-  createRequest:             { screens: ['nurse'], fn: createRequest_ },
-  getMyRequests:             { screens: ['nurse'], fn: getMyRequests_ },
+  createRequest:             { screens: ['nurse', 'lab'], fn: createRequest_ },
+  getMyRequests:             { screens: ['nurse', 'lab'], fn: getMyRequests_ },
   receiveShipment:           { screens: ['nurse'], fn: receiveShipment_ },
   resubmitRequest:           { screens: ['nurse'], fn: resubmitRequest_ },
   getShipmentSignatures:     { screens: ['nurse'], fn: getShipmentSignatures_ },
@@ -1932,6 +1935,7 @@ function mapRequest_(r) {
 function canSee_(user, req) {
   if (user.screen === 'nurse') return req.nurse === user.name;
   if (user.screen === 'doctor') return isMyDoctor_(user, req.doctor);
+  if (user.screen === 'lab') return req.nurse === user.name; // طلبات مستهلكات المعمل التي رفعها فقط
   return true;
 }
 
@@ -2211,6 +2215,10 @@ function backupStatus_() {
 /** مشغّل onChange: أي تغيير بنيوي (حذف/إدراج صفوف أو أعمدة) يُبطل كاش تبويبات الإعداد والتبويب النشط */
 function onSheetChange(e) {
   try {
+    // تعديل خلية عادي يلتقطه onEdit لتبويبه فقط — هنا التغييرات البنيوية فقط (حذف/إدراج صفوف أو أعمدة…).
+    // بدون هذا الشرط كانت كل خلية يعدّلها موظف في الشيت تُبطل كاش كل تبويبات الإعداد فيبطؤ الدخول والتفاصيل للجميع.
+    const type = e && e.changeType;
+    if (type === 'EDIT' || type === 'FORMAT') return;
     LOOKUP_SHEETS_.forEach(bumpVersion_);
     const sh = e && e.source && e.source.getActiveSheet && e.source.getActiveSheet();
     if (sh && LOOKUP_SHEETS_.indexOf(sh.getName()) === -1) bumpVersion_(sh.getName());
@@ -2348,16 +2356,17 @@ function getDoctorRequests_(user, opts) { return queryRequests_(withArchive_({ d
 
 function createRequest_(user, payload) {
   payload = payload || {};
-  const doctor = str_(payload.doctor);
+  const forLab = user.screen === 'lab';
+  const doctor = forLab ? '' : str_(payload.doctor);
   const type = str_(payload.type);
   // الطلب الاعتيادي مبني على طبيب (والعيادة اختيارية وتُستنتج منه)؛
   // «مستهلكات العيادة» فقط تكون بلا طبيب والعيادة فيها إلزامية
   const clinicOnly = !doctor;
-  let clinic = str_(payload.clinic);
+  let clinic = forLab ? LAB_SUPPLY_ : str_(payload.clinic);
   if (clinicOnly && !clinic) throw new Error('ERR_REQUIRED');
   if (REQUEST_TYPES.indexOf(type) === -1) throw new Error('ERR_BAD_TYPE');
   const mine = userClinics_(user);
-  if (clinic) {
+  if (clinic && !forLab) {
     // مستهلكات العيادة للمناطق المشتركة فقط (التعقيم / غرفة الفرز) في أي فرع؛ طلب الطبيب يبقى ضمن عيادات الممرضة
     if (!clinicOnly && mine.length && mine.indexOf(clinic) === -1) throw new Error('ERR_FORBIDDEN');
     const cRows = getClinics_().filter(function (c) { return c.name === clinic; });
@@ -2371,7 +2380,8 @@ function createRequest_(user, payload) {
   }
   // الفرع الذي ستُرسل له الطلبية: يختاره المستخدم، والافتراضي فرع العيادة
   const branches = getBranches_();
-  const branch = str_(payload.branch) || (clinic ? clinicBranch_(clinic) : '');
+  const branch = forLab ? (str_(payload.branch) || userBranch_(user) || branches[0] || '')
+    : str_(payload.branch) || (clinic ? clinicBranch_(clinic) : '');
   if (branches.length && branches.indexOf(branch) === -1) throw new Error(branch ? 'ERR_BAD_BRANCH' : 'ERR_BRANCH_REQUIRED');
 
   // دمج الأصناف المكررة + التحقق من الكميات
@@ -2393,7 +2403,7 @@ function createRequest_(user, payload) {
   const catalog = {}, catDept = {};
   getCatalog_(false).forEach(function (c) { catalog[c.name.toLowerCase()] = c.name; catDept[c.name.toLowerCase()] = c.dept || ''; });
   // قسم الطلب من عيادته: طلب الأسنان لا يقبل مستهلكات الجلدية والعكس (المشترك مسموح للقسمين)
-  const dept = clinic ? clinicDept_(clinic) : '';
+  const dept = forLab ? userDept_(user) : clinic ? clinicDept_(clinic) : '';
   items.forEach(function (it) {
     const canon = catalog[it.name.toLowerCase()];
     if (!canon) throw new Error('ERR_UNKNOWN_ITEM');
@@ -2402,7 +2412,7 @@ function createRequest_(user, payload) {
     it.name = canon;
   });
   if (items.length > 200) throw new Error('ERR_TOO_MANY_ITEMS');
-  if (str_(payload.backdate)) return createBackdated_(user, payload, { clinic: clinic, branch: branch, doctor: doctor, type: type, dept: dept, items: items });
+  if (str_(payload.backdate) && !forLab) return createBackdated_(user, payload, { clinic: clinic, branch: branch, doctor: doctor, type: type, dept: dept, items: items });
 
   // منع الإرسال المزدوج لنفس الطلب خلال دقيقتين
   const sig = [user.name, clinic, branch, doctor, type].concat(items.map(function (i) { return i.name + ':' + i.qty; })).join('|');
@@ -2452,7 +2462,7 @@ function createRequest_(user, payload) {
     if (type === 'طارئ') notifyProcurement_(dept, '🚨 طلب طارئ (بانتظار اعتماد الطبيب) - ' + id, 'رُفع طلب طارئ وهو الآن لدى الطبيب للاعتماد.' + details);
   } else {
     notifyProcurement_(dept, (type === 'طارئ' ? '🚨 طلب طارئ - ' : 'طلب مستلزمات جديد - ') + id,
-      (clinicOnly ? 'تم رفع طلب مستهلكات عيادة (بدون طبيب — لا يحتاج اعتماداً).' : 'تم رفع طلب جديد (الطبيب ليس له حساب — لا يحتاج اعتماداً في النظام).') + details);
+      (forLab ? 'تم رفع طلب مستهلكات المعمل (لا يحتاج اعتماداً — يُسلَّم للمعمل مباشرة بلا بوكس).' : clinicOnly ? 'تم رفع طلب مستهلكات عيادة (بدون طبيب — لا يحتاج اعتماداً).' : 'تم رفع طلب جديد (الطبيب ليس له حساب — لا يحتاج اعتماداً في النظام).') + details);
   }
   return { id: id, duplicate: false };
 }
@@ -2621,8 +2631,10 @@ function writeShipment_(req, rows, st, lines, user, now, boxPick) {
   const vals = [headerRow_(sh)];
   ensureHeaders_(sh, vals, SCHEMA.ShipmentItems);
   const headers = vals[0];
+  const lab = isLabSupply_(req);
   const block = lines.map(function (l) {
     const o = { RequestID: req.id, Batch: batch, ItemName: l.name, Qty: l.qty, DispatchedAt: now, DispatchedBy: user.name };
+    if (lab) o.ReceivedQty = l.qty; // المعمل يستلم يداً بيد لحظة الإرسال
     return headers.map(function (h) { return h in o ? o[h] : ''; });
   });
   if (block.length) sh.getRange(sh.getLastRow() + 1, 1, block.length, headers.length).setValues(block);
@@ -2636,6 +2648,17 @@ function writeShipment_(req, rows, st, lines, user, now, boxPick) {
     const l = lines.filter(function (x) { return x.name === str_(r.ItemName); })[0];
     return i && l && l.qty >= i.remainingQty;
   }).map(function (r) { return { row: r, obj: { DispatchedAt: now, DispatchBatch: batch } }; }));
+  if (lab) {
+    append_('Shipments', { RequestID: req.id, Batch: batch, ReceivedAt: now, ReceiverName: req.nurse, ReceivedBy: user.name });
+    delete MEMO_.rcpt;
+    const got = {};
+    lines.forEach(function (l) { got[l.name] = l.qty; });
+    setMany_(ri, rows.filter(function (r) { return str_(r.ItemName) in got; }).map(function (r) {
+      return { row: r, obj: { ReceivedQty: (Number(r.ReceivedQty) || 0) + got[str_(r.ItemName)] } };
+    }));
+    logAction_(req.id, 'تسليم الشحنة ' + batch + ' للمعمل مباشرة (بدون بوكس أو توقيع)', user.name);
+    return batch;
+  }
   try { loadBox_(req, batch, user, now, boxPick); } catch (e) { console.error('loadBox_', e); } // التتبع لا يمنع الإرسال أبداً
   return batch;
 }
@@ -2860,6 +2883,7 @@ function bulkUpdateStatus_(user, requestIds, newStatus, boxes) {
         const st = shipState_(req, mine);
         const lines = st.items.filter(function (i) { return i.remainingQty > 0; }).map(function (i) { return { name: i.item, qty: i.remainingQty }; });
         if (lines.length) writeShipment_(req, mine, st, lines, user, upd.SentAt, boxes[id]);
+        if (isLabSupply_(req)) setCells_(t, row, { Status: ST.RECEIVED, ReceivedAt: upd.SentAt, ReceiverName: req.nurse });
       }
       logAction_(id, 'تغيير الحالة: ' + cur + ' ← ' + newStatus, user.name);
       result.updated.push(id);
@@ -2914,8 +2938,9 @@ function dispatchItems_(user, requestId, lines, box) {
       return l.name + ' ×' + l.qty + (l.remainingAfter ? ' (باقي ' + l.remainingAfter + ')' : '');
     }).join('، ') + ' — المتبقي من الطلب ' + after.remainingQty + ' قطعة', user.name);
     if (after.allDispatched) {
-      setCells_(f.t, f.row, { Status: ST.SENT, SentAt: now });
-      logAction_(req.id, 'تغيير الحالة: ' + cur + ' ← ' + ST.SENT, user.name);
+      const lab = isLabSupply_(req);
+      setCells_(f.t, f.row, lab ? { Status: ST.RECEIVED, SentAt: now, ReceivedAt: now, ReceiverName: req.nurse } : { Status: ST.SENT, SentAt: now });
+      logAction_(req.id, 'تغيير الحالة: ' + cur + ' ← ' + (lab ? ST.RECEIVED : ST.SENT), user.name);
     }
     res = {
       allSent: after.allDispatched, batch: batch, count: out.length, units: units,
@@ -3525,6 +3550,10 @@ function notifyUser_(name, subject, body) {
 }
 
 function notifyNursePartial_(req, r) {
+  if (isLabSupply_(req)) {
+    notifyUser_(req.nurse, 'جزء من طلبك جاهز من التموين - ' + req.id, 'جزء من طلب مستهلكات المعمل ' + req.id + ' جاهز (' + r.items.map(function (i) { return i.item + ' ×' + i.qty; }).join('، ') + ') — والباقي لاحقاً.');
+    return;
+  }
   notifyUser_(req.nurse, 'شحنة جزئية من طلبك - ' + req.id + ' (الشحنة ' + r.batch + ')',
     'تم إرسال الشحنة رقم ' + r.batch + ' من طلبك ' + req.id + ' الخاص بعيادة ' + req.clinic + (req.branch ? ' (فرع ' + req.branch + ')' : '') + ':\n- ' +
     r.items.map(function (i) { return i.item + ' ×' + i.qty + (i.remaining ? ' (باقي ' + i.remaining + ')' : ''); }).join('\n- ') +
@@ -3534,6 +3563,10 @@ function notifyNursePartial_(req, r) {
 }
 
 function notifyNurseSent_(req) {
+  if (isLabSupply_(req)) {
+    notifyUser_(req.nurse, 'جاهز للاستلام من التموين - ' + req.id, 'طلب مستهلكات المعمل رقم ' + req.id + ' جاهز — استلمه من التموين.');
+    return;
+  }
   notifyUser_(req.nurse, 'تم إرسال طلبك - ' + req.id,
     'تم إرسال طلبك رقم ' + req.id + ' الخاص بعيادة ' + req.clinic + (req.branch ? ' (فرع ' + req.branch + ')' : '') +
     '.\nيرجى تأكيد الاستلام والتوقيع من داخل النظام عند وصول الطلب.');
