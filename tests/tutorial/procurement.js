@@ -6,8 +6,8 @@ const scenes = {
     ar: 'هذا الفيديو للتموين: كيف تجهّز الطلبات، وترسلها على شحنات، وتصحح الخطأ، وتدير البوكسات وأدوات العهدة.' },
   login: { en: 'Sign in with your name and password. Your account shows only your department: dental or dermatology.',
     ar: 'سجّل الدخول باسمك ورقمك السري. حسابك يعرض طلبات قسمك فقط: أسنان أو جلدية.' },
-  list: { en: 'The Requests page shows all requests. Each card is colored by its stage, so you can sort them at a glance. The chips at the top filter by stage: with the doctor, ready to prepare, in preparation, partially sent, arrived at the branch, and more.',
-    ar: 'صفحة «الطلبات» تعرض كل الطلبات، وكل بطاقة ملوّنة بلون مرحلتها حتى تفرزها بنظرة. الأزرار بالأعلى تفلتر حسب المرحلة: لدى الطبيب، جاهز للتجهيز، قيد التجهيز، مرسل جزئيًا، وصل الفرع، وغيرها.' },
+  list: { en: 'The Requests page shows all requests. Each card is colored by its stage, so you can sort them at a glance. The chips at the top filter by stage: with the doctor, doctor approved, new and needs preparing, in preparation, partially sent, arrived at the branch, and more.',
+    ar: 'صفحة «الطلبات» تعرض كل الطلبات، وكل بطاقة ملوّنة بلون مرحلتها حتى تفرزها بنظرة. الأزرار بالأعلى تفلتر حسب المرحلة: لدى الطبيب، معتمد من الطبيب، جديد يحتاج إلى تجهيز، قيد التجهيز، مرسل جزئيًا، وصل الفرع، وغيرها.' },
   filters: { en: 'Pick a doctor from the list to see only his requests. You can also filter by branch, clinic or month, or search.',
     ar: 'اختر طبيبًا من القائمة لتظهر طلباته فقط، ويمكنك الفلترة بالفرع أو العيادة أو الشهر، أو البحث.' },
   open: { en: 'Open a request that is ready. You see each item with the quantity the doctor approved. This is exactly what you prepare.',
@@ -54,7 +54,7 @@ async function flow(h) {
   await scene('list', 'req', async () => {
     await page.waitForSelector('#procList .req');
     await highlight('#procList .req >> nth=0', 1300);
-    for (const g of ['review', 'ready', 'prep', 'partial', 'arrived']) await highlight('.chip[data-g="' + g + '"]', 1000);
+    for (const g of ['review', 'docok', 'ready', 'prep', 'partial', 'arrived']) await highlight('.chip[data-g="' + g + '"]', 1000);
   });
   await scene('filters', 'req', async () => {
     const d = '[data-change="procDoctor"]';

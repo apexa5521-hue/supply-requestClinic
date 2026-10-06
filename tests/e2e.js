@@ -392,6 +392,9 @@ function log(msg) { console.log('  ✔ ' + msg); }
   await login(page, 'علي', '3333');
   expect(await page.isVisible('#pageTitle:has-text("البلاغات")'), 'app remembers the last visited screen');
   await page.click('.sidebar [data-view="requests"]');
+  await page.click('.chip[data-g="docok"]');
+  expect((await page.textContent('.chip[data-g="docok"]')).includes('معتمد من الطبيب') && await page.locator(`#procList .req[data-rid="${newId}"]`).count() === 1, '«doctor approved» chip lists the approved request');
+  expect((await page.textContent('.chip[data-g="ready"]')).includes('جديد يحتاج إلى تجهيز'), '«ready to prepare» chip is renamed «new, needs preparing»');
   await page.click('.chip[data-g="ready"]');
   await page.check(`.req[data-rid="${newId}"] .req-main > .check`);
   await page.waitForSelector('#bulkbar.show');
