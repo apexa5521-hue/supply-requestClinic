@@ -882,6 +882,25 @@ function log(msg) { console.log('  ✔ ' + msg); }
   expect(await toastHas(page, 'تم التراجع وتسجيله'), 'wrong shipment undone with a reason');
   await page.waitForTimeout(500);
   expect(await page.evaluate(id => __gas.dump('ShipmentItems').filter(r => r[0] === id).length, stId) === 0, 'shipment rows removed — items open again');
+  // إلغاء بالجملة مع السبب ← يظهر للممرضة
+  await page.click('.chip[data-g="all"]');
+  await page.check(`.req[data-rid="${stId}"] .req-main > .check`);
+  await page.waitForSelector('#bulkbar.show [data-act="bulkCancel"]:not([disabled])');
+  await page.click('#bulkbar [data-act="bulkCancel"]');
+  await page.waitForSelector('.modal #cnReason');
+  await page.click('.modal #cnOk');
+  expect((await page.textContent('.modal #cnErr')).length > 0, 'cancelling needs a reason');
+  await page.fill('.modal #cnReason', 'الأصناف غير متوفرة هذا الشهر');
+  await page.click('.modal #cnOk');
+  expect(await toastHas(page, 'أُلغي 1 طلب'), 'procurement cancelled the selected request');
+  await page.waitForSelector(`.req[data-rid="${stId}"] .cancel-box`);
+  await page.click('.chip[data-g="cancelled"]');
+  expect(await page.locator(`#procList .req[data-rid="${stId}"]`).count() === 1, '«cancelled» chip lists it');
+  await logout(page);
+  await login(page, 'سارة', '1111');
+  await page.click('.sidebar [data-view="mine"]');
+  await page.waitForSelector(`.req:has-text("${stId}") .cancel-box`);
+  expect((await page.textContent(`.req:has-text("${stId}") .cancel-box`)).includes('الأصناف غير متوفرة هذا الشهر') && (await page.textContent(`.req:has-text("${stId}") .badge`)).includes('ملغي'), 'nurse sees the request cancelled with the reason');
   await logout(page);
   await login(page, 'منى', '5555');
   await page.click('.sidebar [data-view="monitor"]');

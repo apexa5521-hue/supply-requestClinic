@@ -2227,3 +2227,27 @@ test('derma device rooms (Hydrafacial / Clarity / Gentle Pro) take clinic consum
   assert.equal(reqs.length, 3);
   assert.ok(reqs.every(r => !r.doctor && r.department === 'جلدية'), 'no doctor, dermatology department');
 });
+
+test('procurement cancels requests in bulk with a reason: nurse sees it and is emailed; shipped requests are skipped', () => {
+  const { api, login, gas } = boot(g => { const u = g.ss.getSheetByName('Users')._data; u.find(r => r[0] === 'ريم')[u[0].indexOf('Email')] = 'reem@example.com'; });
+  const reem = login('ريم', '2222'), p = login('علي', '3333');
+  const mk = n => api(reem, 'createRequest', { doctor: 'د. سعد', type: 'طارئ', items: [{ name: 'PROPHY PASTE', qty: 2 }, { name: 'DENTAL FLOSS', qty: n }] }).id;
+  const a = mk(1), b = mk(2), c = mk(3);
+  api(p, 'bulkUpdateStatus', [b, c], 'قيد التجهيز');
+  api(p, 'dispatchItems', c, ['PROPHY PASTE']);
+  throwsCode(() => api(p, 'cancelRequests', [a], ' '), 'ERR_REASON_REQUIRED');
+  throwsCode(() => api(reem, 'cancelRequests', [a], 'x'), 'ERR_FORBIDDEN');
+  const res = api(p, 'cancelRequests', [a, b, c, 'REQ-NOPE'], 'الصنف غير متوفر لدى المورد');
+  assert.deepEqual(res.cancelled.sort(), [a, b].sort());
+  assert.deepEqual(res.skipped.map(x => [x.id, x.reason]), [[c, 'ERR_HAS_SHIPMENTS'], ['REQ-NOPE', 'ERR_NOT_FOUND']]);
+  const mine = api(reem, 'getMyRequests');
+  const ra = mine.find(r => r.id === a);
+  assert.deepEqual([ra.status, ra.cancelReason, ra.cancelledBy], ['ملغي', 'الصنف غير متوفر لدى المورد', 'علي']);
+  assert.equal(mine.find(r => r.id === c).status, 'قيد التجهيز');
+  assert.ok(gas.mails.some(m => /أُلغي طلبك/.test(m.subject) && /غير متوفر/.test(m.body)), 'nurse emailed with the reason');
+  assert.ok(api(reem, 'getComments', a).some(x => /أُلغي الطلب/.test(x.message)));
+  assert.equal(api(reem, 'getRequestDetail', a).cancelReason, 'الصنف غير متوفر لدى المورد');
+  // ملغي = منتهٍ: لا يُلغى مرة ثانية ولا يظهر متأخراً عند الطبيب
+  assert.deepEqual(api(p, 'cancelRequests', [a], 'مرة ثانية').skipped.map(x => x.reason), ['ERR_BAD_TRANSITION']);
+  assert.ok(!api(p, 'getRequests', {}).find(r => r.id === a).overdue);
+});

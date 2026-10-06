@@ -28,7 +28,8 @@ const SCHEMA = {
   Requests:     ['RequestID', 'Date', 'Clinic', 'Doctor', 'Nurse', 'Type', 'Status',
                  'SubmittedAt', 'SentAt', 'ReceivedAt', 'ReceiverName', 'SignatureURL',
                  'PrepAt', 'VendorWaitAt', 'VendorReceivedAt', 'ReviewAt', 'ReviewedAt',
-                 'RejectionReason', 'ReceiptURL', 'Branch', 'ApprovedAt', 'ClientKey', 'Department', 'Backdated'],
+                 'RejectionReason', 'ReceiptURL', 'Branch', 'ApprovedAt', 'ClientKey', 'Department', 'Backdated',
+                 'CancelReason', 'CancelledAt', 'CancelledBy'],
   // ItemStatus: حالة الصنف داخل الطلبية (قيد التجهيز / بانتظار المندوب / استلم المندوب) قبل إرساله
   RequestItems: ['RequestID', 'ItemName', 'RequestedQty', 'ApprovedQty', 'ReceivedQty', 'DispatchedAt', 'DispatchBatch', 'ItemStatus', 'ItemStatusAt', 'ItemStatusBy'],
   // سجل التراجعات: كل تراجع عن خطوة (شحنة أُرسلت بالغلط، حالة طلب، حالة صنف) مع السبب والوقت — تراه الجودة والإدارة
@@ -71,8 +72,10 @@ const SCHEMA = {
 const ST = {
   NEW: 'جديد', PREP: 'قيد التجهيز', VENDOR_WAIT: 'بانتظار المندوب', VENDOR_RECV: 'استلم المندوب',
   REVIEW: 'مراجعة الطبيب', APPROVED: 'معتمد من الطبيب', REJECTED: 'مرفوض',
-  SENT: 'تم الإرسال', RECEIVED: 'تم الاستلام'
+  SENT: 'تم الإرسال', RECEIVED: 'تم الاستلام', CANCELLED: 'ملغي'
 };
+/** طلب منتهٍ بلا استلام (مرفوض أو ملغي): لا يُحسب متأخراً ولا يدخل القيمة */
+function isOff_(s) { return s === ST.REJECTED || s === ST.CANCELLED; }
 
 /*
  * التسلسل: رفع الطلب ← مراجعة الطبيب واعتماده ← التجهيز (← المندوب اختياري) ← الإرسال للفرع ← الاستلام بالتوقيع.
@@ -589,6 +592,7 @@ const API_ = {
   revertStep:                { screens: ['procurement'], fn: revertStep_ },
   getReversals:              { screens: ['procurement'], perm: 'monitor', fn: getReversals_ },
   bulkUpdateStatus:          { screens: ['procurement'], fn: bulkUpdateStatus_ },
+  cancelRequests:            { screens: ['procurement'], fn: cancelRequests_ },
   getDoctorRequests:         { screens: ['doctor'], fn: getDoctorRequests_ },
   getRequestItemsWithCatalog:{ screens: ['doctor', 'procurement'].concat(MGMT), fn: getRequestItemsWithCatalog_ },
   doctorReview:              { screens: ['doctor'], fn: doctorReview_ },
@@ -1429,7 +1433,7 @@ function backfillBoxes_(user) {
     const now = new Date();
     read_('Requests').rows.forEach(function (row) {
       const req = mapRequest_(row);
-      if (!req.id || req.status === ST.REJECTED) return;
+      if (!req.id || isOff_(req.status)) return;
       const st = shipState_(req, items[req.id] || []);
       if (!st.ships.length) return;
       const bp = boxPick_(req);
@@ -1919,6 +1923,7 @@ function mapRequest_(r) {
     sentAt: r.SentAt, receivedAt: r.ReceivedAt, receiver: str_(r.ReceiverName), approvedAt: r.ApprovedAt,
     signature: str_(r.SignatureURL), receiptUrl: str_(r.ReceiptURL),
     rejectionReason: str_(r.RejectionReason),
+    cancelReason: str_(r.CancelReason), cancelledAt: r.CancelledAt, cancelledBy: str_(r.CancelledBy),
     backdated: isBackdated_(r)
   };
 }
@@ -1941,7 +1946,7 @@ function queryRequests_(filters) {
     if (filters.nurse && r.nurse !== filters.nurse) return false;
     if (filters.doctorUser && !isMyDoctor_(filters.doctorUser, r.doctor)) return false;
     if (filters.month && monthOf_(r.date) !== filters.month) return false;
-    if (filters.recent && (r.status === ST.RECEIVED || r.status === ST.REJECTED) &&
+    if (filters.recent && (r.status === ST.RECEIVED || isOff_(r.status)) &&
         (Date.now() - toMs_(r.receivedAt || r.reviewedAt || r.date)) > ARCHIVE_DAYS * 864e5) return false;
     return true;
   }).map(function (r) {
@@ -1999,7 +2004,7 @@ function deadline_(r, nowMs) {
     lateSubmit = day > MONTHLY_WINDOW[1];
     due = nextMonthStart_(ymd.slice(0, 7)).getTime() + 864e5 - 1; // نهاية يوم 1
   }
-  const done = r.status === ST.RECEIVED || r.status === ST.REJECTED;
+  const done = r.status === ST.RECEIVED || isOff_(r.status);
   const recv = toMs_(r.receivedAt);
   const overdue = !done && now > due;
   // قريب من الموعد: لم يُرسل منه شيء بعد والمتبقي أقل من 5 أيام (أو نصف مهلة الطارئ)
@@ -2011,7 +2016,7 @@ function deadline_(r, nowMs) {
 
 /** أين يقف الطلب الآن ومن المسؤول عنه */
 function stageOf_(r) {
-  if (r.status === ST.REJECTED || r.status === ST.RECEIVED) return { stage: 'done', owner: '' };
+  if (isOff_(r.status) || r.status === ST.RECEIVED) return { stage: 'done', owner: '' };
   if (r.awaitingDoctor) return { stage: 'doctor', owner: 'doctor' };
   if (r.sentQty > 0 && r.remainingQty > 0) return { stage: 'partial', owner: 'procurement' };
   if (r.status === ST.SENT || r.pendingShipments > 0) return { stage: 'receipt', owner: 'nurse' };
@@ -2027,7 +2032,7 @@ function getMonitor_(user, opts) {
   opts = opts || {};
   const now = Date.now();
   const month = /^\d{4}-\d{2}$/.test(str_(opts.month)) ? str_(opts.month) : Utilities.formatDate(new Date(now), TZ, 'yyyy-MM');
-  const all = queryRequests_({}).filter(function (r) { return r.status !== ST.REJECTED; });
+  const all = queryRequests_({}).filter(function (r) { return !isOff_(r.status); });
   function row(r) {
     const s = stageOf_(r);
     return { id: r.id, type: r.type, branch: r.branch, clinic: r.clinic, doctor: r.doctor, nurse: r.nurse, status: r.status,
@@ -2224,7 +2229,7 @@ function getFinance_(user, opts) {
   const price = {};
   getCatalog_(true).forEach(function (c) { price[c.name.toLowerCase()] = Number(c.price) || 0; });
   const pr = function (n) { return price[str_(n).toLowerCase()] || 0; };
-  const all = queryRequests_({}).filter(function (r) { return r.status !== ST.REJECTED && (!branch || r.branch === branch); });
+  const all = queryRequests_({}).filter(function (r) { return !isOff_(r.status) && (!branch || r.branch === branch); });
   const inRange = {};
   all.forEach(function (r) {
     const ms = toMs_(r.submittedAt || r.date);
@@ -2782,6 +2787,45 @@ function transitionError_(row, newStatus) {
   }
   if ((newStatus === ST.PREP || newStatus === ST.SENT) && !cleared_(row)) return 'ERR_NEEDS_APPROVAL';
   return '';
+}
+
+/**
+ * إلغاء طلبات من التموين (بالجملة) مع السبب — يظهر السبب للممرضة ويصلها إيميل.
+ * لا يُلغى طلب أُرسل منه شيء (يُتخطى مع السبب) ولا طلب مستلم أو ملغي أصلاً.
+ */
+const CANCELLABLE_ = [ST.NEW, ST.REVIEW, ST.APPROVED, ST.PREP, ST.VENDOR_WAIT, ST.VENDOR_RECV, ST.REJECTED];
+function cancelRequests_(user, requestIds, reason) {
+  reason = clean_(reason, 500);
+  if (!reason) throw new Error('ERR_REASON_REQUIRED');
+  const result = { cancelled: [], skipped: [] };
+  const toNotify = [];
+  withLock_(function () {
+    resetMemo_();
+    const t = read_('Requests');
+    const items = read_('RequestItems').rows;
+    (requestIds || []).forEach(function (id) {
+      id = str_(id);
+      const row = t.rows.filter(function (r) { return str_(r.RequestID) === id; })[0];
+      if (!row) { result.skipped.push({ id: id, reason: 'ERR_NOT_FOUND' }); return; }
+      const cur = str_(row.Status) || ST.NEW;
+      if (CANCELLABLE_.indexOf(cur) === -1) { result.skipped.push({ id: id, from: cur, reason: 'ERR_BAD_TRANSITION' }); return; }
+      const req = mapRequest_(row);
+      const st = shipState_(req, items.filter(function (r) { return str_(r.RequestID) === id; }));
+      if (st.ships.length) { result.skipped.push({ id: id, from: cur, reason: 'ERR_HAS_SHIPMENTS' }); return; }
+      const now = new Date();
+      setCells_(t, row, { Status: ST.CANCELLED, CancelReason: reason, CancelledAt: now, CancelledBy: user.name });
+      logAction_(id, 'إلغاء الطلب (' + cur + ' ← ' + ST.CANCELLED + ') — السبب: ' + reason, user.name);
+      append_('Comments', { Timestamp: now, RequestID: id, Author: user.name, Role: user.role, Message: '⛔ أُلغي الطلب — السبب: ' + reason });
+      result.cancelled.push(id);
+      toNotify.push(mapRequest_(row));
+    });
+  });
+  toNotify.forEach(function (req) {
+    notifyUser_(req.nurse, 'أُلغي طلبك - ' + req.id,
+      'ألغى التموين طلبك رقم ' + req.id + ' (عيادة ' + req.clinic + (req.branch ? ' · فرع ' + req.branch + ')' : ')') +
+      '.\nالسبب: ' + reason + '\n\nلا تنتظري هذا الطلب — ارفعي طلباً جديداً إن احتجتِ.');
+  });
+  return result;
 }
 
 function bulkUpdateStatus_(user, requestIds, newStatus, boxes) {
@@ -3441,7 +3485,7 @@ function getAlerts_(user) {
       if (risk) alerts.push({ type: 'warning', code: 'alert_at_risk', n: risk });
     } else if (perms.indexOf('overview') !== -1) {
       const stale = reqs.filter(function (r) {
-        return [ST.RECEIVED, ST.REJECTED].indexOf(r.status) === -1 && hoursSince(r.submittedAt) > 72;
+        return r.status !== ST.RECEIVED && !isOff_(r.status) && hoursSince(r.submittedAt) > 72;
       }).length;
       if (stale) alerts.push({ type: 'warning', code: 'alert_stale', n: stale });
     }
@@ -3524,7 +3568,7 @@ function getDoctorReport_(user, opts) {
   const badPrices = {};
   const byReq = itemsByRequest_();
   const reqs = queryRequests_(isDoctor ? { doctorUser: user } : {}).filter(function (r) {
-    if (r.status === ST.REJECTED) return false;
+    if (isOff_(r.status)) return false;
     if (doctor && r.doctor !== doctor) return false;
     const ms = toMs_(r.submittedAt || r.date);
     return (!from || ms >= from.getTime()) && (!to || ms <= to.getTime());
@@ -3591,7 +3635,7 @@ function getStatsReport_(user, opts) {
   let partial = 0;
   reqs.forEach(function (r) {
     let value = 0, qty = 0;
-    if (r.status !== ST.REJECTED) {
+    if (!isOff_(r.status)) {
       (byReq[r.id] || []).forEach(function (it) {
         const q = targetQty_(it), n = str_(it.ItemName), k = n.toLowerCase(), v = round2_(q * (cat[k] || 0));
         value += v; qty += q;
@@ -3602,7 +3646,7 @@ function getStatsReport_(user, opts) {
     const approvalH = r.backdated ? null : r.approvedAt || r.status === ST.REJECTED ? hrs(r.reviewAt || r.submittedAt, r.reviewedAt || r.approvedAt) : null;
     const fulfilH = r.backdated ? null : hrs(r.submittedAt, r.sentAt);
     if (r.sentQty > 0 && r.remainingQty > 0) partial++;
-    if (r.status !== ST.REJECTED) {
+    if (!isOff_(r.status)) {
       const who = billedTo_(r, bill), bk = who || '';
       const e = byBill[bk] || (byBill[bk] = { name: who, basis: who && bill.doctors[who] ? bill.doctors[who].basis : '', clinic: who && bill.doctors[who] ? bill.doctors[who].clinic : '', requests: 0, value: 0, qty: 0 });
       e.requests++; e.value = round2_(e.value + value); e.qty += qty;
