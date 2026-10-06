@@ -396,6 +396,8 @@ function log(msg) { console.log('  ✔ ' + msg); }
   expect((await page.textContent('.chip[data-g="docok"]')).includes('معتمد من الطبيب') && await page.locator(`#procList .req[data-rid="${newId}"]`).count() === 1, '«doctor approved» chip lists the approved request');
   expect((await page.textContent('.chip[data-g="ready"]')).includes('جديد يحتاج إلى تجهيز'), '«ready to prepare» chip is renamed «new, needs preparing»');
   await page.click('.chip[data-g="ready"]');
+  expect(await page.locator(`#procList .req[data-rid="${newId}"]`).count() === 0, 'a doctor-approved request is not repeated under «new, needs preparing»');
+  await page.click('.chip[data-g="docok"]');
   await page.check(`.req[data-rid="${newId}"] .req-main > .check`);
   await page.waitForSelector('#bulkbar.show');
   expect(await bulkState() === 'قيد التجهيز:on,بانتظار المندوب:off,استلم المندوب:off,تم الإرسال:on',
