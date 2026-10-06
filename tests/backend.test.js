@@ -2211,3 +2211,19 @@ test('catalog: ItemType column (مستهلك / ماتيريال) is added to Ite
   const h = gas.dump('ItemsCatalog')[0];
   assert.ok(h.includes('ItemType') && h.includes('Category'));
 });
+
+test('derma device rooms (Hydrafacial / Clarity / Gentle Pro) take clinic consumables like sterilization and triage', () => {
+  const { api, login } = boot(gas => gas.seed('Clinics', ['ClinicName', 'Branch', 'Type'], [
+    ['عيادة الأسنان 1', 'الرياض', 'أسنان'], ['عيادة الجلدية 1', 'الرياض', 'جلدية'], ['Sterilization', 'الرياض', 'تعقيم'],
+    ['Derma Hydrafacial', 'الرياض', 'Dermatology'], ['Derma Clarity', 'الرياض', 'Dermatology'], ['Derma Gentle Pro', 'الرياض', 'Dermatology']
+  ]));
+  const n = login('سارة', '1111');
+  for (const room of ['Derma Hydrafacial', 'Derma Clarity', 'Derma Gentle Pro']) {
+    const r = api(n, 'createRequest', { clinic: room, type: 'شهري', items: [{ name: 'DENTAL FLOSS', qty: 1 }] });
+    assert.match(r.id, /^REQ-/, room + ': clinic consumables accepted');
+  }
+  throwsCode(() => api(n, 'createRequest', { clinic: 'عيادة الجلدية 1', type: 'شهري', items: [{ name: 'DENTAL FLOSS', qty: 2 }] }), 'ERR_CLINIC_SHARED_ONLY');
+  const reqs = api(n, 'getMyRequests').filter(r => /Derma (Hydrafacial|Clarity|Gentle Pro)/.test(r.clinic));
+  assert.equal(reqs.length, 3);
+  assert.ok(reqs.every(r => !r.doctor && r.department === 'جلدية'), 'no doctor, dermatology department');
+});
