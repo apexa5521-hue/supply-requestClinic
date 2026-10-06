@@ -6,16 +6,16 @@ const scenes = {
     ar: 'هذا الفيديو لمدير النظام: كيف تضيف المستخدمين، وتحدد الأدوار والصلاحيات، وتأخذ نسخة احتياطية، وتتابع تجهيز النظام.' },
   login: { en: 'Sign in with the admin account, and open Users.',
     ar: 'سجّل الدخول بحساب الأدمن، وافتح «المستخدمون».' },
-  list: { en: 'This list shows every account: the role, the branch, the department, and for doctors, the linked doctor and price access. A warning shows doctors without an account, because their requests skip the doctor approval.',
-    ar: 'هذه القائمة تعرض كل الحسابات: الدور والفرع والقسم، وللأطباء الطبيب المرتبط وصلاحية الأسعار. ويظهر تنبيه بالأطباء الذين بلا حساب، لأن طلباتهم تتخطى اعتماد الطبيب.' },
+  list: { en: 'This list shows every account: the role, the branch, the department, and for doctors, the linked doctor. A warning shows doctors without an account, because their requests skip the doctor approval.',
+    ar: 'هذه القائمة تعرض كل الحسابات: الدور والفرع والقسم، وللأطباء الطبيب المرتبط. ويظهر تنبيه بالأطباء الذين بلا حساب، لأن طلباتهم تتخطى اعتماد الطبيب.' },
   nurse: { en: 'To add a nurse: tap New user, write the name and password, choose the role Nurse, and tap her clinics. She will see these clinics in her requests.',
     ar: 'لإضافة ممرضة: اضغط «مستخدم جديد»، واكتب الاسم والرقم السري، واختر الدور «ممرضة»، ثم اضغط على عياداتها، فتظهر لها في طلباتها.' },
-  fields: { en: 'Each role has its own fields. A doctor has the linked doctor name and price access, which is off by default. Procurement has a department: dental or dermatology. A branch manager has a branch.',
-    ar: 'لكل دور حقوله: الطبيب له الطبيب المرتبط وصلاحية الأسعار، وهي مغلقة افتراضيًا. والتموين له قسم: أسنان أو جلدية. ومدير الفرع له فرع.' },
+  fields: { en: 'Each role has its own fields. A doctor has the linked doctor name. Procurement has a department: dental or dermatology. A branch manager has a branch.',
+    ar: 'لكل دور حقوله: الطبيب له الطبيب المرتبط. والتموين له قسم: أسنان أو جلدية. ومدير الفرع له فرع.' },
   save: { en: 'Tap Save. The account works right away. Passwords are saved encrypted, and every user can change their own password later.',
     ar: 'اضغط «حفظ» ويعمل الحساب فورًا. الأرقام السرية تُحفظ مشفّرة، وكل مستخدم يستطيع تغيير رقمه لاحقًا.' },
-  roles: { en: 'Roles and screens: for each management role, tap Edit and tick the permissions it gets. For example: reports, follow-up, finance, doctor prices, or the survey. The server checks these permissions on every action.',
-    ar: 'الأدوار والشاشات: لكل دور إداري اضغط «تعديل» وعلّم الصلاحيات التي يحصل عليها، مثل التقارير، والمتابعة، والمالية، وأسعار الأطباء، والاستبيان. والخادم يتحقق منها في كل عملية.' },
+  roles: { en: 'Roles and screens: for each management role, tap Edit and tick the permissions it gets. For example: reports, follow-up, complaints, or the survey. The server checks these permissions on every action.',
+    ar: 'الأدوار والشاشات: لكل دور إداري اضغط «تعديل» وعلّم الصلاحيات التي يحصل عليها، مثل التقارير، والمتابعة، والبلاغات، والاستبيان. والخادم يتحقق منها في كل عملية.' },
   backup: { en: 'Backups: a full copy of the sheet is taken every night automatically. Tap Backup now before any big change.',
     ar: 'النسخ الاحتياطية: نسخة كاملة من الشيت تُؤخذ كل ليلة تلقائيًا، واضغط «نسخة احتياطية الآن» قبل أي تعديل كبير.' },
   setup: { en: 'System setup runs by itself after every update, and shows the result of each step. If a step fails, you see why, and you can run it again.',
@@ -72,5 +72,5 @@ async function flow(h) {
   await scene('done', '', async () => { await h.scroll(0); });
 }
 
-if (require.main === module) makeTutorial({ id: 'admin', langs: ['ar'], scenes, steps, flow }).catch(e => { console.error('TUTORIAL FAILED', e); process.exit(1); });
+if (require.main === module) makeTutorial({ id: 'admin', noMoney: true, langs: ['ar'], scenes, steps, flow }).catch(e => { console.error('TUTORIAL FAILED', e); process.exit(1); });
 module.exports = { scenes, steps, flow };

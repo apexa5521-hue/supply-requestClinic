@@ -3,10 +3,10 @@ const { makeTutorial } = require('./engine');
 
 const scenes = {
   intro: {
-    en: 'This short video shows nurses the Custody page: the company tools in your clinic, and how to report a faulty tool.',
-    ar: 'هذا فيديو قصير للممرضة عن صفحة «العهدة»: أدوات الشركة في عيادتك، وكيف تبلّغين عن أداة فيها مشكلة.',
-    ur: 'یہ مختصر ویڈیو نرسوں کو کسٹڈی کا صفحہ دکھاتی ہے: آپ کے کلینک میں کمپنی کے آلات، اور خراب آلے کی رپورٹ کیسے کریں۔',
-    id: 'Video singkat ini menunjukkan halaman Custody kepada perawat: alat milik perusahaan di klinik Anda, dan cara melaporkan alat yang bermasalah.'
+    en: 'This short video shows nurses the Custody page: the custody tools in your clinic, and how to report a faulty tool.',
+    ar: 'هذا فيديو قصير للممرضة عن صفحة «العهدة»: أدوات العهدة في عيادتك، وكيف تبلّغين عن أداة فيها مشكلة.',
+    ur: 'یہ مختصر ویڈیو نرسوں کو کسٹڈی کا صفحہ دکھاتی ہے: آپ کے کلینک میں کسٹڈی کے آلات، اور خراب آلے کی رپورٹ کیسے کریں۔',
+    id: 'Video singkat ini menunjukkan halaman Custody kepada perawat: alat inventaris di klinik Anda, dan cara melaporkan alat yang bermasalah.'
   },
   login: {
     en: 'Sign in with your name and password, then tap Custody in the menu.',
@@ -144,5 +144,5 @@ async function flow(h) {
   await scene('done', '', async () => { await wait(600); });
 }
 
-if (require.main === module) makeTutorial({ id: 'nurse-custody', langs: (process.env.LANGS || 'ar,ur,id').split(','), scenes, steps, flow }).catch(e => { console.error('TUTORIAL FAILED', e); process.exit(1); });
+if (require.main === module) makeTutorial({ id: 'nurse-custody', noMoney: true, langs: (process.env.LANGS || 'ar,ur,id').split(','), scenes, steps, flow }).catch(e => { console.error('TUTORIAL FAILED', e); process.exit(1); });
 module.exports = { scenes, steps, flow };

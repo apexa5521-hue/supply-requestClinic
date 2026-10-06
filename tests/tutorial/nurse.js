@@ -15,10 +15,10 @@ const scenes = {
     id: 'Buka tautan sistem. Tulis nama dan kata sandi Anda, lalu ketuk Sign in.'
   },
   kinds: {
-    en: 'On the New request page, there are three choices at the top. One: Doctor request, for everything used in the clinics. It counts on the doctor, and the doctor approves it. Two: Clinic consumables, only for Sterilization and the Triage room. No doctor approval is needed. Three: Send to lab, for patient work that goes to the lab.',
-    ar: 'في صفحة «طلب جديد» ثلاثة خيارات بالأعلى. الأول: طلب طبيب، لكل ما يُستخدم في العيادات، ويُحسب على الطبيب ويعتمده بنفسه. الثاني: مستهلكات عيادة، للتعقيم وغرفة الفرز فقط، ولا يحتاج اعتماد طبيب. الثالث: إرسال للمعمل، لأعمال المرضى.',
-    ur: 'نئی درخواست کے صفحے پر اوپر تین انتخاب ہیں۔ پہلا: ڈاکٹر کی درخواست، کلینک میں استعمال ہونے والی ہر چیز کے لیے، جو ڈاکٹر کے حساب میں جاتی ہے اور ڈاکٹر منظور کرتا ہے۔ دوسرا: کلینک کا سامان، صرف اسٹرلائزیشن اور ٹرائیج روم کے لیے، ڈاکٹر کی منظوری ضروری نہیں۔ تیسرا: لیب کو بھیجیں، مریض کے کام کے لیے۔',
-    id: 'Di halaman New request ada tiga pilihan di atas. Satu: Doctor request, untuk semua yang dipakai di klinik. Dihitung atas nama dokter, dan dokter menyetujuinya. Dua: Clinic consumables, hanya untuk Sterilisasi dan ruang Triase, tanpa persetujuan dokter. Tiga: Send to lab, untuk pekerjaan pasien.'
+    en: 'On the New request page, there are three choices at the top. One: Doctor request, for everything used in the clinics. The doctor approves it. Two: Clinic consumables, only for Sterilization, the Triage room and the derma device rooms. No doctor approval is needed. Three: Send to lab, for patient work that goes to the lab.',
+    ar: 'في صفحة «طلب جديد» ثلاثة خيارات بالأعلى. الأول: طلب طبيب، لكل ما يُستخدم في العيادات، ويعتمده الطبيب بنفسه. الثاني: مستهلكات عيادة، للتعقيم وغرفة الفرز وغرف أجهزة الجلدية فقط، ولا يحتاج اعتماد طبيب. الثالث: إرسال للمعمل، لأعمال المرضى.',
+    ur: 'نئی درخواست کے صفحے پر اوپر تین انتخاب ہیں۔ پہلا: ڈاکٹر کی درخواست، کلینک میں استعمال ہونے والی ہر چیز کے لیے، جسے ڈاکٹر منظور کرتا ہے۔ دوسرا: کلینک کا سامان، صرف اسٹرلائزیشن، ٹرائیج روم اور ڈرما ڈیوائس رومز کے لیے، ڈاکٹر کی منظوری ضروری نہیں۔ تیسرا: لیب کو بھیجیں، مریض کے کام کے لیے۔',
+    id: 'Di halaman New request ada tiga pilihan di atas. Satu: Doctor request, untuk semua yang dipakai di klinik. Dokter menyetujuinya. Dua: Clinic consumables, hanya untuk Sterilisasi, ruang Triase, dan ruang perangkat derma, tanpa persetujuan dokter. Tiga: Send to lab, untuk pekerjaan pasien.'
   },
   doctor: {
     en: 'Let\'s start with a Doctor request. First choose the clinic, then the doctor. The doctors of this clinic are listed first, then all other doctors, because doctors move between clinics. The branch is filled in for you.',
@@ -103,6 +103,12 @@ const scenes = {
     ar: 'عند وصول البوكس افتحي «طلباتي» واضغطي «استلام وتوقيع». راجعي كل كمية، وإذا نقص شيء عدّلي الرقم.',
     ur: 'جب باکس پہنچے تو میری درخواستیں کھولیں اور وصول کریں دبائیں۔ ہر مقدار چیک کریں، کمی ہو تو نمبر بدل دیں۔',
     id: 'Saat kotak tiba, buka My requests dan ketuk Receive and sign. Periksa setiap jumlah. Jika ada yang kurang, ubah angkanya.'
+  },
+  cancelled: {
+    en: 'Sometimes procurement cancels a request, for example when an item is not available. The card shows Cancelled and the reason, and you get an email, so you don\'t wait for it. Raise a new request if you still need it.',
+    ar: 'أحيانًا يلغي التموين طلبًا، مثل عدم توفر الصنف. تظهر البطاقة «ملغي» ومعها السبب، ويصلك إيميل حتى لا تنتظري الطلب. وارفعي طلبًا جديدًا إن ما زلتِ تحتاجينه.',
+    ur: 'کبھی پروکیورمنٹ کوئی درخواست منسوخ کر دیتا ہے، مثلاً جب چیز دستیاب نہ ہو۔ کارڈ پر منسوخ اور اس کی وجہ نظر آتی ہے، اور آپ کو ای میل ملتی ہے تاکہ آپ انتظار نہ کریں۔ ضرورت ہو تو نئی درخواست بھیجیں۔',
+    id: 'Kadang pengadaan membatalkan permintaan, misalnya saat barang tidak tersedia. Kartu menampilkan Dibatalkan beserta alasannya, dan Anda mendapat email agar tidak menunggu. Ajukan permintaan baru jika masih perlu.'
   },
   sign: {
     en: 'Sign in the box with your finger, then tap Confirm receipt. A receipt with your signature is saved.',
@@ -251,6 +257,15 @@ async function flow(h) {
     await point('.rq >> nth=0'); await highlight('.rq', 900);
   });
   await scene('sign', 'receive', async () => { await h.sign(); await wait(400); await click('#rOk'); await wait(900); });
+  await h.api('cancelRequests', [[sterilId], 'Item not available at the supplier this month'], ['Ali', '3333']);
+  await scene('cancelled', 'follow', async () => {
+    await h.nav('mine');
+    await page.waitForSelector(`.req:has-text("${sterilId}") .cancel-box`);
+    await page.locator(`.req:has-text("${sterilId}")`).scrollIntoViewIfNeeded(); await wait(500);
+    await highlight(`.req:has-text("${sterilId}") .badge`, 1200);
+    await highlight(`.req:has-text("${sterilId}") .cancel-box`, 2200);
+    await h.scroll(0);
+  });
   await scene('labform', 'lab', async () => {
     await h.nav('new');
     await click('[data-seg-name="reqKind"][data-v="lab"]');
@@ -302,5 +317,5 @@ async function flow(h) {
   await scene('done', '', async () => { await h.nav('mine'); await point('#mineList .req [data-act="complaint"]'); });
 }
 
-if (require.main === module) makeTutorial({ id: 'nurse', langs: (process.env.LANGS || 'ar,ur,id').split(','), scenes, steps, flow }).catch(e => { console.error('TUTORIAL FAILED', e); process.exit(1); });
+if (require.main === module) makeTutorial({ id: 'nurse', noMoney: true, langs: (process.env.LANGS || 'ar,ur,id').split(','), scenes, steps, flow }).catch(e => { console.error('TUTORIAL FAILED', e); process.exit(1); });
 module.exports = { scenes, steps, flow };

@@ -1,79 +1,95 @@
 1
-00:00:00,789 --> 00:00:02,634
+00:00:00,904 --> 00:00:02,749
 This video is for the lab team.
 
 2
-00:00:02,634 --> 00:00:08,823
+00:00:02,749 --> 00:00:08,938
 You will learn how to receive cases from the clinics, move each work through its stages, use an external
 
 3
-00:00:08,823 --> 00:00:10,489
+00:00:08,938 --> 00:00:10,604
 lab, and send the work back.
 
 4
-00:00:10,940 --> 00:00:15,070
+00:00:11,055 --> 00:00:15,185
 Sign in with your name and password. You land on the Lab board.
 
 5
-00:00:16,552 --> 00:00:21,425
+00:00:16,741 --> 00:00:21,614
 Every case from the nurses appears here. The chips filter by stage:
 
 6
-00:00:21,425 --> 00:00:25,862
+00:00:21,614 --> 00:00:26,051
 new, in work, at an external lab, ready to send, and overdue.
 
 7
-00:00:26,313 --> 00:00:33,088
+00:00:26,501 --> 00:00:33,276
 Each card shows the file number, the doctor, the clinic, the scan date and the due date, and every work
 
 8
-00:00:33,088 --> 00:00:34,403
+00:00:33,276 --> 00:00:34,591
 with its own status.
 
 9
-00:00:34,854 --> 00:00:39,654
+00:00:35,041 --> 00:00:39,841
 When the case reaches you, tap Receive. Then tap Start work when you begin.
 
 10
-00:00:40,647 --> 00:00:44,133
-If the work goes to an outside lab, tap External lab.
+00:00:40,880 --> 00:00:47,410
+If the work goes to an outside lab, tap External lab. Choose the lab and the expected return date.
 
 11
-00:00:44,133 --> 00:00:48,737
-Choose the lab, the expected return date, and the cost if you know it.
-
-12
-00:00:49,187 --> 00:00:54,777
+00:00:47,860 --> 00:00:53,450
 When the work is finished, tap Ready. The nurse and the doctor are notified right away.
 
-13
-00:00:55,228 --> 00:00:59,768
+12
+00:00:53,901 --> 00:00:58,441
 Then tap Send to clinic. The nurse confirms receipt from her page.
 
-14
-00:01:00,219 --> 00:01:05,689
+13
+00:00:58,892 --> 00:01:04,362
 iTero cases have their own tag with the iTero case number, so you can match the scan quickly.
 
-15
-00:01:06,140 --> 00:01:13,318
+14
+00:01:04,813 --> 00:01:11,991
 When the nurse sends a case directly to an external lab, it shows with a purple tag: External lab, FYI only.
 
-16
-00:01:13,318 --> 00:01:17,040
+15
+00:01:11,991 --> 00:01:15,713
 The case left the clinic, but it is not directed to you.
 
-17
-00:01:17,491 --> 00:01:24,231
+16
+00:01:16,164 --> 00:01:22,904
 Tap Details to see the full timeline of a case: who did each step, and when. You can also write a note here.
 
-18
-00:01:24,682 --> 00:01:29,672
+17
+00:01:23,354 --> 00:01:28,344
 To find a case, type the patient file number or the case number in the search box.
 
+18
+00:01:28,794 --> 00:01:36,134
+Lab KPIs show the average turnaround, on-time rate, redo rate, external work, and the overdue work.
+
 19
-00:01:30,123 --> 00:01:37,993
-Lab KPIs show the average turnaround, on-time rate, redo rate, external work and its cost, and the overdue work.
+00:01:36,585 --> 00:01:39,296
+The lab can also order its own supplies.
 
 20
-00:01:38,444 --> 00:01:45,664
+00:01:39,296 --> 00:01:46,683
+Open Request supplies, search the items, set the quantities, and tap Submit. It goes straight to procurement:
+
+21
+00:01:46,683 --> 00:01:48,445
+no doctor and no approval.
+
+22
+00:01:50,215 --> 00:01:52,084
+Follow them in My requests.
+
+23
+00:01:52,084 --> 00:01:59,215
+Procurement hands them to you directly, with no box and no signature, and the request becomes Received.
+
+24
+00:01:59,666 --> 00:02:06,886
 That's it. Update every case as soon as it moves, so the clinics always know where their work is. Thank you!

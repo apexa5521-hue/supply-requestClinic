@@ -1,171 +1,183 @@
 1
-00:00:00,806 --> 00:00:07,526
+00:00:00,830 --> 00:00:07,550
 Welcome to Supply Flow. This video shows nurses everything they need, step by step, in a simple way.
 
 2
-00:00:07,977 --> 00:00:12,847
+00:00:08,001 --> 00:00:12,871
 Open the system link. Write your name and your password, then tap Sign in.
 
 3
-00:00:13,492 --> 00:00:17,884
+00:00:13,389 --> 00:00:17,821
 On the New request page, there are three choices at the top. One:
 
 4
-00:00:17,884 --> 00:00:25,249
-Doctor request, for everything used in the clinics. It counts on the doctor, and the doctor approves it. Two:
+00:00:17,821 --> 00:00:23,276
+Doctor request, for everything used in the clinics. The doctor approves it. Two:
 
 5
-00:00:25,249 --> 00:00:32,006
-Clinic consumables, only for Sterilization and the Triage room. No doctor approval is needed. Three:
+00:00:23,276 --> 00:00:29,209
+Clinic consumables, only for Sterilization, the Triage room and the derma device rooms.
 
 6
-00:00:32,006 --> 00:00:35,452
-Send to lab, for patient work that goes to the lab.
+00:00:29,209 --> 00:00:35,209
+No doctor approval is needed. Three: Send to lab, for patient work that goes to the lab.
 
 7
-00:00:35,903 --> 00:00:40,584
+00:00:35,660 --> 00:00:40,341
 Let's start with a Doctor request. First choose the clinic, then the doctor.
 
 8
-00:00:40,584 --> 00:00:47,112
+00:00:40,341 --> 00:00:46,869
 The doctors of this clinic are listed first, then all other doctors, because doctors move between clinics.
 
 9
-00:00:47,112 --> 00:00:49,083
+00:00:46,869 --> 00:00:48,840
 The branch is filled in for you.
 
 10
-00:00:49,534 --> 00:00:55,894
+00:00:49,291 --> 00:00:55,651
 Choose the type. Monthly is your normal monthly order. Emergency is only for urgent needs.
 
 11
-00:00:56,346 --> 00:01:01,816
+00:00:56,103 --> 00:01:01,573
 Now add the items. Tap the search box, write part of the name, and tap the item.
 
 12
-00:01:03,350 --> 00:01:06,300
+00:01:02,949 --> 00:01:05,899
 Use plus and minus to set how many you need.
 
 13
-00:01:07,134 --> 00:01:14,574
+00:01:06,743 --> 00:01:14,183
 Check the summary on the side, then tap Submit request. Your draft is saved by itself, so you never lose your work.
 
 14
-00:01:15,025 --> 00:01:20,134
+00:01:14,633 --> 00:01:19,742
 Next, Clinic consumables. This is only for Sterilization and the Triage room.
 
 15
-00:01:20,134 --> 00:01:24,845
+00:01:19,742 --> 00:01:24,453
 Open the list and choose the place in your branch: Buraydah or Unayzah.
 
 16
-00:01:25,296 --> 00:01:31,047
+00:01:24,904 --> 00:01:30,655
 A note shows exactly where the order will be delivered. Add the items and tap Submit request.
 
 17
-00:01:31,047 --> 00:01:33,026
+00:01:30,655 --> 00:01:32,634
 It goes straight to procurement.
 
 18
-00:01:33,806 --> 00:01:40,481
+00:01:33,488 --> 00:01:40,163
 Now open My requests and see the difference. The doctor request shows Doctor review: it waits for the doctor.
 
 19
-00:01:40,481 --> 00:01:44,706
+00:01:40,163 --> 00:01:44,388
 The sterilization request shows New: it went straight to procurement.
 
 20
-00:01:45,157 --> 00:01:52,017
+00:01:44,840 --> 00:01:51,700
 Tap Details to see everything about a request: each step and its time, the items, and the comments.
 
 21
-00:01:52,467 --> 00:01:57,704
+00:01:52,151 --> 00:01:57,388
 The doctor gets an email automatically. Ask the doctor to open their page and approve.
 
 22
-00:01:57,704 --> 00:02:00,627
+00:01:57,388 --> 00:02:00,311
 You can also write a comment here as a reminder.
 
 23
-00:02:01,077 --> 00:02:06,097
+00:02:00,762 --> 00:02:05,782
 This is the doctor's page. The doctor sees the requests that are waiting for approval.
 
 24
-00:02:09,489 --> 00:02:15,919
+00:02:09,200 --> 00:02:15,630
 The doctor opens the request. The doctor can change a quantity or add a note, and then taps Approve.
 
 25
-00:02:16,382 --> 00:02:20,357
+00:02:16,099 --> 00:02:20,074
 After approval, procurement sends the order in the doctor's box.
 
 26
-00:02:20,357 --> 00:02:27,002
+00:02:20,074 --> 00:02:26,719
 When the driver delivers the box to your branch, you get an alert, and the card turns to Arrived at branch.
 
 27
-00:02:27,002 --> 00:02:29,362
+00:02:26,719 --> 00:02:29,079
 The Arrived chip shows these requests.
 
 28
-00:02:31,308 --> 00:02:37,318
+00:02:31,259 --> 00:02:37,269
 When the box arrives, open My requests and tap Receive and sign. Check each quantity.
 
 29
-00:02:37,318 --> 00:02:40,358
+00:02:37,269 --> 00:02:40,309
 If something is missing, change the number.
 
 30
-00:02:40,810 --> 00:02:47,000
+00:02:40,761 --> 00:02:46,951
 Sign in the box with your finger, then tap Confirm receipt. A receipt with your signature is saved.
 
 31
-00:02:47,450 --> 00:02:53,838
-Now, sending work to the lab. Choose Send to lab, choose the doctor, and write the patient file number.
+00:02:47,406 --> 00:02:52,171
+Sometimes procurement cancels a request, for example when an item is not available.
 
 32
-00:02:53,838 --> 00:02:58,180
-The scan date is today. Change it only if the scan was on another day.
+00:02:52,171 --> 00:02:57,222
+The card shows Cancelled and the reason, and you get an email, so you don't wait for it.
 
 33
-00:02:58,630 --> 00:03:04,733
-Add the work: choose the lab, the type of work, and write notes, like the tooth number and the shade.
+00:02:57,222 --> 00:02:59,576
+Raise a new request if you still need it.
 
 34
-00:03:04,733 --> 00:03:09,930
-You can add a photo for each work. The date the lab must finish is calculated for you.
+00:03:00,027 --> 00:03:06,415
+Now, sending work to the lab. Choose Send to lab, choose the doctor, and write the patient file number.
 
 35
-00:03:10,381 --> 00:03:14,031
-Tap Send to lab. Now you can follow it on the Lab page.
+00:03:06,415 --> 00:03:10,757
+The scan date is today. Change it only if the scan was on another day.
 
 36
-00:03:14,494 --> 00:03:17,766
-For an iTero digital scan, choose the iTero tab.
+00:03:11,208 --> 00:03:17,311
+Add the work: choose the lab, the type of work, and write notes, like the tooth number and the shade.
 
 37
-00:03:17,766 --> 00:03:25,263
-Write the scan date, the iTero case number, the file number and the doctor. Then choose the lab from the list:
+00:03:17,311 --> 00:03:22,508
+You can add a photo for each work. The date the lab must finish is calculated for you.
 
 38
-00:03:25,263 --> 00:03:28,944
-the internal lab, or an external lab. Tap Send to lab.
+00:03:22,958 --> 00:03:26,608
+Tap Send to lab. Now you can follow it on the Lab page.
 
 39
-00:03:29,979 --> 00:03:35,868
-When the lab finishes, it sends the work back to the clinic. You will see the button Confirm receipt.
+00:03:27,079 --> 00:03:30,351
+For an iTero digital scan, choose the iTero tab.
 
 40
-00:03:35,868 --> 00:03:38,259
-Tap it when the work reaches your clinic.
+00:03:30,351 --> 00:03:37,848
+Write the scan date, the iTero case number, the file number and the doctor. Then choose the lab from the list:
 
 41
-00:03:38,710 --> 00:03:43,679
-That's all. Clinic supplies are a Doctor request, approved by the doctor.
+00:03:37,848 --> 00:03:41,529
+the internal lab, or an external lab. Tap Send to lab.
 
 42
-00:03:43,679 --> 00:03:50,555
-Sterilization and the Triage room are Clinic consumables. Patient work and iTero scans go to the lab.
+00:03:42,761 --> 00:03:48,650
+When the lab finishes, it sends the work back to the clinic. You will see the button Confirm receipt.
 
 43
-00:03:50,555 --> 00:03:55,320
+00:03:48,650 --> 00:03:51,041
+Tap it when the work reaches your clinic.
+
+44
+00:03:51,491 --> 00:03:56,460
+That's all. Clinic supplies are a Doctor request, approved by the doctor.
+
+45
+00:03:56,460 --> 00:04:03,336
+Sterilization and the Triage room are Clinic consumables. Patient work and iTero scans go to the lab.
+
+46
+00:04:03,336 --> 00:04:08,101
 If there is any problem, use the Report button on the card. Thank you!

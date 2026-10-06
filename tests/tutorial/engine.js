@@ -200,7 +200,15 @@ const overlayScript = `
 /**
  * cfg = { id, langs: ['ar', ...], scenes: { key: { en, ar, ur, id } }, steps: { key: { en, ar, ... } }, flow: async (h) => {} }
  */
+/* كلمات المال (الأسعار، القيمة، التكلفة، على حساب من) — ممنوعة في فيديو noMoney: في الصوت والترجمة وعلى الشاشة */
+const MONEY_RE = /\bSAR\b|ر\.س|\bprices?\b|\bpriced\b|\bcosts?\b|\bvalue\b|est\.? total|\btotal \(|\bbill(ed|ing)\b|\bcharged?\b|\bspend\b|\bcompany\b|سعر|أسعار|تكلفة|قيمة|ريال|على الشركة|حساب الشركة|يتحمل|تُحسب على|يُحسب على|يحسب على/i;
 async function makeTutorial(cfg) {
+  if (cfg.noMoney) {
+    const bad = [];
+    Object.keys(cfg.scenes).forEach(k => Object.keys(cfg.scenes[k]).forEach(l => { if (MONEY_RE.test(cfg.scenes[k][l])) bad.push(k + '/' + l); }));
+    Object.keys(cfg.steps || {}).forEach(k => Object.keys(cfg.steps[k]).forEach(l => { if (MONEY_RE.test(cfg.steps[k][l])) bad.push('step ' + k + '/' + l); }));
+    if (bad.length) throw new Error('money words in the narration of a no-price video: ' + bad.join(', '));
+  }
   const OUT = path.join(OUT_ROOT, cfg.id);
   const WORK = path.join(CACHE, cfg.id);
   fs.mkdirSync(OUT, { recursive: true }); fs.mkdirSync(WORK, { recursive: true });
@@ -235,16 +243,38 @@ async function makeTutorial(cfg) {
   await page.goto('http://masar.demo/');
   await page.waitForSelector('#loginView:not(.hidden)');
   await page.waitForTimeout(600);
-  // فيديو بلا أسعار: أي سعر/قيمة/تكلفة يظهر على الشاشة ولو لحظة يُفشل التسجيل
-  if (cfg.noMoney) await page.evaluate(() => {
+  // فيديو بلا أسعار (كل الأدوار عدا المالية والتنفيذي والجودة): لا سعر ولا قيمة ولا تكلفة ولا «على حساب فلان».
+  // 1) أي عنصر يعرضها يُخفى تلقائياً (وعمودها كاملاً في الجداول)  2) وإن ظهر شيء رغم ذلك ولو لحظة يفشل التسجيل
+  if (cfg.noMoney) await page.evaluate(src => {
+    const re = new RegExp(src, 'i');
     window.__money = [];
-    const re = /\bSAR\b|ر\.س|\bprices?\b|\bcosts?\b|\bvalue\b|est\.? total|\btotal \(/i;
+    const SEL = '.mt,.rp-tile,.kpi,.field,.sum-row,.meta-grid > div,label,li,.tag,.badge,.chip,.hint,dt,dd,th,td,tr,.card-head,section.card';
+    const hideEl = el => {
+      if (!el || el.dataset.tvHidden) return;
+      el.dataset.tvHidden = '1';
+      if (el.tagName === 'TH' && el.closest('table')) {
+        const i = el.cellIndex;
+        el.closest('table').querySelectorAll('tr').forEach(tr => { const c = tr.cells[i]; if (c) c.style.setProperty('display', 'none', 'important'); });
+        return;
+      }
+      (el.classList.contains('card-head') ? el.closest('section.card') || el : el).style.setProperty('display', 'none', 'important');
+    };
+    const scan = root => {
+      const w = document.createTreeWalker(root || document.body, NodeFilter.SHOW_TEXT);
+      for (let n = w.nextNode(); n; n = w.nextNode()) {
+        if (!re.test(n.nodeValue) || !n.parentElement || n.parentElement.closest('#tvCursor')) continue;
+        hideEl(n.parentElement.closest(SEL) || n.parentElement);
+      }
+      document.querySelectorAll('input[placeholder],textarea[placeholder]').forEach(i => { if (re.test(i.placeholder)) hideEl(i.closest(SEL) || i); });
+    };
+    scan();
+    new MutationObserver(ms => ms.forEach(m => m.addedNodes.forEach(nd => { if (nd.nodeType === 1) scan(nd); else if (nd.nodeType === 3 && nd.parentElement) scan(nd.parentElement); }))).observe(document.body, { childList: true, subtree: true, characterData: true });
     setInterval(() => {
       const txt = document.body.innerText || '';
       const m = re.exec(txt);
       if (m && window.__money.length < 20) window.__money.push(txt.slice(Math.max(0, m.index - 60), m.index + 40).replace(/\s+/g, ' '));
     }, 250);
-  });
+  }, MONEY_RE.source);
 
   const wait = ms => page.waitForTimeout(ms);
   const marks = [];

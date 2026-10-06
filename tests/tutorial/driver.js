@@ -93,5 +93,5 @@ async function flow(h) {
   await scene('done', '', async () => { await wait(600); });
 }
 
-if (require.main === module) makeTutorial({ id: 'driver', langs: (process.env.LANGS || 'ar,bn,hi').split(','), scenes, steps, flow }).catch(e => { console.error('TUTORIAL FAILED', e); process.exit(1); });
+if (require.main === module) makeTutorial({ id: 'driver', noMoney: true, langs: (process.env.LANGS || 'ar,bn,hi').split(','), scenes, steps, flow }).catch(e => { console.error('TUTORIAL FAILED', e); process.exit(1); });
 module.exports = { scenes, steps, flow };

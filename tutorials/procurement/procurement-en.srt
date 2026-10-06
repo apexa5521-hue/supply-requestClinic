@@ -1,123 +1,139 @@
 1
-00:00:00,777 --> 00:00:02,648
+00:00:00,875 --> 00:00:02,746
 This video is for procurement.
 
 2
-00:00:02,648 --> 00:00:09,757
+00:00:02,746 --> 00:00:09,855
 You will learn how to prepare requests, send them in shipments, fix a mistake, and manage boxes and custody tools.
 
 3
-00:00:10,208 --> 00:00:17,028
+00:00:10,306 --> 00:00:17,126
 Sign in with your name and password. Your account shows only your department: dental or dermatology.
 
 4
-00:00:17,479 --> 00:00:24,500
+00:00:17,576 --> 00:00:24,680
 The Requests page shows all requests. Each card is colored by its stage, so you can sort them at a glance.
 
 5
-00:00:24,500 --> 00:00:26,951
+00:00:24,680 --> 00:00:27,160
 The chips at the top filter by stage:
 
 6
-00:00:26,951 --> 00:00:33,509
-with the doctor, ready to prepare, in preparation, partially sent, arrived at the branch, and more.
+00:00:27,160 --> 00:00:34,197
+with the doctor, doctor approved, new and needs preparing, in preparation, partially sent, arrived at the
 
 7
-00:00:33,960 --> 00:00:41,110
-Pick a doctor from the list to see only his requests. You can also filter by branch, clinic or month, or search.
+00:00:34,197 --> 00:00:35,336
+branch, and more.
 
 8
-00:00:41,561 --> 00:00:46,642
-Open a request that is ready. You see each item with the quantity the doctor approved.
+00:00:35,787 --> 00:00:42,937
+Pick a doctor from the list to see only his requests. You can also filter by branch, clinic or month, or search.
 
 9
-00:00:46,642 --> 00:00:48,591
-This is exactly what you prepare.
+00:00:43,387 --> 00:00:48,848
+Open a request the doctor approved. You see each item with the quantity the doctor approved.
 
 10
-00:00:49,041 --> 00:00:55,008
-Set the status of each item: preparing, waiting for the vendor, or received from the vendor.
+00:00:48,848 --> 00:00:50,807
+This is exactly what you prepare.
 
 11
-00:00:55,008 --> 00:00:57,991
-The request moves to In preparation by itself.
+00:00:51,258 --> 00:00:57,225
+Set the status of each item: preparing, waiting for the vendor, or received from the vendor.
 
 12
-00:00:58,442 --> 00:01:05,021
-To send, tick the items and set the quantity for this shipment. You can send part now and the rest later.
+00:00:57,225 --> 00:01:00,208
+The request moves to In preparation by itself.
 
 13
-00:01:05,021 --> 00:01:06,462
-Then tap Send shipment.
+00:01:00,659 --> 00:01:07,238
+To send, tick the items and set the quantity for this shipment. You can send part now and the rest later.
 
 14
-00:01:06,914 --> 00:01:11,872
-A box panel opens. The doctor and the branch are filled in from the request.
+00:01:07,238 --> 00:01:08,679
+Then tap Send shipment.
 
 15
-00:01:11,872 --> 00:01:16,373
-Change them if the shipment is for sterilization, triage or a clinic.
+00:01:09,130 --> 00:01:14,088
+A box panel opens. The doctor and the branch are filled in from the request.
 
 16
-00:01:16,373 --> 00:01:22,374
-It tells you if it goes into the doctor's box, or a new box is made. Then tap Load and send.
+00:01:14,088 --> 00:01:18,589
+Change them if the shipment is for sterilization, triage or a clinic.
 
 17
-00:01:22,825 --> 00:01:30,625
-The card shows exactly what is left. When everything is sent, the request becomes Sent, and the nurse is notified.
+00:01:18,589 --> 00:01:24,590
+It tells you if it goes into the doctor's box, or a new box is made. Then tap Load and send.
 
 18
-00:01:31,160 --> 00:01:36,550
-Sent something by mistake? Tap Undo last step, write the reason, and confirm.
+00:01:25,040 --> 00:01:32,840
+The card shows exactly what is left. When everything is sent, the request becomes Sent, and the nurse is notified.
 
 19
-00:01:36,550 --> 00:01:39,630
-Every undo is recorded for the quality team.
+00:01:33,527 --> 00:01:38,917
+Sent something by mistake? Tap Undo last step, write the reason, and confirm.
 
 20
-00:01:40,082 --> 00:01:44,692
-From the request details you can print the request, or save it as PDF.
+00:01:38,917 --> 00:01:41,997
+Every undo is recorded for the quality team.
 
 21
-00:01:45,143 --> 00:01:50,573
-The Boxes page shows where each box is: ready to deliver, at a branch, or empty.
+00:01:42,447 --> 00:01:47,127
+To cancel requests, tick them, tap Cancel request, and write the reason.
 
 22
-00:01:50,573 --> 00:01:58,243
-One box for each doctor in each branch. Print the QR stickers, and send the driver tasks link to the driver once.
+00:01:47,127 --> 00:01:51,872
+The nurse sees the reason and gets an email, so she does not wait for it.
 
 23
-00:01:58,694 --> 00:02:05,394
-Need a box back? Tap Request move and choose the place. It appears in the driver's tasks right away.
+00:01:51,872 --> 00:01:55,577
+A request with anything already sent cannot be cancelled.
 
 24
-00:02:05,845 --> 00:02:09,525
-For older requests, tap Boxes for past requests once.
+00:01:58,815 --> 00:02:03,425
+From the request details you can print the request, or save it as PDF.
 
 25
-00:02:09,525 --> 00:02:14,315
-It makes their boxes and loads any shipment that is not received yet.
+00:02:03,876 --> 00:02:09,306
+The Boxes page shows where each box is: ready to deliver, at a branch, or empty.
 
 26
-00:02:14,766 --> 00:02:22,256
-Custody is for company tools, like handpieces. Set the standard for each clinic, and handle broken tool reports.
+00:02:09,306 --> 00:02:16,976
+One box for each doctor in each branch. Print the QR stickers, and send the driver tasks link to the driver once.
 
 27
-00:02:22,708 --> 00:02:28,207
-To issue handpieces, tap Issue, choose the tool, and type one serial number per row.
+00:02:17,427 --> 00:02:24,127
+Need a box back? Tap Request move and choose the place. It appears in the driver's tasks right away.
 
 28
-00:02:28,207 --> 00:02:33,248
-Press Enter or plus for the next one, and Save and add another to keep going.
+00:02:24,577 --> 00:02:28,257
+For older requests, tap Boxes for past requests once.
 
 29
-00:02:33,699 --> 00:02:39,576
-Complaints shows problems reported on requests. Read them and reply in the request comments.
+00:02:28,257 --> 00:02:33,047
+It makes their boxes and loads any shipment that is not received yet.
 
 30
-00:02:39,576 --> 00:02:41,429
-The quality team closes them.
+00:02:33,498 --> 00:02:41,008
+Custody is for the clinic tools, like handpieces. Set the standard for each clinic, and handle broken tool reports.
 
 31
-00:02:41,890 --> 00:02:47,220
+00:02:41,458 --> 00:02:46,957
+To issue handpieces, tap Issue, choose the tool, and type one serial number per row.
+
+32
+00:02:46,957 --> 00:02:51,998
+Press Enter or plus for the next one, and Save and add another to keep going.
+
+33
+00:02:52,449 --> 00:02:58,326
+Complaints shows problems reported on requests. Read them and reply in the request comments.
+
+34
+00:02:58,326 --> 00:03:00,179
+The quality team closes them.
+
+35
+00:03:00,629 --> 00:03:05,959
 That's it. Prepare approved requests quickly, and send what you have. Thank you!
