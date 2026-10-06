@@ -2465,7 +2465,8 @@ const PROC_GROUPS = [
   { id: 'all', k: 'grp_all' },
   { id: 'review', k: 'grp_wait_doctor', test: r => !!r.awaitingDoctor, tone: 'var(--t-violet)' },
   { id: 'docok', k: 'grp_doc_approved', test: r => r.status === ST.APPROVED && !!r.doctorApproved, tone: 'var(--t-teal)' },
-  { id: 'ready', k: 'grp_ready_prep', test: r => r.cleared && (r.status === ST.APPROVED || r.status === ST.NEW), tone: 'var(--t-blue)' },
+  // بلا تكرار مع «معتمد من الطبيب»: الجديد الذي لا يمر على طبيب (مستهلكات عيادة / طبيب بلا حساب)
+  { id: 'ready', k: 'grp_ready_prep', test: r => r.cleared && (r.status === ST.NEW || (r.status === ST.APPROVED && !r.doctorApproved)), tone: 'var(--t-blue)' },
   { id: 'prep', k: 'grp_prep', statuses: [ST.PREP, ST.VENDOR_WAIT, ST.VENDOR_RECV], tone: 'var(--t-amber)' },
   { id: 'partial', k: 'grp_partial', test: r => r.sentQty > 0 && r.remainingQty > 0, tone: 'var(--t-orange)' },
   { id: 'sent', k: 'st_sent', statuses: [ST.SENT], tone: 'var(--t-indigo)' },
