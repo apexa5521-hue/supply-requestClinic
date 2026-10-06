@@ -107,7 +107,7 @@ const I18N = {
     ERR_REQUIRED: 'يرجى تعبئة الحقول المطلوبة', ERR_BAD_TYPE: 'نوع طلب غير صالح', ERR_BAD_CLINIC: 'العيادة غير موجودة', ERR_BAD_DOCTOR: 'الطبيب غير مرتبط بهذه العيادة',
     ERR_BAD_QTY: 'كمية غير صالحة', ERR_NO_ITEMS: 'أضف صنفاً واحداً على الأقل', ERR_TOO_MANY_ITEMS: 'عدد الأصناف كبير جداً',
     ERR_LOCKED: 'لا يمكن التعديل في هذه المرحلة', ERR_BAD_STATUS: 'حالة غير صالحة', ERR_BAD_TRANSITION: 'لا يمكن الانتقال لهذه الحالة من الحالة الحالية',
-    ERR_NEEDS_APPROVAL: 'يتطلب اعتماد الطبيب أولاً', ERR_BAD_DECISION: 'قرار غير صالح', ERR_REASON_REQUIRED: 'سبب الرفض إلزامي', ERR_BAD_IMAGE: 'صورة غير صالحة',
+    ERR_NEEDS_APPROVAL: 'يتطلب اعتماد الطبيب أولاً', ERR_BAD_DECISION: 'قرار غير صالح', ERR_REASON_REQUIRED: 'اكتب السبب', ERR_BAD_IMAGE: 'صورة غير صالحة',
     ERR_BAD_TARGET: 'جهة غير صالحة', ERR_BAD_EMAIL: 'البريد الإلكتروني غير صالح', ERR_WEAK_PASSWORD: 'الرقم السري قصير (4 خانات على الأقل)',
     ERR_USER_EXISTS: 'يوجد مستخدم بنفس الاسم', ERR_LAST_ADMIN: 'لا يمكن — يجب أن يبقى مدير تنفيذي واحد على الأقل', ERR_DELETE_SELF: 'لا يمكنك حذف حسابك',
     ERR_BAD_SCREEN: 'شاشة غير صالحة', ERR_ROLE_IN_USE: 'الدور مستخدم من مستخدمين حاليين', ERR_UNKNOWN_FN: 'الخادم لا يدعم هذه العملية — حدّث Code.gs',
@@ -208,15 +208,15 @@ const I18N = {
     ERR_REQUIRED: 'Please fill the required fields', ERR_BAD_TYPE: 'Invalid request type', ERR_BAD_CLINIC: 'Clinic not found', ERR_BAD_DOCTOR: 'Doctor is not linked to this clinic',
     ERR_BAD_QTY: 'Invalid quantity', ERR_NO_ITEMS: 'Add at least one item', ERR_TOO_MANY_ITEMS: 'Too many items',
     ERR_LOCKED: 'Cannot edit at this stage', ERR_BAD_STATUS: 'Invalid status', ERR_BAD_TRANSITION: 'Cannot move to this status from the current one',
-    ERR_NEEDS_APPROVAL: 'Doctor approval required first', ERR_BAD_DECISION: 'Invalid decision', ERR_REASON_REQUIRED: 'Rejection reason is required', ERR_BAD_IMAGE: 'Invalid image',
+    ERR_NEEDS_APPROVAL: 'Doctor approval required first', ERR_BAD_DECISION: 'Invalid decision', ERR_REASON_REQUIRED: 'Please write the reason', ERR_BAD_IMAGE: 'Invalid image',
     ERR_BAD_TARGET: 'Invalid target', ERR_BAD_EMAIL: 'Invalid email', ERR_WEAK_PASSWORD: 'Password too short (min 4)',
     ERR_USER_EXISTS: 'A user with this name exists', ERR_LAST_ADMIN: 'At least one executive admin must remain', ERR_DELETE_SELF: "You can't delete your own account",
     ERR_BAD_SCREEN: 'Invalid screen', ERR_ROLE_IN_USE: 'Role is used by existing users', ERR_UNKNOWN_FN: 'Server does not support this — update Code.gs',
     ERR_BAD_RESPONSE: 'Server returned a page instead of data — check deployment settings', ERR_NETWORK: 'Could not reach the server — please retry', ERR_BAD_BATCH: 'Invalid request'
   }
 };
-Object.assign(I18N.ar, { grp_doc_approved: 'معتمد من الطبيب', grp_devices: 'غرف أجهزة الجلدية', device_note: 'طلب لغرفة {c} في فرع {b} — يُسلَّم هناك', rp_doc_title_np: 'تقرير طبيب — تاريخ طلباته', t_reports_b_np: 'إحصائيات كل طبيب وفرع وعيادة بالأعداد والأزمنة، وتقرير أي طبيب من قائمة منسدلة مع طباعة وتصدير.', t_doc_report_b_np: 'أصدر تقريراً مرتباً بطلباتك وأصنافها وكمياتها لشهر محدد أو تراكمياً حتى تاريخ، واطبعه أو صدّره.', rep_top_qty: 'الأصناف الأكثر طلباً', bxp_title: 'البوكس لهذه الشحنة', bxp_sub: 'صاحب البوكس والفرع من الطلب — عدّلهما إن كانت الشحنة لطبيب آخر أو للتعقيم أو الفرز أو عيادة', bxp_owner: 'صاحب البوكس (طبيب / تعقيم / فرز / عيادة)', bxp_branch: 'الفرع', bxp_go: 'تحميل في البوكس وإرسال', bxp_existing: 'سيُحمَّل في بوكسه {id}', bxp_new: 'بوكس جديد يُنشأ له تلقائياً', bx_backfill: 'بوكسات للطلبات السابقة', bx_backfill_hint: 'ينشئ بوكساً لكل طبيب/عيادة في كل فرع أُرسلت له طلبات سابقاً، ويحمّل أي شحنة مرسلة لم تُستلم بعد. التشغيل مرة ثانية لا يكرر شيئاً.', bx_backfill_done: 'أُنشئ {c} بوكس وحُمّلت {l} شحنة ({r} طلب)', bx_branch_any: 'بدون فرع', grp_arrived: 'وصل الفرع', all_doctors: 'كل الأطباء', as_serial_add: 'قطعة أخرى', as_serial_ph: 'الرقم التسلسلي', as_issue_more: 'حفظ وإضافة أداة أخرى', as_units_n: '{n} قطعة' });
-Object.assign(I18N.en, { grp_doc_approved: 'Doctor approved', grp_devices: 'Derma device rooms', device_note: 'Request for the {c} room in the {b} branch — delivered there', rp_doc_title_np: 'Doctor report — request history', t_reports_b_np: 'Statistics per doctor, branch and clinic with counts and times, and any doctor’s report from a dropdown with print and export.', t_doc_report_b_np: 'Generate a tidy report of your requests with items and quantities for a month or cumulatively up to a date, then print or export it.', rep_top_qty: 'Most requested items', bxp_title: 'Box for this shipment', bxp_sub: 'Box owner and branch come from the request — change them if it is for another doctor, sterilization, triage or a clinic', bxp_owner: 'Box owner (doctor / sterilization / triage / clinic)', bxp_branch: 'Branch', bxp_go: 'Load into box & send', bxp_existing: 'Goes into box {id}', bxp_new: 'A new box will be created', bx_backfill: 'Boxes for past requests', bx_backfill_hint: 'Creates a box per doctor/clinic per branch for past requests, and loads any sent shipment not yet received. Running it again duplicates nothing.', bx_backfill_done: '{c} box(es) created, {l} shipment(s) loaded ({r} requests)', bx_branch_any: 'No branch', grp_arrived: 'At branch', all_doctors: 'All doctors', as_serial_add: 'Another unit', as_serial_ph: 'Serial number', as_issue_more: 'Save & add another', as_units_n: '{n} unit(s)' });
+Object.assign(I18N.ar, { st_cancelled: 'ملغي', act_cancel: 'إلغاء الطلب', cancel_title: 'إلغاء {n} طلب', cancel_reason: 'سبب الإلغاء', cancel_reason_ph: 'مثال: الصنف غير متوفر لدى المورد / طلب مكرر…', cancel_hint: 'يظهر السبب للممرضة ويصلها إيميل حتى لا تنتظر الطلب. الطلب الذي أُرسل منه شيء لا يُلغى.', cancel_confirm: 'تأكيد الإلغاء', cancel_done: 'أُلغي {n} طلب', stamp_cancelled: 'أُلغي', ERR_HAS_SHIPMENTS: 'أُرسل منه شيء — لا يُلغى (استخدم «تراجع خطوة»)', grp_doc_approved: 'معتمد من الطبيب', grp_devices: 'غرف أجهزة الجلدية', device_note: 'طلب لغرفة {c} في فرع {b} — يُسلَّم هناك', rp_doc_title_np: 'تقرير طبيب — تاريخ طلباته', t_reports_b_np: 'إحصائيات كل طبيب وفرع وعيادة بالأعداد والأزمنة، وتقرير أي طبيب من قائمة منسدلة مع طباعة وتصدير.', t_doc_report_b_np: 'أصدر تقريراً مرتباً بطلباتك وأصنافها وكمياتها لشهر محدد أو تراكمياً حتى تاريخ، واطبعه أو صدّره.', rep_top_qty: 'الأصناف الأكثر طلباً', bxp_title: 'البوكس لهذه الشحنة', bxp_sub: 'صاحب البوكس والفرع من الطلب — عدّلهما إن كانت الشحنة لطبيب آخر أو للتعقيم أو الفرز أو عيادة', bxp_owner: 'صاحب البوكس (طبيب / تعقيم / فرز / عيادة)', bxp_branch: 'الفرع', bxp_go: 'تحميل في البوكس وإرسال', bxp_existing: 'سيُحمَّل في بوكسه {id}', bxp_new: 'بوكس جديد يُنشأ له تلقائياً', bx_backfill: 'بوكسات للطلبات السابقة', bx_backfill_hint: 'ينشئ بوكساً لكل طبيب/عيادة في كل فرع أُرسلت له طلبات سابقاً، ويحمّل أي شحنة مرسلة لم تُستلم بعد. التشغيل مرة ثانية لا يكرر شيئاً.', bx_backfill_done: 'أُنشئ {c} بوكس وحُمّلت {l} شحنة ({r} طلب)', bx_branch_any: 'بدون فرع', grp_arrived: 'وصل الفرع', all_doctors: 'كل الأطباء', as_serial_add: 'قطعة أخرى', as_serial_ph: 'الرقم التسلسلي', as_issue_more: 'حفظ وإضافة أداة أخرى', as_units_n: '{n} قطعة' });
+Object.assign(I18N.en, { st_cancelled: 'Cancelled', act_cancel: 'Cancel request', cancel_title: 'Cancel {n} request(s)', cancel_reason: 'Cancellation reason', cancel_reason_ph: 'e.g. item unavailable at the supplier / duplicate request…', cancel_hint: 'The nurse sees the reason and gets an email, so she does not wait for it. A request with anything already sent cannot be cancelled.', cancel_confirm: 'Confirm cancellation', cancel_done: '{n} request(s) cancelled', stamp_cancelled: 'Cancelled', ERR_HAS_SHIPMENTS: 'Something was already sent — cannot cancel (use “Undo step”)', grp_doc_approved: 'Doctor approved', grp_devices: 'Derma device rooms', device_note: 'Request for the {c} room in the {b} branch — delivered there', rp_doc_title_np: 'Doctor report — request history', t_reports_b_np: 'Statistics per doctor, branch and clinic with counts and times, and any doctor’s report from a dropdown with print and export.', t_doc_report_b_np: 'Generate a tidy report of your requests with items and quantities for a month or cumulatively up to a date, then print or export it.', rep_top_qty: 'Most requested items', bxp_title: 'Box for this shipment', bxp_sub: 'Box owner and branch come from the request — change them if it is for another doctor, sterilization, triage or a clinic', bxp_owner: 'Box owner (doctor / sterilization / triage / clinic)', bxp_branch: 'Branch', bxp_go: 'Load into box & send', bxp_existing: 'Goes into box {id}', bxp_new: 'A new box will be created', bx_backfill: 'Boxes for past requests', bx_backfill_hint: 'Creates a box per doctor/clinic per branch for past requests, and loads any sent shipment not yet received. Running it again duplicates nothing.', bx_backfill_done: '{c} box(es) created, {l} shipment(s) loaded ({r} requests)', bx_branch_any: 'No branch', grp_arrived: 'At branch', all_doctors: 'All doctors', as_serial_add: 'Another unit', as_serial_ph: 'Serial number', as_issue_more: 'Save & add another', as_units_n: '{n} unit(s)' });
 /* صفحة السواق فقط: بنغالي وهندي (أي نص آخر يرجع للإنجليزي) */
 const DRV_LANGS = [['ar', 'عربي'], ['en', 'English'], ['bn', 'বাংলা'], ['hi', 'हिन्दी']];
 I18N.bn = {
@@ -652,7 +652,8 @@ function prefetch(act, id) {
    ===================================================================== */
 const ST = {
   NEW: 'جديد', PREP: 'قيد التجهيز', VENDOR_WAIT: 'بانتظار المندوب', VENDOR_RECV: 'استلم المندوب',
-  REVIEW: 'مراجعة الطبيب', APPROVED: 'معتمد من الطبيب', REJECTED: 'مرفوض', SENT: 'تم الإرسال', RECEIVED: 'تم الاستلام'
+  REVIEW: 'مراجعة الطبيب', APPROVED: 'معتمد من الطبيب', REJECTED: 'مرفوض', SENT: 'تم الإرسال', RECEIVED: 'تم الاستلام',
+  CANCELLED: 'ملغي'
 };
 const STATUS = {};
 // الترتيب: رفع ← مراجعة الطبيب ← الاعتماد ← التجهيز (والمندوب) ← الإرسال ← الاستلام
@@ -665,6 +666,12 @@ STATUS[ST.VENDOR_WAIT] = { k: 'st_vendor_wait', tone: 'var(--t-orange)', step: 3
 STATUS[ST.VENDOR_RECV] = { k: 'st_vendor_recv', tone: 'var(--t-orange)', step: 3 };
 STATUS[ST.SENT]        = { k: 'st_sent', tone: 'var(--t-indigo)', step: 4, live: true };
 STATUS[ST.RECEIVED]    = { k: 'st_received', tone: 'var(--t-green)', step: 5 };
+STATUS[ST.CANCELLED]   = { k: 'st_cancelled', tone: 'var(--t-gray)', step: 0 };
+/* سبب الإلغاء (يظهر للممرضة والطبيب والتموين حتى لا ينتظر أحد الطلب) */
+function cancelBox(r) {
+  return r && r.status === ST.CANCELLED ? '<div class="reject-box cancel-box">' + icon('xc') + '<div><b>' + esc(t('cancel_reason')) + ':</b> ' + esc(r.cancelReason || '—') +
+    (r.cancelledBy ? '<div class="hint">' + esc(r.cancelledBy) + (r.cancelledAt ? ' · ' + esc(fmtDateTime(r.cancelledAt)) : '') + '</div>' : '') + '</div></div>' : '';
+}
 function stMeta(s) { return STATUS[s] || { k: s, tone: 'var(--t-gray)', step: 0 }; }
 function statusLabel(s) { const m = STATUS[s]; return m ? t(m.k) : s; }
 function badge(s) {
@@ -693,6 +700,7 @@ STAGE_AT[ST.VENDOR_WAIT] = ['stamp_vendor_wait', r => r.vendorWaitAt];
 STAGE_AT[ST.VENDOR_RECV] = ['stamp_vendor_recv', r => r.vendorReceivedAt];
 STAGE_AT[ST.SENT]        = ['stamp_sent', r => r.lastShipAt || r.sentAt];
 STAGE_AT[ST.RECEIVED]    = ['stamp_received', r => r.receivedAt];
+STAGE_AT[ST.CANCELLED]   = ['stamp_cancelled', r => r.cancelledAt];
 function stageStamp(r) {
   const d = STAGE_AT[r.status] || STAGE_AT[ST.NEW];
   let k = d[0], at = d[1](r);
@@ -1642,7 +1650,7 @@ function renderDetail(m, d) {
     body.innerHTML =
       '<div class="between">' + '<div class="row-wrap">' + badge(d.status) + typeTag(d.type) + bdTag(d) + branchTag(d.branch) + '</div>' +
         '<span class="muted" style="font-size:13px">' + esc(fmtDateTime(d.submittedAt || d.date)) + '</span></div>' +
-      stepperHtml(d) +
+      stepperHtml(d) + cancelBox(d) +
       (d.rejectionReason ? '<div class="reject-box">' + icon('xc') + '<div><b>' + esc(t('rejection_reason')) + ':</b> ' + esc(d.rejectionReason) + '</div></div>' : '') +
       '<dl class="meta-grid">' +
         '<div><dt>' + esc(t('branch')) + '</dt><dd>' + esc(d.branch || '—') + '</dd></div>' +
@@ -2205,7 +2213,8 @@ const NURSE_GROUPS = [
   { id: 'to_receive', k: 'grp_to_receive', test: r => r.pendingShipments > 0, tone: 'var(--t-indigo)' },
   { id: 'arrived', k: 'grp_arrived', test: r => !!r.atBranch, tone: ARRIVED_TONE },
   { id: 'received', k: 'st_received', statuses: [ST.RECEIVED], tone: 'var(--t-green)' },
-  { id: 'rejected', k: 'st_rejected', statuses: [ST.REJECTED], tone: 'var(--t-red)' }
+  { id: 'rejected', k: 'st_rejected', statuses: [ST.REJECTED], tone: 'var(--t-red)' },
+  { id: 'cancelled', k: 'st_cancelled', statuses: [ST.CANCELLED], tone: 'var(--t-gray)' }
 ];
 function loadMine(silent) {
   if (!silent && !S.loaded.mine) { const l = $('#mineList'); if (l) l.innerHTML = skeletonList(3); }
@@ -2246,7 +2255,7 @@ function renderMineList(animate) {
       '<div class="req-main clickable" data-act="detail" data-id="' + esc(r.id) + '">' +
         '<div class="grow"><div class="row-wrap"><span class="req-id">' + esc(r.id) + '</span>' + typeTag(r.type) + bdTag(r) + branchTag(r.branch) + arrivedTag(r) + '</div>' +
           '<div class="req-sub"><span>' + icon('building') + esc(r.clinic || '—') + '</span><span>' + icon('steth') + esc(docLabel(r)) + '</span>' + stageStamp(r) + '<span>' + icon('package') + esc(t('items_count', { n: r.itemCount || 0 })) + '</span></div>' + shipTrack(r) +
-          (r.status === ST.REJECTED && r.rejectionReason ? '<div class="reject-box" style="margin-top:8px">' + icon('xc') + '<div><b>' + esc(t('rejection_reason')) + ':</b> ' + esc(r.rejectionReason) + '</div></div>' : '') + '</div>' +
+          cancelBox(r) + (r.status === ST.REJECTED && r.rejectionReason ? '<div class="reject-box" style="margin-top:8px">' + icon('xc') + '<div><b>' + esc(t('rejection_reason')) + ':</b> ' + esc(r.rejectionReason) + '</div></div>' : '') + '</div>' +
         '<div class="req-side">' + badge(r.status) + progressBar(r.status) + '</div>' +
       '</div>' +
       '<div class="req-actions">' +
@@ -2472,7 +2481,8 @@ const PROC_GROUPS = [
   { id: 'sent', k: 'st_sent', statuses: [ST.SENT], tone: 'var(--t-indigo)' },
   { id: 'arrived', k: 'grp_arrived', test: r => !!r.atBranch, tone: ARRIVED_TONE },
   { id: 'received', k: 'st_received', statuses: [ST.RECEIVED], tone: 'var(--t-green)' },
-  { id: 'rejected', k: 'st_rejected', statuses: [ST.REJECTED], tone: 'var(--t-red)' }
+  { id: 'rejected', k: 'st_rejected', statuses: [ST.REJECTED], tone: 'var(--t-red)' },
+  { id: 'cancelled', k: 'st_cancelled', statuses: [ST.CANCELLED], tone: 'var(--t-gray)' }
 ];
 const BULK = [
   { s: ST.PREP, k: 'act_prep', ic: 'package', tone: 'var(--t-amber)' },
@@ -2562,7 +2572,7 @@ function procCard(r) {
       '<input type="checkbox" class="check" data-change="procSel" data-id="' + esc(r.id) + '"' + (sel ? ' checked' : '') + ' aria-label="' + esc(r.id) + '">' +
       '<div class="grow clickable" data-act="procToggle" data-id="' + esc(r.id) + '" style="cursor:pointer"><div class="row-wrap"><span class="req-id">' + esc(r.id) + '</span>' + typeTag(r.type) + bdTag(r) + branchTag(r.branch) + deptTag(r.department, true) + arrivedTag(r) +
         '</div>' +
-        '<div class="req-sub"><span>' + icon('building') + esc(r.clinic || '—') + '</span><span>' + icon('steth') + esc(docLabel(r)) + '</span><span>' + icon('user') + esc(r.nurse) + '</span>' + stageStamp(r) + '<span>' + icon('package') + esc(t('items_count', { n: r.itemCount || 0 })) + '</span></div>' + shipTrack(r) + '</div>' +
+        '<div class="req-sub"><span>' + icon('building') + esc(r.clinic || '—') + '</span><span>' + icon('steth') + esc(docLabel(r)) + '</span><span>' + icon('user') + esc(r.nurse) + '</span>' + stageStamp(r) + '<span>' + icon('package') + esc(t('items_count', { n: r.itemCount || 0 })) + '</span></div>' + shipTrack(r) + cancelBox(r) + '</div>' +
       '<div class="req-side">' + badge(r.status) + progressBar(r.status) + '</div>' +
     '</div>' +
     '<div class="req-actions">' +
@@ -2667,11 +2677,41 @@ function renderBulkbar() {
           (ok ? '' : ' disabled title="' + esc(t('bulk_not_applicable')) + '"') + '>' + icon(b.ic, 'i-sm') + esc(t(b.k)) +
           (ok && ok < n ? '<span class="count-pill">' + ok + '</span>' : '') + '</button>';
       }).join('') +
+      (() => { const ok = cancellable().length; return '<button class="btn btn-danger-soft btn-sm" data-act="bulkCancel"' + (ok ? '' : ' disabled title="' + esc(t('bulk_not_applicable')) + '"') + '>' + icon('x', 'i-sm') + esc(t('act_cancel')) +
+        (ok && ok < n ? '<span class="count-pill">' + ok + '</span>' : '') + '</button>'; })() +
       '<span class="grow"></span><button class="btn btn-ghost btn-sm" data-act="clearSel">' + icon('x', 'i-sm') + esc(t('clear_selection')) + '</button>';
   }
   bar.classList.toggle('show', n > 0);
 }
 ACT.clearSel = () => { S.proc.selected.clear(); renderProcList(false); };
+/* الإلغاء: طلب لم يُرسل منه شيء ولم يُستلم أو يُلغَ (نفس قواعد الخادم) */
+const CANCELLABLE = [ST.NEW, ST.REVIEW, ST.APPROVED, ST.PREP, ST.VENDOR_WAIT, ST.VENDOR_RECV, ST.REJECTED];
+const cancellable = () => selectedRequests().filter(r => CANCELLABLE.indexOf(r.status) !== -1 && !(r.shipmentCount > 0));
+ACT.bulkCancel = () => {
+  const rows = cancellable();
+  if (!rows.length) return;
+  const m = openModal({ title: esc(t('cancel_title', { n: rows.length })), sub: esc(rows.map(r => r.id).join('، ')), icon: 'x', tone: 'danger', size: 'sm',
+    body: '<div class="field"><label for="cnReason">' + esc(t('cancel_reason')) + '</label><textarea class="textarea" id="cnReason" maxlength="500" placeholder="' + esc(t('cancel_reason_ph')) + '"></textarea></div>' +
+      '<div class="hint">' + icon('info', 'i-sm') + ' ' + esc(t('cancel_hint')) + '</div><div class="field-error hidden" id="cnErr">' + icon('alert', 'i-sm') + '<span></span></div>',
+    foot: '<span class="spacer"></span><button class="btn" data-close>' + esc(t('close')) + '</button><button class="btn btn-danger" id="cnOk">' + icon('x', 'i-sm') + esc(t('cancel_confirm')) + '</button>' });
+  $('#cnReason', m.el).focus();
+  $('#cnOk', m.el).addEventListener('click', e => {
+    const reason = $('#cnReason', m.el).value.trim(), err = $('#cnErr', m.el);
+    if (reason.length < 3) { err.querySelector('span').textContent = t('ERR_REASON_REQUIRED'); err.classList.remove('hidden'); return; }
+    const b = e.currentTarget; busy(b, true);
+    call('cancelRequests', rows.map(r => r.id), reason).then(res => {
+      closeModal(m);
+      (res.cancelled || []).forEach(id => { const r = S.proc.list.find(x => x.id === id); if (r) { r.status = ST.CANCELLED; r.cancelReason = reason; r.cancelledBy = S.user.name; r.cancelledAt = new Date().toISOString(); } S.proc.selected.delete(id); });
+      renderProcList(false);
+      toast(t('cancel_done', { n: (res.cancelled || []).length }), 'success');
+      const sk = res.skipped || [];
+      if (sk.length) openModal({ title: esc(t('bulk_skipped_title')), sub: esc(t('bulk_skipped_sub', { a: (res.cancelled || []).length, b: sk.length })), icon: 'alert', tone: 'warn',
+        body: '<div class="table-wrap"><table class="table"><tbody>' + sk.map(x => '<tr><td class="mono" style="font-weight:700">' + esc(x.id) + '</td><td>' + (x.from ? badge(x.from) : '') + '</td><td>' + esc(t(x.reason)) + '</td></tr>').join('') + '</tbody></table></div>',
+        foot: '<span class="spacer"></span><button class="btn btn-primary" data-close>' + esc(t('close')) + '</button>' });
+      loadProc(true); loadAlerts();
+    }).catch(er => { busy(b, false); err.querySelector('span').textContent = errMsg(er); err.classList.remove('hidden'); });
+  });
+};
 ACT.bulk = el => {
   const target = el.dataset.s;
   const rows = eligibleFor(target);
