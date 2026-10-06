@@ -1,171 +1,183 @@
 1
-00:00:00,806 --> 00:00:02,406
+00:00:00,830 --> 00:00:02,430
 Selamat datang di Supply Flow.
 
 2
-00:00:02,406 --> 00:00:07,526
+00:00:02,430 --> 00:00:07,550
 Video ini menunjukkan semua yang perawat butuhkan, langkah demi langkah, dengan cara yang mudah.
 
 3
-00:00:07,977 --> 00:00:12,847
+00:00:08,001 --> 00:00:12,871
 Buka tautan sistem. Tulis nama dan kata sandi Anda, lalu ketuk Sign in.
 
 4
-00:00:13,492 --> 00:00:21,464
+00:00:13,389 --> 00:00:21,505
 Di halaman New request ada tiga pilihan di atas. Satu: Doctor request, untuk semua yang dipakai di klinik.
 
 5
-00:00:21,464 --> 00:00:25,750
-Dihitung atas nama dokter, dan dokter menyetujuinya. Dua:
+00:00:21,505 --> 00:00:23,495
+Dokter menyetujuinya. Dua:
 
 6
-00:00:25,750 --> 00:00:32,745
-Clinic consumables, hanya untuk Sterilisasi dan ruang Triase, tanpa persetujuan dokter. Tiga:
+00:00:23,495 --> 00:00:31,993
+Clinic consumables, hanya untuk Sterilisasi, ruang Triase, dan ruang perangkat derma, tanpa persetujuan dokter.
 
 7
-00:00:32,745 --> 00:00:35,452
-Send to lab, untuk pekerjaan pasien.
+00:00:31,993 --> 00:00:35,209
+Tiga: Send to lab, untuk pekerjaan pasien.
 
 8
-00:00:35,903 --> 00:00:40,645
+00:00:35,660 --> 00:00:40,402
 Mari mulai dengan Doctor request. Pilih klinik dulu, lalu dokternya.
 
 9
-00:00:40,645 --> 00:00:47,479
+00:00:40,402 --> 00:00:47,236
 Dokter klinik ini tampil lebih dulu, lalu semua dokter lain, karena dokter berpindah antar klinik.
 
 10
-00:00:47,479 --> 00:00:49,083
+00:00:47,236 --> 00:00:48,840
 Cabang terisi otomatis.
 
 11
-00:00:49,534 --> 00:00:55,894
+00:00:49,291 --> 00:00:55,651
 Pilih jenisnya. Monthly untuk pesanan bulanan biasa. Emergency hanya untuk kebutuhan mendesak.
 
 12
-00:00:56,346 --> 00:01:01,816
+00:00:56,103 --> 00:01:01,573
 Sekarang tambahkan barang. Ketuk kotak pencarian, tulis sebagian nama, lalu ketuk barangnya.
 
 13
-00:01:03,350 --> 00:01:06,300
+00:01:02,949 --> 00:01:05,899
 Gunakan tombol plus dan minus untuk mengatur jumlahnya.
 
 14
-00:01:07,134 --> 00:01:14,574
+00:01:06,743 --> 00:01:14,183
 Periksa ringkasan di samping, lalu ketuk Submit request. Draf tersimpan otomatis, jadi pekerjaan Anda tidak hilang.
 
 15
-00:01:15,025 --> 00:01:20,038
+00:01:14,633 --> 00:01:19,646
 Berikutnya, Clinic consumables, hanya untuk Sterilisasi dan ruang Triase.
 
 16
-00:01:20,038 --> 00:01:24,845
+00:01:19,646 --> 00:01:24,453
 Buka daftarnya dan pilih tempat di cabang Anda: Buraydah atau Unayzah.
 
 17
-00:01:25,296 --> 00:01:31,560
+00:01:24,904 --> 00:01:31,168
 Sebuah catatan menunjukkan ke mana pesanan dikirim. Tambahkan barang dan ketuk Submit request.
 
 18
-00:01:31,560 --> 00:01:33,026
+00:01:31,168 --> 00:01:32,634
 Langsung ke pengadaan.
 
 19
-00:01:33,806 --> 00:01:40,514
+00:01:33,488 --> 00:01:40,196
 Buka My requests untuk melihat bedanya. Doctor request berstatus Doctor review: menunggu dokter.
 
 20
-00:01:40,514 --> 00:01:44,706
+00:01:40,196 --> 00:01:44,388
 Permintaan sterilisasi berstatus New: langsung ke pengadaan.
 
 21
-00:01:45,157 --> 00:01:52,017
+00:01:44,840 --> 00:01:51,700
 Ketuk Details untuk melihat semuanya: setiap tahap dan waktunya, barang, dan komentar.
 
 22
-00:01:52,467 --> 00:01:57,464
+00:01:52,151 --> 00:01:57,148
 Dokter otomatis menerima email. Minta dokter membuka halamannya dan menyetujui.
 
 23
-00:01:57,464 --> 00:02:00,627
+00:01:57,148 --> 00:02:00,311
 Anda juga bisa menulis komentar sebagai pengingat.
 
 24
-00:02:01,077 --> 00:02:06,097
+00:02:00,762 --> 00:02:05,782
 Ini halaman dokter. Dokter melihat permintaan yang menunggu persetujuan.
 
 25
-00:02:09,489 --> 00:02:15,919
+00:02:09,200 --> 00:02:15,630
 Dokter membuka permintaan, bisa mengubah jumlah atau menambah catatan, lalu mengetuk Approve.
 
 26
-00:02:16,382 --> 00:02:20,308
+00:02:16,099 --> 00:02:20,025
 Setelah disetujui, pengadaan mengirim pesanan di kotak dokter.
 
 27
-00:02:20,308 --> 00:02:26,893
+00:02:20,025 --> 00:02:26,610
 Saat sopir mengantar kotak ke cabang Anda, Anda mendapat notifikasi dan kartunya menjadi Tiba di cabang.
 
 28
-00:02:26,893 --> 00:02:29,362
+00:02:26,610 --> 00:02:29,079
 Tombol Tiba menampilkan permintaan ini.
 
 29
-00:02:31,308 --> 00:02:37,643
+00:02:31,259 --> 00:02:37,594
 Saat kotak tiba, buka My requests dan ketuk Receive and sign. Periksa setiap jumlah.
 
 30
-00:02:37,643 --> 00:02:40,358
+00:02:37,594 --> 00:02:40,309
 Jika ada yang kurang, ubah angkanya.
 
 31
-00:02:40,810 --> 00:02:47,000
+00:02:40,761 --> 00:02:46,951
 Tanda tangani kotak dengan jari Anda, lalu ketuk Confirm receipt. Tanda terima dengan tanda tangan Anda tersimpan.
 
 32
-00:02:47,450 --> 00:02:53,967
-Sekarang mengirim pekerjaan ke lab. Pilih Send to lab, pilih dokter, dan tulis nomor berkas pasien.
+00:02:47,406 --> 00:02:51,890
+Kadang pengadaan membatalkan permintaan, misalnya saat barang tidak tersedia.
 
 33
-00:02:53,967 --> 00:02:58,180
-Tanggal scan adalah hari ini, ubah hanya jika scan di hari lain.
+00:02:51,890 --> 00:02:57,247
+Kartu menampilkan Dibatalkan beserta alasannya, dan Anda mendapat email agar tidak menunggu.
 
 34
-00:02:58,630 --> 00:03:04,590
-Tambahkan pekerjaan: pilih lab, jenis pekerjaan, dan tulis catatan seperti nomor gigi dan warna.
+00:02:57,247 --> 00:02:59,576
+Ajukan permintaan baru jika masih perlu.
 
 35
-00:03:04,590 --> 00:03:09,930
-Anda bisa menambah foto untuk setiap pekerjaan. Tanggal selesai lab dihitung otomatis.
+00:03:00,027 --> 00:03:06,544
+Sekarang mengirim pekerjaan ke lab. Pilih Send to lab, pilih dokter, dan tulis nomor berkas pasien.
 
 36
-00:03:10,381 --> 00:03:14,031
-Ketuk Send to lab. Sekarang Anda bisa memantaunya di halaman Lab.
+00:03:06,544 --> 00:03:10,757
+Tanggal scan adalah hari ini, ubah hanya jika scan di hari lain.
 
 37
-00:03:14,494 --> 00:03:22,773
-Untuk scan digital iTero, pilih tab iTero. Tulis tanggal scan, nomor kasus iTero, nomor berkas dan dokter.
+00:03:11,208 --> 00:03:17,168
+Tambahkan pekerjaan: pilih lab, jenis pekerjaan, dan tulis catatan seperti nomor gigi dan warna.
 
 38
-00:03:22,773 --> 00:03:28,944
-Lalu pilih lab dari daftar: lab internal atau lab eksternal. Ketuk Send to lab.
+00:03:17,168 --> 00:03:22,508
+Anda bisa menambah foto untuk setiap pekerjaan. Tanggal selesai lab dihitung otomatis.
 
 39
-00:03:29,979 --> 00:03:36,001
-Saat lab selesai, pekerjaan dikirim kembali ke klinik. Anda akan melihat tombol Confirm receipt.
+00:03:22,958 --> 00:03:26,608
+Ketuk Send to lab. Sekarang Anda bisa memantaunya di halaman Lab.
 
 40
-00:03:36,001 --> 00:03:38,259
-Ketuk saat pekerjaan tiba di klinik.
+00:03:27,079 --> 00:03:35,358
+Untuk scan digital iTero, pilih tab iTero. Tulis tanggal scan, nomor kasus iTero, nomor berkas dan dokter.
 
 41
-00:03:38,710 --> 00:03:43,768
-Itu saja. Perlengkapan klinik adalah Doctor request yang disetujui dokter.
+00:03:35,358 --> 00:03:41,529
+Lalu pilih lab dari daftar: lab internal atau lab eksternal. Ketuk Send to lab.
 
 42
-00:03:43,768 --> 00:03:50,809
-Sterilisasi dan ruang Triase adalah Clinic consumables. Pekerjaan pasien dan scan iTero dikirim ke lab.
+00:03:42,761 --> 00:03:48,783
+Saat lab selesai, pekerjaan dikirim kembali ke klinik. Anda akan melihat tombol Confirm receipt.
 
 43
-00:03:50,809 --> 00:03:55,320
+00:03:48,783 --> 00:03:51,041
+Ketuk saat pekerjaan tiba di klinik.
+
+44
+00:03:51,491 --> 00:03:56,549
+Itu saja. Perlengkapan klinik adalah Doctor request yang disetujui dokter.
+
+45
+00:03:56,549 --> 00:04:03,590
+Sterilisasi dan ruang Triase adalah Clinic consumables. Pekerjaan pasien dan scan iTero dikirim ke lab.
+
+46
+00:04:03,590 --> 00:04:08,101
 Jika ada masalah, gunakan tombol Report di kartunya. Terima kasih!

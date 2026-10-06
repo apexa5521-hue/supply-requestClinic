@@ -10,8 +10,8 @@ const scenes = {
     ar: 'صفحة «الطلبات» تعرض كل الطلبات، وكل بطاقة ملوّنة بلون مرحلتها حتى تفرزها بنظرة. الأزرار بالأعلى تفلتر حسب المرحلة: لدى الطبيب، معتمد من الطبيب، جديد يحتاج إلى تجهيز، قيد التجهيز، مرسل جزئيًا، وصل الفرع، وغيرها.' },
   filters: { en: 'Pick a doctor from the list to see only his requests. You can also filter by branch, clinic or month, or search.',
     ar: 'اختر طبيبًا من القائمة لتظهر طلباته فقط، ويمكنك الفلترة بالفرع أو العيادة أو الشهر، أو البحث.' },
-  open: { en: 'Open a request that is ready. You see each item with the quantity the doctor approved. This is exactly what you prepare.',
-    ar: 'افتح طلبًا جاهزًا، وسترى كل صنف بالكمية التي اعتمدها الطبيب، وهي بالضبط ما تجهّزه.' },
+  open: { en: 'Open a request the doctor approved. You see each item with the quantity the doctor approved. This is exactly what you prepare.',
+    ar: 'افتح طلبًا معتمدًا من الطبيب، وسترى كل صنف بالكمية التي اعتمدها الطبيب، وهي بالضبط ما تجهّزه.' },
   itemst: { en: 'Set the status of each item: preparing, waiting for the vendor, or received from the vendor. The request moves to In preparation by itself.',
     ar: 'حدّد حالة كل صنف: قيد التجهيز، أو بانتظار المندوب، أو استلم المندوب، وينتقل الطلب لـ«قيد التجهيز» تلقائيًا.' },
   ship: { en: 'To send, tick the items and set the quantity for this shipment. You can send part now and the rest later. Then tap Send shipment.',
@@ -22,6 +22,8 @@ const scenes = {
     ar: 'تعرض البطاقة المتبقي بالضبط، وعند إرسال كل شيء تصبح الحالة «تم الإرسال» وتُبلَّغ الممرضة.' },
   undo: { en: 'Sent something by mistake? Tap Undo last step, write the reason, and confirm. Every undo is recorded for the quality team.',
     ar: 'أرسلت شيئًا بالخطأ؟ اضغط «تراجع عن آخر خطوة»، واكتب السبب، ثم أكّد. كل تراجع يُسجَّل لفريق الجودة.' },
+  cancel: { en: 'To cancel requests, tick them, tap Cancel request, and write the reason. The nurse sees the reason and gets an email, so she does not wait for it. A request with anything already sent cannot be cancelled.',
+    ar: 'لإلغاء طلبات حدّدها واضغط «إلغاء الطلب» واكتب السبب. تشوف الممرضة السبب ويصلها إيميل حتى لا تنتظر الطلب. والطلب الذي أُرسل منه شيء لا يُلغى.' },
   print: { en: 'From the request details you can print the request, or save it as PDF.',
     ar: 'من تفاصيل الطلب يمكنك طباعته أو حفظه PDF.' },
   boxes: { en: 'The Boxes page shows where each box is: ready to deliver, at a branch, or empty. One box for each doctor in each branch. Print the QR stickers, and send the driver tasks link to the driver once.',
@@ -30,8 +32,8 @@ const scenes = {
     ar: 'للطلبات القديمة اضغط «بوكسات للطلبات السابقة» مرة واحدة، فتُنشأ بوكساتها وتُحمَّل أي شحنة لم تُستلم بعد.' },
   move: { en: 'Need a box back? Tap Request move and choose the place. It appears in the driver\'s tasks right away.',
     ar: 'تحتاج البوكس؟ اضغط «طلب نقل» واختر المكان، فيظهر في مهام السواق مباشرة.' },
-  custody: { en: 'Custody is for company tools, like handpieces. Set the standard for each clinic, and handle broken tool reports.',
-    ar: 'العهدة لأدوات الشركة مثل الهاندبيس: حدّد المعيار لكل عيادة، وتابع بلاغات الأدوات التالفة.' },
+  custody: { en: 'Custody is for the clinic tools, like handpieces. Set the standard for each clinic, and handle broken tool reports.',
+    ar: 'العهدة لأدوات العيادات مثل الهاندبيس: حدّد المعيار لكل عيادة، وتابع بلاغات الأدوات التالفة.' },
   issue: { en: 'To issue handpieces, tap Issue, choose the tool, and type one serial number per row. Press Enter or plus for the next one, and Save and add another to keep going.',
     ar: 'لصرف الهاندبيس اضغط «صرف عهدة»، اختر الأداة، واكتب رقمًا تسلسليًا في كل سطر؛ Enter أو «+» للقطعة التالية، و«حفظ وإضافة أداة أخرى» للاستمرار.' },
   complaints: { en: 'Complaints shows problems reported on requests. Read them and reply in the request comments. The quality team closes them.',
@@ -64,7 +66,7 @@ async function flow(h) {
     await highlight('[data-change="procBranch"]', 900);
   });
   await scene('open', 'req', async () => {
-    await click('.chip[data-g="ready"]');
+    await click('.chip[data-g="docok"]');
     await page.waitForSelector(row); await highlight(row, 1000);
     // «الكل» حتى يبقى الطلب ظاهرًا بعد تغيّر مرحلته
     await click('.chip[data-g="all"]'); await page.waitForSelector(row);
@@ -103,6 +105,21 @@ async function flow(h) {
     await page.waitForSelector('.modal #rvReason'); await wait(500);
     await type('.modal #rvReason', 'Sent before the vendor delivered');
     await click('.modal #rvOk'); await wait(1200);
+  });
+  await scene('cancel', 'req', async () => {
+    const cid = await page.evaluate(id => (S.proc.list.find(r => r.id !== id && ['جديد', 'معتمد من الطبيب', 'قيد التجهيز'].indexOf(r.status) !== -1 && !(r.shipmentCount > 0)) || {}).id, ID);
+    await click('.chip[data-g="all"]'); await wait(400);
+    const cRow = `.req[data-rid="${cid}"]`;
+    await page.locator(cRow).scrollIntoViewIfNeeded(); await wait(400);
+    await click(cRow + ' .req-main > .check');
+    await page.waitForSelector('#bulkbar.show [data-act="bulkCancel"]'); await wait(300);
+    await click('#bulkbar [data-act="bulkCancel"]');
+    await page.waitForSelector('.modal #cnReason'); await wait(400);
+    await type('.modal #cnReason', 'Item not available at the supplier this month');
+    await click('.modal #cnOk'); await wait(1400);
+    await page.locator(cRow + ' .cancel-box').scrollIntoViewIfNeeded().catch(() => {});
+    await highlight(cRow + ' .cancel-box', 1500);
+    await h.scroll(0);
   });
   await scene('print', 'req', async () => {
     await click(`[data-act="detail"][data-id="${ID}"]`);
@@ -154,5 +171,5 @@ async function flow(h) {
   await scene('done', '', async () => { await h.nav('requests'); });
 }
 
-if (require.main === module) makeTutorial({ id: 'procurement', langs: ['ar'], scenes, steps, flow }).catch(e => { console.error('TUTORIAL FAILED', e); process.exit(1); });
+if (require.main === module) makeTutorial({ id: 'procurement', noMoney: true, langs: ['ar'], scenes, steps, flow }).catch(e => { console.error('TUTORIAL FAILED', e); process.exit(1); });
 module.exports = { scenes, steps, flow };

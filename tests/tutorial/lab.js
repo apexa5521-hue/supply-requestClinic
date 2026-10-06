@@ -12,8 +12,8 @@ const scenes = {
     ar: 'كل بطاقة تعرض رقم الملف والطبيب والعيادة وتاريخ السكان وموعد التسليم، وكل عمل بحالته.' },
   receive: { en: 'When the case reaches you, tap Receive. Then tap Start work when you begin.',
     ar: 'عند وصول الإرسالية اضغط «استلام»، ثم «بدء العمل» عندما تبدأ.' },
-  external: { en: 'If the work goes to an outside lab, tap External lab. Choose the lab, the expected return date, and the cost if you know it.',
-    ar: 'إذا كان العمل سيذهب لمعمل خارجي اضغط «معمل خارجي»، واختر المعمل وموعد الرجوع المتوقع، والتكلفة إن عرفتها.' },
+  external: { en: 'If the work goes to an outside lab, tap External lab. Choose the lab and the expected return date.',
+    ar: 'إذا كان العمل سيذهب لمعمل خارجي اضغط «معمل خارجي»، واختر المعمل وموعد الرجوع المتوقع.' },
   ready: { en: 'When the work is finished, tap Ready. The nurse and the doctor are notified right away.',
     ar: 'عند انتهاء العمل اضغط «جاهز»، وتصل رسالة للممرضة والطبيب مباشرة.' },
   send: { en: 'Then tap Send to clinic. The nurse confirms receipt from her page.',
@@ -26,14 +26,18 @@ const scenes = {
     ar: 'اضغط «التفاصيل» لترى مراحل الإرسالية كاملة: من نفّذ كل خطوة ومتى، ويمكنك كتابة ملاحظة.' },
   search: { en: 'To find a case, type the patient file number or the case number in the search box.',
     ar: 'للبحث عن إرسالية اكتب رقم ملف المريض أو رقم الإرسالية في خانة البحث.' },
-  kpi: { en: 'Lab KPIs show the average turnaround, on-time rate, redo rate, external work and its cost, and the overdue work.',
-    ar: 'صفحة «مؤشرات المعمل» تعرض متوسط زمن الإنجاز، ونسبة الالتزام بالموعد، ونسبة الإعادات، والأعمال الخارجية وتكلفتها، والمتأخر.' },
+  kpi: { en: 'Lab KPIs show the average turnaround, on-time rate, redo rate, external work, and the overdue work.',
+    ar: 'صفحة «مؤشرات المعمل» تعرض متوسط زمن الإنجاز، ونسبة الالتزام بالموعد، ونسبة الإعادات، والأعمال الخارجية، والمتأخر.' },
+  supply: { en: 'The lab can also order its own supplies. Open Request supplies, search the items, set the quantities, and tap Submit. It goes straight to procurement: no doctor and no approval.',
+    ar: 'والمعمل يطلب مستهلكاته بنفسه: افتح «طلب مستهلكات»، وابحث عن الأصناف، وحدّد الكميات، ثم اضغط «إرسال الطلب». يذهب للتموين مباشرة بدون طبيب ولا اعتماد.' },
+  supplymine: { en: 'Follow them in My requests. Procurement hands them to you directly, with no box and no signature, and the request becomes Received.',
+    ar: 'وتابعها في «طلباتي». التموين يسلّمها لك يدًا بيد بدون بوكس ولا توقيع، وتصبح حالتها «تم الاستلام».' },
   done: { en: 'That\'s it. Update every case as soon as it moves, so the clinics always know where their work is. Thank you!',
     ar: 'هذا كل شيء. حدّث كل إرسالية أول ما تتحرك، حتى تعرف العيادات دائمًا أين وصل عملها. شكرًا لك!' }
 };
 const steps = {
   login: { en: 'Sign in', ar: 'تسجيل الدخول' }, board: { en: 'Lab board', ar: 'لوحة المعمل' }, work: { en: 'Stages', ar: 'المراحل' },
-  ext: { en: 'External lab', ar: 'المعمل الخارجي' }, back: { en: 'Back to clinic', ar: 'الإرجاع للعيادة' }, find: { en: 'Find a case', ar: 'البحث' }, kpi: { en: 'KPIs', ar: 'المؤشرات' }
+  ext: { en: 'External lab', ar: 'المعمل الخارجي' }, supply: { en: 'Lab supplies', ar: 'مستهلكات المعمل' }, back: { en: 'Back to clinic', ar: 'الإرجاع للعيادة' }, find: { en: 'Find a case', ar: 'البحث' }, kpi: { en: 'KPIs', ar: 'المؤشرات' }
 };
 
 async function flow(h) {
@@ -65,7 +69,6 @@ async function flow(h) {
     await page.waitForSelector('.modal #laLab'); await wait(500);
     await point('.modal #laLab'); await wait(400);
     await page.fill('.modal #laExp', day(-5)); await wait(400);
-    await type('.modal #laCost', '350');
     await click('.modal #laOk'); await wait(1400);
   });
   await scene('ready', 'back', async () => { await focus(); await click(btn('ready')); await wait(1400); });
@@ -97,8 +100,26 @@ async function flow(h) {
     await highlight('#lkBody', 1500);
     await h.scroll(500); await wait(1200);
   });
-  await scene('done', '', async () => { await h.scroll(0); });
+  await scene('supply', 'supply', async () => {
+    await h.nav('new');
+    await page.waitForSelector('#itemSearch'); await wait(500);
+    await highlight('.new-layout .card .hint', 1400);
+    await type('#itemSearch', 'prophy');
+    await page.waitForSelector('#comboList .combo-opt'); await wait(400);
+    await page.keyboard.press('Enter'); await wait(300);
+    await type('#itemSearch', 'cotton');
+    await page.waitForSelector('#comboList .combo-opt'); await wait(400);
+    await page.keyboard.press('Enter'); await page.keyboard.press('Escape'); await wait(500);
+    await click('.item-line:nth-child(1) [data-d="1"]'); await wait(300);
+    await click('#submitBtn'); await wait(1500);
+  });
+  await scene('supplymine', 'supply', async () => {
+    await h.nav('mine');
+    await page.waitForSelector('#mineList .req'); await wait(500);
+    await highlight('#mineList .req >> nth=0', 2200);
+  });
+  await scene('done', '', async () => { await h.nav('labboard'); });
 }
 
-if (require.main === module) makeTutorial({ id: 'lab', langs: ['ar'], scenes, steps, flow }).catch(e => { console.error('TUTORIAL FAILED', e); process.exit(1); });
+if (require.main === module) makeTutorial({ id: 'lab', noMoney: true, langs: ['ar'], scenes, steps, flow }).catch(e => { console.error('TUTORIAL FAILED', e); process.exit(1); });
 module.exports = { scenes, steps, flow };

@@ -1,75 +1,75 @@
 1
-00:00:00,765 --> 00:00:02,333
+00:00:00,854 --> 00:00:02,422
 This video is for doctors.
 
 2
-00:00:02,333 --> 00:00:08,664
+00:00:02,422 --> 00:00:08,753
 You will learn how to review and approve your requests, read your report, follow your patients' lab work,
 
 3
-00:00:08,664 --> 00:00:10,775
+00:00:08,753 --> 00:00:10,864
 and answer the satisfaction survey.
 
 4
-00:00:11,226 --> 00:00:15,646
+00:00:11,316 --> 00:00:15,736
 Open the system link, write your name and password, and tap Sign in.
 
 5
-00:00:16,937 --> 00:00:22,962
+00:00:17,019 --> 00:00:23,044
 Every 50 days, a short satisfaction survey opens for ten days. It appears when you sign in.
 
 6
-00:00:22,962 --> 00:00:28,788
+00:00:23,044 --> 00:00:28,870
 Tap the stars, choose a number from zero to ten, write a note if you like, and tap Send.
 
 7
-00:00:28,788 --> 00:00:32,827
+00:00:28,870 --> 00:00:32,909
 If you tap Later, a notice stays at the top until you answer.
 
 8
-00:00:33,278 --> 00:00:37,819
+00:00:33,359 --> 00:00:37,900
 Your page opens on Reviews. The cards at the top count your requests:
 
 9
-00:00:37,819 --> 00:00:45,058
+00:00:37,900 --> 00:00:45,139
 waiting for your review, approved, sent to the branch, and received. Tap any card to show only those requests.
 
 10
-00:00:45,510 --> 00:00:50,910
+00:00:45,590 --> 00:00:50,990
 Tap a request to open it. You see each item and the quantity the nurse asked for.
 
 11
-00:00:51,361 --> 00:00:57,531
+00:00:51,442 --> 00:00:57,612
 If a quantity is too much or too little, change it. You can also write a note on any item.
 
 12
-00:00:57,981 --> 00:01:03,741
+00:00:58,062 --> 00:01:03,822
 Then tap Approve. The request goes to procurement right away, and the nurse can follow it.
 
 13
-00:01:04,192 --> 00:01:07,772
+00:01:04,272 --> 00:01:07,852
 If something is wrong, write the reason and tap Reject.
 
 14
-00:01:07,772 --> 00:01:11,872
+00:01:07,852 --> 00:01:11,952
 The request goes back to the nurse to fix it and send it again.
 
 15
-00:01:14,352 --> 00:01:19,802
+00:01:14,628 --> 00:01:20,078
 Tap Requests report to see what you ordered. Choose one month, or cumulative until a date.
 
 16
-00:01:20,253 --> 00:01:26,593
+00:01:20,530 --> 00:01:26,870
 The report shows each request with its items and quantities. You can print it or save it as PDF.
 
 17
-00:01:27,050 --> 00:01:32,860
+00:01:27,320 --> 00:01:33,130
 On the Lab page, you follow your patients' lab work: where each case is now, and when it is due.
 
 18
-00:01:33,554 --> 00:01:39,774
+00:01:33,831 --> 00:01:40,051
 To change your password, tap the lock icon at the bottom, then write the old and the new password.
 
 19
-00:01:40,225 --> 00:01:46,515
+00:01:40,501 --> 00:01:46,791
 That's it. Please review your requests quickly, so your clinic gets its supplies on time. Thank you!
