@@ -314,10 +314,10 @@ const DEFAULT_CLINICS_ = (function () {
 })();
 
 /* =====================================================================
- *  المناطق المشتركة: «مستهلكات عيادة» (بدون طبيب) للتعقيم وغرفة الفرز فقط
+ *  المناطق المشتركة: «مستهلكات عيادة» (بدون طبيب) للتعقيم وغرفة الفرز وغرف أجهزة الجلدية (Hydrafacial / Clarity / Gentle Pro)
  *  أما عيادات الأطباء فطلبها «طلب طبيب»: تُختار العيادة ثم الطبيب، والاستهلاك يُحسب على الطبيب
  * ===================================================================== */
-const SHARED_AREA_RE_ = /ster[ia]li|تعقيم|triage|فرز/i;
+const SHARED_AREA_RE_ = /ster[ia]li|تعقيم|triage|فرز|hydra\s*facial|clarity|gentle\s*pro/i;
 function isSharedArea_(c) { return !!c && SHARED_AREA_RE_.test(str_(c.name) + ' ' + str_(c.type)); }
 function ensureTriageRooms_() {
   const cs = getClinics_();
