@@ -66,7 +66,8 @@ function seedScript(cfg) {
       ['Sara', '1111', 'Nurse', 'Dental Clinic 1', 'sara@example.com', '', '', '', ''],
       ['Mona', '1212', 'Nurse', 'Dental Clinic 2', 'mona@example.com', '', '', '', ''],
       ['Huda', '1313', 'Nurse', 'Derma Clinic 1', 'huda@example.com', '', '', '', ''],
-      ['Dr. Khalid', '4444', 'Doctor', '', 'khalid@example.com', '', 'Dr. Khalid', '', '', 'يرى الأسعار'],
+      // في فيديوهات بلا أسعار لا أحد يرى الأسعار (ولا الطبيب الذي تفتح الممرضة صفحته)
+      ['Dr. Khalid', '4444', 'Doctor', '', 'khalid@example.com', '', 'Dr. Khalid', '', '', ${cfg.noMoney ? "''" : "'يرى الأسعار'"}],
       ['Dr. Saad', '4545', 'Doctor', '', 'saad@example.com', '', 'Dr. Saad', '', ''],
       ['Dr. Lama', '4646', 'Doctor', '', 'lama@example.com', '', 'Dr. Lama', 'جلدية', ''],
       ['Ali', '3333', 'Procurement', '', 'ali@example.com', '', '', 'أسنان', ''],
@@ -201,7 +202,7 @@ const overlayScript = `
  * cfg = { id, langs: ['ar', ...], scenes: { key: { en, ar, ur, id } }, steps: { key: { en, ar, ... } }, flow: async (h) => {} }
  */
 /* كلمات المال (الأسعار، القيمة، التكلفة، على حساب من) — ممنوعة في فيديو noMoney: في الصوت والترجمة وعلى الشاشة */
-const MONEY_RE = /\bSAR\b|ر\.س|\bprices?\b|\bpriced\b|\bcosts?\b|\bvalue\b|est\.? total|\btotal \(|\bbill(ed|ing)\b|\bcharged?\b|\bspend\b|\bcompany\b|سعر|أسعار|تكلفة|قيمة|ريال|على الشركة|حساب الشركة|يتحمل|تُحسب على|يُحسب على|يحسب على/i;
+const MONEY_RE = /\bSAR\b|ر\.س|\bprices?\b|\bpriced\b|\bcosts?\b|\bvalue\b|est\.? total|\bestimated\b|grand total|request total|الإجمالي التقديري|إجمالي الطلب|\btotal \(|\bbill(ed|ing)\b|\bcharged?\b|\bspend\b|\bcompany\b|سعر|أسعار|تكلفة|قيمة|ريال|على الشركة|حساب الشركة|يتحمل|تُحسب على|يُحسب على|يحسب على/i;
 async function makeTutorial(cfg) {
   if (cfg.noMoney) {
     const bad = [];
