@@ -1089,6 +1089,16 @@ function log(msg) { console.log('  ✔ ' + msg); }
   await page.evaluate(() => go('monitor'));
   await page.waitForSelector('#monBody .rp-tiles');
   await shot(page, 'branch-manager-monitor', true);
+  // البوكسات (اطلاع): بلا رابط السواق ولا أزرار النقل والستيكر، وبحث بالطبيب
+  expect(bm.nav.includes('boxes'), 'branch manager has the boxes tab');
+  await page.evaluate(() => go('boxes'));
+  await page.waitForSelector('#bxList');
+  await page.waitForFunction(() => BX.data);
+  expect(!(await page.$('#bxDriver')) && !(await page.$('[data-act="bxMove"]')) && !(await page.$('[data-act="bxNew"]')) && !(await page.$('[data-act="bxSticker"]')), 'boxes view is read-only (no driver link, move, sticker or new box)');
+  expect(await page.evaluate(() => (BX.data.boxes || []).every(b => !b.k && (!b.branch || b.branch === 'جدة' || b.location === 'جدة' || b.destination === 'جدة')) && !BX.data.driverToken), 'only جدة boxes, no QR tokens');
+  await page.fill('#bxQ', 'zzz-none');
+  await page.waitForTimeout(500);
+  expect(await page.locator('#bxList .box-card').count() === 0, 'search by doctor filters the boxes');
   await logout(page);
   await login(page, 'المدير', '1234');
   await page.click('.sidebar [data-view="users"]');

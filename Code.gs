@@ -109,15 +109,15 @@ const DEFAULT_ROLES = [
  * notices: إرسال التنبيهات · monitor: متابعة التموين والمواعيد · finance: شاشة المالية
  * prices_edit: تعديل أسعار الكتالوج · users: المستخدمون والأدوار
  */
-const PERMS = ['overview', 'reports', 'complaints', 'complaints_close', 'notices', 'monitor', 'finance', 'prices_edit', 'lab_view', 'assets', 'users', 'doctors_live', 'surveys', 'doctor_prices'];
+const PERMS = ['overview', 'reports', 'complaints', 'complaints_close', 'notices', 'monitor', 'finance', 'prices_edit', 'lab_view', 'assets', 'users', 'doctors_live', 'surveys', 'doctor_prices', 'boxes'];
 const DEFAULT_PERMS = {
   admin: PERMS,
-  executive: ['overview', 'reports', 'complaints', 'complaints_close', 'notices', 'monitor', 'lab_view', 'assets', 'doctors_live', 'surveys', 'doctor_prices'],
+  executive: ['overview', 'reports', 'complaints', 'complaints_close', 'notices', 'monitor', 'lab_view', 'assets', 'doctors_live', 'surveys', 'doctor_prices', 'boxes'],
   quality: ['overview', 'reports', 'complaints', 'complaints_close', 'notices', 'monitor', 'lab_view', 'assets', 'doctors_live', 'surveys', 'doctor_prices'],
   finance: ['finance', 'prices_edit', 'reports', 'monitor', 'assets', 'doctor_prices'],
   dashboard: ['overview', 'reports', 'complaints', 'notices'],
   // مدير الفرع: مشاهدة فرعه + تقاريره ومؤشراته + التنبيه والشكاوى (بدون اعتماد أو إرسال)
-  branch: ['overview', 'reports', 'complaints', 'monitor', 'lab_view', 'assets']
+  branch: ['overview', 'reports', 'complaints', 'monitor', 'lab_view', 'assets', 'boxes']
 };
 /* الطلب الشهري يُرفع من يوم 15 إلى 20، ويجب أن يُستلم قبل يوم 1 من الشهر التالي؛ الطارئ خلال 24 ساعة */
 const MONTHLY_WINDOW = [15, 20];
@@ -138,7 +138,7 @@ const COMPLAINT_TYPES = ['تأخير', 'نقص', 'زيادة', 'أخرى'];
  *  التجهيز التلقائي بعد النشر (مرة واحدة لكل إصدار) — بلا أي خطوة يدوية:
  *  تبويبات الإعداد (Settings / LabMaterials)، قائمة العيادات المعتمدة، المشغّلات (النسخ الليلي + onChange)
  * ===================================================================== */
-const SETUP_VERSION_ = '2026-10-setup-v9';
+const SETUP_VERSION_ = '2026-10-setup-v10';
 function autoSetup_() {
   try {
     const cache = CacheService.getScriptCache();
@@ -170,6 +170,7 @@ function runSetupSteps_(force) {
     ['survey', 'استبيان الأطباء (الأسئلة + صلاحية النتائج للجودة والتنفيذي)', function () { seedSurvey_(); grantPerm_('surveys', ['executive', 'quality']); }],
     ['perms', 'صلاحية العهدة للإدارة والجودة والمالية', function () { grantPerm_('assets', ['executive', 'quality', 'finance']); }],
     ['doctors_live', 'صفحة «الأطباء — مباشر» للجودة والتنفيذي', function () { grantPerm_('doctors_live', ['executive', 'quality']); }],
+    ['boxes_view', 'تبويب البوكسات (اطلاع) لمدراء الفروع والتنفيذي', function () { grantPerm_('boxes', ['branch', 'executive']); }],
     ['demo', 'أدوات العهدة التجريبية TEST101', function () { seedDemoAssets_(force); }],
     ['item_type', 'قائمة «مستهلك / ماتيريال» في عمود ItemType بالكتالوج', itemTypeDropdown_],
     ['triggers', 'المشغّلات (النسخ الليلي + تغييرات الشيت)', function () { if (typeof ScriptApp !== 'undefined') installTriggers(); }]
@@ -661,7 +662,7 @@ const API_ = {
   setAssetTicketCost:        { screens: ['procurement'], perm: 'finance', fn: setAssetTicketCost_ },
   nudgeProcurement:          { screens: [], perm: 'monitor', fn: nudgeProcurement_ },
   // البوكسات
-  getBoxes:                  { screens: ['procurement'], fn: getBoxes_ },
+  getBoxes:                  { screens: ['procurement'], perm: 'boxes', fn: getBoxes_ },
   requestBoxMove:            { screens: ['procurement'], fn: requestBoxMove_ },
   addBox:                    { screens: ['procurement'], fn: addBox_ },
   backfillBoxes:             { screens: ['procurement'], fn: backfillBoxes_ },
@@ -1384,6 +1385,13 @@ function getBoxes_(user) {
     if (str_(m.Action) === 'تحميل') loadAt[k] = toMs_(m.Timestamp);
     else if (str_(m.Action) === 'تسليم' && loadAt[k] && str_(m.To) !== BOX_HOME && Date.now() - toMs_(m.Timestamp) < 60 * 864e5) hrs.push((toMs_(m.Timestamp) - loadAt[k]) / 36e5);
   });
+  // مدراء الفروع / التشغيل: اطلاع فقط — بلا رموز QR ولا رابط السواق (من يملكها يستطيع التسليم)، وفرعهم فقط
+  if (user.screen !== 'procurement') {
+    const br = SCOPE_BRANCH_;
+    return { readOnly: true, places: boxPlaces_(),
+      boxes: list.filter(function (b) { return !br || b.branch === br || b.location === br || b.destination === br; })
+        .map(function (b) { delete b.k; return b; }) };
+  }
   return { boxes: list, places: boxPlaces_(), driverToken: driverToken_(),
     avgDeliveryHrs: hrs.length ? Math.round(hrs.reduce(function (a, x) { return a + x; }, 0) / hrs.length * 10) / 10 : null,
     appUrl: appUrl_() };

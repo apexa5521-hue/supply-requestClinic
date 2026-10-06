@@ -1402,7 +1402,7 @@ test('roles split: legacy quality/executive/finance migrate; executive keeps ful
   throwsCode(() => api(e, 'getUsers'), 'ERR_FORBIDDEN'); // بعد وجود الأدمن: صلاحيات التنفيذي الافتراضية فقط (فوراً)
   assert.ok(api(e, 'getExecutiveStats'));
   const a = login('admin', '9999');
-  assert.equal(api(a, 'getConfig').user.perms.length, 14);
+  assert.equal(api(a, 'getConfig').user.perms.length, 15);
   const f = login('نواف', '7777');
   assert.ok(api(f, 'getFinance', {}).summary);
   throwsCode(() => api(f, 'getComplaints'), 'ERR_FORBIDDEN');
@@ -1818,7 +1818,7 @@ test('branch manager: sees only his branch (requests, details, reports, monitor,
   const b = api(null, 'login', 'مدير جدة', '9090');
   assert.equal(b.user.screen, 'branch');
   assert.equal(b.user.branch, 'جدة');
-  assert.deepEqual(b.user.perms.slice().sort(), ['assets', 'complaints', 'lab_view', 'monitor', 'overview', 'reports'].sort());
+  assert.deepEqual(b.user.perms.slice().sort(), ['assets', 'boxes', 'complaints', 'lab_view', 'monitor', 'overview', 'reports'].sort());
   const m = b.token;
   const ids = api(m, 'getRequests', {}).map(r => r.id);
   assert.ok(ids.includes(jeddah) && !ids.includes(riyadh), 'only his branch requests');
@@ -2289,4 +2289,26 @@ test('lab supplies: lab raises a request with no doctor or approval; procurement
   api(p, 'bulkUpdateStatus', [id2], 'تم الإرسال', {});
   assert.equal(api(lab, 'getMyRequests').find(x => x.id === id2).status, 'تم الاستلام');
   assert.ok(!(gas.dump('Boxes') || [[]]).slice(1).length);
+});
+
+test('boxes view for branch managers / operations: own branch only (all if no branch), no QR tokens or driver link', () => {
+  const { api, login } = boot();
+  const a = login('المدير', '1234'), p = login('علي', '3333'), reem = login('ريم', '2222');
+  api(a, 'createUser', { name: 'مدير جدة', password: '9090', role: 'مدير فرع', branch: 'جدة' });
+  api(a, 'createUser', { name: 'مدير التشغيل', password: '9292', role: 'مدير فرع' });
+  const mk = n => api(reem, 'createRequest', { doctor: 'د. سعد', type: 'طارئ', items: [{ name: 'PROPHY PASTE', qty: n }] }).id;
+  const x = mk(1), y = mk(2);
+  api(p, 'bulkUpdateStatus', [x, y], 'قيد التجهيز');
+  api(p, 'dispatchItems', x, ['PROPHY PASTE'], { owner: 'د. سعد', branch: 'جدة' });
+  api(p, 'dispatchItems', y, ['PROPHY PASTE'], { owner: 'د. خالد', branch: 'الرياض' });
+  const j = api(login('مدير جدة', '9090'), 'getBoxes');
+  assert.equal(j.readOnly, true);
+  assert.deepEqual(j.boxes.map(b => b.owner), ['د. سعد'], 'جدة manager sees only جدة boxes');
+  assert.ok(!('driverToken' in j) && j.boxes.every(b => !('k' in b)), 'no QR token or driver link');
+  assert.ok(j.boxes[0].loads.length === 1 && j.boxes[0].history.length > 0, 'location, loads and last moves are shown');
+  const ops = api(login('مدير التشغيل', '9292'), 'getBoxes');
+  assert.deepEqual(ops.boxes.map(b => b.owner).sort(), ['د. خالد', 'د. سعد'].sort(), 'no branch = all branches');
+  assert.ok(api(p, 'getBoxes').driverToken, 'procurement still gets the driver link');
+  throwsCode(() => api(reem, 'getBoxes'), 'ERR_FORBIDDEN');
+  throwsCode(() => api(login('مدير جدة', '9090'), 'requestBoxMove', 'BOX-001', 'التموين'), 'ERR_FORBIDDEN');
 });
