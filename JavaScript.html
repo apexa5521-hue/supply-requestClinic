@@ -215,8 +215,8 @@ const I18N = {
     ERR_BAD_RESPONSE: 'Server returned a page instead of data — check deployment settings', ERR_NETWORK: 'Could not reach the server — please retry', ERR_BAD_BATCH: 'Invalid request'
   }
 };
-Object.assign(I18N.ar, { st_cancelled: 'ملغي', act_cancel: 'إلغاء الطلب', cancel_title: 'إلغاء {n} طلب', cancel_reason: 'سبب الإلغاء', cancel_reason_ph: 'مثال: الصنف غير متوفر لدى المورد / طلب مكرر…', cancel_hint: 'يظهر السبب للممرضة ويصلها إيميل حتى لا تنتظر الطلب. الطلب الذي أُرسل منه شيء لا يُلغى.', cancel_confirm: 'تأكيد الإلغاء', cancel_done: 'أُلغي {n} طلب', stamp_cancelled: 'أُلغي', ERR_HAS_SHIPMENTS: 'أُرسل منه شيء — لا يُلغى (استخدم «تراجع خطوة»)', grp_doc_approved: 'معتمد من الطبيب', grp_devices: 'غرف أجهزة الجلدية', device_note: 'طلب لغرفة {c} في فرع {b} — يُسلَّم هناك', rp_doc_title_np: 'تقرير طبيب — تاريخ طلباته', t_reports_b_np: 'إحصائيات كل طبيب وفرع وعيادة بالأعداد والأزمنة، وتقرير أي طبيب من قائمة منسدلة مع طباعة وتصدير.', t_doc_report_b_np: 'أصدر تقريراً مرتباً بطلباتك وأصنافها وكمياتها لشهر محدد أو تراكمياً حتى تاريخ، واطبعه أو صدّره.', rep_top_qty: 'الأصناف الأكثر طلباً', bxp_title: 'البوكس لهذه الشحنة', bxp_sub: 'صاحب البوكس والفرع من الطلب — عدّلهما إن كانت الشحنة لطبيب آخر أو للتعقيم أو الفرز أو عيادة', bxp_owner: 'صاحب البوكس (طبيب / تعقيم / فرز / عيادة)', bxp_branch: 'الفرع', bxp_go: 'تحميل في البوكس وإرسال', bxp_existing: 'سيُحمَّل في بوكسه {id}', bxp_new: 'بوكس جديد يُنشأ له تلقائياً', bx_backfill: 'بوكسات للطلبات السابقة', bx_backfill_hint: 'ينشئ بوكساً لكل طبيب/عيادة في كل فرع أُرسلت له طلبات سابقاً، ويحمّل أي شحنة مرسلة لم تُستلم بعد. التشغيل مرة ثانية لا يكرر شيئاً.', bx_backfill_done: 'أُنشئ {c} بوكس وحُمّلت {l} شحنة ({r} طلب)', bx_branch_any: 'بدون فرع', grp_arrived: 'وصل الفرع', all_doctors: 'كل الأطباء', as_serial_add: 'قطعة أخرى', as_serial_ph: 'الرقم التسلسلي', as_issue_more: 'حفظ وإضافة أداة أخرى', as_units_n: '{n} قطعة' });
-Object.assign(I18N.en, { st_cancelled: 'Cancelled', act_cancel: 'Cancel request', cancel_title: 'Cancel {n} request(s)', cancel_reason: 'Cancellation reason', cancel_reason_ph: 'e.g. item unavailable at the supplier / duplicate request…', cancel_hint: 'The nurse sees the reason and gets an email, so she does not wait for it. A request with anything already sent cannot be cancelled.', cancel_confirm: 'Confirm cancellation', cancel_done: '{n} request(s) cancelled', stamp_cancelled: 'Cancelled', ERR_HAS_SHIPMENTS: 'Something was already sent — cannot cancel (use “Undo step”)', grp_doc_approved: 'Doctor approved', grp_devices: 'Derma device rooms', device_note: 'Request for the {c} room in the {b} branch — delivered there', rp_doc_title_np: 'Doctor report — request history', t_reports_b_np: 'Statistics per doctor, branch and clinic with counts and times, and any doctor’s report from a dropdown with print and export.', t_doc_report_b_np: 'Generate a tidy report of your requests with items and quantities for a month or cumulatively up to a date, then print or export it.', rep_top_qty: 'Most requested items', bxp_title: 'Box for this shipment', bxp_sub: 'Box owner and branch come from the request — change them if it is for another doctor, sterilization, triage or a clinic', bxp_owner: 'Box owner (doctor / sterilization / triage / clinic)', bxp_branch: 'Branch', bxp_go: 'Load into box & send', bxp_existing: 'Goes into box {id}', bxp_new: 'A new box will be created', bx_backfill: 'Boxes for past requests', bx_backfill_hint: 'Creates a box per doctor/clinic per branch for past requests, and loads any sent shipment not yet received. Running it again duplicates nothing.', bx_backfill_done: '{c} box(es) created, {l} shipment(s) loaded ({r} requests)', bx_branch_any: 'No branch', grp_arrived: 'At branch', all_doctors: 'All doctors', as_serial_add: 'Another unit', as_serial_ph: 'Serial number', as_issue_more: 'Save & add another', as_units_n: '{n} unit(s)' });
+Object.assign(I18N.ar, { nav_lab_supply: 'طلب مستهلكات', lab_supply_title: 'مستهلكات المعمل', lab_supply_hint: 'طلب مستهلكات للمعمل: يذهب للتموين مباشرة بدون طبيب أو اعتماد، ويُسلَّم لك يداً بيد بدون بوكس أو توقيع.', st_cancelled: 'ملغي', act_cancel: 'إلغاء الطلب', cancel_title: 'إلغاء {n} طلب', cancel_reason: 'سبب الإلغاء', cancel_reason_ph: 'مثال: الصنف غير متوفر لدى المورد / طلب مكرر…', cancel_hint: 'يظهر السبب للممرضة ويصلها إيميل حتى لا تنتظر الطلب. الطلب الذي أُرسل منه شيء لا يُلغى.', cancel_confirm: 'تأكيد الإلغاء', cancel_done: 'أُلغي {n} طلب', stamp_cancelled: 'أُلغي', ERR_HAS_SHIPMENTS: 'أُرسل منه شيء — لا يُلغى (استخدم «تراجع خطوة»)', grp_doc_approved: 'معتمد من الطبيب', grp_devices: 'غرف أجهزة الجلدية', device_note: 'طلب لغرفة {c} في فرع {b} — يُسلَّم هناك', rp_doc_title_np: 'تقرير طبيب — تاريخ طلباته', t_reports_b_np: 'إحصائيات كل طبيب وفرع وعيادة بالأعداد والأزمنة، وتقرير أي طبيب من قائمة منسدلة مع طباعة وتصدير.', t_doc_report_b_np: 'أصدر تقريراً مرتباً بطلباتك وأصنافها وكمياتها لشهر محدد أو تراكمياً حتى تاريخ، واطبعه أو صدّره.', rep_top_qty: 'الأصناف الأكثر طلباً', bxp_title: 'البوكس لهذه الشحنة', bxp_sub: 'صاحب البوكس والفرع من الطلب — عدّلهما إن كانت الشحنة لطبيب آخر أو للتعقيم أو الفرز أو عيادة', bxp_owner: 'صاحب البوكس (طبيب / تعقيم / فرز / عيادة)', bxp_branch: 'الفرع', bxp_go: 'تحميل في البوكس وإرسال', bxp_existing: 'سيُحمَّل في بوكسه {id}', bxp_new: 'بوكس جديد يُنشأ له تلقائياً', bx_backfill: 'بوكسات للطلبات السابقة', bx_backfill_hint: 'ينشئ بوكساً لكل طبيب/عيادة في كل فرع أُرسلت له طلبات سابقاً، ويحمّل أي شحنة مرسلة لم تُستلم بعد. التشغيل مرة ثانية لا يكرر شيئاً.', bx_backfill_done: 'أُنشئ {c} بوكس وحُمّلت {l} شحنة ({r} طلب)', bx_branch_any: 'بدون فرع', grp_arrived: 'وصل الفرع', all_doctors: 'كل الأطباء', as_serial_add: 'قطعة أخرى', as_serial_ph: 'الرقم التسلسلي', as_issue_more: 'حفظ وإضافة أداة أخرى', as_units_n: '{n} قطعة' });
+Object.assign(I18N.en, { nav_lab_supply: 'Request supplies', lab_supply_title: 'Lab supplies', lab_supply_hint: 'A supply request for the lab: goes straight to procurement with no doctor or approval, and is handed to you directly — no box or signature.', st_cancelled: 'Cancelled', act_cancel: 'Cancel request', cancel_title: 'Cancel {n} request(s)', cancel_reason: 'Cancellation reason', cancel_reason_ph: 'e.g. item unavailable at the supplier / duplicate request…', cancel_hint: 'The nurse sees the reason and gets an email, so she does not wait for it. A request with anything already sent cannot be cancelled.', cancel_confirm: 'Confirm cancellation', cancel_done: '{n} request(s) cancelled', stamp_cancelled: 'Cancelled', ERR_HAS_SHIPMENTS: 'Something was already sent — cannot cancel (use “Undo step”)', grp_doc_approved: 'Doctor approved', grp_devices: 'Derma device rooms', device_note: 'Request for the {c} room in the {b} branch — delivered there', rp_doc_title_np: 'Doctor report — request history', t_reports_b_np: 'Statistics per doctor, branch and clinic with counts and times, and any doctor’s report from a dropdown with print and export.', t_doc_report_b_np: 'Generate a tidy report of your requests with items and quantities for a month or cumulatively up to a date, then print or export it.', rep_top_qty: 'Most requested items', bxp_title: 'Box for this shipment', bxp_sub: 'Box owner and branch come from the request — change them if it is for another doctor, sterilization, triage or a clinic', bxp_owner: 'Box owner (doctor / sterilization / triage / clinic)', bxp_branch: 'Branch', bxp_go: 'Load into box & send', bxp_existing: 'Goes into box {id}', bxp_new: 'A new box will be created', bx_backfill: 'Boxes for past requests', bx_backfill_hint: 'Creates a box per doctor/clinic per branch for past requests, and loads any sent shipment not yet received. Running it again duplicates nothing.', bx_backfill_done: '{c} box(es) created, {l} shipment(s) loaded ({r} requests)', bx_branch_any: 'No branch', grp_arrived: 'At branch', all_doctors: 'All doctors', as_serial_add: 'Another unit', as_serial_ph: 'Serial number', as_issue_more: 'Save & add another', as_units_n: '{n} unit(s)' });
 /* صفحة السواق فقط: بنغالي وهندي (أي نص آخر يرجع للإنجليزي) */
 const DRV_LANGS = [['ar', 'عربي'], ['en', 'English'], ['bn', 'বাংলা'], ['hi', 'हिन्दी']];
 I18N.bn = {
@@ -1127,7 +1127,7 @@ ACT.logout = () => {
    ===================================================================== */
 const NAV = {
   nurse:       [{ id: 'new', icon: 'plus', k: 'nav_new' }, { id: 'mine', icon: 'clipboard', k: 'nav_mine' }, { id: 'labmine', icon: 'flask', k: 'nav_lab' }, { id: 'assets', icon: 'tool', k: 'nav_assets' }],
-  lab:         [{ id: 'labboard', icon: 'flask', k: 'nav_lab_board' }, { id: 'labkpi', icon: 'chart', k: 'nav_lab_kpi' }],
+  lab:         [{ id: 'labboard', icon: 'flask', k: 'nav_lab_board' }, { id: 'labkpi', icon: 'chart', k: 'nav_lab_kpi' }, { id: 'new', icon: 'plus', k: 'nav_lab_supply' }, { id: 'mine', icon: 'clipboard', k: 'nav_mine' }],
   procurement: [{ id: 'requests', icon: 'package', k: 'nav_requests' }, { id: 'boxes', icon: 'truck', k: 'nav_boxes' }, { id: 'assets', icon: 'tool', k: 'nav_assets' }, { id: 'complaints', icon: 'alert', k: 'nav_complaints' }],
   doctor:      [{ id: 'reviews', icon: 'steth', k: 'nav_reviews' }, { id: 'labdoc', icon: 'flask', k: 'nav_lab' }, { id: 'assets', icon: 'tool', k: 'nav_assets' }]
 };
@@ -1639,6 +1639,17 @@ function openDetail(id) {
   };
   const hit = peek('getRequestDetail', [id]);
   if (hit) show(hit);
+  else {
+    // بدون انتظار الخادم: رأس الطلب ومراحله من القائمة المحمّلة، والأصناف والتعليقات تُكمل عند وصولها
+    const r = [].concat(S.proc.list || [], S.nurse.mine || [], (S.doc && S.doc.list) || []).find(x => x.id === id);
+    if (r) m.el.querySelector('.modal-body').innerHTML =
+      '<div class="between"><div class="row-wrap">' + badge(r.status) + typeTag(r.type) + bdTag(r) + branchTag(r.branch) + arrivedTag(r) + '</div>' +
+        '<span class="muted" style="font-size:13px">' + esc(fmtDateTime(r.submittedAt || r.date)) + '</span></div>' +
+      stepperHtml(r) + cancelBox(r) +
+      (r.rejectionReason ? '<div class="reject-box">' + icon('xc') + '<div><b>' + esc(t('rejection_reason')) + ':</b> ' + esc(r.rejectionReason) + '</div></div>' : '') +
+      '<div class="req-sub"><span>' + icon('building') + esc(r.clinic || '—') + '</span><span>' + icon('steth') + esc(docLabel(r)) + '</span><span>' + icon('user') + esc(r.nurse || '—') + '</span></div>' +
+      skeletonList(2);
+  }
   call('getRequestDetail', id).then(show).catch(e => { if (!shown) m.el.querySelector('.modal-body').innerHTML = emptyState('alert', errMsg(e)); });
 }
 function renderDetail(m, d) {
@@ -1761,12 +1772,15 @@ function pastMonthlyWindow() {
   return d > MONTHLY_WINDOW[1];
 }
 /** الطبيب في بطاقة الطلب — أو «مستهلكات عيادة» للطلب بدون طبيب */
-function docLabel(r) { return r.doctor || t('kind_clinic'); }
+const LAB_SUPPLY = 'مستهلكات المعمل';
+function docLabel(r) { return r.doctor || t(r.clinic === LAB_SUPPLY ? 'lab_supply_title' : 'kind_clinic'); }
+const isLabUser = () => !!(S.user && S.user.screen === 'lab');
 function nurseDraft() {
   if (!S.nurse.draft) {
     const saved = store.get('draft_' + S.user.name, null);
     S.nurse.draft = saved && Array.isArray(saved.items) ? saved : { kind: 'doctor', clinic: '', doctor: '', type: 'شهري', items: [] };
     if (S.nurse.draft.kind !== 'clinic' && S.nurse.draft.kind !== 'lab') S.nurse.draft.kind = 'doctor';
+    if (isLabUser()) S.nurse.draft.kind = 'supply'; // مسؤول المعمل: طلب مستهلكات المعمل فقط
     if (!S.nurse.draft.key) S.nurse.draft.key = uid();
     if (saved && saved.items && saved.items.length) setTimeout(() => toast(t('draft_restored'), 'info'), 400);
   }
@@ -1814,6 +1828,11 @@ VIEWS.new = {
     return '<div id="nNotices"></div>' +
       '<div class="new-layout">' +
         '<div class="stack" style="gap:18px">' +
+          (isLabUser() ? '<section class="card"><div class="card-head"><h2>' + icon('flask') + esc(t('lab_supply_title')) + '</h2></div><div class="card-body stack">' +
+            '<div class="hint">' + icon('info', 'i-sm') + ' ' + esc(t('lab_supply_hint')) + '</div>' +
+            '<div class="field"><span class="label">' + esc(t('type')) + '</span><div>' +
+              segmented('reqType', [{ v: 'شهري', label: t('type_monthly'), icon: 'calendar' }, { v: 'طارئ', label: t('type_emergency'), icon: 'zap' }], d.type, d.type === 'طارئ' ? 'emergency' : '') +
+              '</div><div class="hint hidden" id="emgHint"></div><div class="hint hidden" id="winHint"></div></div></div></section>' :
           '<section class="card"><div class="card-head"><h2>' + icon('building') + esc(t('req_details')) + '</h2></div><div class="card-body stack">' +
             '<div class="field" id="fKind"><span class="label">' + esc(t('req_kind')) + '</span><div>' +
               kindSeg(d.kind) +
@@ -1834,7 +1853,7 @@ VIEWS.new = {
             (S.backdateUntil ? '<div class="field bd-field" id="fBd"><label class="check-row"><input type="checkbox" class="check" id="fBackdate" data-change="nBackdate"' + (d.backdate ? ' checked' : '') + '><span><b>' + esc(t('bd_toggle')) + '</b></span></label>' +
               '<div class="' + (d.backdate ? '' : 'hidden') + '" id="fBdBox"><label for="fBdDate">' + esc(t('bd_date')) + '</label><input class="input" type="date" id="fBdDate" data-change="nBdDate" max="' + esc(bdMax()) + '" value="' + esc(d.bdDate || '') + '"></div>' +
               '</div>' : '') +
-          '</div></section>' +
+          '</div></section>') +
           '<section class="card hidden" id="pkgCard"><div class="card-head"><h3>' + icon('layers') + esc(t('pkg_title')) + ' <span class="hint" style="font-weight:500">' + esc(t('pkg_hint')) + '</span></h3>' +
             '<button class="btn btn-soft btn-sm" data-act="pkgAll">' + icon('plus', 'i-sm') + esc(t('pkg_add_all')) + '</button></div><div class="card-body"><div class="pkg-chips" id="pkgChips"></div></div></section>' +
           '<section class="card"><div class="card-head"><h2>' + icon('package') + esc(t('items')) + '</h2><span class="count-pill" id="itemsCount">0</span></div><div class="card-body stack">' +
@@ -1858,7 +1877,7 @@ VIEWS.new = {
     loadNotices('nNotices');
     if (nurseDraft().kind === 'lab') { labMount(root); return; }
     $$('.segmented', root).forEach(placeThumb);
-    loadDoctors();
+    if (!isLabUser()) loadDoctors();
     renderItems();
     setupCombo();
     renderDraftState();
@@ -2000,7 +2019,8 @@ function renderSummary() {
   const units = d.items.reduce((s, i) => s + (Number(i.qty) || 0), 0);
   $('#sumBox').innerHTML =
     (S.branches.length ? '<div class="sum-row"><span class="muted">' + esc(t('branch')) + '</span>' + (branchTag(d.branch) || '<b>—</b>') + '</div>' : '') +
-    (d.kind === 'clinic'
+    (isLabUser() ? '<div class="sum-row"><span class="muted">' + esc(t('req_kind')) + '</span><b>' + esc(t('lab_supply_title')) + '</b></div>'
+      : d.kind === 'clinic'
       ? '<div class="sum-row"><span class="muted">' + esc(t('clinic')) + '</span><b>' + esc(d.clinic || '—') + '</b></div>' +
         '<div class="sum-row"><span class="muted">' + esc(t('req_kind')) + '</span><b>' + esc(t('kind_clinic')) + '</b></div>'
       : '<div class="sum-row"><span class="muted">' + esc(t('doc_clinic')) + '</span><b>' + esc(d.docClinic || '—') + '</b></div>' +
@@ -2142,7 +2162,7 @@ ACT.submitRequest = el => {
   }
   const unknown = d.items.find(i => !catalogInfo(i.name));
   if (unknown) { err.querySelector('span').textContent = t('ERR_UNKNOWN_ITEM_N', { n: unknown.name }); err.classList.remove('hidden'); return; }
-  if ((d.kind === 'clinic' ? !d.clinic : !d.doctor) || !d.items.length || (S.branches.length && !d.branch)) {
+  if ((isLabUser() ? false : d.kind === 'clinic' ? !d.clinic : !d.doctor) || !d.items.length || (!isLabUser() && S.branches.length && !d.branch)) {
     err.querySelector('span').textContent = t('err_fill_all'); err.classList.remove('hidden');
     return;
   }
@@ -2164,7 +2184,7 @@ function sendDraft(el, auto) {
   AUTO_SEND.sending = true;
   if (el) busy(el, true, t('sending'));
   const byClinic = d.kind === 'clinic';
-  call('createRequest', { clinic: byClinic ? d.clinic : d.docClinic || '', branch: d.branch || '', doctor: byClinic ? '' : d.doctor, type: d.type, items: d.items.map(i => ({ name: i.name, qty: Number(i.qty) })), clientKey: d.key, backdate: bdOn(d) ? d.bdDate || '' : '' })
+  call('createRequest', { clinic: byClinic ? d.clinic : d.docClinic || '', branch: isLabUser() ? '' : d.branch || '', doctor: byClinic ? '' : d.doctor, type: d.type, items: d.items.map(i => ({ name: i.name, qty: Number(i.qty) })), clientKey: d.key, backdate: bdOn(d) ? d.bdDate || '' : '' })
     .then(res => {
       AUTO_SEND.sending = false; AUTO_SEND.tries = 0;
       if (el) busy(el, false);
@@ -2199,7 +2219,7 @@ function markPending(d, err, k) {
 }
 /* عند عودة الاتصال أو بعد الدخول: مسودة «بانتظار الإرسال» تُرسل وحدها */
 function resumePendingSend() {
-  if (!S.user || S.user.screen !== 'nurse') return;
+  if (!S.user || (S.user.screen !== 'nurse' && S.user.screen !== 'lab')) return;
   const d = nurseDraft();
   if (d.pending && d.items.length && !AUTO_SEND.sending) { toast(t('send_resuming'), 'info', 3000); sendDraft($('#submitBtn'), true); }
 }
@@ -2880,7 +2900,7 @@ function boxOf(owner, branch) {
   return list.find(b => b.owner === owner && b.branch === branch) || list.find(b => b.owner === owner && !b.branch && branch);
 }
 function boxPrompt(reqs) {
-  reqs = reqs.filter(Boolean);
+  reqs = reqs.filter(r => r && r.clinic !== LAB_SUPPLY); // مستهلكات المعمل تُسلَّم يداً بيد — بلا بوكس
   if (!reqs.length) return Promise.resolve({});
   return new Promise(resolve => {
     let done = false;
