@@ -1007,6 +1007,24 @@ test('custody: standard per clinic, issue with serial numbers, nurse report with
   const ls = ca.items.find(i => i.item === 'Handpiece Low Speed');
   assert.deepEqual([ls.standard, ls.inClinic, ls.shortage], [5, 4, 1], 'standard vs actual: 1 short');
   assert.deepEqual(ls.assets.map(x => x.serial), ['LS-001', 'LS-002', 'LS-003', 'LS-004']);
+  // تصحيح عهدة صُرفت بالغلط: تعديل الرقم/الكمية/العيادة ثم حذفها (التموين فقط)
+  const wrong = api(p, 'issueAssets', { clinic: 'عيادة الأسنان 1', item: 'Handpiece Low Speed', serials: ['LS-09X'] }).ids[0];
+  throwsCode(() => api(n, 'updateAsset', wrong, { serial: 'LS-090' }), 'ERR_FORBIDDEN');
+  throwsCode(() => api(p, 'updateAsset', wrong, { serial: 'LS-001' }), 'ERR_SERIAL_EXISTS:LS-001');
+  throwsCode(() => api(p, 'updateAsset', wrong, { serial: '' }), 'ERR_SERIAL_REQUIRED');
+  let ed = api(p, 'updateAsset', wrong, { serial: 'LS-090', clinic: 'عيادة الجلدية 1', cost: 999, notes: 'تصحيح' });
+  assert.deepEqual(ed.clinics.map(c => c.clinic).sort(), ['عيادة الأسنان 1', 'عيادة الجلدية 1'].sort(), 'both clinics refreshed on move');
+  const moved = ed.clinics.find(c => c.clinic === 'عيادة الجلدية 1').items.find(i => i.item === 'Handpiece Low Speed').assets[0];
+  assert.deepEqual([moved.id, moved.serial, moved.cost, moved.notes], [wrong, 'LS-090', 999, 'تصحيح']);
+  assert.ok(rows(gas, 'Log').some(r => /تعديل عهدة/.test(r.Action) && /LS-09X ← LS-090/.test(r.Action)), 'edit is logged with old → new');
+  throwsCode(() => api(n, 'deleteAsset', wrong), 'ERR_FORBIDDEN');
+  ed = api(p, 'deleteAsset', wrong);
+  assert.ok(!ed.clinics[0].items.some(i => i.assets.some(x => x.id === wrong)), 'deleted');
+  throwsCode(() => api(p, 'deleteAsset', wrong), 'ERR_NOT_FOUND');
+  const clId = api(p, 'getClinicAssets', { clinic: 'عيادة الأسنان 1' })[0].items.find(i => i.item === 'Curing Light').assets[0].id;
+  throwsCode(() => api(p, 'updateAsset', clId, { qty: 0 }), 'ERR_BAD_QTY');
+  api(p, 'updateAsset', clId, { qty: 3 });
+  api(p, 'updateAsset', clId, { qty: 2 });
   // بلاغ الممرضة
   const lsAsset = ls.assets.find(x => x.serial === 'LS-002');
   throwsCode(() => api(n, 'reportAsset', { assetId: lsAsset.id, problem: 'خربانة' }), 'ERR_PHOTO_REQUIRED');
@@ -1017,6 +1035,8 @@ test('custody: standard per clinic, issue with serial numbers, nurse report with
   assert.equal(api(n, 'reportAsset', { assetId: lsAsset.id, problem: 'خربانة', photo: PNG, clientKey: 'asset-report-001' }).id, t1.id, 'no duplicate on resend');
   assert.ok(gas.mails.some(m => m.to.includes('ali@example.com') && /بلاغ أداة/.test(m.subject) && /LS-002/.test(m.body)), 'procurement notified with the serial');
   throwsCode(() => api(n, 'reportAsset', { assetId: lsAsset.id, problem: 'خربانة', photo: PNG }), 'ERR_ASSET_BUSY');
+  throwsCode(() => api(p, 'deleteAsset', lsAsset.id), 'ERR_ASSET_OPEN_TICKET');
+  throwsCode(() => api(p, 'updateAsset', lsAsset.id, { clinic: 'عيادة الجلدية 1' }), 'ERR_ASSET_OPEN_TICKET');
   ca = api(n, 'getClinicAssets', { clinic: 'عيادة الأسنان 1' })[0];
   assert.deepEqual((x => [x.inClinic, x.away, x.shortage])(ca.items.find(i => i.item === 'Handpiece Low Speed')), [3, 1, 2], 'sent tool leaves the clinic count');
   assert.ok(api(p, 'getAlerts').some(al => al.code === 'alert_asset_new'));
