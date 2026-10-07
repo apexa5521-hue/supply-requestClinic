@@ -9,3 +9,9 @@ build/
 uploads/
 .vscode/
 .idea/
+
+# Media files (large, managed separately)
+tutorials/
+tests/screenshots/
+*.zip
+*.mp4
