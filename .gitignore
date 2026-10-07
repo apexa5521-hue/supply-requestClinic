@@ -1,8 +1,11 @@
 node_modules/
-tests/screenshots/
-tutorials/.work/
-tutorials/*.mp4
-tutorials/**/*.mp4
-
+.env
+.env.local
+.env.*.local
+.DS_Store
+*.log
 dist/
-masar-web.zip
+build/
+uploads/
+.vscode/
+.idea/

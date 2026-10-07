@@ -1,12 +1,24 @@
 {
-  "name": "supplyflow-apexcare",
-  "private": true,
-  "description": "Dev-only: tests for the Apps Script supply request system",
+  "name": "supply-request-clinic-api",
+  "version": "2.0.0",
+  "description": "SupplyFlow API - Node.js + PostgreSQL",
+  "main": "server.js",
+  "type": "module",
   "scripts": {
-    "test": "node --test tests/backend.test.js",
-    "test:e2e": "node tests/e2e.js",
-    "perf": "node tests/perf.js",
-    "test:load": "node tests/load.js",
-    "test:load-ui": "node tests/load-ui.js"
+    "start": "node server.js",
+    "dev": "node --watch server.js",
+    "test": "node --test tests/unit/**/*.test.js",
+    "test:e2e": "node --test tests/e2e/**/*.test.js"
+  },
+  "dependencies": {
+    "pg": "^8.11.3",
+    "express": "^4.18.2",
+    "cors": "^2.8.5",
+    "dotenv": "^16.3.1",
+    "bcryptjs": "^2.4.3",
+    "jsonwebtoken": "^9.1.2"
+  },
+  "engines": {
+    "node": "18.x || 20.x"
   }
 }
