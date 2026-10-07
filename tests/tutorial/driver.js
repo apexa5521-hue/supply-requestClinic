@@ -9,8 +9,8 @@ const scenes = {
     hi: 'यह वीडियो ड्राइवर के लिए है। आपको कोई अकाउंट नहीं चाहिए। सिर्फ़ फ़ोन का कैमरा और एक लिंक।'
   },
   tasks: {
-    en: 'Procurement sends you the Driver tasks link once. Add it to your phone home screen. It shows every box you need to move, from where, and to where.',
-    ar: 'التموين يرسل لك رابط «مهام السواق» مرة واحدة، أضفه لشاشة جوالك. يعرض كل بوكس تحتاج نقله، من أين وإلى أين.',
+    en: 'Procurement sends you the Shipments link once. Add it to your phone home screen. It shows every box you need to move, from where, and to where.',
+    ar: 'التموين يرسل لك رابط «الشحنات» مرة واحدة، أضفه لشاشة جوالك. يعرض كل بوكس تحتاج نقله، من أين وإلى أين.',
     bn: 'সাপ্লাই বিভাগ আপনাকে একবার "ড্রাইভারের কাজ" লিংক পাঠাবে। এটি ফোনের হোম স্ক্রিনে রাখুন। এখানে প্রতিটি বক্স দেখাবে: কোথা থেকে, কোথায় নিতে হবে।',
     hi: 'सप्लाई विभाग आपको "ड्राइवर के काम" का लिंक एक बार भेजेगा। इसे फ़ोन की होम स्क्रीन पर रखें। इसमें हर बॉक्स दिखता है: कहाँ से, कहाँ ले जाना है।'
   },
@@ -52,7 +52,7 @@ const scenes = {
   }
 };
 const steps = {
-  tasks: { en: 'Driver tasks', ar: 'مهام السواق', bn: 'ড্রাইভারের কাজ', hi: 'ड्राइवर के काम' },
+  tasks: { en: 'Shipments', ar: 'الشحنات', bn: 'চালানসমূহ', hi: 'शिपमेंट' },
   deliver: { en: 'Deliver a box', ar: 'تسليم البوكس', bn: 'বক্স ডেলিভারি', hi: 'बॉक्स डिलीवरी' }
 };
 

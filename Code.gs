@@ -1184,9 +1184,9 @@ function session_(token) {
 /* =====================================================================
  *  تتبع البوكسات
  *  - بوكس ثابت لكل طبيب (أو للعيادة في «مستهلكات عيادة») برقم BOX-### ورمز سري داخل ستيكر QR.
- *  - «إرسال» من التموين يحمّل الشحنة في بوكس صاحبها ← «جاهز للنقل» ووجهته فرع الطلب، ويظهر في مهام السواق.
+ *  - «إرسال» من التموين يحمّل الشحنة في بوكس صاحبها ← «جاهز للنقل» ووجهته فرع الطلب، ويظهر في الشحنات (السواق).
  *  - السواق يمسح الـ QR (بدون حساب): يختار مكان التسليم، يصوّر البوكس، ويضغط «تسليم» ← الشحنة «وصلت الفرع» وتُبلَّغ الممرضة.
- *  - الممرضة تستلم كالمعتاد (الكميات والتوقيع)؛ البوكس يبقى مكانه فارغاً. التموين يطلب نقله متى احتاجه (يظهر في مهام السواق).
+ *  - الممرضة تستلم كالمعتاد (الكميات والتوقيع)؛ البوكس يبقى مكانه فارغاً. التموين يطلب نقله متى احتاجه (يظهر في الشحنات (السواق)).
  * ===================================================================== */
 const BX_ST = { EMPTY: 'فارغ', READY: 'جاهز للنقل', MOVE: 'مطلوب نقله', DELIVERED: 'وصل الفرع' };
 const BOX_HOME = 'التموين';
@@ -1345,13 +1345,13 @@ function boxDeliver_(p) {
   });
   return { ok: true, box: boxInfo_(p) };
 }
-/** رمز رابط «مهام السواق» (يُنشأ مرة في Settings ← DriverToken، ويمكن تغييره من الشيت لإبطال الرابط القديم) */
+/** رمز رابط «الشحنات (السواق)» (يُنشأ مرة في Settings ← DriverToken، ويمكن تغييره من الشيت لإبطال الرابط القديم) */
 function driverToken_() {
   let tk = str_(getSetting_('DriverToken', ''));
   if (tk) return tk;
   withLock_(function () {
     tk = str_(getSetting_('DriverToken', ''));
-    if (!tk) { tk = newToken_(); append_('Settings', { Key: 'DriverToken', Value: tk, Notes: 'رمز رابط مهام السواق — غيّره لإبطال الرابط القديم' }); }
+    if (!tk) { tk = newToken_(); append_('Settings', { Key: 'DriverToken', Value: tk, Notes: 'رمز رابط الشحنات (السواق) — غيّره لإبطال الرابط القديم' }); }
   });
   return tk;
 }
@@ -1365,7 +1365,7 @@ function driverTasks_(p) {
     return { id: b.id, owner: b.owner, branch: b.branch, status: b.status, location: b.location, destination: b.destination, since: b.updatedAt, k: str_(row.Token), count: b.loads.length };
   }).sort(function (a, b) { return toMs_(a.since) - toMs_(b.since); });
 }
-/** شاشة التموين: كل البوكسات + آخر حركة + رابط الـ QR لكل بوكس + رابط مهام السواق */
+/** شاشة التموين: كل البوكسات + آخر حركة + رابط الـ QR لكل بوكس + رابط الشحنات (السواق) */
 function getBoxes_(user) {
   const moves = {};
   read_('BoxMoves').rows.forEach(function (m) { const id = str_(m.BoxID); if (id) (moves[id] = moves[id] || []).push(m); });
@@ -1397,7 +1397,7 @@ function getBoxes_(user) {
     appUrl: appUrl_() };
 }
 function appUrl_() { try { return ScriptApp.getService().getUrl() || ''; } catch (e) { return ''; } }
-/** التموين يطلب نقل بوكس (مثلاً إرجاعه للتموين قبل تعبئته) ← يظهر في مهام السواق */
+/** التموين يطلب نقل بوكس (مثلاً إرجاعه للتموين قبل تعبئته) ← يظهر في الشحنات (السواق) */
 function requestBoxMove_(user, boxId, to) {
   to = str_(to);
   if (boxPlaces_().indexOf(to) === -1) throw new Error('ERR_BAD_PLACE');
