@@ -31,7 +31,7 @@ const scenes = {
   backfill: { en: 'For older requests, tap Boxes for past requests once. It makes their boxes and loads any shipment that is not received yet.',
     ar: 'للطلبات القديمة اضغط «بوكسات للطلبات السابقة» مرة واحدة، فتُنشأ بوكساتها وتُحمَّل أي شحنة لم تُستلم بعد.' },
   move: { en: 'Need a box back? Tap Request move and choose the place. It appears in the driver\'s tasks right away.',
-    ar: 'تحتاج البوكس؟ اضغط «طلب نقل» واختر المكان، فيظهر في مهام السواق مباشرة.' },
+    ar: 'تحتاج البوكس؟ اضغط «طلب نقل» واختر المكان، فيظهر في «الشحنات» عند السواق مباشرة.' },
   custody: { en: 'Custody is for the clinic tools, like handpieces. Set the standard for each clinic, and handle broken tool reports.',
     ar: 'العهدة لأدوات العيادات مثل الهاندبيس: حدّد المعيار لكل عيادة، وتابع بلاغات الأدوات التالفة.' },
   issue: { en: 'To issue handpieces, tap Issue, choose the tool, and type one serial number per row. Press Enter or plus for the next one, and Save and add another to keep going.',
