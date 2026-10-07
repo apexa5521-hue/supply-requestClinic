@@ -658,6 +658,8 @@ const API_ = {
   reportAsset:               { screens: ['nurse'], fn: reportAsset_ },
   issueAssets:               { screens: ['procurement'], perm: 'users', fn: issueAssets_ },
   setClinicStandard:         { screens: ['procurement'], perm: 'users', fn: setClinicStandard_ },
+  updateAsset:               { screens: ['procurement'], perm: 'users', fn: updateAsset_ },
+  deleteAsset:               { screens: ['procurement'], perm: 'users', fn: deleteAsset_ },
   updateAssetTicket:         { screens: ['procurement'], fn: updateAssetTicket_ },
   setAssetTicketCost:        { screens: ['procurement'], perm: 'finance', fn: setAssetTicketCost_ },
   nudgeProcurement:          { screens: [], perm: 'monitor', fn: nudgeProcurement_ },
@@ -5009,6 +5011,82 @@ function issueAssets_(user, payload) {
     return out;
   });
   return { ids: ids, clinic: getClinicAssets_(user, { clinic: clinic })[0] };
+}
+
+function assetRow_(t, id) {
+  const row = t.rows.filter(function (r) { return str_(r.AssetID) === id; })[0];
+  if (!row) throw new Error('ERR_NOT_FOUND');
+  return row;
+}
+function hasOpenAssetTicket_(id) {
+  return read_('AssetTickets').rows.some(function (r) { return str_(r.AssetID) === id && TK_OPEN.indexOf(str_(r.Status) || TK_ST.NEW) !== -1; });
+}
+
+/** تصحيح عهدة مصروفة (التموين): الرقم التسلسلي أو الكمية، العيادة، التكلفة، الملاحظات. data = { serial, qty, clinic, cost, notes } */
+function updateAsset_(user, id, data) {
+  id = str_(id); data = data || {};
+  const res = withLock_(function () {
+    const t = read_('Assets');
+    const row = assetRow_(t, id);
+    const a = mapAsset_(row);
+    const cat = assetCatalog_()[a.item] || { serialized: !!a.serial };
+    const upd = { UpdatedAt: new Date(), UpdatedBy: user.name };
+    const changes = [];
+    if (cat.serialized && data.serial !== undefined) {
+      const s = clean_(data.serial, 60);
+      if (!s) throw new Error('ERR_SERIAL_REQUIRED');
+      if (s !== a.serial) {
+        const taken = t.rows.some(function (r) {
+          return str_(r.AssetID) !== id && str_(r.Item) === a.item && str_(r.Serial).toLowerCase() === s.toLowerCase() &&
+            [AS_ST.DAMAGED, AS_ST.LOST].indexOf(str_(r.Status)) === -1;
+        });
+        if (taken) throw new Error('ERR_SERIAL_EXISTS:' + s);
+        upd.Serial = s; changes.push('الرقم ' + a.serial + ' ← ' + s);
+      }
+    }
+    if (!cat.serialized && data.qty !== undefined) {
+      const q = Math.floor(Number(data.qty));
+      if (!(q >= 1 && q <= 500)) throw new Error('ERR_BAD_QTY');
+      if (q !== a.qty) { upd.Qty = q; changes.push('الكمية ' + a.qty + ' ← ' + q); }
+    }
+    if (data.clinic !== undefined && str_(data.clinic) !== a.clinic) {
+      const c = getClinics_().filter(function (x) { return x.name === str_(data.clinic); })[0];
+      if (!c) throw new Error('ERR_BAD_CLINIC');
+      if (hasOpenAssetTicket_(id)) throw new Error('ERR_ASSET_OPEN_TICKET');
+      upd.Clinic = c.name; upd.Branch = c.branch; changes.push('العيادة ' + a.clinic + ' ← ' + c.name);
+    }
+    if (data.cost !== undefined && data.cost !== '' && data.cost !== null) {
+      const cost = num_(data.cost);
+      if (!(cost >= 0 && cost <= PRICE_MAX)) throw new Error('ERR_BAD_PRICE');
+      if (round2_(cost) !== a.cost) { upd.Cost = round2_(cost); changes.push('التكلفة ' + a.cost + ' ← ' + round2_(cost)); }
+    }
+    if (data.notes !== undefined && clean_(data.notes, 300) !== a.notes) { upd.Notes = clean_(data.notes, 300); changes.push('الملاحظات'); }
+    if (changes.length) {
+      setCells_(t, row, upd);
+      logAction_(a.ticket, 'تعديل عهدة ' + id + ' (' + a.item + ' · ' + a.clinic + '): ' + changes.join('، '), user.name);
+    }
+    return { from: a.clinic, to: upd.Clinic || a.clinic };
+  });
+  const out = { clinics: [] };
+  [res.from, res.to].filter(function (c, i, arr) { return arr.indexOf(c) === i; }).forEach(function (c) {
+    const x = getClinicAssets_(user, { clinic: c })[0]; if (x) out.clinics.push(x);
+  });
+  return out;
+}
+
+/** حذف عهدة صُرفت بالغلط (التموين). لا تُحذف وعليها بلاغ مفتوح */
+function deleteAsset_(user, id) {
+  id = str_(id);
+  const clinic = withLock_(function () {
+    const t = read_('Assets');
+    const row = assetRow_(t, id);
+    const a = mapAsset_(row);
+    if (hasOpenAssetTicket_(id)) throw new Error('ERR_ASSET_OPEN_TICKET');
+    deleteRow_(t, row);
+    logAction_(a.ticket, 'حذف عهدة ' + id + ': ' + a.item + (a.serial ? ' #' + a.serial : ' × ' + a.qty) + ' — ' + a.clinic, user.name);
+    return a.clinic;
+  });
+  return { clinics: [getClinicAssets_(user, { clinic: clinic })[0]].filter(Boolean) };
 }
 
 function mapTicket_(r) {
