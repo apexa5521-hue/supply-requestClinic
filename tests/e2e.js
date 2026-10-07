@@ -483,8 +483,22 @@ function log(msg) { console.log('  ✔ ' + msg); }
   expect(await page.textContent('#printArea .sticker .st-id') === bx.id && (await page.textContent('#printArea .sticker')).includes('?box=' + bx.id), 'sticker prints the box id + scan link (text when QR lib is offline)');
   await page.evaluate(() => { document.body.classList.remove('printing'); document.getElementById('printArea').innerHTML = ''; });
   // صفحة السواق: المهام ← البوكس ← المكان + صورة + اسم ← تسليم
+  // شبكة السواق الضعيفة: أول محاولتين تفشلان ← إعادة تلقائية بدون رسالة خطأ
+  await page.evaluate(() => {
+    window.__realCall = call; let fails = 2;
+    window.call = function (fn) { if (fn === 'driverTasks' && fails-- > 0) return Promise.reject(new Error('ERR_NETWORK')); return __realCall.apply(null, arguments); };
+  });
   await page.evaluate(tk => showDriverTasks(tk), await page.evaluate(() => BX.data.driverToken));
-  await page.waitForSelector('.drv-task');
+  await page.waitForSelector('.drv-task', { timeout: 15000 });
+  expect(!(await page.$('#driverView .empty')), 'driver tasks retry automatically after network failures');
+  // انقطاع كامل: تبقى آخر قائمة محفوظة ظاهرة مع تنبيه
+  await page.evaluate(() => { window.call = function (fn) { return fn === 'driverTasks' ? Promise.reject(new Error('ERR_SERVER')) : __realCall.apply(null, arguments); }; });
+  await page.click('[data-act="drvTasks"]');
+  await page.waitForFunction(() => document.querySelector('#driverView').textContent.includes('آخر قائمة محفوظة'));
+  expect(await page.isVisible('.drv-task') && (await page.textContent('#driverView')).includes('آخر قائمة محفوظة'), 'offline: last saved driver tasks stay visible with a notice');
+  await page.evaluate(() => { window.call = __realCall; });
+  await page.click('[data-act="drvTasks"]');
+  await page.waitForFunction(() => !document.querySelector('#driverView').textContent.includes('آخر قائمة محفوظة'));
   expect((await page.textContent('.drv-task')).includes('من التموين إلى ' + bx.destination), 'driver tasks: box from procurement to the branch');
   await page.click('.drv-task');
   await page.waitForSelector('#drvGo');
