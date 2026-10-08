@@ -26,7 +26,7 @@ async function flow(h) {
   await scene('overview', 'ov', async () => {
     await h.login('Nawaf', '7777'); await highlight('#userRole', 1800);
     if (!(await page.$('#dashKpis'))) await h.nav('overview');
-    await page.waitForSelector('#dashKpis .kpi'); await wait(600);
+    await page.waitForSelector('#dashKpis .kpi >> visible=true'); await wait(600);
     await highlight('#dashKpis', 2200);
     await page.$eval('#trendChart', el => el.scrollIntoView({ block: 'center', behavior: 'smooth' })); await wait(1500);
     await page.$eval('#clinicChart', el => el.scrollIntoView({ block: 'center', behavior: 'smooth' })); await wait(1500);

@@ -140,6 +140,13 @@ async function flow(h) {
     await point('.modal #aeDel'); await highlight('.modal #aeDel', 1000);
     await click('.modal #aeOk'); await wait(1200);
   });
+  // بلاغ من الممرضة على هاندبيس حتى تظهر قائمة البلاغات
+  await page.evaluate(png => {
+    const tk = __api(null, 'login', ['Sara', '1111']).token;
+    const c = __api(tk, 'getClinicAssets', [{ clinic: 'Dental Clinic 1' }])[0];
+    const a = c.items.find(i => i.item === 'Handpiece Low Speed').assets.find(x => x.serial === 'NSK-1001');
+    __api(tk, 'reportAsset', [{ assetId: a.id, problem: 'خربانة', description: 'Loud noise and overheating', photo: 'data:image/png;base64,' + png, clientKey: 'tut-asset-1' }]);
+  }, h.png.toString('base64'));
   await scene('tickets', 'custody', async () => {
     await click('[data-seg-name="asTab"][data-v="tickets"]');
     await page.waitForSelector('#asTickets .req').catch(() => {});
