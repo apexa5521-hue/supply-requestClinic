@@ -2371,3 +2371,29 @@ test('nurse cancels her own request raised by mistake — only at doctor review 
   api(n, 'withdrawRequest', r4.id);
   assert.equal(rows(gas, 'Requests').find(x => x.RequestID === r4.id).CancelReason, 'رُفع بالغلط');
 });
+
+test('nurse edits the items of her request (qty change / remove) under the same rules as cancelling', () => {
+  const { api, login, gas } = boot();
+  const n = login('سارة', '1111'), p = login('علي', '3333'), d = login('د. خالد', '4444');
+  const r = api(n, 'createRequest', { doctor: 'د. خالد', type: 'شهري', items: [{ name: 'PROPHY PASTE', qty: 2 }, { name: 'DENTAL FLOSS', qty: 4 }, { name: 'قفازات طبية M', qty: 1 }] });
+  throwsCode(() => api(login('ريم', '2222'), 'editRequestItems', r.id, [{ item: 'PROPHY PASTE', qty: 1 }]), 'ERR_FORBIDDEN');
+  throwsCode(() => api(p, 'editRequestItems', r.id, [{ item: 'PROPHY PASTE', qty: 1 }]), 'ERR_FORBIDDEN');
+  throwsCode(() => api(n, 'editRequestItems', r.id, [{ item: 'PROPHY PASTE', qty: -1 }]), 'ERR_BAD_QTY');
+  throwsCode(() => api(n, 'editRequestItems', r.id, [{ item: 'PROPHY PASTE', qty: 0 }, { item: 'DENTAL FLOSS', qty: 0 }, { item: 'قفازات طبية M', qty: 0 }]), 'ERR_ALL_ZERO');
+  assert.equal(api(n, 'editRequestItems', r.id, [{ item: 'PROPHY PASTE', qty: 5 }, { item: 'DENTAL FLOSS', qty: 0 }, { item: 'قفازات طبية M', qty: 1 }]).changed, 2);
+  const its = rows(gas, 'RequestItems').filter(x => x.RequestID === r.id).map(x => [x.ItemName, x.RequestedQty]);
+  assert.deepEqual(its, [['PROPHY PASTE', 5], ['قفازات طبية M', 1]], 'qty changed and the removed item is gone');
+  assert.ok(rows(gas, 'Log').some(l => l.RequestID === r.id && /عدّلت الممرضة الأصناف: PROPHY PASTE: 2 ← 5، حذف DENTAL FLOSS \(4\)/.test(l.Action)), 'change logged old → new');
+  const doc = api(d, 'getRequestDetail', r.id);
+  assert.deepEqual(doc.items.map(i => i.item), ['PROPHY PASTE', 'قفازات طبية M'], 'doctor reviews the edited request');
+  assert.equal(api(n, 'editRequestItems', r.id, [{ item: 'PROPHY PASTE', qty: 5 }]).changed, 0, 'no change = no-op');
+  // بعد اعتماد الطبيب: لا تعديل
+  api(d, 'doctorReview', r.id, 'اعتمد', '', []);
+  throwsCode(() => api(n, 'editRequestItems', r.id, [{ item: 'PROPHY PASTE', qty: 1 }]), 'ERR_WITHDRAW_REVIEW_ONLY');
+  // «جديد» (مستهلكات عيادة) يُعدّل حتى يبدأ التموين
+  const r2 = api(n, 'createRequest', { clinic: 'Sterilization', branch: 'الرياض', type: 'شهري', items: [{ name: 'PROPHY PASTE', qty: 3 }] });
+  api(n, 'editRequestItems', r2.id, [{ item: 'PROPHY PASTE', qty: 6 }]);
+  assert.equal(rows(gas, 'RequestItems').find(x => x.RequestID === r2.id).RequestedQty, 6);
+  api(p, 'bulkUpdateStatus', [r2.id], 'قيد التجهيز');
+  throwsCode(() => api(n, 'editRequestItems', r2.id, [{ item: 'PROPHY PASTE', qty: 1 }]), 'ERR_WITHDRAW_REVIEW_ONLY');
+});

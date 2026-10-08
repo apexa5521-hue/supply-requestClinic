@@ -589,6 +589,7 @@ const API_ = {
   receiveShipment:           { screens: ['nurse'], fn: receiveShipment_ },
   resubmitRequest:           { screens: ['nurse'], fn: resubmitRequest_ },
   withdrawRequest:           { screens: ['nurse'], fn: withdrawRequest_ },
+  editRequestItems:          { screens: ['nurse'], fn: editRequestItems_ },
   getShipmentSignatures:     { screens: ['nurse'], fn: getShipmentSignatures_ },
   getRequests:               { screens: ['procurement'].concat(MGMT), fn: getRequestsApi_ },
   getRequestItemsFull:       { screens: ['procurement'].concat(MGMT), fn: getRequestItemsFull_ },
@@ -3192,6 +3193,61 @@ function resubmitRequest_(user, requestId, note) {
 }
 
 /** الممرضة تلغي طلبها المرفوع بالغلط — فقط وهو عند «مراجعة الطبيب» أو «جديد» (قبل أن يبدأ فيه التموين) */
+/** الطلب ما زال بيد الممرضة: طلبها، وعند «مراجعة الطبيب» أو «جديد»، ولم يبدأ فيه التموين (لا شحنات ولا حالة صنف) */
+function nurseOwnedItems_(user, f, requestId) {
+  if (str_(f.row.Nurse) !== user.name) throw new Error('ERR_FORBIDDEN');
+  const from = str_(f.row.Status) || ST.NEW;
+  if ([ST.REVIEW, ST.NEW].indexOf(from) === -1) throw new Error('ERR_WITHDRAW_REVIEW_ONLY');
+  const its = freshTable_('RequestItems');
+  const mine = its.rows.filter(function (r) { return str_(r.RequestID) === requestId; });
+  if (shipState_(mapRequest_(f.row), mine).ships.length || mine.some(function (r) { return str_(r.ItemStatus); })) throw new Error('ERR_WITHDRAW_REVIEW_ONLY');
+  return { from: from, table: its, rows: mine };
+}
+function clearRequestDupKey_(user, f, rows) {
+  const req = mapRequest_(f.row);
+  const items = rows.map(function (r) { return { name: str_(r.ItemName), qty: Math.floor(num_(r.RequestedQty)) }; });
+  CacheService.getScriptCache().remove(requestDupKey_(user.name, req.clinic, req.branch, req.doctor, str_(f.row.Type), items));
+}
+
+/**
+ * الممرضة تعدّل أصناف طلبها بنفس شروط الإلغاء: تغيير الكمية، أو 0 = حذف الصنف من الطلب.
+ * qtys = [{ item, qty }]. لا يُحذف كل شيء (لذلك «إلغاء الطلب»).
+ */
+function editRequestItems_(user, requestId, qtys) {
+  requestId = str_(requestId);
+  guardSee_(user, requestId);
+  if (!Array.isArray(qtys) || !qtys.length) throw new Error('ERR_REQUIRED');
+  const want = {};
+  qtys.forEach(function (x) {
+    const q = Math.floor(Number(x && x.qty));
+    if (!(q >= 0 && q <= 100000) || String(x.qty).trim() === '') throw new Error('ERR_BAD_QTY');
+    want[str_(x && x.item)] = q;
+  });
+  let changes = [];
+  withLock_(function () {
+    resetMemo_();
+    const f = findRequest_(requestId);
+    const own = nurseOwnedItems_(user, f, requestId);
+    const ups = [], dels = [];
+    own.rows.forEach(function (r) {
+      const name = str_(r.ItemName), old = Math.floor(num_(r.RequestedQty));
+      if (!(name in want) || want[name] === old) return;
+      if (want[name] === 0) { dels.push(r); changes.push('حذف ' + name + ' (' + old + ')'); }
+      else { ups.push({ row: r, obj: { RequestedQty: want[name] } }); changes.push(name + ': ' + old + ' ← ' + want[name]); }
+    });
+    if (!changes.length) return;
+    if (dels.length === own.rows.length) throw new Error('ERR_ALL_ZERO');
+    clearRequestDupKey_(user, f, own.rows);
+    if (ups.length) setMany_(own.table, ups);
+    dels.sort(function (a, b) { return b._row - a._row; }).forEach(function (r) { sheet_('RequestItems').deleteRow(r._row); });
+    if (dels.length) markDirty_('RequestItems');
+    delete MEMO_.sitems;
+    logAction_(requestId, 'عدّلت الممرضة الأصناف: ' + changes.join('، '), user.name);
+    append_('Comments', { Timestamp: new Date(), RequestID: requestId, Author: user.name, Role: user.role, Message: '✏️ عدّلت الأصناف: ' + changes.join('، ') });
+  });
+  return { changed: changes.length };
+}
+
 function withdrawRequest_(user, requestId, reason) {
   requestId = str_(requestId);
   reason = clean_(reason, 500) || 'رُفع بالغلط';
@@ -3200,11 +3256,7 @@ function withdrawRequest_(user, requestId, reason) {
   withLock_(function () {
     resetMemo_();
     const f = findRequest_(requestId);
-    if (str_(f.row.Nurse) !== user.name) throw new Error('ERR_FORBIDDEN');
-    const from = str_(f.row.Status) || ST.NEW;
-    if ([ST.REVIEW, ST.NEW].indexOf(from) === -1) throw new Error('ERR_WITHDRAW_REVIEW_ONLY');
-    const its0 = read_('RequestItems').rows.filter(function (r) { return str_(r.RequestID) === requestId; });
-    if (shipState_(mapRequest_(f.row), its0).ships.length || its0.some(function (r) { return str_(r.ItemStatus); })) throw new Error('ERR_WITHDRAW_REVIEW_ONLY');
+    const own = nurseOwnedItems_(user, f, requestId), from = own.from;
     wasReview = from === ST.REVIEW;
     const now = new Date();
     setCells_(f.t, f.row, { Status: ST.CANCELLED, CancelReason: reason, CancelledAt: now, CancelledBy: user.name });
@@ -3212,8 +3264,7 @@ function withdrawRequest_(user, requestId, reason) {
     append_('Comments', { Timestamp: now, RequestID: requestId, Author: user.name, Role: user.role, Message: '⛔ ألغت الممرضة الطلب — السبب: ' + reason });
     req = mapRequest_(f.row);
     // حتى تقدر ترفع نفس الطلب فوراً بعد إلغائه (لا يرجع لها الطلب الملغي كـ«مكرر»)
-    const its = its0.map(function (r) { return { name: str_(r.ItemName), qty: Math.floor(num_(r.RequestedQty)) }; });
-    CacheService.getScriptCache().remove(requestDupKey_(user.name, req.clinic, req.branch, req.doctor, str_(f.row.Type), its));
+    clearRequestDupKey_(user, f, own.rows);
   });
   if (wasReview) notifyUser_(doctorAccounts_()[req.doctor] || req.doctor, 'أُلغي طلب كان بانتظار مراجعتك - ' + requestId,
     'ألغت الممرضة ' + user.name + ' الطلب ' + requestId + ' (عيادة ' + req.clinic + ') قبل مراجعتك — لا حاجة لأي إجراء.\nالسبب: ' + reason);
