@@ -44,7 +44,7 @@ async function flow(h) {
     if (await page.$('#fnIssues')) { await point('#fnIssues'); await highlight('#fnIssues', 900); }
   });
   await scene('assets', 'price', async () => {
-    await h.nav('assets');
+    await h.nav('assetsdash');
     await wait(1500);
     await h.scroll(450); await wait(1500);
     await h.scroll(0);

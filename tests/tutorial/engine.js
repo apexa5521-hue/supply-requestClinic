@@ -41,6 +41,10 @@ function tts(text, lang) {
   }
   return { file: f, dur: durationOf(f) };
 }
+const AR_NOT_SUFFIX = ['ذلك', 'لذلك', 'كذلك', 'هناك', 'هنالك', 'تلك', 'أولئك', 'بنك', 'مشترك', 'ملك', 'شبك'];
+function arMasculine(text) {
+  return text.replace(/[\u0600-\u06FF]+ك(?![\u0600-\u06FF\u064B-\u0652])/g, w => AR_NOT_SUFFIX.indexOf(w) !== -1 || w.length < 2 ? w : w + '\u064E');
+}
 function fontsDir() {
   const d = path.join(CACHE, 'fonts');
   fs.mkdirSync(d, { recursive: true });
@@ -182,7 +186,7 @@ function seedScript(cfg) {
     }
     g.google = { script: {} };
     Object.defineProperty(g.google.script, 'run', { get: runner });
-    try { localStorage.setItem('sf_lang', '"en"'); localStorage.setItem('sf_tour_off', 'true'); } catch (e) { /* */ }
+    try { localStorage.setItem('sf_lang', ${JSON.stringify(JSON.stringify(cfg.uiLang || (cfg.voiceLang === 'ar' ? 'ar' : 'en')))}); localStorage.setItem('sf_tour_off', 'true'); } catch (e) { /* */ }
   })();`].join('\n');
 }
 
@@ -216,9 +220,12 @@ async function makeTutorial(cfg) {
   const WORK = path.join(CACHE, cfg.id);
   fs.mkdirSync(OUT, { recursive: true }); fs.mkdirSync(WORK, { recursive: true });
   const voice = {};
-  // صوت الشرح: إنجليزي (افتراضي) أو عربي (voiceLang: 'ar')
+  // صوت الشرح: إنجليزي (افتراضي) أو عربي (voiceLang: 'ar'). الصوت العربي يخاطب رجلاً: كاف المخاطب مفتوحة (طلباتَك لا طلباتِك)
   const VL = cfg.voiceLang || 'en';
-  Object.keys(cfg.scenes).forEach(k => { const tx = cfg.scenes[k][VL]; if (!tx) throw new Error('no ' + VL + ' narration for scene ' + k); voice[k] = Object.assign({ text: tx }, tts(tx, VL)); });
+  Object.keys(cfg.scenes).forEach(k => {
+    const tx = cfg.scenes[k][VL]; if (!tx) throw new Error('no ' + VL + ' narration for scene ' + k);
+    voice[k] = Object.assign({ text: tx }, tts(VL === 'ar' ? arMasculine(tx) : tx, VL));
+  });
   console.log('[' + cfg.id + '] voice-over:', Object.keys(voice).length, 'clips,', Math.round(Object.values(voice).reduce((a, v) => a + v.dur, 0)), 's');
 
   const browser = await playwright.chromium.launch();
@@ -441,4 +448,4 @@ async function makeTutorial(cfg) {
   return made;
 }
 
-module.exports = { makeTutorial };
+module.exports = { makeTutorial, arMasculine };
