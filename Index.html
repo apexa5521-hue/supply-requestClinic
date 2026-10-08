@@ -263,6 +263,8 @@ button, input, select, textarea { font: inherit; color: inherit; }
 .as-units { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 6px; }
 .as-unit { display: inline-flex; align-items: center; gap: 6px; padding: 4px 6px 4px 10px; border-radius: 999px; border: 1px solid var(--border); background: var(--surface-2); font-size: 12.5px; }
 .as-unit.away { opacity: .75; border-style: dashed; }
+button.as-unit { font: inherit; font-size: 12.5px; color: inherit; cursor: pointer; padding-inline: 10px; }
+button.as-unit:hover { border-color: var(--primary); background: var(--surface); }
 .tk-photos { display: flex; flex-wrap: wrap; gap: 8px; }
 .tk-photos a { width: 84px; height: 84px; border-radius: 10px; overflow: hidden; border: 1px solid var(--border); display: grid; place-items: center; background: var(--surface-2); }
 .tk-photos img { width: 100%; height: 100%; object-fit: cover; }
@@ -570,6 +572,8 @@ button.kpi[aria-pressed="true"] { border-color: var(--tone); box-shadow: 0 0 0 3
 .rv-table .rvQty { width: 84px; text-align: center; font-weight: 700; margin-top: 3px; }
 .rv-table .rvQty.changed { border-color: var(--t-amber); background: color-mix(in srgb, var(--t-amber) 9%, var(--surface)); }
 .rv-table .rvQty.invalid { border-color: var(--t-red); }
+.rv-table tr.removed td:first-child { text-decoration: line-through; color: var(--muted); }
+.rv-table tr.removed .rvQty { opacity: .5; }
 .ship-track { --tone: var(--t-indigo); display: inline-flex; align-items: center; flex-wrap: wrap; gap: 6px 8px; margin-top: 7px; padding: 4px 10px; border-radius: 99px; font-size: 12.5px; color: var(--tone); background: color-mix(in srgb, var(--tone) 10%, transparent); }
 .ship-track b { font-weight: 700; }
 .ship-track .progress { width: 70px; height: 4px; background: color-mix(in srgb, var(--tone) 18%, transparent); }

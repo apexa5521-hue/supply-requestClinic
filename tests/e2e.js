@@ -164,7 +164,10 @@ function log(msg) { console.log('  ✔ ' + msg); }
   await page.waitForSelector('#fClinic');
   expect(!(await page.$('#fDoctor')), 'clinic consumables: clinic instead of doctor');
   const groups = await page.$$eval('#fClinic optgroup', gs => gs.map(g => g.label + ':' + g.children.length));
-  expect(groups.join(' | ') === 'قسم التعقيم:2 | غرفة الفرز:2', 'clinic consumables: only sterilization and the triage room (each branch) — ' + groups.join(' | '));
+  expect(groups.slice(0, 2).join(' | ') === 'قسم التعقيم:2 | غرفة الفرز:2' && groups.slice(2).length >= 1 && groups.slice(2).every(g => g.startsWith('عيادات الأسنان — ')),
+    'clinic consumables: sterilization, the triage room, then dental clinics by branch — ' + groups.join(' | '));
+  const dentalOpts = await page.$$eval('#fClinic optgroup', gs => gs.filter(g => g.label.startsWith('عيادات الأسنان')).flatMap(g => [...g.children].map(o => o.textContent)));
+  expect(dentalOpts.includes('عيادة الأسنان 2') && !dentalOpts.some(x => /جلد|derma/i.test(x)), 'every dental clinic listed (not only hers), no dermatology clinics — ' + dentalOpts.join(' | '));
   expect(await page.inputValue('#fClinic') !== '' && (await page.textContent('#sterilNote')).includes('التعقيم'), 'defaults to sterilization of her branch');
   await page.selectOption('#fClinic', await page.$eval('#fClinic optgroup option:nth-child(2)', o => o.value));
   expect((await page.textContent('#sterilNote')).includes('جدة') && await page.inputValue('#fBranch') === 'جدة', 'choosing sterilization shows where it is (branch) and sets the branch');
@@ -828,6 +831,34 @@ function log(msg) { console.log('  ✔ ' + msg); }
   await page.waitForTimeout(300);
   const dentalCard = page.locator('#asClinics section:has-text("عيادة الأسنان 1")');
   expect((await dentalCard.locator('.as-row.short').count()) === 1 && (await dentalCard.textContent()).includes('LS-102'), 'clinic shows standard 3 vs 2 in clinic (short 1) with serials');
+  // تصحيح عهدة مصروفة: تعديل الرقم التسلسلي، ثم صرف قطعة بالغلط وحذفها
+  await dentalCard.locator('button.as-unit:has-text("LS-102")').click();
+  await page.waitForSelector('.modal #aeSer');
+  expect((await page.inputValue('.modal #aeSer')) === 'LS-102' && await page.isVisible('.modal #aeDel'), 'procurement opens an issued unit: serial prefilled, delete available');
+  await page.fill('.modal #aeSer', 'LS-1020');
+  await page.click('.modal #aeOk');
+  expect(await toastHas(page, 'تم حفظ التعديل'), 'issued unit serial edited');
+  await page.waitForTimeout(300);
+  expect((await dentalCard.textContent()).includes('LS-1020'), 'card shows the corrected serial');
+  await shot(page, 'assets-edit-unit');
+  await dentalCard.locator('button.as-unit:has-text("LS-1020")').click();
+  await page.waitForSelector('.modal #aeSer');
+  await page.fill('.modal #aeSer', 'LS-102');
+  await page.click('.modal #aeOk');
+  await page.waitForTimeout(300);
+  await page.click('#asClinics [data-act="asIssue"][data-clinic="عيادة الأسنان 1"]');
+  await page.waitForSelector('.modal #isItem');
+  await page.selectOption('.modal #isItem', 'Handpiece Low Speed');
+  await page.fill('.modal #isSer .input >> nth=0', 'WRONG-1');
+  await page.click('.modal #isOk');
+  await page.waitForTimeout(300);
+  await dentalCard.locator('button.as-unit:has-text("WRONG-1")').click();
+  await page.waitForSelector('.modal #aeDel');
+  await page.click('.modal #aeDel');
+  await page.click('.modal [data-yes]');
+  expect(await toastHas(page, 'تم حذف العهدة'), 'unit issued by mistake deleted');
+  await page.waitForTimeout(300);
+  expect(!(await dentalCard.textContent()).includes('WRONG-1') && (await dentalCard.textContent()).includes('LS-102'), 'deleted unit gone; corrected serial restored');
   await shot(page, 'assets-procurement-clinics', true);
   await logout(page);
   await login(page, 'سارة', '1111');
@@ -1164,6 +1195,52 @@ function log(msg) { console.log('  ✔ ' + msg); }
   await page.waitForTimeout(600);
   expect(!(await page.evaluate(() => window.__xss)), 'HTML in comments is escaped (no XSS)');
   await page.keyboard.press('Escape');
+  // الممرضة تلغي طلباً رفعته بالغلط وهو عند مراجعة الطبيب
+  const wdId = await page.evaluate(async () => {
+    const tok = (await __api(null, 'login', ['سارة', '1111'])).token;
+    return (await __api(tok, 'createRequest', [{ doctor: 'د. خالد', type: 'شهري', items: [{ name: 'PROPHY PASTE', qty: 9 }] }])).id;
+  });
+  await page.click('.sidebar [data-view="new"]');
+  await page.click('.sidebar [data-view="mine"]');
+  await page.click(`.req:has-text("${wdId}") [data-act="detail"]`);
+  await page.waitForSelector('.modal [data-act="withdraw"]');
+  await page.click('.modal [data-act="withdraw"]');
+  await page.fill('.modal #wdReason', 'اخترت الطبيب الخطأ');
+  await shot(page, 'nurse-withdraw');
+  await page.click('.modal #wdOk');
+  expect(await toastHas(page, 'تم إلغاء الطلب ' + wdId), 'nurse cancels her own request while it is with the doctor');
+  await page.waitForTimeout(400);
+  await page.click(`.req:has-text("${wdId}") [data-act="detail"]`);
+  await page.waitForSelector('#dComment');
+  expect((await page.textContent('.modal')).includes('اخترت الطبيب الخطأ') && !(await page.$('.modal [data-act="withdraw"]')), 'cancelled request shows the reason; no cancel button any more');
+  await page.keyboard.press('Escape');
+  // «جديد» (مستهلكات عيادة) يُلغى من زر الكرت مباشرة
+  const wdId2 = await page.evaluate(async () => {
+    const tok = (await __api(null, 'login', ['سارة', '1111'])).token;
+    return (await __api(tok, 'createRequest', [{ clinic: 'Sterilization', branch: 'الرياض', type: 'شهري', items: [{ name: 'PROPHY PASTE', qty: 11 }, { name: 'DENTAL FLOSS', qty: 3 }] }])).id;
+  });
+  await page.click('.sidebar [data-view="new"]');
+  await page.click('.sidebar [data-view="mine"]');
+  // تعديل الأصناف: تغيير كمية + حذف صنف
+  await page.click(`.req:has-text("${wdId2}") .req-actions [data-act="editItems"]`);
+  await page.waitForSelector('.modal .rvQty[data-item="PROPHY PASTE"]');
+  await page.fill('.modal .rvQty[data-item="PROPHY PASTE"]', '12');
+  await page.click('.modal tr:has(.rvQty[data-item="DENTAL FLOSS"]) [data-rm]');
+  expect(await page.$eval('.modal tr:has(.rvQty[data-item="DENTAL FLOSS"])', tr => tr.classList.contains('removed')), 'bin marks the item as removed');
+  await shot(page, 'nurse-edit-items');
+  await page.click('.modal #eiOk');
+  expect(await toastHas(page, 'تم تعديل أصناف الطلب ' + wdId2), 'nurse saved the edited items');
+  const edited = await page.evaluate(async id => {
+    const tok = (await __api(null, 'login', ['سارة', '1111'])).token;
+    return (await __api(tok, 'getRequestDetail', [id])).items.map(i => i.item + ':' + i.requestedQty).join(',');
+  }, wdId2);
+  expect(edited === 'PROPHY PASTE:12', 'server has the new qty and the removed item is gone — ' + edited);
+  await page.waitForSelector(`.req:has-text("${wdId2}") .req-actions [data-act="withdraw"]`);
+  await page.click(`.req:has-text("${wdId2}") .req-actions [data-act="withdraw"]`);
+  await page.click('.modal #wdOk');
+  expect(await toastHas(page, 'تم إلغاء الطلب ' + wdId2), 'new clinic-consumables request cancelled from the card button');
+  await page.waitForTimeout(400);
+  expect(!(await page.$(`.req:has-text("${wdId2}") .req-actions [data-act="withdraw"]`)), 'card loses the cancel button once cancelled');
   await logout(page);
 
   // ---------- GitHub Pages mode: fetch → real doPost (Node vm), batching + retry ----------

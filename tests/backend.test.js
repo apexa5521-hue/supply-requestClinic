@@ -175,7 +175,8 @@ test('config: nurse sees every clinic (own clinics flagged) and no prices; clini
   const cfg = api(n, 'getConfig');
   assert.ok(cfg.clinics.length >= 5 && cfg.clinics.some(c => c.name === 'Sterilization'));
   assert.deepEqual(cfg.myClinics.sort(), ['عيادة الأسنان 1', 'عيادة الجلدية 1'].sort());
-  throwsCode(() => api(n, 'createRequest', { clinic: 'عيادة الأسنان 2', type: 'شهري', items: [{ name: 'PROPHY PASTE', qty: 1 }] }), 'ERR_CLINIC_SHARED_ONLY');
+  const dr = api(n, 'createRequest', { clinic: 'عيادة الأسنان 2', type: 'شهري', items: [{ name: 'PROPHY PASTE', qty: 1 }] });
+  assert.match(dr.id, /^REQ-/, 'clinic consumables: any dental clinic, even one that is not the nurse’s');
   const r = api(n, 'createRequest', { clinic: 'Sterilization', branch: 'جدة', type: 'شهري', items: [{ name: 'PROPHY PASTE', qty: 1 }] });
   assert.match(r.id, /^REQ-/, 'clinic consumables: sterilization / triage in any branch');
   assert.ok(cfg.catalog.length >= 7);
@@ -1007,6 +1008,24 @@ test('custody: standard per clinic, issue with serial numbers, nurse report with
   const ls = ca.items.find(i => i.item === 'Handpiece Low Speed');
   assert.deepEqual([ls.standard, ls.inClinic, ls.shortage], [5, 4, 1], 'standard vs actual: 1 short');
   assert.deepEqual(ls.assets.map(x => x.serial), ['LS-001', 'LS-002', 'LS-003', 'LS-004']);
+  // تصحيح عهدة صُرفت بالغلط: تعديل الرقم/الكمية/العيادة ثم حذفها (التموين فقط)
+  const wrong = api(p, 'issueAssets', { clinic: 'عيادة الأسنان 1', item: 'Handpiece Low Speed', serials: ['LS-09X'] }).ids[0];
+  throwsCode(() => api(n, 'updateAsset', wrong, { serial: 'LS-090' }), 'ERR_FORBIDDEN');
+  throwsCode(() => api(p, 'updateAsset', wrong, { serial: 'LS-001' }), 'ERR_SERIAL_EXISTS:LS-001');
+  throwsCode(() => api(p, 'updateAsset', wrong, { serial: '' }), 'ERR_SERIAL_REQUIRED');
+  let ed = api(p, 'updateAsset', wrong, { serial: 'LS-090', clinic: 'عيادة الجلدية 1', cost: 999, notes: 'تصحيح' });
+  assert.deepEqual(ed.clinics.map(c => c.clinic).sort(), ['عيادة الأسنان 1', 'عيادة الجلدية 1'].sort(), 'both clinics refreshed on move');
+  const moved = ed.clinics.find(c => c.clinic === 'عيادة الجلدية 1').items.find(i => i.item === 'Handpiece Low Speed').assets[0];
+  assert.deepEqual([moved.id, moved.serial, moved.cost, moved.notes], [wrong, 'LS-090', 999, 'تصحيح']);
+  assert.ok(rows(gas, 'Log').some(r => /تعديل عهدة/.test(r.Action) && /LS-09X ← LS-090/.test(r.Action)), 'edit is logged with old → new');
+  throwsCode(() => api(n, 'deleteAsset', wrong), 'ERR_FORBIDDEN');
+  ed = api(p, 'deleteAsset', wrong);
+  assert.ok(!ed.clinics[0].items.some(i => i.assets.some(x => x.id === wrong)), 'deleted');
+  throwsCode(() => api(p, 'deleteAsset', wrong), 'ERR_NOT_FOUND');
+  const clId = api(p, 'getClinicAssets', { clinic: 'عيادة الأسنان 1' })[0].items.find(i => i.item === 'Curing Light').assets[0].id;
+  throwsCode(() => api(p, 'updateAsset', clId, { qty: 0 }), 'ERR_BAD_QTY');
+  api(p, 'updateAsset', clId, { qty: 3 });
+  api(p, 'updateAsset', clId, { qty: 2 });
   // بلاغ الممرضة
   const lsAsset = ls.assets.find(x => x.serial === 'LS-002');
   throwsCode(() => api(n, 'reportAsset', { assetId: lsAsset.id, problem: 'خربانة' }), 'ERR_PHOTO_REQUIRED');
@@ -1017,6 +1036,8 @@ test('custody: standard per clinic, issue with serial numbers, nurse report with
   assert.equal(api(n, 'reportAsset', { assetId: lsAsset.id, problem: 'خربانة', photo: PNG, clientKey: 'asset-report-001' }).id, t1.id, 'no duplicate on resend');
   assert.ok(gas.mails.some(m => m.to.includes('ali@example.com') && /بلاغ أداة/.test(m.subject) && /LS-002/.test(m.body)), 'procurement notified with the serial');
   throwsCode(() => api(n, 'reportAsset', { assetId: lsAsset.id, problem: 'خربانة', photo: PNG }), 'ERR_ASSET_BUSY');
+  throwsCode(() => api(p, 'deleteAsset', lsAsset.id), 'ERR_ASSET_OPEN_TICKET');
+  throwsCode(() => api(p, 'updateAsset', lsAsset.id, { clinic: 'عيادة الجلدية 1' }), 'ERR_ASSET_OPEN_TICKET');
   ca = api(n, 'getClinicAssets', { clinic: 'عيادة الأسنان 1' })[0];
   assert.deepEqual((x => [x.inClinic, x.away, x.shortage])(ca.items.find(i => i.item === 'Handpiece Low Speed')), [3, 1, 2], 'sent tool leaves the clinic count');
   assert.ok(api(p, 'getAlerts').some(al => al.code === 'alert_asset_new'));
@@ -1332,7 +1353,9 @@ test('doctor-based request: clinic is optional (derived from the doctor); clinic
   throwsCode(() => api(n, 'createRequest', { doctor: 'د. غير موجود', type: 'شهري', items }), 'ERR_BAD_DOCTOR');
   // مستهلكات العيادة: بدون طبيب، العيادة إلزامية، وتذهب للتموين مباشرة
   throwsCode(() => api(n, 'createRequest', { type: 'شهري', items }), 'ERR_REQUIRED');
-  throwsCode(() => api(n, 'createRequest', { clinic: 'عيادة الأسنان 2', type: 'شهري', items }), 'ERR_CLINIC_SHARED_ONLY');
+  const rd = api(n, 'createRequest', { clinic: 'عيادة الأسنان 2', type: 'شهري', items });
+  const qd = rows(gas, 'Requests').find(r => r.RequestID === rd.id);
+  assert.deepEqual([qd.Doctor, qd.Clinic, qd.Status, qd.Department], ['', 'عيادة الأسنان 2', 'جديد', 'أسنان'], 'dental clinic consumables: no doctor, straight to dental procurement');
   throwsCode(() => api(n, 'createRequest', { clinic: 'عيادة الجلدية 1', type: 'شهري', items }), 'ERR_CLINIC_SHARED_ONLY');
   const r2 = api(n, 'createRequest', { clinic: 'Sterilization', branch: 'الرياض', type: 'شهري', items: [{ name: 'قفازات طبية M', qty: 5 }] });
   const q2 = rows(gas, 'Requests').find(r => r.RequestID === r2.id);
@@ -2311,4 +2334,66 @@ test('boxes view for branch managers / operations: own branch only (all if no br
   assert.ok(api(p, 'getBoxes').driverToken, 'procurement still gets the driver link');
   throwsCode(() => api(reem, 'getBoxes'), 'ERR_FORBIDDEN');
   throwsCode(() => api(login('مدير جدة', '9090'), 'requestBoxMove', 'BOX-001', 'التموين'), 'ERR_FORBIDDEN');
+});
+
+test('nurse cancels her own request raised by mistake — only at doctor review or «new» before procurement starts; doctor is told', () => {
+  const { api, login, gas } = boot();
+  const n = login('سارة', '1111'), p = login('علي', '3333'), d = login('د. خالد', '4444');
+  const items = [{ name: 'PROPHY PASTE', qty: 2 }];
+  const r = api(n, 'createRequest', { doctor: 'د. خالد', type: 'شهري', items });
+  assert.equal(api(d, 'getDoctorRequests')[0].status, 'مراجعة الطبيب');
+  throwsCode(() => api(login('ريم', '2222'), 'withdrawRequest', r.id), 'ERR_FORBIDDEN');
+  throwsCode(() => api(p, 'withdrawRequest', r.id), 'ERR_FORBIDDEN');
+  gas.mails.length = 0;
+  assert.equal(api(n, 'withdrawRequest', r.id, 'اخترت الطبيب الخطأ'), true);
+  const q = rows(gas, 'Requests').find(x => x.RequestID === r.id);
+  assert.deepEqual([q.Status, q.CancelReason, q.CancelledBy], ['ملغي', 'اخترت الطبيب الخطأ', 'سارة']);
+  assert.ok(gas.mails.some(m => /أُلغي طلب كان بانتظار مراجعتك/.test(m.subject)), 'doctor notified');
+  assert.ok(rows(gas, 'Log').some(l => l.RequestID === r.id && /ألغت الممرضة الطلب/.test(l.Action)));
+  throwsCode(() => api(n, 'withdrawRequest', r.id), 'ERR_WITHDRAW_REVIEW_ONLY');
+  // بعد الإلغاء ترفع نفس الطلب فوراً كطلب جديد (لا يُعتبر مكرراً للملغي)
+  // بعد اعتماد الطبيب لا تلغيه الممرضة (التموين يلغيه بسبب)
+  const r2 = api(n, 'createRequest', { doctor: 'د. خالد', type: 'شهري', items });
+  assert.ok(r2.id !== r.id && !r2.duplicate, 'same request raised again right after cancelling is a new request');
+  api(d, 'doctorReview', r2.id, 'اعتمد', '', []);
+  throwsCode(() => api(n, 'withdrawRequest', r2.id), 'ERR_WITHDRAW_REVIEW_ONLY');
+  // مستهلكات العيادة («جديد» عند التموين): تُلغى ما دام التموين لم يبدأ فيها، بلا إيميل للطبيب
+  const r3 = api(n, 'createRequest', { clinic: 'Sterilization', branch: 'الرياض', type: 'شهري', items });
+  gas.mails.length = 0;
+  api(n, 'withdrawRequest', r3.id);
+  assert.equal(rows(gas, 'Requests').find(x => x.RequestID === r3.id).Status, 'ملغي');
+  assert.equal(gas.mails.length, 0, 'no doctor email for a request that never went to a doctor');
+  const r5 = api(n, 'createRequest', { clinic: 'Sterilization', branch: 'الرياض', type: 'شهري', items: [{ name: 'PROPHY PASTE', qty: 5 }] });
+  api(p, 'bulkUpdateStatus', [r5.id], 'قيد التجهيز');
+  throwsCode(() => api(n, 'withdrawRequest', r5.id), 'ERR_WITHDRAW_REVIEW_ONLY');
+  // السبب اختياري
+  const r4 = api(n, 'createRequest', { doctor: 'د. خالد', type: 'شهري', items: [{ name: 'PROPHY PASTE', qty: 7 }] });
+  api(n, 'withdrawRequest', r4.id);
+  assert.equal(rows(gas, 'Requests').find(x => x.RequestID === r4.id).CancelReason, 'رُفع بالغلط');
+});
+
+test('nurse edits the items of her request (qty change / remove) under the same rules as cancelling', () => {
+  const { api, login, gas } = boot();
+  const n = login('سارة', '1111'), p = login('علي', '3333'), d = login('د. خالد', '4444');
+  const r = api(n, 'createRequest', { doctor: 'د. خالد', type: 'شهري', items: [{ name: 'PROPHY PASTE', qty: 2 }, { name: 'DENTAL FLOSS', qty: 4 }, { name: 'قفازات طبية M', qty: 1 }] });
+  throwsCode(() => api(login('ريم', '2222'), 'editRequestItems', r.id, [{ item: 'PROPHY PASTE', qty: 1 }]), 'ERR_FORBIDDEN');
+  throwsCode(() => api(p, 'editRequestItems', r.id, [{ item: 'PROPHY PASTE', qty: 1 }]), 'ERR_FORBIDDEN');
+  throwsCode(() => api(n, 'editRequestItems', r.id, [{ item: 'PROPHY PASTE', qty: -1 }]), 'ERR_BAD_QTY');
+  throwsCode(() => api(n, 'editRequestItems', r.id, [{ item: 'PROPHY PASTE', qty: 0 }, { item: 'DENTAL FLOSS', qty: 0 }, { item: 'قفازات طبية M', qty: 0 }]), 'ERR_ALL_ZERO');
+  assert.equal(api(n, 'editRequestItems', r.id, [{ item: 'PROPHY PASTE', qty: 5 }, { item: 'DENTAL FLOSS', qty: 0 }, { item: 'قفازات طبية M', qty: 1 }]).changed, 2);
+  const its = rows(gas, 'RequestItems').filter(x => x.RequestID === r.id).map(x => [x.ItemName, x.RequestedQty]);
+  assert.deepEqual(its, [['PROPHY PASTE', 5], ['قفازات طبية M', 1]], 'qty changed and the removed item is gone');
+  assert.ok(rows(gas, 'Log').some(l => l.RequestID === r.id && /عدّلت الممرضة الأصناف: PROPHY PASTE: 2 ← 5، حذف DENTAL FLOSS \(4\)/.test(l.Action)), 'change logged old → new');
+  const doc = api(d, 'getRequestDetail', r.id);
+  assert.deepEqual(doc.items.map(i => i.item), ['PROPHY PASTE', 'قفازات طبية M'], 'doctor reviews the edited request');
+  assert.equal(api(n, 'editRequestItems', r.id, [{ item: 'PROPHY PASTE', qty: 5 }]).changed, 0, 'no change = no-op');
+  // بعد اعتماد الطبيب: لا تعديل
+  api(d, 'doctorReview', r.id, 'اعتمد', '', []);
+  throwsCode(() => api(n, 'editRequestItems', r.id, [{ item: 'PROPHY PASTE', qty: 1 }]), 'ERR_WITHDRAW_REVIEW_ONLY');
+  // «جديد» (مستهلكات عيادة) يُعدّل حتى يبدأ التموين
+  const r2 = api(n, 'createRequest', { clinic: 'Sterilization', branch: 'الرياض', type: 'شهري', items: [{ name: 'PROPHY PASTE', qty: 3 }] });
+  api(n, 'editRequestItems', r2.id, [{ item: 'PROPHY PASTE', qty: 6 }]);
+  assert.equal(rows(gas, 'RequestItems').find(x => x.RequestID === r2.id).RequestedQty, 6);
+  api(p, 'bulkUpdateStatus', [r2.id], 'قيد التجهيز');
+  throwsCode(() => api(n, 'editRequestItems', r2.id, [{ item: 'PROPHY PASTE', qty: 1 }]), 'ERR_WITHDRAW_REVIEW_ONLY');
 });

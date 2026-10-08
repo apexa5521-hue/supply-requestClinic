@@ -326,6 +326,8 @@ const DEFAULT_CLINICS_ = (function () {
  * ===================================================================== */
 const SHARED_AREA_RE_ = /ster[ia]li|تعقيم|triage|فرز|hydra\s*facial|clarity|gentle\s*pro/i;
 function isSharedArea_(c) { return !!c && SHARED_AREA_RE_.test(str_(c.name) + ' ' + str_(c.type)); }
+/** العيادات التي تقبل «مستهلكات عيادة» (بدون طبيب): المناطق المشتركة + كل عيادات الأسنان */
+function clinicConsumablesOk_(c) { return isSharedArea_(c) || (!!c && (normDept_(c.type) || normDept_(c.name)) === 'أسنان'); }
 function ensureTriageRooms_() {
   const cs = getClinics_();
   const branches = cs.map(function (c) { return c.branch; }).filter(function (b, i, a) { return b && a.indexOf(b) === i; });
@@ -586,6 +588,8 @@ const API_ = {
   getMyRequests:             { screens: ['nurse', 'lab'], fn: getMyRequests_ },
   receiveShipment:           { screens: ['nurse'], fn: receiveShipment_ },
   resubmitRequest:           { screens: ['nurse'], fn: resubmitRequest_ },
+  withdrawRequest:           { screens: ['nurse'], fn: withdrawRequest_ },
+  editRequestItems:          { screens: ['nurse'], fn: editRequestItems_ },
   getShipmentSignatures:     { screens: ['nurse'], fn: getShipmentSignatures_ },
   getRequests:               { screens: ['procurement'].concat(MGMT), fn: getRequestsApi_ },
   getRequestItemsFull:       { screens: ['procurement'].concat(MGMT), fn: getRequestItemsFull_ },
@@ -658,6 +662,8 @@ const API_ = {
   reportAsset:               { screens: ['nurse'], fn: reportAsset_ },
   issueAssets:               { screens: ['procurement'], perm: 'users', fn: issueAssets_ },
   setClinicStandard:         { screens: ['procurement'], perm: 'users', fn: setClinicStandard_ },
+  updateAsset:               { screens: ['procurement'], perm: 'users', fn: updateAsset_ },
+  deleteAsset:               { screens: ['procurement'], perm: 'users', fn: deleteAsset_ },
   updateAssetTicket:         { screens: ['procurement'], fn: updateAssetTicket_ },
   setAssetTicketCost:        { screens: ['procurement'], perm: 'finance', fn: setAssetTicketCost_ },
   nudgeProcurement:          { screens: [], perm: 'monitor', fn: nudgeProcurement_ },
@@ -2362,6 +2368,11 @@ function getMyRequests_(user, opts) { return queryRequests_(withArchive_({ nurse
 function getDoctorRequests_(user, opts) { return queryRequests_(withArchive_({ doctorUser: user }, opts)); }
 
 
+function requestDupKey_(nurse, clinic, branch, doctor, type, items) {
+  const sig = [nurse, clinic, branch, doctor, type].concat(items.map(function (i) { return i.name + ':' + i.qty; })).join('|');
+  return 'dup:' + Utilities.base64Encode(Utilities.computeDigest(Utilities.DigestAlgorithm.MD5, sig, Utilities.Charset.UTF_8));
+}
+
 function createRequest_(user, payload) {
   payload = payload || {};
   const forLab = user.screen === 'lab';
@@ -2375,11 +2386,11 @@ function createRequest_(user, payload) {
   if (REQUEST_TYPES.indexOf(type) === -1) throw new Error('ERR_BAD_TYPE');
   const mine = userClinics_(user);
   if (clinic && !forLab) {
-    // مستهلكات العيادة للمناطق المشتركة فقط (التعقيم / غرفة الفرز) في أي فرع؛ طلب الطبيب يبقى ضمن عيادات الممرضة
+    // مستهلكات العيادة للمناطق المشتركة (التعقيم / غرفة الفرز / أجهزة الجلدية) وعيادات الأسنان في أي فرع؛ طلب الطبيب يبقى ضمن عيادات الممرضة
     if (!clinicOnly && mine.length && mine.indexOf(clinic) === -1) throw new Error('ERR_FORBIDDEN');
     const cRows = getClinics_().filter(function (c) { return c.name === clinic; });
     if (!cRows.length) throw new Error('ERR_BAD_CLINIC');
-    if (clinicOnly && !cRows.some(isSharedArea_)) throw new Error('ERR_CLINIC_SHARED_ONLY');
+    if (clinicOnly && !cRows.some(clinicConsumablesOk_)) throw new Error('ERR_CLINIC_SHARED_ONLY');
   }
   if (!clinicOnly) {
     // الطبيب غير مرتبط بعيادة ثابتة: يُقبل أي طبيب في القائمة، والعيادة المختارة هي مكان الاستهلاك
@@ -2423,8 +2434,7 @@ function createRequest_(user, payload) {
   if (str_(payload.backdate) && !forLab) return createBackdated_(user, payload, { clinic: clinic, branch: branch, doctor: doctor, type: type, dept: dept, items: items });
 
   // منع الإرسال المزدوج لنفس الطلب خلال دقيقتين
-  const sig = [user.name, clinic, branch, doctor, type].concat(items.map(function (i) { return i.name + ':' + i.qty; })).join('|');
-  const dupKey = 'dup:' + Utilities.base64Encode(Utilities.computeDigest(Utilities.DigestAlgorithm.MD5, sig, Utilities.Charset.UTF_8));
+  const dupKey = requestDupKey_(user.name, clinic, branch, doctor, type, items);
   const cache = CacheService.getScriptCache();
 
   // الطبيب الذي له حساب يراجع الطلب أولاً؛ غير ذلك يذهب للتموين مباشرة
@@ -3179,6 +3189,85 @@ function resubmitRequest_(user, requestId, note) {
   if (note) addComment_(user, requestId, note);
   notifyUser_(doctorAccounts_()[req.doctor] || req.doctor, 'طلب مُعاد لمراجعتك - ' + requestId,
     'أعادت الممرضة ' + user.name + ' إرسال الطلب ' + requestId + ' (عيادة ' + req.clinic + ') لمراجعتك بعد الرفض.' + (note ? '\nملاحظتها: ' + note : ''));
+  return true;
+}
+
+/** الممرضة تلغي طلبها المرفوع بالغلط — فقط وهو عند «مراجعة الطبيب» أو «جديد» (قبل أن يبدأ فيه التموين) */
+/** الطلب ما زال بيد الممرضة: طلبها، وعند «مراجعة الطبيب» أو «جديد»، ولم يبدأ فيه التموين (لا شحنات ولا حالة صنف) */
+function nurseOwnedItems_(user, f, requestId) {
+  if (str_(f.row.Nurse) !== user.name) throw new Error('ERR_FORBIDDEN');
+  const from = str_(f.row.Status) || ST.NEW;
+  if ([ST.REVIEW, ST.NEW].indexOf(from) === -1) throw new Error('ERR_WITHDRAW_REVIEW_ONLY');
+  const its = freshTable_('RequestItems');
+  const mine = its.rows.filter(function (r) { return str_(r.RequestID) === requestId; });
+  if (shipState_(mapRequest_(f.row), mine).ships.length || mine.some(function (r) { return str_(r.ItemStatus); })) throw new Error('ERR_WITHDRAW_REVIEW_ONLY');
+  return { from: from, table: its, rows: mine };
+}
+function clearRequestDupKey_(user, f, rows) {
+  const req = mapRequest_(f.row);
+  const items = rows.map(function (r) { return { name: str_(r.ItemName), qty: Math.floor(num_(r.RequestedQty)) }; });
+  CacheService.getScriptCache().remove(requestDupKey_(user.name, req.clinic, req.branch, req.doctor, str_(f.row.Type), items));
+}
+
+/**
+ * الممرضة تعدّل أصناف طلبها بنفس شروط الإلغاء: تغيير الكمية، أو 0 = حذف الصنف من الطلب.
+ * qtys = [{ item, qty }]. لا يُحذف كل شيء (لذلك «إلغاء الطلب»).
+ */
+function editRequestItems_(user, requestId, qtys) {
+  requestId = str_(requestId);
+  guardSee_(user, requestId);
+  if (!Array.isArray(qtys) || !qtys.length) throw new Error('ERR_REQUIRED');
+  const want = {};
+  qtys.forEach(function (x) {
+    const q = Math.floor(Number(x && x.qty));
+    if (!(q >= 0 && q <= 100000) || String(x.qty).trim() === '') throw new Error('ERR_BAD_QTY');
+    want[str_(x && x.item)] = q;
+  });
+  let changes = [];
+  withLock_(function () {
+    resetMemo_();
+    const f = findRequest_(requestId);
+    const own = nurseOwnedItems_(user, f, requestId);
+    const ups = [], dels = [];
+    own.rows.forEach(function (r) {
+      const name = str_(r.ItemName), old = Math.floor(num_(r.RequestedQty));
+      if (!(name in want) || want[name] === old) return;
+      if (want[name] === 0) { dels.push(r); changes.push('حذف ' + name + ' (' + old + ')'); }
+      else { ups.push({ row: r, obj: { RequestedQty: want[name] } }); changes.push(name + ': ' + old + ' ← ' + want[name]); }
+    });
+    if (!changes.length) return;
+    if (dels.length === own.rows.length) throw new Error('ERR_ALL_ZERO');
+    clearRequestDupKey_(user, f, own.rows);
+    if (ups.length) setMany_(own.table, ups);
+    dels.sort(function (a, b) { return b._row - a._row; }).forEach(function (r) { sheet_('RequestItems').deleteRow(r._row); });
+    if (dels.length) markDirty_('RequestItems');
+    delete MEMO_.sitems;
+    logAction_(requestId, 'عدّلت الممرضة الأصناف: ' + changes.join('، '), user.name);
+    append_('Comments', { Timestamp: new Date(), RequestID: requestId, Author: user.name, Role: user.role, Message: '✏️ عدّلت الأصناف: ' + changes.join('، ') });
+  });
+  return { changed: changes.length };
+}
+
+function withdrawRequest_(user, requestId, reason) {
+  requestId = str_(requestId);
+  reason = clean_(reason, 500) || 'رُفع بالغلط';
+  guardSee_(user, requestId);
+  let req, wasReview = false;
+  withLock_(function () {
+    resetMemo_();
+    const f = findRequest_(requestId);
+    const own = nurseOwnedItems_(user, f, requestId), from = own.from;
+    wasReview = from === ST.REVIEW;
+    const now = new Date();
+    setCells_(f.t, f.row, { Status: ST.CANCELLED, CancelReason: reason, CancelledAt: now, CancelledBy: user.name });
+    logAction_(requestId, 'ألغت الممرضة الطلب (' + from + ' ← ' + ST.CANCELLED + ') — السبب: ' + reason, user.name);
+    append_('Comments', { Timestamp: now, RequestID: requestId, Author: user.name, Role: user.role, Message: '⛔ ألغت الممرضة الطلب — السبب: ' + reason });
+    req = mapRequest_(f.row);
+    // حتى تقدر ترفع نفس الطلب فوراً بعد إلغائه (لا يرجع لها الطلب الملغي كـ«مكرر»)
+    clearRequestDupKey_(user, f, own.rows);
+  });
+  if (wasReview) notifyUser_(doctorAccounts_()[req.doctor] || req.doctor, 'أُلغي طلب كان بانتظار مراجعتك - ' + requestId,
+    'ألغت الممرضة ' + user.name + ' الطلب ' + requestId + ' (عيادة ' + req.clinic + ') قبل مراجعتك — لا حاجة لأي إجراء.\nالسبب: ' + reason);
   return true;
 }
 
@@ -5009,6 +5098,82 @@ function issueAssets_(user, payload) {
     return out;
   });
   return { ids: ids, clinic: getClinicAssets_(user, { clinic: clinic })[0] };
+}
+
+function assetRow_(t, id) {
+  const row = t.rows.filter(function (r) { return str_(r.AssetID) === id; })[0];
+  if (!row) throw new Error('ERR_NOT_FOUND');
+  return row;
+}
+function hasOpenAssetTicket_(id) {
+  return read_('AssetTickets').rows.some(function (r) { return str_(r.AssetID) === id && TK_OPEN.indexOf(str_(r.Status) || TK_ST.NEW) !== -1; });
+}
+
+/** تصحيح عهدة مصروفة (التموين): الرقم التسلسلي أو الكمية، العيادة، التكلفة، الملاحظات. data = { serial, qty, clinic, cost, notes } */
+function updateAsset_(user, id, data) {
+  id = str_(id); data = data || {};
+  const res = withLock_(function () {
+    const t = read_('Assets');
+    const row = assetRow_(t, id);
+    const a = mapAsset_(row);
+    const cat = assetCatalog_()[a.item] || { serialized: !!a.serial };
+    const upd = { UpdatedAt: new Date(), UpdatedBy: user.name };
+    const changes = [];
+    if (cat.serialized && data.serial !== undefined) {
+      const s = clean_(data.serial, 60);
+      if (!s) throw new Error('ERR_SERIAL_REQUIRED');
+      if (s !== a.serial) {
+        const taken = t.rows.some(function (r) {
+          return str_(r.AssetID) !== id && str_(r.Item) === a.item && str_(r.Serial).toLowerCase() === s.toLowerCase() &&
+            [AS_ST.DAMAGED, AS_ST.LOST].indexOf(str_(r.Status)) === -1;
+        });
+        if (taken) throw new Error('ERR_SERIAL_EXISTS:' + s);
+        upd.Serial = s; changes.push('الرقم ' + a.serial + ' ← ' + s);
+      }
+    }
+    if (!cat.serialized && data.qty !== undefined) {
+      const q = Math.floor(Number(data.qty));
+      if (!(q >= 1 && q <= 500)) throw new Error('ERR_BAD_QTY');
+      if (q !== a.qty) { upd.Qty = q; changes.push('الكمية ' + a.qty + ' ← ' + q); }
+    }
+    if (data.clinic !== undefined && str_(data.clinic) !== a.clinic) {
+      const c = getClinics_().filter(function (x) { return x.name === str_(data.clinic); })[0];
+      if (!c) throw new Error('ERR_BAD_CLINIC');
+      if (hasOpenAssetTicket_(id)) throw new Error('ERR_ASSET_OPEN_TICKET');
+      upd.Clinic = c.name; upd.Branch = c.branch; changes.push('العيادة ' + a.clinic + ' ← ' + c.name);
+    }
+    if (data.cost !== undefined && data.cost !== '' && data.cost !== null) {
+      const cost = num_(data.cost);
+      if (!(cost >= 0 && cost <= PRICE_MAX)) throw new Error('ERR_BAD_PRICE');
+      if (round2_(cost) !== a.cost) { upd.Cost = round2_(cost); changes.push('التكلفة ' + a.cost + ' ← ' + round2_(cost)); }
+    }
+    if (data.notes !== undefined && clean_(data.notes, 300) !== a.notes) { upd.Notes = clean_(data.notes, 300); changes.push('الملاحظات'); }
+    if (changes.length) {
+      setCells_(t, row, upd);
+      logAction_(a.ticket, 'تعديل عهدة ' + id + ' (' + a.item + ' · ' + a.clinic + '): ' + changes.join('، '), user.name);
+    }
+    return { from: a.clinic, to: upd.Clinic || a.clinic };
+  });
+  const out = { clinics: [] };
+  [res.from, res.to].filter(function (c, i, arr) { return arr.indexOf(c) === i; }).forEach(function (c) {
+    const x = getClinicAssets_(user, { clinic: c })[0]; if (x) out.clinics.push(x);
+  });
+  return out;
+}
+
+/** حذف عهدة صُرفت بالغلط (التموين). لا تُحذف وعليها بلاغ مفتوح */
+function deleteAsset_(user, id) {
+  id = str_(id);
+  const clinic = withLock_(function () {
+    const t = read_('Assets');
+    const row = assetRow_(t, id);
+    const a = mapAsset_(row);
+    if (hasOpenAssetTicket_(id)) throw new Error('ERR_ASSET_OPEN_TICKET');
+    deleteRow_(t, row);
+    logAction_(a.ticket, 'حذف عهدة ' + id + ': ' + a.item + (a.serial ? ' #' + a.serial : ' × ' + a.qty) + ' — ' + a.clinic, user.name);
+    return a.clinic;
+  });
+  return { clinics: [getClinicAssets_(user, { clinic: clinic })[0]].filter(Boolean) };
 }
 
 function mapTicket_(r) {
