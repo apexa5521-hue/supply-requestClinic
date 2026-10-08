@@ -2,72 +2,12 @@
 const { makeTutorial } = require('./engine');
 
 const scenes = {
-  intro: {
-    en: 'This short video shows nurses the Custody page: the custody tools in your clinic, and how to report a faulty tool.',
-    ar: 'هذا فيديو قصير للممرضة عن صفحة «العهدة»: أدوات العهدة في عيادتك، وكيف تبلّغين عن أداة فيها مشكلة.',
-    ur: 'یہ مختصر ویڈیو نرسوں کو کسٹڈی کا صفحہ دکھاتی ہے: آپ کے کلینک میں کسٹڈی کے آلات، اور خراب آلے کی رپورٹ کیسے کریں۔',
-    id: 'Video singkat ini menunjukkan halaman Custody kepada perawat: alat inventaris di klinik Anda, dan cara melaporkan alat yang bermasalah.'
-  },
-  login: {
-    en: 'Sign in with your name and password, then tap Custody in the menu.',
-    ar: 'سجّلي الدخول باسمك ورقمك السري، ثم اضغطي «العهدة» من القائمة.',
-    ur: 'اپنے نام اور پاس ورڈ سے سائن اِن کریں، پھر مینو میں کسٹڈی دبائیں۔',
-    id: 'Masuk dengan nama dan kata sandi Anda, lalu ketuk Custody di menu.'
-  },
-  clinic: {
-    en: 'Scroll down to your clinic. Each tool shows the standard, how many are in the clinic, and any shortage.',
-    ar: 'انزلي لعيادتك. كل أداة يظهر لها المعيار، وكم يوجد منها في العيادة، والنقص إن وُجد.',
-    ur: 'نیچے اپنے کلینک تک جائیں۔ ہر آلے کے ساتھ معیار، کلینک میں موجود تعداد، اور کمی نظر آتی ہے۔',
-    id: 'Gulir ke bawah ke klinik Anda. Setiap alat menunjukkan standar, jumlah yang ada di klinik, dan kekurangannya.'
-  },
-  serials: {
-    en: 'Every handpiece has its own serial number, the same number as the sticker on the tool.',
-    ar: 'كل هاندبيس له رقم تسلسلي خاص، وهو نفس الرقم المكتوب على ستيكر الأداة.',
-    ur: 'ہر ہینڈ پیس کا اپنا سیریل نمبر ہے، وہی نمبر جو آلے کے اسٹیکر پر لکھا ہے۔',
-    id: 'Setiap handpiece punya nomor seri sendiri, sama dengan nomor di stiker alat.'
-  },
-  report: {
-    en: 'If a tool has a problem, tap Report next to its serial number.',
-    ar: 'إذا كان في الأداة مشكلة، اضغطي «بلاغ» بجانب رقمها التسلسلي.',
-    ur: 'اگر کسی آلے میں مسئلہ ہو تو اس کے سیریل نمبر کے ساتھ رپورٹ دبائیں۔',
-    id: 'Jika alat bermasalah, ketuk Report di samping nomor serinya.'
-  },
-  problem: {
-    en: 'Choose the problem: broken, low performance, lost, or other. Write a short description.',
-    ar: 'اختاري المشكلة: خربانة، أو كفاءتها متدنية، أو مفقودة، أو أخرى، واكتبي وصفًا قصيرًا.',
-    ur: 'مسئلہ منتخب کریں: ٹوٹا ہوا، کم کارکردگی، گم شدہ، یا دیگر۔ مختصر تفصیل لکھیں۔',
-    id: 'Pilih masalahnya: rusak, kinerja rendah, hilang, atau lainnya. Tulis deskripsi singkat.'
-  },
-  photo: {
-    en: 'Take a photo of the tool. For a broken tool, the photo is required. Then tap Send.',
-    ar: 'صوّري الأداة. الصورة إلزامية إذا كانت الأداة خربانة. ثم اضغطي «إرسال».',
-    ur: 'آلے کی تصویر لیں۔ ٹوٹے ہوئے آلے کے لیے تصویر ضروری ہے۔ پھر بھیجیں دبائیں۔',
-    id: 'Ambil foto alat. Untuk alat yang rusak, foto wajib. Lalu ketuk Send.'
-  },
-  sent: {
-    en: 'The ticket goes to procurement with an email. The tool leaves your clinic count until it comes back.',
-    ar: 'يصل البلاغ للتموين مع إيميل، وتخرج الأداة من عدد عيادتك حتى ترجع.',
-    ur: 'رپورٹ ای میل کے ساتھ پروکیورمنٹ کو جاتی ہے۔ آلہ واپس آنے تک آپ کے کلینک کی گنتی سے نکل جاتا ہے۔',
-    id: 'Laporan dikirim ke pengadaan dengan email. Alat keluar dari hitungan klinik Anda sampai kembali.'
-  },
-  big: {
-    en: 'You can also use the big red button at the top. Choose the clinic, the tool and the unit. If the tool is not registered, write its serial number.',
-    ar: 'ويمكنك أيضًا استخدام الزر الأحمر الكبير بالأعلى: اختاري العيادة والأداة والقطعة، وإذا لم تكن الأداة مسجلة اكتبي رقمها التسلسلي.',
-    ur: 'آپ اوپر والا بڑا سرخ بٹن بھی استعمال کر سکتی ہیں۔ کلینک، آلہ اور یونٹ منتخب کریں۔ اگر آلہ رجسٹرڈ نہیں تو اس کا سیریل نمبر لکھیں۔',
-    id: 'Anda juga bisa memakai tombol merah besar di atas. Pilih klinik, alat dan unitnya. Jika alat belum terdaftar, tulis nomor serinya.'
-  },
-  follow: {
-    en: 'Follow your tickets here: received by procurement, under repair, back in the clinic, or damaged.',
-    ar: 'تابعي بلاغاتك هنا: استلمها التموين، قيد الصيانة، رجعت للعيادة، أو تالفة.',
-    ur: 'اپنی رپورٹس یہاں دیکھیں: پروکیورمنٹ نے وصول کیا، مرمت میں، کلینک واپس، یا ناکارہ۔',
-    id: 'Pantau laporan Anda di sini: diterima pengadaan, sedang diperbaiki, kembali ke klinik, atau rusak.'
-  },
-  done: {
-    en: 'That\'s it. Report any faulty tool right away, so your clinic always has its full set. Thank you!',
-    ar: 'هذا كل شيء. بلّغي عن أي أداة فيها مشكلة فورًا، حتى تبقى عيادتك مكتملة دائمًا. شكرًا لك!',
-    ur: 'بس اتنا ہی۔ کسی بھی خراب آلے کی فوراً رپورٹ کریں، تاکہ آپ کا کلینک ہمیشہ مکمل رہے۔ شکریہ!',
-    id: 'Selesai. Laporkan alat yang bermasalah segera, agar klinik Anda selalu lengkap. Terima kasih!'
-  }
+  intro: { en: "A short video about the custody tools in your clinic, and how to report a tool that has a problem.", ar: "فيديو قصير عن أدوات العهدة في عيادتك، وكيف تبلّغين عن أداة فيها مشكلة.", ur: "آپ کے کلینک کے کسٹڈی ٹولز اور خراب ٹول کی رپورٹ کرنے کے بارے میں ایک مختصر ویڈیو۔", id: "Video singkat tentang alat inventaris di klinik Anda, dan cara melaporkan alat yang bermasalah." },
+  clinic: { en: "For each tool you see the standard, how many are in the clinic, and any shortage. Each handpiece has a serial number that matches the sticker on the tool.", ar: "لكل أداة: المعيار، وكم يوجد منها، والنقص. وكل هاندبيس برقم تسلسلي مطابق لستيكر الأداة.", ur: "ہر ٹول کے لیے معیار، کلینک میں تعداد اور کمی نظر آتی ہے۔ ہر ہینڈ پیس کا سیریل نمبر ٹول کے اسٹیکر سے ملتا ہے۔", id: "Untuk setiap alat terlihat standar, jumlah di klinik, dan kekurangannya. Setiap handpiece punya nomor seri yang sama dengan stiker di alatnya." },
+  report: { en: "Tap Report and choose the problem: broken, low performance, missing, or other.", ar: "اضغطي «بلاغ»، واختاري المشكلة: خربانة، أو كفاءتها متدنية، أو مفقودة، أو أخرى.", ur: "رپورٹ دبائیں اور مسئلہ منتخب کریں: خراب، کم کارکردگی، گم شدہ، یا کوئی اور۔", id: "Ketuk Report dan pilih masalahnya: rusak, kinerja rendah, hilang, atau lainnya." },
+  photo: { en: "Take a photo of the tool, required when it is broken, and tap Send. The report reaches procurement, and the tool leaves your clinic count until it comes back.", ar: "صوّري الأداة (إلزامي للخربانة) واضغطي «إرسال». يصل البلاغ للتموين، وتخرج الأداة من عدد عيادتك حتى ترجع.", ur: "ٹول کی تصویر لیں، خراب ہونے پر لازمی ہے، اور بھیجیں دبائیں۔ رپورٹ پروکیورمنٹ کو جاتی ہے، اور ٹول واپس آنے تک کلینک کی گنتی سے نکل جاتا ہے۔", id: "Foto alatnya, wajib jika rusak, lalu ketuk Send. Laporan sampai ke pengadaan, dan alat keluar dari hitungan klinik sampai kembali." },
+  big: { en: "Or use the red button at the top. If the tool is not registered, write its serial number.", ar: "أو استخدمي الزر الأحمر بالأعلى. إذا لم تكن الأداة مسجلة اكتبي رقمها التسلسلي.", ur: "یا اوپر سرخ بٹن استعمال کریں۔ اگر ٹول رجسٹرڈ نہیں تو اس کا سیریل نمبر لکھیں۔", id: "Atau gunakan tombol merah di atas. Jika alat belum terdaftar, tulis nomor serinya." },
+  follow: { en: "Follow your reports: received by procurement, under repair, back in the clinic, or damaged. Thank you!", ar: "تابعي بلاغاتك: استلمها التموين، قيد الصيانة، رجعت للعيادة، أو تالفة. شكرًا لك!", ur: "اپنی رپورٹس دیکھیں: پروکیورمنٹ نے وصول کی، مرمت میں، کلینک واپس، یا ناکارہ۔ شکریہ!", id: "Pantau laporan Anda: diterima pengadaan, sedang diperbaiki, kembali ke klinik, atau rusak. Terima kasih!" }
 };
 const steps = {
   login: { en: 'Sign in', ar: 'تسجيل الدخول', ur: 'سائن اِن', id: 'Masuk' },
@@ -96,8 +36,8 @@ async function flow(h) {
     return c.toDataURL('image/png').split(',')[1];
   })), 'base64');
 
-  await scene('intro', '', async () => { await wait(500); });
-  await scene('login', 'login', async () => {
+  await scene('intro', 'login', async () => {
+    await wait(500);
     await h.login('Sara', '1111');
     await h.nav('assets');
     await page.waitForSelector('#asClinics .as-row');
@@ -105,15 +45,11 @@ async function flow(h) {
   await scene('clinic', 'tools', async () => {
     await page.locator(card).scrollIntoViewIfNeeded(); await wait(700);
     await highlight(card + ' .as-row >> nth=0', 2200);
-  });
-  await scene('serials', 'tools', async () => {
     await highlight(card + ' .as-units >> nth=0', 2200);
   });
   await scene('report', 'report', async () => {
     await click(unit('NSK-1002') + ' [data-act="asReport"]');
     await page.waitForSelector('.modal #arProb'); await wait(500);
-  });
-  await scene('problem', 'report', async () => {
     await point('.modal #arProb'); await page.selectOption('.modal #arProb', 'خربانة'); await wait(500);
     await type('.modal #arDesc', 'The handpiece makes a loud noise and stops.');
   });
@@ -122,8 +58,6 @@ async function flow(h) {
     await page.setInputFiles('.modal #arFile', { name: 'tool.png', mimeType: 'image/png', buffer: photo });
     await page.waitForSelector('.modal #arPh .lab-photo'); await wait(600);
     await click('.modal #arOk'); await wait(1400);
-  });
-  await scene('sent', 'report', async () => {
     await page.locator(unit('NSK-1002')).scrollIntoViewIfNeeded(); await wait(600);
     await highlight(unit('NSK-1002'), 1600);
     await highlight(card + ' .as-row >> nth=0', 1400);
@@ -140,8 +74,8 @@ async function flow(h) {
     await highlight('#asTickets .req >> nth=0', 2000);
     await click('#asTickets .req [data-act="asTicket"] >> nth=0'); await wait(1800);
     await page.keyboard.press('Escape');
+    await wait(600);
   });
-  await scene('done', '', async () => { await wait(600); });
 }
 
 if (require.main === module) makeTutorial({ id: 'nurse-custody', noMoney: true, langs: (process.env.LANGS || 'ar,ur,id').split(','), scenes, steps, flow }).catch(e => { console.error('TUTORIAL FAILED', e); process.exit(1); });

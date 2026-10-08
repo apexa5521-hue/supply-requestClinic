@@ -2,38 +2,16 @@
 const { makeTutorial } = require('./engine');
 
 const scenes = {
-  intro: { en: 'This video is for the lab team. You will learn how to receive cases from the clinics, move each work through its stages, use an external lab, and send the work back.',
-    ar: 'هذا الفيديو لفريق المعمل: كيف تستلم الإرساليات من العيادات، وتنقل كل عمل بين مراحله، وتستخدم معملًا خارجيًا، ثم ترجع العمل للعيادة.' },
-  login: { en: 'Sign in with your name and password. You land on the Lab board.',
-    ar: 'سجّل الدخول باسمك ورقمك السري، وتفتح لك «لوحة المعمل».' },
-  board: { en: 'Every case from the nurses appears here. The chips filter by stage: new, in work, at an external lab, ready to send, and overdue.',
-    ar: 'كل إرسالية من الممرضات تظهر هنا. الأزرار بالأعلى تفلتر حسب المرحلة: جديد، قيد العمل، عند معمل خارجي، جاهز للإرسال، والمتأخر.' },
-  card: { en: 'Each card shows the file number, the doctor, the clinic, the scan date and the due date, and every work with its own status.',
-    ar: 'كل بطاقة تعرض رقم الملف والطبيب والعيادة وتاريخ السكان وموعد التسليم، وكل عمل بحالته.' },
-  receive: { en: 'When the case reaches you, tap Receive. Then tap Start work when you begin.',
-    ar: 'عند وصول الإرسالية اضغط «استلام»، ثم «بدء العمل» عندما تبدأ.' },
-  external: { en: 'If the work goes to an outside lab, tap External lab. Choose the lab and the expected return date.',
-    ar: 'إذا كان العمل سيذهب لمعمل خارجي اضغط «معمل خارجي»، واختر المعمل وموعد الرجوع المتوقع.' },
-  ready: { en: 'When the work is finished, tap Ready. The nurse and the doctor are notified right away.',
-    ar: 'عند انتهاء العمل اضغط «جاهز»، وتصل رسالة للممرضة والطبيب مباشرة.' },
-  send: { en: 'Then tap Send to clinic. The nurse confirms receipt from her page.',
-    ar: 'ثم اضغط «إرسال للعيادة»، والممرضة تؤكد الاستلام من صفحتها.' },
-  itero: { en: 'iTero cases have their own tag with the iTero case number, so you can match the scan quickly.',
-    ar: 'حالات iTero لها علامة خاصة برقم حالة الآيتيرو، حتى تطابق السكان بسرعة.' },
-  extlab: { en: 'When the nurse sends a case directly to an external lab, it shows with a purple tag: External lab, FYI only. The case left the clinic, but it is not directed to you.',
-    ar: 'عندما ترسل الممرضة حالة مباشرة لمعمل خارجي تظهر بعلامة بنفسجية: «لمعمل خارجي — للعلم فقط»، أي أنها خرجت من العيادة لكنها ليست موجهة لكم.' },
-  details: { en: 'Tap Details to see the full timeline of a case: who did each step, and when. You can also write a note here.',
-    ar: 'اضغط «التفاصيل» لترى مراحل الإرسالية كاملة: من نفّذ كل خطوة ومتى، ويمكنك كتابة ملاحظة.' },
-  search: { en: 'To find a case, type the patient file number or the case number in the search box.',
-    ar: 'للبحث عن إرسالية اكتب رقم ملف المريض أو رقم الإرسالية في خانة البحث.' },
-  kpi: { en: 'Lab KPIs show the average turnaround, on-time rate, redo rate, external work, and the overdue work.',
-    ar: 'صفحة «مؤشرات المعمل» تعرض متوسط زمن الإنجاز، ونسبة الالتزام بالموعد، ونسبة الإعادات، والأعمال الخارجية، والمتأخر.' },
-  supply: { en: 'The lab can also order its own supplies. Open Request supplies, search the items, set the quantities, and tap Submit. It goes straight to procurement: no doctor and no approval.',
-    ar: 'والمعمل يطلب مستهلكاته بنفسه: افتح «طلب مستهلكات»، وابحث عن الأصناف، وحدّد الكميات، ثم اضغط «إرسال الطلب». يذهب للتموين مباشرة بدون طبيب ولا اعتماد.' },
-  supplymine: { en: 'Follow them in My requests. Procurement hands them to you directly, with no box and no signature, and the request becomes Received.',
-    ar: 'وتابعها في «طلباتي». التموين يسلّمها لك يدًا بيد بدون بوكس ولا توقيع، وتصبح حالتها «تم الاستلام».' },
-  done: { en: 'That\'s it. Update every case as soon as it moves, so the clinics always know where their work is. Thank you!',
-    ar: 'هذا كل شيء. حدّث كل إرسالية أول ما تتحرك، حتى تعرف العيادات دائمًا أين وصل عملها. شكرًا لك!' }
+  intro: { ar: "هذا الفيديو لفريق المعمل: استلام الإرساليات، ونقل كل عمل بين مراحله، والمعمل الخارجي، ثم إرجاع العمل للعيادة." },
+  board: { ar: "كل إرسالية من الممرضات تظهر هنا. الأزرار تفلتر: جديد، قيد العمل، عند معمل خارجي، جاهز للإرسال، والمتأخر." },
+  card: { ar: "كل بطاقة تعرض رقم الملف والطبيب والعيادة وتاريخ السكان وموعد التسليم، وكل عمل بحالته." },
+  receive: { ar: "عند وصول الإرسالية اضغط «استلام»، ثم «بدء العمل»." },
+  external: { ar: "إذا ذهب العمل لمعمل خارجي اضغط «معمل خارجي»، واختر المعمل وموعد الرجوع." },
+  ready: { ar: "اضغط «جاهز» فتصل رسالة للممرضة والطبيب، ثم «إرسال للعيادة»، والممرضة تؤكد الاستلام." },
+  itero: { ar: "حالات iTero لها رقم حالة خاص. والحالة المرسلة مباشرة لمعمل خارجي تظهر بعلامة بنفسجية «للعلم فقط»." },
+  details: { ar: "«التفاصيل» تعرض من نفّذ كل خطوة ومتى. وللبحث اكتب رقم ملف المريض أو رقم الإرسالية." },
+  kpi: { ar: "«مؤشرات المعمل»: متوسط زمن الإنجاز، والالتزام بالموعد، والإعادات، والأعمال الخارجية، والمتأخر." },
+  supply: { ar: "المعمل يطلب مستهلكاته بنفسه، ويذهب للتموين مباشرة. والتموين يسلّمها يدًا بيد بدون بوكس. شكرًا لك." }
 };
 const steps = {
   login: { en: 'Sign in', ar: 'تسجيل الدخول' }, board: { en: 'Lab board', ar: 'لوحة المعمل' }, work: { en: 'Stages', ar: 'المراحل' },
@@ -49,9 +27,11 @@ async function flow(h) {
   const card = `#labList .lab-card:has([data-act="labOpen"][data-id="${L1}"])`;
   const focus = async () => { await page.$eval(card, el => el.scrollIntoView({ block: 'center', behavior: 'smooth' })); await wait(700); };
 
-  await scene('intro', '', async () => { await wait(500); });
-  await scene('login', 'login', async () => { await h.login('Lab Tech', '8888'); await page.waitForSelector('#labList .lab-card'); });
+  await scene('intro', '', async () => {
+    await wait(500);
+  });
   await scene('board', 'board', async () => {
+    await h.login('Lab Tech', '8888'); await page.waitForSelector('#labList .lab-card');
     for (const g of ['new', 'work', 'external', 'ready', 'late']) await highlight('#labChips .chip[data-g="' + g + '"]', 1100);
   });
   await scene('card', 'board', async () => {
@@ -71,13 +51,13 @@ async function flow(h) {
     await page.fill('.modal #laExp', day(-5)); await wait(400);
     await click('.modal #laOk'); await wait(1400);
   });
-  await scene('ready', 'back', async () => { await focus(); await click(btn('ready')); await wait(1400); });
-  await scene('send', 'back', async () => { await focus(); await click(btn('send')); await wait(1400); });
+  await scene('ready', 'back', async () => {
+    await focus(); await click(btn('ready')); await wait(1400);
+    await focus(); await click(btn('send')); await wait(1400);
+  });
   await scene('itero', 'board', async () => {
     await page.$eval('#labList .tag.itero', el => el.scrollIntoView({ block: 'center', behavior: 'smooth' }));
     await wait(700); await highlight('#labList .tag.itero', 2000);
-  });
-  await scene('extlab', 'board', async () => {
     await page.$eval('#labList .tag.ext-lab', el => el.scrollIntoView({ block: 'center', behavior: 'smooth' })).catch(() => {});
     await wait(700); await highlight('#labList .lab-card:has(.tag.ext-lab)', 2400);
   });
@@ -87,8 +67,6 @@ async function flow(h) {
     await page.waitForSelector('.modal #lcBody'); await wait(1500);
     await h.scroll(600, '.modal-body'); await wait(800);
     await page.keyboard.press('Escape');
-  });
-  await scene('search', 'find', async () => {
     await h.scroll(0);
     await type('[data-input="labQ"]', '20981'); await wait(1500);
     await highlight('#labList .lab-card', 1200);
@@ -112,14 +90,12 @@ async function flow(h) {
     await page.keyboard.press('Enter'); await page.keyboard.press('Escape'); await wait(500);
     await click('.item-line:nth-child(1) [data-d="1"]'); await wait(300);
     await click('#submitBtn'); await wait(1500);
-  });
-  await scene('supplymine', 'supply', async () => {
     await h.nav('mine');
     await page.waitForSelector('#mineList .req'); await wait(500);
     await highlight('#mineList .req >> nth=0', 2200);
+    await h.nav('labboard');
   });
-  await scene('done', '', async () => { await h.nav('labboard'); });
 }
 
-if (require.main === module) makeTutorial({ id: 'lab', noMoney: true, langs: ['ar'], scenes, steps, flow }).catch(e => { console.error('TUTORIAL FAILED', e); process.exit(1); });
+if (require.main === module) makeTutorial({ id: 'lab', voiceLang: 'ar', noMoney: true, langs: ['ar'], scenes, steps, flow }).catch(e => { console.error('TUTORIAL FAILED', e); process.exit(1); });
 module.exports = { scenes, steps, flow };

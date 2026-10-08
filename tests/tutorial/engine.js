@@ -12,7 +12,7 @@ const ROOT = path.join(__dirname, '..', '..');
 const OUT_ROOT = process.env.TUTORIAL_OUT || path.join(ROOT, 'tutorials');
 const CACHE = path.join(OUT_ROOT, '.work');
 const FFMPEG = execFileSync('python3', ['-c', 'import imageio_ffmpeg;print(imageio_ffmpeg.get_ffmpeg_exe())']).toString().trim();
-const VOICE = process.env.TUTORIAL_VOICE || 'en-US-AvaNeural';
+const VOICES = { en: process.env.TUTORIAL_VOICE || 'en-US-AvaNeural', ar: process.env.TUTORIAL_VOICE_AR || 'ar-SA-HamedNeural' };
 const W = 1280, H = 720, STRIP = 120, VH = H + STRIP;
 
 const LANGS = {
@@ -30,12 +30,14 @@ function durationOf(file) {
   const m = /Duration: (\d+):(\d+):([\d.]+)/.exec(txt);
   return m ? (+m[1]) * 3600 + (+m[2]) * 60 + parseFloat(m[3]) : 4;
 }
-function tts(text) {
+function tts(text, lang) {
+  lang = lang || 'en';
+  const VOICE = VOICES[lang];
   fs.mkdirSync(path.join(CACHE, 'voice'), { recursive: true });
   const f = path.join(CACHE, 'voice', crypto.createHash('md5').update(VOICE + '|' + text).digest('hex').slice(0, 16) + '.mp3');
   if (!fs.existsSync(f) || !fs.statSync(f).size) {
     try { execFileSync('python3', [path.join(__dirname, '..', 'tts-edge.py'), text, VOICE, f, '+4%'], { stdio: ['ignore', 'ignore', 'pipe'] }); if (!fs.statSync(f).size) throw new Error('empty'); }
-    catch (e) { console.log('edge-tts unavailable, using gTTS'); execFileSync('python3', ['-c', 'import sys;from gtts import gTTS;gTTS(sys.argv[1],lang="en",tld="com").save(sys.argv[2])', text, f]); }
+    catch (e) { console.log('edge-tts unavailable, using gTTS'); execFileSync('python3', ['-c', 'import sys;from gtts import gTTS;gTTS(sys.argv[1],lang=sys.argv[3]).save(sys.argv[2])', text, f, lang]); }
   }
   return { file: f, dur: durationOf(f) };
 }
@@ -214,7 +216,9 @@ async function makeTutorial(cfg) {
   const WORK = path.join(CACHE, cfg.id);
   fs.mkdirSync(OUT, { recursive: true }); fs.mkdirSync(WORK, { recursive: true });
   const voice = {};
-  Object.keys(cfg.scenes).forEach(k => { voice[k] = Object.assign({ text: cfg.scenes[k].en }, tts(cfg.scenes[k].en)); });
+  // صوت الشرح: إنجليزي (افتراضي) أو عربي (voiceLang: 'ar')
+  const VL = cfg.voiceLang || 'en';
+  Object.keys(cfg.scenes).forEach(k => { const tx = cfg.scenes[k][VL]; if (!tx) throw new Error('no ' + VL + ' narration for scene ' + k); voice[k] = Object.assign({ text: tx }, tts(tx, VL)); });
   console.log('[' + cfg.id + '] voice-over:', Object.keys(voice).length, 'clips,', Math.round(Object.values(voice).reduce((a, v) => a + v.dur, 0)), 's');
 
   const browser = await playwright.chromium.launch();
@@ -390,13 +394,14 @@ async function makeTutorial(cfg) {
     });
     return out;
   }
+  const v0 = k => voice[k].text;
   function cues(lang) {
     const out = [];
     marks.forEach(m => {
-      const s = cfg.scenes[m.key], text = s[lang] || s.en, v = voice[m.key];
+      const s = cfg.scenes[m.key], text = s[lang] || s.en || v0(m.key), v = voice[m.key];
       const parts = chunks(text, lang), tot = parts.reduce((a, x) => a + x.length, 0);
       let t = m.at;
-      const stp = m.step && cfg.steps && cfg.steps[m.step] ? (cfg.steps[m.step][lang] || cfg.steps[m.step].en) : '';
+      const stp = m.step && cfg.steps && cfg.steps[m.step] ? (cfg.steps[m.step][lang] || cfg.steps[m.step].en || cfg.steps[m.step][VL] || '') : '';
       parts.forEach(x => { const d = v.dur * x.length / tot; out.push({ a: t, b: t + d, text: x, step: stp }); t += d; });
     });
     return out;
@@ -404,7 +409,7 @@ async function makeTutorial(cfg) {
   const ts = s => { const ms = Math.round(s * 1000); return [Math.floor(ms / 36e5), Math.floor(ms % 36e5 / 6e4), Math.floor(ms % 6e4 / 1000)].map(x => String(x).padStart(2, '0')).join(':') + ',' + String(ms % 1000).padStart(3, '0'); };
   const assT = s => { const cs = Math.round(s * 100); return Math.floor(cs / 360000) + ':' + String(Math.floor(cs % 360000 / 6000)).padStart(2, '0') + ':' + String(Math.floor(cs % 6000 / 100)).padStart(2, '0') + '.' + String(cs % 100).padStart(2, '0'); };
   const FONTS = fontsDir();
-  fs.writeFileSync(path.join(OUT, cfg.id + '-en.srt'), cues('en').map((c, i) => (i + 1) + '\n' + ts(c.a) + ' --> ' + ts(c.b) + '\n' + c.text + '\n').join('\n'));
+  if (VL === 'en') fs.writeFileSync(path.join(OUT, cfg.id + '-en.srt'), cues('en').map((c, i) => (i + 1) + '\n' + ts(c.a) + ' --> ' + ts(c.b) + '\n' + c.text + '\n').join('\n'));
   const made = [];
   for (const lang of cfg.langs) {
     const L = LANGS[lang];
