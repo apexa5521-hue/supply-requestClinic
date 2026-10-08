@@ -82,7 +82,8 @@ async function flow(h) {
     await click('.modal #rvOk'); await wait(1200);
   });
   await scene('cancel', 'undo', async () => {
-    const cid = await page.evaluate(id => (S.proc.list.find(r => r.id !== id && ['جديد', 'معتمد من الطبيب', 'قيد التجهيز'].indexOf(r.status) !== -1 && !(r.shipmentCount > 0) && r.clinic !== 'Dental Clinic 1') || S.proc.list.find(r => r.id !== id && r.status === 'معتمد من الطبيب') || {}).id, ID);
+    const cid = await page.evaluate(id => (S.proc.list.find(r => r.id !== id && ['جديد', 'معتمد من الطبيب', 'قيد التجهيز'].indexOf(r.status) !== -1 && !(r.shipmentCount > 0)) || {}).id, ID);
+    if (!cid) throw new Error('no cancellable request in the demo data');
     await click('.chip[data-g="all"]'); await wait(400);
     const cRow = `.req[data-rid="${cid}"]`;
     await page.locator(cRow).scrollIntoViewIfNeeded(); await wait(300);

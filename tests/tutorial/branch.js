@@ -18,6 +18,8 @@ const steps = {
 async function flow(h) {
   const { page, scene, click, point, highlight, wait } = h;
   await page.evaluate(() => { window.print = () => {}; });
+  // شحنة لفرع بريدة حتى تظهر بوكساته
+  await h.api('dispatchItems', ['REQ-260925-014', ['PROPHY PASTE', 'DENTAL FLOSS']], ['Ali', '3333']);
   await scene('intro', '', async () => {
     await wait(500);
   });
