@@ -1214,6 +1214,33 @@ function log(msg) { console.log('  ✔ ' + msg); }
   await page.waitForSelector('#dComment');
   expect((await page.textContent('.modal')).includes('اخترت الطبيب الخطأ') && !(await page.$('.modal [data-act="withdraw"]')), 'cancelled request shows the reason; no cancel button any more');
   await page.keyboard.press('Escape');
+  // «جديد» (مستهلكات عيادة) يُلغى من زر الكرت مباشرة
+  const wdId2 = await page.evaluate(async () => {
+    const tok = (await __api(null, 'login', ['سارة', '1111'])).token;
+    return (await __api(tok, 'createRequest', [{ clinic: 'Sterilization', branch: 'الرياض', type: 'شهري', items: [{ name: 'PROPHY PASTE', qty: 11 }, { name: 'DENTAL FLOSS', qty: 3 }] }])).id;
+  });
+  await page.click('.sidebar [data-view="new"]');
+  await page.click('.sidebar [data-view="mine"]');
+  // تعديل الأصناف: تغيير كمية + حذف صنف
+  await page.click(`.req:has-text("${wdId2}") .req-actions [data-act="editItems"]`);
+  await page.waitForSelector('.modal .rvQty[data-item="PROPHY PASTE"]');
+  await page.fill('.modal .rvQty[data-item="PROPHY PASTE"]', '12');
+  await page.click('.modal tr:has(.rvQty[data-item="DENTAL FLOSS"]) [data-rm]');
+  expect(await page.$eval('.modal tr:has(.rvQty[data-item="DENTAL FLOSS"])', tr => tr.classList.contains('removed')), 'bin marks the item as removed');
+  await shot(page, 'nurse-edit-items');
+  await page.click('.modal #eiOk');
+  expect(await toastHas(page, 'تم تعديل أصناف الطلب ' + wdId2), 'nurse saved the edited items');
+  const edited = await page.evaluate(async id => {
+    const tok = (await __api(null, 'login', ['سارة', '1111'])).token;
+    return (await __api(tok, 'getRequestDetail', [id])).items.map(i => i.item + ':' + i.requestedQty).join(',');
+  }, wdId2);
+  expect(edited === 'PROPHY PASTE:12', 'server has the new qty and the removed item is gone — ' + edited);
+  await page.waitForSelector(`.req:has-text("${wdId2}") .req-actions [data-act="withdraw"]`);
+  await page.click(`.req:has-text("${wdId2}") .req-actions [data-act="withdraw"]`);
+  await page.click('.modal #wdOk');
+  expect(await toastHas(page, 'تم إلغاء الطلب ' + wdId2), 'new clinic-consumables request cancelled from the card button');
+  await page.waitForTimeout(400);
+  expect(!(await page.$(`.req:has-text("${wdId2}") .req-actions [data-act="withdraw"]`)), 'card loses the cancel button once cancelled');
   await logout(page);
 
   // ---------- GitHub Pages mode: fetch → real doPost (Node vm), batching + retry ----------
