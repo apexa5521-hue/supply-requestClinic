@@ -326,6 +326,8 @@ const DEFAULT_CLINICS_ = (function () {
  * ===================================================================== */
 const SHARED_AREA_RE_ = /ster[ia]li|تعقيم|triage|فرز|hydra\s*facial|clarity|gentle\s*pro/i;
 function isSharedArea_(c) { return !!c && SHARED_AREA_RE_.test(str_(c.name) + ' ' + str_(c.type)); }
+/** العيادات التي تقبل «مستهلكات عيادة» (بدون طبيب): المناطق المشتركة + كل عيادات الأسنان */
+function clinicConsumablesOk_(c) { return isSharedArea_(c) || (!!c && (normDept_(c.type) || normDept_(c.name)) === 'أسنان'); }
 function ensureTriageRooms_() {
   const cs = getClinics_();
   const branches = cs.map(function (c) { return c.branch; }).filter(function (b, i, a) { return b && a.indexOf(b) === i; });
@@ -2377,11 +2379,11 @@ function createRequest_(user, payload) {
   if (REQUEST_TYPES.indexOf(type) === -1) throw new Error('ERR_BAD_TYPE');
   const mine = userClinics_(user);
   if (clinic && !forLab) {
-    // مستهلكات العيادة للمناطق المشتركة فقط (التعقيم / غرفة الفرز) في أي فرع؛ طلب الطبيب يبقى ضمن عيادات الممرضة
+    // مستهلكات العيادة للمناطق المشتركة (التعقيم / غرفة الفرز / أجهزة الجلدية) وعيادات الأسنان في أي فرع؛ طلب الطبيب يبقى ضمن عيادات الممرضة
     if (!clinicOnly && mine.length && mine.indexOf(clinic) === -1) throw new Error('ERR_FORBIDDEN');
     const cRows = getClinics_().filter(function (c) { return c.name === clinic; });
     if (!cRows.length) throw new Error('ERR_BAD_CLINIC');
-    if (clinicOnly && !cRows.some(isSharedArea_)) throw new Error('ERR_CLINIC_SHARED_ONLY');
+    if (clinicOnly && !cRows.some(clinicConsumablesOk_)) throw new Error('ERR_CLINIC_SHARED_ONLY');
   }
   if (!clinicOnly) {
     // الطبيب غير مرتبط بعيادة ثابتة: يُقبل أي طبيب في القائمة، والعيادة المختارة هي مكان الاستهلاك

@@ -175,7 +175,8 @@ test('config: nurse sees every clinic (own clinics flagged) and no prices; clini
   const cfg = api(n, 'getConfig');
   assert.ok(cfg.clinics.length >= 5 && cfg.clinics.some(c => c.name === 'Sterilization'));
   assert.deepEqual(cfg.myClinics.sort(), ['عيادة الأسنان 1', 'عيادة الجلدية 1'].sort());
-  throwsCode(() => api(n, 'createRequest', { clinic: 'عيادة الأسنان 2', type: 'شهري', items: [{ name: 'PROPHY PASTE', qty: 1 }] }), 'ERR_CLINIC_SHARED_ONLY');
+  const dr = api(n, 'createRequest', { clinic: 'عيادة الأسنان 2', type: 'شهري', items: [{ name: 'PROPHY PASTE', qty: 1 }] });
+  assert.match(dr.id, /^REQ-/, 'clinic consumables: any dental clinic, even one that is not the nurse’s');
   const r = api(n, 'createRequest', { clinic: 'Sterilization', branch: 'جدة', type: 'شهري', items: [{ name: 'PROPHY PASTE', qty: 1 }] });
   assert.match(r.id, /^REQ-/, 'clinic consumables: sterilization / triage in any branch');
   assert.ok(cfg.catalog.length >= 7);
@@ -1352,7 +1353,9 @@ test('doctor-based request: clinic is optional (derived from the doctor); clinic
   throwsCode(() => api(n, 'createRequest', { doctor: 'د. غير موجود', type: 'شهري', items }), 'ERR_BAD_DOCTOR');
   // مستهلكات العيادة: بدون طبيب، العيادة إلزامية، وتذهب للتموين مباشرة
   throwsCode(() => api(n, 'createRequest', { type: 'شهري', items }), 'ERR_REQUIRED');
-  throwsCode(() => api(n, 'createRequest', { clinic: 'عيادة الأسنان 2', type: 'شهري', items }), 'ERR_CLINIC_SHARED_ONLY');
+  const rd = api(n, 'createRequest', { clinic: 'عيادة الأسنان 2', type: 'شهري', items });
+  const qd = rows(gas, 'Requests').find(r => r.RequestID === rd.id);
+  assert.deepEqual([qd.Doctor, qd.Clinic, qd.Status, qd.Department], ['', 'عيادة الأسنان 2', 'جديد', 'أسنان'], 'dental clinic consumables: no doctor, straight to dental procurement');
   throwsCode(() => api(n, 'createRequest', { clinic: 'عيادة الجلدية 1', type: 'شهري', items }), 'ERR_CLINIC_SHARED_ONLY');
   const r2 = api(n, 'createRequest', { clinic: 'Sterilization', branch: 'الرياض', type: 'شهري', items: [{ name: 'قفازات طبية M', qty: 5 }] });
   const q2 = rows(gas, 'Requests').find(r => r.RequestID === r2.id);
