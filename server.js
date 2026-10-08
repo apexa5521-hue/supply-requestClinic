@@ -38,6 +38,25 @@ app.post('/api', async (req, res) => {
   }
 });
 
+// Shape of DATABASE_URL for diagnosing setup mistakes; never includes the password itself
+function describeDbUrl(raw) {
+  if (!raw) return { set: false };
+  const s = String(raw);
+  const out = { set: true, length: s.length, startsWith: s.slice(0, 13), atSigns: (s.match(/@/g) || []).length,
+    hasSpaces: /\s/.test(s), hasBrackets: /[[\]]/.test(s) };
+  try {
+    const u = new URL(s.trim());
+    out.user = decodeURIComponent(u.username);
+    out.passwordLength = decodeURIComponent(u.password).length;
+    out.host = u.hostname;
+    out.port = u.port;
+    out.database = u.pathname.slice(1);
+  } catch (e) {
+    out.parseError = e.message;
+  }
+  return out;
+}
+
 // Health check
 app.get('/health', async (req, res) => {
   let db;
@@ -45,7 +64,7 @@ app.get('/health', async (req, res) => {
     const r = await pool.query('select version()');
     db = { connected: true, version: r.rows[0].version.split(' ').slice(0, 2).join(' ') };
   } catch (err) {
-    db = { connected: false, error: err.message };
+    db = { connected: false, error: err.message, url: describeDbUrl(process.env.DATABASE_URL) };
   }
   res.json({ status: 'ok', db, timestamp: new Date().toISOString() });
 });
