@@ -164,7 +164,10 @@ function log(msg) { console.log('  ✔ ' + msg); }
   await page.waitForSelector('#fClinic');
   expect(!(await page.$('#fDoctor')), 'clinic consumables: clinic instead of doctor');
   const groups = await page.$$eval('#fClinic optgroup', gs => gs.map(g => g.label + ':' + g.children.length));
-  expect(groups.join(' | ') === 'قسم التعقيم:2 | غرفة الفرز:2', 'clinic consumables: only sterilization and the triage room (each branch) — ' + groups.join(' | '));
+  expect(groups.slice(0, 2).join(' | ') === 'قسم التعقيم:2 | غرفة الفرز:2' && groups.slice(2).length >= 1 && groups.slice(2).every(g => g.startsWith('عيادات الأسنان — ')),
+    'clinic consumables: sterilization, the triage room, then dental clinics by branch — ' + groups.join(' | '));
+  const dentalOpts = await page.$$eval('#fClinic optgroup', gs => gs.filter(g => g.label.startsWith('عيادات الأسنان')).flatMap(g => [...g.children].map(o => o.textContent)));
+  expect(dentalOpts.includes('عيادة الأسنان 2') && !dentalOpts.some(x => /جلد|derma/i.test(x)), 'every dental clinic listed (not only hers), no dermatology clinics — ' + dentalOpts.join(' | '));
   expect(await page.inputValue('#fClinic') !== '' && (await page.textContent('#sterilNote')).includes('التعقيم'), 'defaults to sterilization of her branch');
   await page.selectOption('#fClinic', await page.$eval('#fClinic optgroup option:nth-child(2)', o => o.value));
   expect((await page.textContent('#sterilNote')).includes('جدة') && await page.inputValue('#fBranch') === 'جدة', 'choosing sterilization shows where it is (branch) and sets the branch');
