@@ -204,11 +204,16 @@ function log(msg) { console.log('  ✔ ' + msg); }
   await page.keyboard.press('Enter');
   await page.fill('#itemSearch', 'قفازات');
   await page.keyboard.press('Enter');
-  // الطلب من الكتالوج فقط: لا خيار لإضافة اسم حر
+  // صنف غير موجود: الممرضة تكتبه كصنف حر (مستهلك أو ماتيريال)، ويظهر في الطلب بعلامة حر
   await page.fill('#itemSearch', 'شاش معقم');
-  await page.waitForSelector('#comboList .combo-empty');
-  expect(await page.locator('#comboList .combo-opt').count() === 0 && (await page.textContent('#comboList')).includes('الكتالوج فقط'), 'no free-text item option — catalog items only');
-  await page.keyboard.press('Enter');
+  await page.waitForSelector('#comboList .combo-free-opt');
+  expect(await page.locator('#comboList .combo-free-opt').count() === 2, 'free item: add as consumable or material');
+  await shot(page, 'new-free-item');
+  await page.click('#comboList .combo-free-opt[data-free="مستهلك"]');
+  await page.waitForSelector('#itemsList .item-line:has-text("شاش معقم")');
+  expect((await page.textContent('#itemsList')).includes('صنف حر'), 'free item marked on the request line');
+  await page.locator('#itemsList .item-line:has-text("شاش معقم") [data-act="rmItem"]').click();
+  await page.keyboard.press('Escape');
   await page.fill('#itemSearch', 'etchant');
   await page.waitForSelector('#comboList .combo-opt');
   await page.keyboard.press('Enter');

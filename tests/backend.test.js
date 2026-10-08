@@ -2397,3 +2397,31 @@ test('nurse edits the items of her request (qty change / remove) under the same 
   api(p, 'bulkUpdateStatus', [r2.id], 'قيد التجهيز');
   throwsCode(() => api(n, 'editRequestItems', r2.id, [{ item: 'PROPHY PASTE', qty: 1 }]), 'ERR_WITHDRAW_REVIEW_ONLY');
 });
+
+test('nurse free-text item: added to the catalog with its type and clinic department; limits and duplicates enforced', () => {
+  const { api, login, gas } = boot();
+  const n = login('سارة', '1111'), p = login('علي', '3333');
+  const catRows = () => rows(gas, 'ItemsCatalog');
+  const before = catRows().length;
+  const r = api(n, 'createRequest', { clinic: 'عيادة الأسنان 1', type: 'شهري', items: [
+    { name: 'Sterile saliva ejector', qty: 3, free: true, type: 'مستهلك' },
+    { name: 'PROPHY PASTE', qty: 1 }
+  ] });
+  assert.match(r.id, /^REQ-/);
+  const added = catRows().slice(before);
+  assert.equal(added.length, 1, 'one new catalog row');
+  assert.deepEqual([added[0].ItemName, added[0].Category, added[0].ItemType, added[0].Department], ['Sterile saliva ejector', 'حر — من الممرضة', 'مستهلك', 'أسنان']);
+  assert.ok(rows(gas, 'RequestItems').some(x => x.RequestID === r.id && x.ItemName === 'Sterile saliva ejector' && Number(x.RequestedQty) === 3));
+  // the same name again is now a catalog item: no second row
+  api(n, 'createRequest', { clinic: 'عيادة الأسنان 1', type: 'شهري', items: [{ name: 'sterile SALIVA ejector', qty: 1, free: true, type: 'ماتيريال' }] });
+  assert.equal(catRows().length, before + 1, 'existing item is not duplicated');
+  // a name that already exists in the catalog is never re-added as a free item
+  api(n, 'createRequest', { clinic: 'عيادة الأسنان 1', type: 'شهري', items: [{ name: 'DENTAL FLOSS', qty: 1, free: true, type: 'مستهلك' }] });
+  assert.equal(catRows().length, before + 1);
+  throwsCode(() => api(n, 'createRequest', { clinic: 'عيادة الأسنان 1', type: 'شهري', items: [{ name: 'Free one', qty: 1, free: true, type: 'تجربة' }] }), 'ERR_FREE_ITEM_TYPE');
+  throwsCode(() => api(n, 'createRequest', { clinic: 'عيادة الأسنان 1', type: 'شهري', items: [{ name: 'x', qty: 1, free: true, type: 'مستهلك' }] }), 'ERR_FREE_ITEM_NAME');
+  const six = ['A1 item', 'B1 item', 'C1 item', 'D1 item', 'E1 item', 'F1 item'].map(name => ({ name, qty: 1, free: true, type: 'مستهلك' }));
+  throwsCode(() => api(n, 'createRequest', { clinic: 'عيادة الأسنان 1', type: 'شهري', items: six }), 'ERR_FREE_ITEMS_MAX');
+  throwsCode(() => api(p, 'createRequest', { clinic: 'عيادة الأسنان 1', type: 'شهري', items: [{ name: 'Only nurses', qty: 1, free: true, type: 'مستهلك' }] }), 'ERR_FORBIDDEN');
+  assert.equal(catRows().length, before + 1, 'rejected requests add nothing');
+});
