@@ -11,6 +11,7 @@ import { fileURLToPath } from 'node:url';
 import * as XLSX from 'xlsx';
 import { createGas } from './server/gas.mjs';
 import { Store } from './server/store.mjs';
+import { googleAccessToken, mirrorToSheet, runExclusive } from './server/sync.mjs';
 
 dotenv.config();
 const ROOT = path.dirname(fileURLToPath(import.meta.url));
@@ -127,6 +128,28 @@ app.post('/admin/import', express.raw({ type: '*/*', limit: '60mb' }), async (re
   } catch (e) {
     console.error('import', e);
     res.status(500).send('فشل الاستيراد: ' + e.message);
+  }
+});
+
+/* ---------- mirror to a Google Sheet (called every 15 min by Supabase pg_cron) ---------- */
+app.post('/sync/run', async (req, res) => {
+  const want = process.env.SYNC_KEY || '', got = String(req.get('x-sync-key') || '');
+  if (!(want.length >= 8 && got.length === want.length && crypto.timingSafeEqual(Buffer.from(got), Buffer.from(want)))) return res.sendStatus(403);
+  if (!process.env.GOOGLE_SA_JSON || !process.env.SHEET_SYNC_ID) return res.status(400).json({ ok: false, error: 'sync not configured' });
+  try {
+    await ready;
+    const out = await runExclusive(async () => {
+      const { rows } = await pool.query('select name, data::text as data from gas_sheets order by ord, name');
+      if (!rows.length) return { skipped: true, reason: 'database has no tabs yet' };
+      const grids = rows.map(r => ({ name: r.name, grid: JSON.parse(r.data) }));
+      const token = await googleAccessToken(JSON.parse(process.env.GOOGLE_SA_JSON));
+      return mirrorToSheet({ spreadsheetId: process.env.SHEET_SYNC_ID, token, rows: grids });
+    });
+    console.log('[sync]', JSON.stringify(out));
+    res.json({ ok: true, ...out });
+  } catch (e) {
+    console.error('[sync] failed:', e.message);
+    res.status(500).json({ ok: false, error: String(e.message).slice(0, 200) });
   }
 });
 
