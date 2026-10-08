@@ -39,8 +39,15 @@ app.post('/api', async (req, res) => {
 });
 
 // Health check
-app.get('/health', (req, res) => {
-  res.json({ status: 'ok', timestamp: new Date().toISOString() });
+app.get('/health', async (req, res) => {
+  let db;
+  try {
+    const r = await pool.query('select version()');
+    db = { connected: true, version: r.rows[0].version.split(' ').slice(0, 2).join(' ') };
+  } catch (err) {
+    db = { connected: false, error: err.message };
+  }
+  res.json({ status: 'ok', db, timestamp: new Date().toISOString() });
 });
 
 const PORT = process.env.PORT || 3000;
