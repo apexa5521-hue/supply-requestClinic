@@ -2,32 +2,18 @@
 const { makeTutorial } = require('./engine');
 
 const scenes = {
-  intro: { en: 'This video is for doctors. You will learn how to review and approve your requests, read your report, follow your patients\' lab work, and answer the satisfaction survey.',
-    ar: 'هذا الفيديو للأطباء: كيف تراجع طلباتك وتعتمدها، وتقرأ تقريرك، وتتابع أعمال مرضاك في المعمل، وتجيب على استبيان الرضا.' },
-  survey: { en: 'Every 50 days, a short satisfaction survey opens for ten days. It appears when you sign in. Tap the stars, choose a number from zero to ten, write a note if you like, and tap Send. If you tap Later, a notice stays at the top until you answer.',
-    ar: 'كل 50 يومًا يُفتح استبيان رضا قصير لمدة عشرة أيام، ويظهر لك عند الدخول. اضغط النجوم، واختر رقمًا من صفر إلى عشرة، واكتب ملاحظة إن أردت، ثم «إرسال». وإذا ضغطت «لاحقًا» يبقى تنبيه أعلى صفحتك حتى تجيب.' },
-  login: { en: 'Open the system link, write your name and password, and tap Sign in.',
-    ar: 'افتح رابط النظام، واكتب اسمك ورقمك السري، ثم اضغط «تسجيل الدخول».' },
-  page: { en: 'Your page opens on Reviews. The cards at the top count your requests: waiting for your review, approved, sent to the branch, and received. Tap any card to show only those requests.',
-    ar: 'تفتح صفحتك على «المراجعات». البطاقات بالأعلى تعرض أعداد طلباتك: بانتظار مراجعتك، المعتمدة، المرسلة للفرع، والمستلمة. اضغط أي بطاقة لعرض طلباتها فقط.' },
-  open: { en: 'Tap a request to open it. You see each item and the quantity the nurse asked for.',
-    ar: 'اضغط على الطلب لفتحه، وسترى كل صنف والكمية التي طلبتها الممرضة.' },
-  edit: { en: 'If a quantity is too much or too little, change it. You can also write a note on any item.',
-    ar: 'إذا كانت الكمية أكثر أو أقل من اللازم عدّلها، ويمكنك كتابة ملاحظة على أي صنف.' },
-  approve: { en: 'Then tap Approve. The request goes to procurement right away, and the nurse can follow it.',
-    ar: 'ثم اضغط «اعتماد»، فيذهب الطلب للتموين مباشرة وتتابعه الممرضة.' },
-  reject: { en: 'If something is wrong, write the reason and tap Reject. The request goes back to the nurse to fix it and send it again.',
-    ar: 'إذا كان هناك خطأ، اكتب السبب واضغط «رفض»، فيعود الطلب للممرضة لتصحيحه وإرساله مرة أخرى.' },
-  report: { en: 'Tap Requests report to see what you ordered. Choose one month, or cumulative until a date.',
-    ar: 'اضغط «تقرير الطلبات» لترى ما طلبته: لشهر واحد، أو تراكميًا حتى تاريخ معين.' },
-  reportview: { en: 'The report shows each request with its items and quantities. You can print it or save it as PDF.',
-    ar: 'يعرض التقرير كل طلب بأصنافه وكمياته، ويمكنك طباعته أو حفظه PDF.' },
-  lab: { en: 'On the Lab page, you follow your patients\' lab work: where each case is now, and when it is due.',
-    ar: 'في صفحة «المعمل» تتابع أعمال مرضاك: أين وصلت كل إرسالية، ومتى موعدها.' },
-  password: { en: 'To change your password, tap the lock icon at the bottom, then write the old and the new password.',
-    ar: 'لتغيير رقمك السري اضغط أيقونة القفل بالأسفل، واكتب الرقم القديم ثم الجديد.' },
-  done: { en: 'That\'s it. Please review your requests quickly, so your clinic gets its supplies on time. Thank you!',
-    ar: 'هذا كل شيء. نرجو مراجعة الطلبات بسرعة حتى تصل مستلزمات عيادتك في وقتها. شكرًا لك!' }
+  intro: { ar: 'هذا الفيديو للأطباء: كيف تراجع الطلبات الخاصة بك وتعتمدها، وتقرأ تقريرك، وتتابع أعمال مرضاك في المعمل.' },
+  login: { ar: 'افتح رابط النظام، واكتب اسمك ورقمك السري، ثم اضغط «تسجيل الدخول».' },
+  survey: { ar: 'كل 50 يومًا يُفتح استبيان رضا قصير لمدة عشرة أيام. اضغط النجوم، واختر رقمًا من 0 إلى 10، ثم «إرسال».' },
+  page: { ar: 'البطاقات بالأعلى تعرض أعداد طلباتك: بانتظار مراجعتك، والمعتمدة، والتي تم إرسالها، والمستلمة. اضغط أي بطاقة لعرض طلباتها.' },
+  open: { ar: 'اضغط الطلب لفتحه، وسترى كل صنف والكمية التي طلبتها الممرضة.' },
+  edit: { ar: 'إذا كانت الكمية أكثر أو أقل من اللازم عدّلها، ويمكنك كتابة ملاحظة على أي صنف.' },
+  approve: { ar: 'ثم اضغط «اعتماد»، فيذهب الطلب للتموين مباشرة.' },
+  reject: { ar: 'إذا كان هناك خطأ اكتب السبب واضغط «رفض»، فيعود للممرضة لتصحيحه وإعادة إرساله.' },
+  nurseedit: { ar: 'إذا ألغت الممرضة طلبًا قبل مراجعتك يختفي من مراجعاتك ويصلك إيميل، فلا حاجة لأي إجراء. وإذا عدّلت الأصناف تراها محدّثة والتعديل مكتوب في التعليقات.' },
+  report: { ar: 'اضغط «تقرير الطلبات» لترى ما طلبته لشهر أو تراكميًا، واطبعه أو احفظه PDF.' },
+  lab: { ar: 'تابع أعمال المرضى: أين وصلت كل إرسالية، ومتى موعدها.' },
+  password: { ar: 'لتغيير رقمك السري اضغط أيقونة القفل. شكرًا لك، وراجع الطلبات بسرعة حتى تصل مستلزماتك في وقتها.' }
 };
 const steps = {
   login: { en: 'Sign in', ar: 'تسجيل الدخول' },
@@ -43,6 +29,8 @@ async function flow(h) {
   // د. سعد بلا صلاحية أسعار: طلبان بانتظار المراجعة (اعتماد ورفض)
   const r1 = (await h.api('createRequest', [{ branch: 'Unayzah', doctor: 'Dr. Saad', type: 'شهري', items: [{ name: 'PROPHY PASTE', qty: 6 }, { name: 'Composite A2', qty: 3 }] }], ['Mona', '1212'])).id;
   const r2 = (await h.api('createRequest', [{ branch: 'Unayzah', doctor: 'Dr. Saad', type: 'طارئ', items: [{ name: 'Etchant Blue Tip', qty: 10 }] }], ['Mona', '1212'])).id;
+  const r3 = (await h.api('createRequest', [{ branch: 'Unayzah', doctor: 'Dr. Saad', type: 'شهري', items: [{ name: 'MICRO BRUSH FINE', qty: 8 }, { name: 'Cotton rolls', qty: 5 }] }], ['Mona', '1212'])).id;
+  await h.api('editRequestItems', [r3, [{ item: 'MICRO BRUSH FINE', qty: 4 }, { item: 'Cotton rolls', qty: 5 }]], ['Mona', '1212']);
   await page.evaluate(() => { window.print = () => {}; });
 
   await scene('intro', '', async () => { await wait(500); });
@@ -84,15 +72,19 @@ async function flow(h) {
     await page.waitForSelector('[data-yes]'); await wait(600);
     await click('[data-yes]'); await wait(1200);
   });
+  await scene('nurseedit', 'review', async () => {
+    await click(`#docList [data-id="${r3}"]`);
+    await page.waitForSelector('#rvItems table'); await wait(600);
+    await highlight('#rvItems table', 2200);
+    await page.keyboard.press('Escape'); await wait(400);
+  });
   await scene('report', 'report', async () => {
     await click('#docReportBtn');
     await page.waitForSelector('#repGo');
     await point('[data-seg-name="repMode"][data-v="cum"]');
-    await highlight('[data-seg-name="repMode"]', 1200);
+    await highlight('[data-seg-name="repMode"]', 900);
     await click('#repGo');
-  });
-  await scene('reportview', 'report', async () => {
-    await page.waitForSelector('.rep .rep-tiles'); await wait(500);
+    await page.waitForSelector('.rep .rep-tiles'); await wait(400);
     await h.scroll(400, '.modal-body');
     await highlight('.rep-grand', 1500);
     await point('#repPrint');
@@ -112,8 +104,7 @@ async function flow(h) {
     await highlight('#pwCur', 900); await highlight('#pwNew', 900);
     await page.keyboard.press('Escape');
   });
-  await scene('done', '', async () => { await wait(600); });
 }
 
-if (require.main === module) makeTutorial({ id: 'doctor', langs: ['ar'], surveyFor: 'Dr. Saad', noMoney: true, scenes, steps, flow }).catch(e => { console.error('TUTORIAL FAILED', e); process.exit(1); });
+if (require.main === module) makeTutorial({ id: 'doctor', voiceLang: 'ar', langs: ['ar'], surveyFor: 'Dr. Saad', noMoney: true, scenes, steps, flow }).catch(e => { console.error('TUTORIAL FAILED', e); process.exit(1); });
 module.exports = { scenes, steps, flow };

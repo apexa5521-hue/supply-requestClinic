@@ -185,6 +185,9 @@ function runSetupSteps_(force) {
 }
 
 const ITEM_TYPES_ = ['مستهلك', 'ماتيريال'];
+/** صنف تكتبه الممرضة بحرية (غير موجود في القائمة): يُضاف للكتالوج ويعلّم بهذه الفئة ليميّزه التموين */
+const FREE_CATEGORY_ = 'حر — من الممرضة';
+const FREE_ITEMS_MAX_ = 5;
 /** قائمة منسدلة في عمود ItemType (يقبل القيم الأخرى مع تحذير بدل الرفض) */
 function itemTypeDropdown_() {
   if (typeof SpreadsheetApp === 'undefined' || !SpreadsheetApp.newDataValidation) return;
@@ -2413,16 +2416,34 @@ function createRequest_(user, payload) {
     if (!(qty >= 1)) throw new Error('ERR_QTY_MIN1'); // لا يُقبل طلب صفر (أقل كمية 1)
     if (!(qty <= 100000)) throw new Error('ERR_BAD_QTY');
     const key = name.toLowerCase();
-    if (!merged[key]) { merged[key] = { name: name, qty: 0 }; order.push(key); }
+    if (!merged[key]) { merged[key] = { name: name, qty: 0, free: !!(it && it.free), type: str_(it && it.type) }; order.push(key); }
     merged[key].qty += qty;
   });
   const items = order.map(function (k) { return merged[k]; });
   if (!items.length) throw new Error('ERR_NO_ITEMS');
   // الطلب من الكتالوج فقط — لا أصناف بأسماء حرة (يُعتمد اسم الكتالوج بحروفه)
-  const catalog = {}, catDept = {};
-  getCatalog_(false).forEach(function (c) { catalog[c.name.toLowerCase()] = c.name; catDept[c.name.toLowerCase()] = c.dept || ''; });
+  const catalogMaps = function () {
+    const catalog = {}, catDept = {};
+    getCatalog_(false).forEach(function (c) { catalog[c.name.toLowerCase()] = c.name; catDept[c.name.toLowerCase()] = c.dept || ''; });
+    return { catalog: catalog, catDept: catDept };
+  };
+  let maps = catalogMaps();
   // قسم الطلب من عيادته: طلب الأسنان لا يقبل مستهلكات الجلدية والعكس (المشترك مسموح للقسمين)
   const dept = forLab ? userDept_(user) : clinic ? clinicDept_(clinic) : '';
+  // الصنف الحر: تكتبه الممرضة إذا ما وجدته في القائمة، ويُضاف للكتالوج بنوعه وقسم عيادتها
+  const freeNew = items.filter(function (it) { return it.free && !maps.catalog[it.name.toLowerCase()]; });
+  if (freeNew.length) {
+    if (forLab || user.screen !== 'nurse') throw new Error('ERR_FREE_ITEM_FORBIDDEN');
+    if (freeNew.length > FREE_ITEMS_MAX_) throw new Error('ERR_FREE_ITEMS_MAX');
+    freeNew.forEach(function (it) {
+      if (it.name.length < 2) throw new Error('ERR_FREE_ITEM_NAME');
+      if (ITEM_TYPES_.indexOf(it.type) === -1) throw new Error('ERR_FREE_ITEM_TYPE:' + it.name);
+    });
+    freeNew.forEach(function (it) { append_('ItemsCatalog', { ItemName: it.name, Category: FREE_CATEGORY_, Department: dept, ItemType: it.type }); });
+    resetMemo_();
+    maps = catalogMaps();
+  }
+  const catalog = maps.catalog, catDept = maps.catDept;
   items.forEach(function (it) {
     const canon = catalog[it.name.toLowerCase()];
     if (!canon) throw new Error('ERR_UNKNOWN_ITEM');

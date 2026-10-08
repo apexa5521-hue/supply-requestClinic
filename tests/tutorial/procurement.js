@@ -1,49 +1,28 @@
-/* فيديو التموين — صوت إنجليزي + ترجمة عربية */
+/* فيديو التموين — صوت عربي (الشرح المعتمد) */
 const { makeTutorial } = require('./engine');
 
 const scenes = {
-  intro: { en: 'This video is for procurement. You will learn how to prepare requests, send them in shipments, fix a mistake, and manage boxes and custody tools.',
-    ar: 'هذا الفيديو للتموين: كيف تجهّز الطلبات، وترسلها على شحنات، وتصحح الخطأ، وتدير البوكسات وأدوات العهدة.' },
-  login: { en: 'Sign in with your name and password. Your account shows only your department: dental or dermatology.',
-    ar: 'سجّل الدخول باسمك ورقمك السري. حسابك يعرض طلبات قسمك فقط: أسنان أو جلدية.' },
-  list: { en: 'The Requests page shows all requests. Each card is colored by its stage, so you can sort them at a glance. The chips at the top filter by stage: with the doctor, doctor approved, new and needs preparing, in preparation, partially sent, arrived at the branch, and more.',
-    ar: 'صفحة «الطلبات» تعرض كل الطلبات، وكل بطاقة ملوّنة بلون مرحلتها حتى تفرزها بنظرة. الأزرار بالأعلى تفلتر حسب المرحلة: لدى الطبيب، معتمد من الطبيب، جديد يحتاج إلى تجهيز، قيد التجهيز، مرسل جزئيًا، وصل الفرع، وغيرها.' },
-  filters: { en: 'Pick a doctor from the list to see only his requests. You can also filter by branch, clinic or month, or search.',
-    ar: 'اختر طبيبًا من القائمة لتظهر طلباته فقط، ويمكنك الفلترة بالفرع أو العيادة أو الشهر، أو البحث.' },
-  open: { en: 'Open a request the doctor approved. You see each item with the quantity the doctor approved. This is exactly what you prepare.',
-    ar: 'افتح طلبًا معتمدًا من الطبيب، وسترى كل صنف بالكمية التي اعتمدها الطبيب، وهي بالضبط ما تجهّزه.' },
-  itemst: { en: 'Set the status of each item: preparing, waiting for the vendor, or received from the vendor. The request moves to In preparation by itself.',
-    ar: 'حدّد حالة كل صنف: قيد التجهيز، أو بانتظار المندوب، أو استلم المندوب، وينتقل الطلب لـ«قيد التجهيز» تلقائيًا.' },
-  ship: { en: 'To send, tick the items and set the quantity for this shipment. You can send part now and the rest later. Then tap Send shipment.',
-    ar: 'للإرسال حدّد الأصناف واكتب كمية هذه الشحنة، ويمكنك إرسال جزء الآن والباقي لاحقًا. ثم اضغط «إرسال الشحنة».' },
-  boxpick: { en: 'A box panel opens. The doctor and the branch are filled in from the request. Change them if the shipment is for sterilization, triage or a clinic. It tells you if it goes into the doctor\'s box, or a new box is made. Then tap Load and send.',
-    ar: 'تظهر لوحة البوكس، واسم الطبيب والفرع معبّآن من الطلب. غيّرهما إن كانت الشحنة للتعقيم أو الفرز أو عيادة. وتوضّح هل تُحمَّل في بوكس الطبيب أو يُنشأ بوكس جديد. ثم اضغط «تحميل في البوكس وإرسال».' },
-  left: { en: 'The card shows exactly what is left. When everything is sent, the request becomes Sent, and the nurse is notified.',
-    ar: 'تعرض البطاقة المتبقي بالضبط، وعند إرسال كل شيء تصبح الحالة «تم الإرسال» وتُبلَّغ الممرضة.' },
-  undo: { en: 'Sent something by mistake? Tap Undo last step, write the reason, and confirm. Every undo is recorded for the quality team.',
-    ar: 'أرسلت شيئًا بالخطأ؟ اضغط «تراجع عن آخر خطوة»، واكتب السبب، ثم أكّد. كل تراجع يُسجَّل لفريق الجودة.' },
-  cancel: { en: 'To cancel requests, tick them, tap Cancel request, and write the reason. The nurse sees the reason and gets an email, so she does not wait for it. A request with anything already sent cannot be cancelled.',
-    ar: 'لإلغاء طلبات حدّدها واضغط «إلغاء الطلب» واكتب السبب. تشوف الممرضة السبب ويصلها إيميل حتى لا تنتظر الطلب. والطلب الذي أُرسل منه شيء لا يُلغى.' },
-  print: { en: 'From the request details you can print the request, or save it as PDF.',
-    ar: 'من تفاصيل الطلب يمكنك طباعته أو حفظه PDF.' },
-  boxes: { en: 'The Boxes page shows where each box is: ready to deliver, at a branch, or empty. One box for each doctor in each branch. Print the QR stickers, and send the driver tasks link to the driver once.',
-    ar: 'صفحة «البوكسات» تعرض مكان كل بوكس: جاهز للنقل، أو في الفرع، أو فارغ؛ بوكس لكل طبيب في كل فرع. اطبع ستيكرات QR، وأرسل رابط مهام السواق للسواق مرة واحدة.' },
-  backfill: { en: 'For older requests, tap Boxes for past requests once. It makes their boxes and loads any shipment that is not received yet.',
-    ar: 'للطلبات القديمة اضغط «بوكسات للطلبات السابقة» مرة واحدة، فتُنشأ بوكساتها وتُحمَّل أي شحنة لم تُستلم بعد.' },
-  move: { en: 'Need a box back? Tap Request move and choose the place. It appears in the driver\'s tasks right away.',
-    ar: 'تحتاج البوكس؟ اضغط «طلب نقل» واختر المكان، فيظهر في «الشحنات» عند السواق مباشرة.' },
-  custody: { en: 'Custody is for the clinic tools, like handpieces. Set the standard for each clinic, and handle broken tool reports.',
-    ar: 'العهدة لأدوات العيادات مثل الهاندبيس: حدّد المعيار لكل عيادة، وتابع بلاغات الأدوات التالفة.' },
-  issue: { en: 'To issue handpieces, tap Issue, choose the tool, and type one serial number per row. Press Enter or plus for the next one, and Save and add another to keep going.',
-    ar: 'لصرف الهاندبيس اضغط «صرف عهدة»، اختر الأداة، واكتب رقمًا تسلسليًا في كل سطر؛ Enter أو «+» للقطعة التالية، و«حفظ وإضافة أداة أخرى» للاستمرار.' },
-  complaints: { en: 'Complaints shows problems reported on requests. Read them and reply in the request comments. The quality team closes them.',
-    ar: 'صفحة «البلاغات» تعرض المشاكل المرفوعة على الطلبات؛ اقرأها ورد في تعليقات الطلب، وفريق الجودة يغلقها.' },
-  done: { en: 'That\'s it. Prepare approved requests quickly, and send what you have. Thank you!',
-    ar: 'هذا كل شيء. جهّز الطلبات المعتمدة بسرعة وأرسل المتوفر. شكرًا لك!' }
+  intro: { ar: 'هذا الفيديو للتموين: تجهيز الطلبات، وإرسالها على شحنات، وتصحيح الخطأ، والبوكسات، وأدوات العهدة.' },
+  login: { ar: 'سجّل الدخول باسمك ورقمك السري. حسابك يعرض طلبات قسمك فقط: أسنان أو جلدية.' },
+  list: { ar: 'كل بطاقة ملوّنة بلون مرحلتها، والأزرار بالأعلى تفلتر حسب المرحلة: لدى الطبيب، معتمد، جديد، قيد التجهيز، مرسل جزئيًا، وصل الفرع.' },
+  filters: { ar: 'اختر طبيبًا لتظهر طلباته فقط، أو فلتر بالفرع أو العيادة أو الشهر، أو ابحث.' },
+  dental: { ar: 'مستهلكات العيادة تصلك الآن من كل عيادات الأسنان أيضًا، بحالة «جديد» وبدون طبيب.' },
+  open: { ar: 'الكميات هي ما اعتمده الطبيب. حدّد حالة كل صنف: قيد التجهيز، أو بانتظار المندوب، أو استلم المندوب.' },
+  ship: { ar: 'حدّد الأصناف واكتب كمية هذه الشحنة، ويمكنك إرسال جزء الآن والباقي لاحقًا.' },
+  boxpick: { ar: 'اسم الطبيب والفرع معبّآن من الطلب، ويظهر هل تُحمَّل في بوكس موجود أو جديد. اضغط «تحميل في البوكس وإرسال».' },
+  undo: { ar: 'أرسلت بالخطأ؟ اضغط «تراجع عن آخر خطوة» واكتب السبب. كل تراجع يُسجَّل لفريق الجودة.' },
+  cancel: { ar: 'لإلغاء طلبات حدّدها واضغط «إلغاء الطلب» واكتب السبب، ويصل الممرضة إيميل. ولاحظ: الممرضة نفسها تقدر تعدّل أو تلغي طلبها ما دام «جديد» ولم تبدأ فيه.' },
+  boxes: { ar: 'صفحة «البوكسات» تعرض مكان كل بوكس: جاهز للنقل، أو في الفرع، أو فارغ. اطبع ستيكر QR لكل بوكس وثبّته عليه، فيرتبط البوكس بطبيبه دائمًا. وأرسل رابط «الشحنات» للسواق مرة واحدة.' },
+  move: { ar: 'تحتاج البوكس؟ اضغط «طلب نقل» واختر المكان، فيظهر في «الشحنات» عند السواق.' },
+  std: { ar: 'العهدة لأدوات العيادات مثل الهاندبيس: حدّد المعيار لكل عيادة.' },
+  issue: { ar: 'عند وصول طلب أداة من الممرضة لعيادة معيّنة، مثل عيادة 2: قبل إرسال الهاندبيس افتح صفحة «العهدة»، واضغط «صرف عهدة» تحت العيادة التي طلبتها، واكتب الرقم التسلسلي لكل قطعة (Enter للقطعة التالية)، ثم اضغط «صرف» وأرسلها مع السواق.' },
+  edit: { ar: 'صرفت بالغلط؟ اضغط على الرقم التسلسلي: تقدر تصحّح الرقم أو الكمية، أو تنقلها لعيادة ثانية، أو تحذفها. كل تعديل يُسجَّل، والأداة التي عليها بلاغ مفتوح لا تُحذف.' },
+  tickets: { ar: 'استلم الأداة بصورة حالتها، ثم قرّر: قابلة للتصليح، أو تالفة، أو مفقودة، واصرف بديلها.' },
+  complaints: { ar: 'المشاكل المرفوعة على الطلبات: اقرأها ورد في تعليقات الطلب. شكرًا لك، وجهّز المعتمد بسرعة.' }
 };
 const steps = {
-  login: { en: 'Sign in', ar: 'تسجيل الدخول' }, req: { en: 'Requests', ar: 'الطلبات' }, ship: { en: 'Shipments', ar: 'الشحنات' },
-  undo: { en: 'Undo', ar: 'التراجع' }, boxes: { en: 'Boxes', ar: 'البوكسات' }, custody: { en: 'Custody', ar: 'العهدة' }, comp: { en: 'Complaints', ar: 'البلاغات' }
+  login: { ar: 'تسجيل الدخول' }, req: { ar: 'الطلبات' }, ship: { ar: 'الشحنات' },
+  undo: { ar: 'التصحيح' }, boxes: { ar: 'البوكسات' }, custody: { ar: 'العهدة' }, comp: { ar: 'البلاغات' }
 };
 
 async function flow(h) {
@@ -51,125 +30,140 @@ async function flow(h) {
   const ID = 'REQ-260927-016';
   const row = `.req[data-rid="${ID}"]`, exp = `#exp-${ID}`;
   await page.evaluate(() => { window.print = () => {}; });
+  const dentalId = (await h.api('createRequest', [{ clinic: 'Dental Clinic 1', type: 'شهري', items: [{ name: 'Cotton rolls', qty: 6 }, { name: 'Gloves M', qty: 4 }] }], ['Sara', '1111'])).id;
   await scene('intro', '', async () => { await wait(500); });
   await scene('login', 'login', async () => { await h.login('Ali', '3333'); await highlight('#userRole', 1500); });
   await scene('list', 'req', async () => {
     await page.waitForSelector('#procList .req');
     await highlight('#procList .req >> nth=0', 1300);
-    for (const g of ['review', 'docok', 'ready', 'prep', 'partial', 'arrived']) await highlight('.chip[data-g="' + g + '"]', 1000);
+    for (const g of ['review', 'docok', 'ready', 'prep', 'partial', 'arrived']) await highlight('.chip[data-g="' + g + '"]', 900);
   });
   await scene('filters', 'req', async () => {
     const d = '[data-change="procDoctor"]';
     await point(d);
     const doc = await page.$eval(d, el => (Array.from(el.options).find(o => o.value === 'Dr. Saad') || el.options[1] || {}).value || '');
-    if (doc) { await page.selectOption(d, doc); await wait(1600); await page.selectOption(d, ''); await wait(400); }
+    if (doc) { await page.selectOption(d, doc); await wait(1500); await page.selectOption(d, ''); await wait(400); }
     await highlight('[data-change="procBranch"]', 900);
   });
-  await scene('open', 'req', async () => {
-    await click('.chip[data-g="docok"]');
-    await page.waitForSelector(row); await highlight(row, 1000);
-    // «الكل» حتى يبقى الطلب ظاهرًا بعد تغيّر مرحلته
-    await click('.chip[data-g="all"]'); await page.waitForSelector(row);
-    await click(row + ' .req-actions [data-act="procToggle"]');
-    await page.waitForSelector(exp + ' .dsp-table'); await wait(600);
-    await highlight(exp + ' .dsp-table', 1800);
+  await scene('dental', 'req', async () => {
+    await click('.chip[data-g="ready"]'); await wait(600);
+    const dRow = `.req[data-rid="${dentalId}"]`;
+    await page.waitForSelector(dRow);
+    await page.locator(dRow).scrollIntoViewIfNeeded(); await wait(300);
+    await highlight(dRow, 2600);
   });
-  await scene('itemst', 'req', async () => {
+  await scene('open', 'req', async () => {
+    await click('.chip[data-g="all"]'); await page.waitForSelector(row);
+    await page.locator(row).scrollIntoViewIfNeeded();
+    await click(row + ' .req-actions [data-act="procToggle"]');
+    await page.waitForSelector(exp + ' .dsp-table'); await wait(500);
+    await highlight(exp + ' .dsp-table', 1300);
     const sel = exp + ' .item-st >> nth=0';
     await point(sel);
-    await page.selectOption(sel, 'بانتظار المندوب'); await wait(1500);
+    await page.selectOption(sel, 'بانتظار المندوب'); await wait(1300);
     if (!(await page.$(exp + ' .dsp'))) await click(row + ' .req-actions [data-act="procToggle"]');
-    await highlight(row + ' .badge', 1000);
   });
   await scene('ship', 'ship', async () => {
     await page.waitForSelector(exp + ' .dsp');
     const q = exp + ' input.dsp-qty >> nth=0';
     await point(q); await page.fill(q, '1'); await page.dispatchEvent(q, 'input'); await wait(500);
-    await click(exp + ' [data-act="dispatch"]'); await page.waitForSelector('.modal #bxpOk'); await wait(600);
+    await click(exp + ' [data-act="dispatch"]'); await page.waitForSelector('.modal #bxpOk'); await wait(500);
   });
   await scene('boxpick', 'ship', async () => {
-    await highlight('.modal .bxp-owner', 1300); await highlight('.modal .bxp-branch', 1100);
-    await page.waitForSelector('.modal .bxp-hint .i').catch(() => {}); await highlight('.modal .bxp-hint', 1300);
+    await highlight('.modal .bxp-owner', 1200); await highlight('.modal .bxp-branch', 1000);
+    await page.waitForSelector('.modal .bxp-hint .i').catch(() => {}); await highlight('.modal .bxp-hint', 1200);
     await click('.modal #bxpOk'); await wait(1200);
-  });
-  await scene('left', 'ship', async () => {
     await page.waitForSelector(row + ' .ship-left').catch(() => {});
-    await highlight(row + ' .ship-left', 1800);
-    if (!(await page.$(exp + ' [data-change="dspAll"]'))) await click(row + ' .req-actions [data-act="procToggle"]');
-    await page.check(exp + ' [data-change="dspAll"]'); await wait(400);
-    await click(exp + ' [data-act="dispatch"]'); await page.waitForSelector('.modal #bxpOk'); await wait(900); await click('.modal #bxpOk'); await wait(1200);
-    await highlight(row + ' .badge', 1200);
   });
   await scene('undo', 'undo', async () => {
     await click(row + ' [data-act="revertStep"]');
-    await page.waitForSelector('.modal #rvReason'); await wait(500);
+    await page.waitForSelector('.modal #rvReason'); await wait(400);
     await type('.modal #rvReason', 'Sent before the vendor delivered');
     await click('.modal #rvOk'); await wait(1200);
   });
-  await scene('cancel', 'req', async () => {
+  await scene('cancel', 'undo', async () => {
     const cid = await page.evaluate(id => (S.proc.list.find(r => r.id !== id && ['جديد', 'معتمد من الطبيب', 'قيد التجهيز'].indexOf(r.status) !== -1 && !(r.shipmentCount > 0)) || {}).id, ID);
+    if (!cid) throw new Error('no cancellable request in the demo data');
     await click('.chip[data-g="all"]'); await wait(400);
     const cRow = `.req[data-rid="${cid}"]`;
-    await page.locator(cRow).scrollIntoViewIfNeeded(); await wait(400);
+    await page.locator(cRow).scrollIntoViewIfNeeded(); await wait(300);
     await click(cRow + ' .req-main > .check');
     await page.waitForSelector('#bulkbar.show [data-act="bulkCancel"]'); await wait(300);
     await click('#bulkbar [data-act="bulkCancel"]');
-    await page.waitForSelector('.modal #cnReason'); await wait(400);
+    await page.waitForSelector('.modal #cnReason'); await wait(300);
     await type('.modal #cnReason', 'Item not available at the supplier this month');
-    await click('.modal #cnOk'); await wait(1400);
+    await click('.modal #cnOk'); await wait(1300);
     await page.locator(cRow + ' .cancel-box').scrollIntoViewIfNeeded().catch(() => {});
     await highlight(cRow + ' .cancel-box', 1500);
     await h.scroll(0);
-  });
-  await scene('print', 'req', async () => {
-    await click(`[data-act="detail"][data-id="${ID}"]`);
-    await page.waitForSelector('#dPrint'); await wait(800);
-    await point('#dPrint'); await highlight('#dPrint', 1000);
-    await page.keyboard.press('Escape');
   });
   await scene('boxes', 'boxes', async () => {
     await h.nav('boxes');
     await page.waitForSelector('#bxList .box-card');
     await highlight('#bxList .box-card', 1500);
-    await point('[data-act="bxPrintAll"]'); await highlight('#bxDrvUrl', 1500);
+    await point('[data-act="bxPrintAll"]'); await highlight('[data-act="bxPrintAll"]', 1300);
+    await highlight('#bxDrvUrl', 1500);
   });
   await scene('move', 'boxes', async () => {
     await click('#bxList [data-act="bxMove"]');
     await page.waitForSelector('#bmTo'); await wait(500);
     await click('#bmOk'); await wait(1200);
   });
-  await scene('backfill', 'boxes', async () => {
-    await click('[data-act="bxBackfill"]');
-    await page.waitForSelector('.modal #bfOk'); await wait(1200);
-    await click('.modal #bfOk'); await wait(1500);
-  });
-  await scene('custody', 'custody', async () => {
+  await scene('std', 'custody', async () => {
     await h.nav('assets');
     await click('[data-seg-name="asTab"][data-v="clinics"]');
-    await wait(1000);
-    const card = page.locator('#asClinics .card', { hasText: 'Dental Clinic 1' }).first();
-    await card.scrollIntoViewIfNeeded().catch(() => {}); await wait(600);
-    await card.evaluate(el => el.scrollIntoView({ block: 'start', behavior: 'smooth' })).catch(() => {});
-    await wait(2000);
+    await page.waitForSelector('#asClinics [data-act="asStd"][data-clinic="Dental Clinic 2"]');
+    await page.locator('#asClinics [data-act="asStd"][data-clinic="Dental Clinic 2"]').first().scrollIntoViewIfNeeded(); await wait(400);
+    await click('#asClinics [data-act="asStd"][data-clinic="Dental Clinic 2"]');
+    await page.waitForSelector('.modal #sdQty'); await wait(300);
+    await page.selectOption('.modal #sdItem', 'Handpiece Low Speed'); await wait(300);
+    await type('.modal #sdQty', '5');
+    await click('.modal #sdOk'); await wait(1100);
   });
   await scene('issue', 'custody', async () => {
     await click('#asClinics [data-act="asIssue"][data-clinic="Dental Clinic 2"]');
     await page.waitForSelector('.modal #isItem'); await wait(400);
-    await page.selectOption('.modal #isItem', 'Handpiece Low Speed'); await wait(500);
+    await page.selectOption('.modal #isItem', 'Handpiece Low Speed'); await wait(400);
     await type('.modal #isSer .input >> nth=0', 'NSK-2004');
     await page.press('.modal #isSer .input >> nth=0', 'Enter'); await wait(300);
     await page.keyboard.type('NSK-2005', { delay: 60 }); await wait(400);
     await highlight('.modal #isSerN', 900);
-    await click('.modal #isMore'); await wait(1400);
-    await page.keyboard.press('Escape'); await wait(300);
+    await click('.modal #isOk'); await wait(1300);
+  });
+  await scene('edit', 'custody', async () => {
+    const card = '#asClinics section:has-text("Dental Clinic 2")';
+    await page.waitForSelector(card + ' button.as-unit:has-text("NSK-2005")');
+    await click(card + ' button.as-unit:has-text("NSK-2005")');
+    await page.waitForSelector('.modal #aeSer'); await wait(400);
+    await type('.modal #aeSer', 'NSK-2006');
+    await highlight('.modal #aeClinic', 1000);
+    await point('.modal #aeDel'); await highlight('.modal #aeDel', 1000);
+    await click('.modal #aeOk'); await wait(1200);
+  });
+  // بلاغ من الممرضة على هاندبيس حتى تظهر قائمة البلاغات
+  await page.evaluate(png => {
+    const tk = __api(null, 'login', ['Sara', '1111']).token;
+    const c = __api(tk, 'getClinicAssets', [{ clinic: 'Dental Clinic 1' }])[0];
+    const a = c.items.find(i => i.item === 'Handpiece Low Speed').assets.find(x => x.serial === 'NSK-1001');
+    __api(tk, 'reportAsset', [{ assetId: a.id, problem: 'خربانة', description: 'Loud noise and overheating', photo: 'data:image/png;base64,' + png, clientKey: 'tut-asset-1' }]);
+  }, h.png.toString('base64'));
+  await scene('tickets', 'custody', async () => {
+    await click('[data-seg-name="asTab"][data-v="tickets"]');
+    await page.waitForSelector('#asTickets .req').catch(() => {});
+    await highlight('#asTickets .req', 1100);
+    if (await page.$('#asTickets [data-act="asTicket"]')) {
+      await click('#asTickets [data-act="asTicket"]');
+      await wait(1500);
+      await h.scroll(5000, '.modal-body'); await wait(1200);
+      await page.keyboard.press('Escape');
+    }
   });
   await scene('complaints', 'comp', async () => {
     await h.nav('complaints');
     await page.waitForSelector('#cList .req').catch(() => {});
     await highlight('#cList .req', 1800);
   });
-  await scene('done', '', async () => { await h.nav('requests'); });
 }
 
-if (require.main === module) makeTutorial({ id: 'procurement', noMoney: true, langs: ['ar'], scenes, steps, flow }).catch(e => { console.error('TUTORIAL FAILED', e); process.exit(1); });
+if (require.main === module) makeTutorial({ id: 'procurement', noMoney: true, voiceLang: 'ar', langs: ['ar'], scenes, steps, flow }).catch(e => { console.error('TUTORIAL FAILED', e); process.exit(1); });
 module.exports = { scenes, steps, flow };
