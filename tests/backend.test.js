@@ -2335,3 +2335,33 @@ test('boxes view for branch managers / operations: own branch only (all if no br
   throwsCode(() => api(reem, 'getBoxes'), 'ERR_FORBIDDEN');
   throwsCode(() => api(login('مدير جدة', '9090'), 'requestBoxMove', 'BOX-001', 'التموين'), 'ERR_FORBIDDEN');
 });
+
+test('nurse cancels her own request raised by mistake — only while it is with the doctor for review; doctor is told', () => {
+  const { api, login, gas } = boot();
+  const n = login('سارة', '1111'), p = login('علي', '3333'), d = login('د. خالد', '4444');
+  const items = [{ name: 'PROPHY PASTE', qty: 2 }];
+  const r = api(n, 'createRequest', { doctor: 'د. خالد', type: 'شهري', items });
+  assert.equal(api(d, 'getDoctorRequests')[0].status, 'مراجعة الطبيب');
+  throwsCode(() => api(login('ريم', '2222'), 'withdrawRequest', r.id), 'ERR_FORBIDDEN');
+  throwsCode(() => api(p, 'withdrawRequest', r.id), 'ERR_FORBIDDEN');
+  gas.mails.length = 0;
+  assert.equal(api(n, 'withdrawRequest', r.id, 'اخترت الطبيب الخطأ'), true);
+  const q = rows(gas, 'Requests').find(x => x.RequestID === r.id);
+  assert.deepEqual([q.Status, q.CancelReason, q.CancelledBy], ['ملغي', 'اخترت الطبيب الخطأ', 'سارة']);
+  assert.ok(gas.mails.some(m => /أُلغي طلب كان بانتظار مراجعتك/.test(m.subject)), 'doctor notified');
+  assert.ok(rows(gas, 'Log').some(l => l.RequestID === r.id && /ألغت الممرضة الطلب/.test(l.Action)));
+  throwsCode(() => api(n, 'withdrawRequest', r.id), 'ERR_WITHDRAW_REVIEW_ONLY');
+  // بعد الإلغاء ترفع نفس الطلب فوراً كطلب جديد (لا يُعتبر مكرراً للملغي)
+  // بعد اعتماد الطبيب لا تلغيه الممرضة (التموين يلغيه بسبب)
+  const r2 = api(n, 'createRequest', { doctor: 'د. خالد', type: 'شهري', items });
+  assert.ok(r2.id !== r.id && !r2.duplicate, 'same request raised again right after cancelling is a new request');
+  api(d, 'doctorReview', r2.id, 'اعتمد', '', []);
+  throwsCode(() => api(n, 'withdrawRequest', r2.id), 'ERR_WITHDRAW_REVIEW_ONLY');
+  // مستهلكات العيادة تذهب للتموين مباشرة — ليست عند الطبيب
+  const r3 = api(n, 'createRequest', { clinic: 'Sterilization', branch: 'الرياض', type: 'شهري', items });
+  throwsCode(() => api(n, 'withdrawRequest', r3.id), 'ERR_WITHDRAW_REVIEW_ONLY');
+  // السبب اختياري
+  const r4 = api(n, 'createRequest', { doctor: 'د. خالد', type: 'شهري', items: [{ name: 'PROPHY PASTE', qty: 7 }] });
+  api(n, 'withdrawRequest', r4.id);
+  assert.equal(rows(gas, 'Requests').find(x => x.RequestID === r4.id).CancelReason, 'رُفع بالغلط');
+});

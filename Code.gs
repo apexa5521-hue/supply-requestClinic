@@ -588,6 +588,7 @@ const API_ = {
   getMyRequests:             { screens: ['nurse', 'lab'], fn: getMyRequests_ },
   receiveShipment:           { screens: ['nurse'], fn: receiveShipment_ },
   resubmitRequest:           { screens: ['nurse'], fn: resubmitRequest_ },
+  withdrawRequest:           { screens: ['nurse'], fn: withdrawRequest_ },
   getShipmentSignatures:     { screens: ['nurse'], fn: getShipmentSignatures_ },
   getRequests:               { screens: ['procurement'].concat(MGMT), fn: getRequestsApi_ },
   getRequestItemsFull:       { screens: ['procurement'].concat(MGMT), fn: getRequestItemsFull_ },
@@ -2366,6 +2367,11 @@ function getMyRequests_(user, opts) { return queryRequests_(withArchive_({ nurse
 function getDoctorRequests_(user, opts) { return queryRequests_(withArchive_({ doctorUser: user }, opts)); }
 
 
+function requestDupKey_(nurse, clinic, branch, doctor, type, items) {
+  const sig = [nurse, clinic, branch, doctor, type].concat(items.map(function (i) { return i.name + ':' + i.qty; })).join('|');
+  return 'dup:' + Utilities.base64Encode(Utilities.computeDigest(Utilities.DigestAlgorithm.MD5, sig, Utilities.Charset.UTF_8));
+}
+
 function createRequest_(user, payload) {
   payload = payload || {};
   const forLab = user.screen === 'lab';
@@ -2427,8 +2433,7 @@ function createRequest_(user, payload) {
   if (str_(payload.backdate) && !forLab) return createBackdated_(user, payload, { clinic: clinic, branch: branch, doctor: doctor, type: type, dept: dept, items: items });
 
   // منع الإرسال المزدوج لنفس الطلب خلال دقيقتين
-  const sig = [user.name, clinic, branch, doctor, type].concat(items.map(function (i) { return i.name + ':' + i.qty; })).join('|');
-  const dupKey = 'dup:' + Utilities.base64Encode(Utilities.computeDigest(Utilities.DigestAlgorithm.MD5, sig, Utilities.Charset.UTF_8));
+  const dupKey = requestDupKey_(user.name, clinic, branch, doctor, type, items);
   const cache = CacheService.getScriptCache();
 
   // الطبيب الذي له حساب يراجع الطلب أولاً؛ غير ذلك يذهب للتموين مباشرة
@@ -3183,6 +3188,32 @@ function resubmitRequest_(user, requestId, note) {
   if (note) addComment_(user, requestId, note);
   notifyUser_(doctorAccounts_()[req.doctor] || req.doctor, 'طلب مُعاد لمراجعتك - ' + requestId,
     'أعادت الممرضة ' + user.name + ' إرسال الطلب ' + requestId + ' (عيادة ' + req.clinic + ') لمراجعتك بعد الرفض.' + (note ? '\nملاحظتها: ' + note : ''));
+  return true;
+}
+
+/** الممرضة تلغي طلبها المرفوع بالغلط — فقط وهو عند «مراجعة الطبيب» (قبل أن يعتمده الطبيب أو يصل للتموين) */
+function withdrawRequest_(user, requestId, reason) {
+  requestId = str_(requestId);
+  reason = clean_(reason, 500) || 'رُفع بالغلط';
+  guardSee_(user, requestId);
+  let req;
+  withLock_(function () {
+    resetMemo_();
+    const f = findRequest_(requestId);
+    if (str_(f.row.Nurse) !== user.name) throw new Error('ERR_FORBIDDEN');
+    if (str_(f.row.Status) !== ST.REVIEW) throw new Error('ERR_WITHDRAW_REVIEW_ONLY');
+    const now = new Date();
+    setCells_(f.t, f.row, { Status: ST.CANCELLED, CancelReason: reason, CancelledAt: now, CancelledBy: user.name });
+    logAction_(requestId, 'ألغت الممرضة الطلب (' + ST.REVIEW + ' ← ' + ST.CANCELLED + ') — السبب: ' + reason, user.name);
+    append_('Comments', { Timestamp: now, RequestID: requestId, Author: user.name, Role: user.role, Message: '⛔ ألغت الممرضة الطلب — السبب: ' + reason });
+    req = mapRequest_(f.row);
+    // حتى تقدر ترفع نفس الطلب فوراً بعد إلغائه (لا يرجع لها الطلب الملغي كـ«مكرر»)
+    const its = read_('RequestItems').rows.filter(function (r) { return str_(r.RequestID) === requestId; })
+      .map(function (r) { return { name: str_(r.ItemName), qty: Math.floor(num_(r.RequestedQty)) }; });
+    CacheService.getScriptCache().remove(requestDupKey_(user.name, req.clinic, req.branch, req.doctor, str_(f.row.Type), its));
+  });
+  notifyUser_(doctorAccounts_()[req.doctor] || req.doctor, 'أُلغي طلب كان بانتظار مراجعتك - ' + requestId,
+    'ألغت الممرضة ' + user.name + ' الطلب ' + requestId + ' (عيادة ' + req.clinic + ') قبل مراجعتك — لا حاجة لأي إجراء.\nالسبب: ' + reason);
   return true;
 }
 
