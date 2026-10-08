@@ -1195,6 +1195,25 @@ function log(msg) { console.log('  ✔ ' + msg); }
   await page.waitForTimeout(600);
   expect(!(await page.evaluate(() => window.__xss)), 'HTML in comments is escaped (no XSS)');
   await page.keyboard.press('Escape');
+  // الممرضة تلغي طلباً رفعته بالغلط وهو عند مراجعة الطبيب
+  const wdId = await page.evaluate(async () => {
+    const tok = (await __api(null, 'login', ['سارة', '1111'])).token;
+    return (await __api(tok, 'createRequest', [{ doctor: 'د. خالد', type: 'شهري', items: [{ name: 'PROPHY PASTE', qty: 9 }] }])).id;
+  });
+  await page.click('.sidebar [data-view="new"]');
+  await page.click('.sidebar [data-view="mine"]');
+  await page.click(`.req:has-text("${wdId}") [data-act="detail"]`);
+  await page.waitForSelector('.modal [data-act="withdraw"]');
+  await page.click('.modal [data-act="withdraw"]');
+  await page.fill('.modal #wdReason', 'اخترت الطبيب الخطأ');
+  await shot(page, 'nurse-withdraw');
+  await page.click('.modal #wdOk');
+  expect(await toastHas(page, 'تم إلغاء الطلب ' + wdId), 'nurse cancels her own request while it is with the doctor');
+  await page.waitForTimeout(400);
+  await page.click(`.req:has-text("${wdId}") [data-act="detail"]`);
+  await page.waitForSelector('#dComment');
+  expect((await page.textContent('.modal')).includes('اخترت الطبيب الخطأ') && !(await page.$('.modal [data-act="withdraw"]')), 'cancelled request shows the reason; no cancel button any more');
+  await page.keyboard.press('Escape');
   await logout(page);
 
   // ---------- GitHub Pages mode: fetch → real doPost (Node vm), batching + retry ----------
