@@ -11,6 +11,7 @@ import { fileURLToPath } from 'node:url';
 import * as XLSX from 'xlsx';
 import { createGas } from './server/gas.mjs';
 import { Store } from './server/store.mjs';
+import { driveConfigFromEnv, driveViewUrl } from './server/drive.mjs';
 import { googleAccessToken, mirrorToSheet, runExclusive } from './server/sync.mjs';
 
 dotenv.config();
@@ -22,7 +23,9 @@ const pool = new pg.Pool({
   ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false,
   max: 4
 });
-const store = new Store(pool);
+// Drive archive for photos: set GOOGLE_OAUTH_* (see README). Without it, files stay in the database.
+const driveCfg = driveConfigFromEnv(process.env);
+const store = new Store(pool, driveCfg ? { cfg: driveCfg, token: null } : null);
 
 /* ---------- Code.gs runtime ---------- */
 const gas = createGas({ onMail: m => console.log('[mail] to=%s subject=%s', m.to, m.subject) });
@@ -76,6 +79,7 @@ app.post('/api', express.text({ type: '*/*', limit: '25mb' }), async (req, res) 
 app.get('/files/:id', (req, res) => {
   const f = gas.files.get(req.params.id);
   if (!f) return res.sendStatus(404);
+  if (f.driveId) return res.redirect(302, driveViewUrl(f.driveId));
   res.set('Cache-Control', 'private, max-age=86400');
   res.type(f.mime || 'application/octet-stream').send(f.bytes);
 });

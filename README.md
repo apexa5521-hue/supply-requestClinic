@@ -328,3 +328,14 @@ ApexCare (الأسنان والجلدية) ومستودع التموين: تفو
 - **الخادم (Apps Script):** `.github/workflows/deploy.yml` يشغّل الاختبارات، ثم يرفع الكود لـ Apps Script ويحدّث نفس رابط النشر — بشرط إضافة الأسرار في Settings ▸ Secrets and variables ▸ Actions:
   `CLASPRC_JSON` (محتوى `~/.clasprc.json` بعد `clasp login`) · `SCRIPT_ID` (Apps Script ▸ Project Settings) · `DEPLOYMENT_ID` (Deploy ▸ Manage deployments).
   بدونها تُتخطى الخطوة، ويُحدَّث Code.gs يدوياً (نسخ ثم New version).
+
+## صور Google Drive (النسخة التجريبية)
+
+الصور والمرفقات تُرفع إلى Google Drive لحساب المالك نفسه، وقاعدة البيانات تحفظ الرابط فقط.
+متغيرات Render:
+
+- `GOOGLE_OAUTH_CLIENT_ID` و`GOOGLE_OAUTH_CLIENT_SECRET`: من OAuth Client (نوع Desktop app) في Google Cloud، مع تفعيل Google Drive API.
+- `GOOGLE_OAUTH_REFRESH_TOKEN`: توكن التحديث للحساب المالك، بصلاحية `drive.file`.
+- `DRIVE_FOLDER_ID` (اختياري): مجلد الصور في Drive.
+
+بدون هذه المتغيرات تبقى الصور داخل قاعدة البيانات كما كانت. الملفات التي رُفعت إلى Drive تُخدَم عبر `/files/:id` بتحويل إلى Drive.

@@ -1,11 +1,14 @@
 // PostgreSQL persistence for the Apps Script runtime: each sheet is one row (JSONB grid),
 // script properties + cache in a key/value table, and Drive files as bytea.
 import crypto from 'node:crypto';
+import { driveAccessToken, uploadDriveFile } from './drive.mjs';
 
 const SCHEMA = `
 create table if not exists gas_sheets (name text primary key, ord int not null default 0, data jsonb not null, updated_at timestamptz not null default now());
 create table if not exists gas_kv (kind text not null, k text not null, v text not null, exp bigint, primary key (kind, k));
-create table if not exists gas_files (id text primary key, name text, mime text, bytes bytea not null, created_at timestamptz not null default now());
+create table if not exists gas_files (id text primary key, name text, mime text, bytes bytea, created_at timestamptz not null default now());
+alter table gas_files add column if not exists drive_id text;
+alter table gas_files alter column bytes drop not null;
 `;
 
 const isDate = v => Object.prototype.toString.call(v) === '[object Date]';
@@ -19,7 +22,8 @@ export function decodeGrid(json, DateCtor) {
 const hash = s => crypto.createHash('md5').update(s).digest('hex');
 
 export class Store {
-  constructor(pool) { this.pool = pool; this.sheetHash = {}; this.kvHash = { prop: '', cache: '' }; }
+  // drive: { cfg, token?, upload } or null. With Drive set up, new files go to Drive and only the id is kept.
+  constructor(pool, drive = null) { this.pool = pool; this.drive = drive; this.sheetHash = {}; this.kvHash = { prop: '', cache: '' }; }
 
   async init() { await this.pool.query(SCHEMA); }
 
@@ -37,8 +41,9 @@ export class Store {
     });
     this.kvHash.prop = hash(JSON.stringify(gas.props));
     this.kvHash.cache = hash(JSON.stringify(gas.cacheStore));
-    const fl = await this.pool.query('select id, name, mime, bytes from gas_files');
-    fl.rows.forEach(f => gas.files.set(f.id, { id: f.id, name: f.name, mime: f.mime, bytes: f.bytes, saved: true }));
+    const fl = await this.pool.query('select id, name, mime, bytes, drive_id from gas_files');
+    // bytes of Drive files are not reloaded at boot; /files/:id redirects to Drive for them
+    fl.rows.forEach(f => gas.files.set(f.id, { id: f.id, name: f.name, mime: f.mime, bytes: f.bytes, driveId: f.drive_id || '', saved: true }));
     return { sheets: rows.length, props: Object.keys(gas.props).length, files: fl.rows.length };
   }
 
@@ -53,6 +58,17 @@ export class Store {
     const propsDirty = hash(propsJson) !== this.kvHash.prop, cacheDirty = hash(cacheJson) !== this.kvHash.cache;
     const newFiles = [...gas.files.values()].filter(f => !f.saved);
     if (!sheetUps.length && !sheetDels.length && !propsDirty && !cacheDirty && !newFiles.length) return 0;
+    // Drive uploads happen before the transaction (network); a failed upload keeps the bytes in the database
+    for (const f of newFiles) {
+      if (f.driveId || !this.drive) continue;
+      try {
+        if (!this.drive.token) this.drive.token = await driveAccessToken(this.drive.cfg);
+        f.driveId = await uploadDriveFile({ token: this.drive.token, name: f.name, mime: f.mime, bytes: f.bytes, folderId: this.drive.cfg.folderId });
+      } catch (e) {
+        console.error('Drive upload failed, keeping file in database:', f.name, e.message);
+        if (/token/.test(e.message)) this.drive.token = null;
+      }
+    }
     const c = await this.pool.connect();
     try {
       await c.query('begin');
@@ -65,7 +81,11 @@ export class Store {
         const now = Date.now();
         await this.replaceKv(c, 'cache', Object.entries(gas.cacheStore).filter(([, e]) => e.exp > now).map(([k, e]) => [k, e.v, e.exp]));
       }
-      for (const f of newFiles) await c.query('insert into gas_files (id, name, mime, bytes) values ($1, $2, $3, $4) on conflict (id) do nothing', [f.id, f.name, f.mime, f.bytes]);
+      for (const f of newFiles) {
+        // with a Drive id the bytes are not kept in the database
+        const bytes = f.driveId ? null : f.bytes;
+        await c.query('insert into gas_files (id, name, mime, bytes, drive_id) values ($1, $2, $3, $4, $5) on conflict (id) do nothing', [f.id, f.name, f.mime, bytes, f.driveId || null]);
+      }
       await c.query('commit');
     } catch (e) { await c.query('rollback').catch(() => {}); throw e; } finally { c.release(); }
     sheetUps.forEach(s => { this.sheetHash[s.name] = s.h; });
