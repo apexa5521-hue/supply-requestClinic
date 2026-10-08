@@ -1,12 +1,21 @@
 {
-  "name": "supplyflow-apexcare",
+  "name": "masar-server",
+  "version": "2.0.0",
   "private": true,
-  "description": "Dev-only: tests for the Apps Script supply request system",
+  "description": "Masar trial server: Code.gs on Node with PostgreSQL (Supabase) instead of Google Sheets",
+  "main": "server.mjs",
   "scripts": {
+    "start": "node server.mjs",
     "test": "node --test tests/backend.test.js",
-    "test:e2e": "node tests/e2e.js",
-    "perf": "node tests/perf.js",
-    "test:load": "node tests/load.js",
-    "test:load-ui": "node tests/load-ui.js"
+    "test:e2e": "node tests/e2e.js"
+  },
+  "dependencies": {
+    "dotenv": "^16.3.1",
+    "express": "^4.18.2",
+    "pg": "^8.11.3",
+    "xlsx": "https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz"
+  },
+  "engines": {
+    "node": "20.x"
   }
 }
