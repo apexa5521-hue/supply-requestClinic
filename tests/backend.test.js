@@ -2336,7 +2336,7 @@ test('boxes view for branch managers / operations: own branch only (all if no br
   throwsCode(() => api(login('مدير جدة', '9090'), 'requestBoxMove', 'BOX-001', 'التموين'), 'ERR_FORBIDDEN');
 });
 
-test('nurse cancels her own request raised by mistake — only while it is with the doctor for review; doctor is told', () => {
+test('nurse cancels her own request raised by mistake — only at doctor review or «new» before procurement starts; doctor is told', () => {
   const { api, login, gas } = boot();
   const n = login('سارة', '1111'), p = login('علي', '3333'), d = login('د. خالد', '4444');
   const items = [{ name: 'PROPHY PASTE', qty: 2 }];
@@ -2357,9 +2357,15 @@ test('nurse cancels her own request raised by mistake — only while it is with 
   assert.ok(r2.id !== r.id && !r2.duplicate, 'same request raised again right after cancelling is a new request');
   api(d, 'doctorReview', r2.id, 'اعتمد', '', []);
   throwsCode(() => api(n, 'withdrawRequest', r2.id), 'ERR_WITHDRAW_REVIEW_ONLY');
-  // مستهلكات العيادة تذهب للتموين مباشرة — ليست عند الطبيب
+  // مستهلكات العيادة («جديد» عند التموين): تُلغى ما دام التموين لم يبدأ فيها، بلا إيميل للطبيب
   const r3 = api(n, 'createRequest', { clinic: 'Sterilization', branch: 'الرياض', type: 'شهري', items });
-  throwsCode(() => api(n, 'withdrawRequest', r3.id), 'ERR_WITHDRAW_REVIEW_ONLY');
+  gas.mails.length = 0;
+  api(n, 'withdrawRequest', r3.id);
+  assert.equal(rows(gas, 'Requests').find(x => x.RequestID === r3.id).Status, 'ملغي');
+  assert.equal(gas.mails.length, 0, 'no doctor email for a request that never went to a doctor');
+  const r5 = api(n, 'createRequest', { clinic: 'Sterilization', branch: 'الرياض', type: 'شهري', items: [{ name: 'PROPHY PASTE', qty: 5 }] });
+  api(p, 'bulkUpdateStatus', [r5.id], 'قيد التجهيز');
+  throwsCode(() => api(n, 'withdrawRequest', r5.id), 'ERR_WITHDRAW_REVIEW_ONLY');
   // السبب اختياري
   const r4 = api(n, 'createRequest', { doctor: 'د. خالد', type: 'شهري', items: [{ name: 'PROPHY PASTE', qty: 7 }] });
   api(n, 'withdrawRequest', r4.id);

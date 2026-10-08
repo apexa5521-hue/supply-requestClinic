@@ -3191,28 +3191,31 @@ function resubmitRequest_(user, requestId, note) {
   return true;
 }
 
-/** الممرضة تلغي طلبها المرفوع بالغلط — فقط وهو عند «مراجعة الطبيب» (قبل أن يعتمده الطبيب أو يصل للتموين) */
+/** الممرضة تلغي طلبها المرفوع بالغلط — فقط وهو عند «مراجعة الطبيب» أو «جديد» (قبل أن يبدأ فيه التموين) */
 function withdrawRequest_(user, requestId, reason) {
   requestId = str_(requestId);
   reason = clean_(reason, 500) || 'رُفع بالغلط';
   guardSee_(user, requestId);
-  let req;
+  let req, wasReview = false;
   withLock_(function () {
     resetMemo_();
     const f = findRequest_(requestId);
     if (str_(f.row.Nurse) !== user.name) throw new Error('ERR_FORBIDDEN');
-    if (str_(f.row.Status) !== ST.REVIEW) throw new Error('ERR_WITHDRAW_REVIEW_ONLY');
+    const from = str_(f.row.Status) || ST.NEW;
+    if ([ST.REVIEW, ST.NEW].indexOf(from) === -1) throw new Error('ERR_WITHDRAW_REVIEW_ONLY');
+    const its0 = read_('RequestItems').rows.filter(function (r) { return str_(r.RequestID) === requestId; });
+    if (shipState_(mapRequest_(f.row), its0).ships.length || its0.some(function (r) { return str_(r.ItemStatus); })) throw new Error('ERR_WITHDRAW_REVIEW_ONLY');
+    wasReview = from === ST.REVIEW;
     const now = new Date();
     setCells_(f.t, f.row, { Status: ST.CANCELLED, CancelReason: reason, CancelledAt: now, CancelledBy: user.name });
-    logAction_(requestId, 'ألغت الممرضة الطلب (' + ST.REVIEW + ' ← ' + ST.CANCELLED + ') — السبب: ' + reason, user.name);
+    logAction_(requestId, 'ألغت الممرضة الطلب (' + from + ' ← ' + ST.CANCELLED + ') — السبب: ' + reason, user.name);
     append_('Comments', { Timestamp: now, RequestID: requestId, Author: user.name, Role: user.role, Message: '⛔ ألغت الممرضة الطلب — السبب: ' + reason });
     req = mapRequest_(f.row);
     // حتى تقدر ترفع نفس الطلب فوراً بعد إلغائه (لا يرجع لها الطلب الملغي كـ«مكرر»)
-    const its = read_('RequestItems').rows.filter(function (r) { return str_(r.RequestID) === requestId; })
-      .map(function (r) { return { name: str_(r.ItemName), qty: Math.floor(num_(r.RequestedQty)) }; });
+    const its = its0.map(function (r) { return { name: str_(r.ItemName), qty: Math.floor(num_(r.RequestedQty)) }; });
     CacheService.getScriptCache().remove(requestDupKey_(user.name, req.clinic, req.branch, req.doctor, str_(f.row.Type), its));
   });
-  notifyUser_(doctorAccounts_()[req.doctor] || req.doctor, 'أُلغي طلب كان بانتظار مراجعتك - ' + requestId,
+  if (wasReview) notifyUser_(doctorAccounts_()[req.doctor] || req.doctor, 'أُلغي طلب كان بانتظار مراجعتك - ' + requestId,
     'ألغت الممرضة ' + user.name + ' الطلب ' + requestId + ' (عيادة ' + req.clinic + ') قبل مراجعتك — لا حاجة لأي إجراء.\nالسبب: ' + reason);
   return true;
 }
