@@ -653,6 +653,11 @@ button.kpi[aria-pressed="true"] { border-color: var(--tone); box-shadow: 0 0 0 3
 .combo-opt .nm mark { background: color-mix(in srgb, var(--t-amber) 28%, transparent); color: inherit; border-radius: 3px; padding: 0 1px; }
 .combo-opt .mt { font-size: 12px; color: var(--muted); }
 .combo-opt.new .ic { background: var(--primary-soft); color: var(--primary); }
+/* الإضافة كصنف حر: بطاقة واضحة بلون الثيم (كانت تظهر داكنة على خلفية داكنة) */
+.combo-free-opt { background: var(--primary-soft); color: var(--text); border: 1px dashed var(--primary); margin: 4px 0; }
+.combo-free-opt:hover, .combo-free-opt[aria-selected="true"] { background: var(--surface-2); color: var(--text); }
+.combo-free-opt .nm { color: var(--text); }
+.combo-free-opt .i { color: var(--primary); }
 .combo-empty { padding: 16px; text-align: center; color: var(--muted); font-size: 13px; }
 
 .items-list { display: flex; flex-direction: column; }
