@@ -1,5 +1,5 @@
 /**
- * SupplyFlow — نظام طلبات المستلزمات - ApexCare Clinics
+ * SupplyFlow — نظام طلبات المستلزمات
  *
  * كل استدعاءات الواجهة تمر عبر دالة واحدة `api(token, fn, args)` (أو doPost عند
  * الاستضافة الخارجية). الدوال الداخلية تنتهي بـ "_" حتى لا يمكن استدعاؤها
@@ -400,7 +400,7 @@ function setupSheets() {
 
 function doGet() {
   return HtmlService.createTemplateFromFile('Index').evaluate()
-    .setTitle('مسار — ApexCare') // the part after the dash is the client company name; change it per client
+    .setTitle('مسار') // add the client company name after a dash here when requested
     .addMetaTag('viewport', 'width=device-width, initial-scale=1, viewport-fit=cover')
     .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
 }

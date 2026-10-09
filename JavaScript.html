@@ -965,7 +965,7 @@ function applyLang() {
   document.documentElement.lang = S.lang;
   document.documentElement.dir = S.lang === 'ar' ? 'rtl' : 'ltr';
   $$('[data-i18n]').forEach(el => { el.textContent = t(el.dataset.i18n); });
-  document.title = t('brand_name') + ' — ApexCare';
+  document.title = t('brand_name');
   $$('[data-i18n-ph]').forEach(el => { el.placeholder = t(el.dataset.i18nPh); });
   $$('[data-i18n-title]').forEach(el => { el.title = t(el.dataset.i18nTitle); el.setAttribute('aria-label', t(el.dataset.i18nTitle)); });
 }
@@ -2530,7 +2530,7 @@ function drawReceipt(id, sections, combined) {
     x.fillStyle = '#fff'; x.fillRect(0, 0, W, H);
     x.fillStyle = '#3d8fc8'; x.fillRect(0, 0, W, 10);
     x.textAlign = 'center'; x.fillStyle = '#3d8fc8'; x.font = 'bold 21px Arial, sans-serif';
-    x.fillText('Supply Flow (مسار) — ApexCare · ' + (combined ? 'Combined receipt' : 'Receipt'), W / 2, 44);
+    x.fillText('Supply Flow (مسار) · ' + (combined ? 'Combined receipt' : 'Receipt'), W / 2, 44);
     x.fillStyle = '#555'; x.font = '13px Arial, sans-serif';
     x.fillText(id + '   |   ' + when() + (combined ? '   |   ' + sections.length + ' shipment(s)' : ''), W / 2, 68);
     let y = 92;
@@ -3111,8 +3111,8 @@ function badPricesHtml(list) {
 }
 function reportHtml(d, range) {
   const cur = ' ' + t('currency');
-  // The report logo is the client company's logo, read from #companyLogo in Index.html (replace it there for another client).
-  const logo = $('#companyLogo') ? '<img class="rep-logo" src="' + $('#companyLogo').src + '" alt="Client company logo">' : '';
+  // The report logo is the client company's logo, read from #companyLogo in Index.html (empty by default: no logo is printed until one is set there).
+  const logo = ($('#companyLogo') && $('#companyLogo').getAttribute('src')) ? '<img class="rep-logo" src="' + $('#companyLogo').src + '" alt="Client company logo">' : '';
   const head = '<div class="rep-head">' + logo +
     '<div class="rep-meta"><h2>' + esc(t('rep_title')) + '</h2>' +
       '<div><b>' + esc(t('rep_doctor')) + ':</b> ' + esc(d.doctor) + '</div>' +
@@ -3143,8 +3143,8 @@ function reportHtml(d, range) {
 }
 /* نسخة الطباعة / PDF لتفاصيل طلب واحد (تُحفظ PDF من نافذة الطباعة) */
 function requestPrintHtml(d) {
-  // The report logo is the client company's logo, read from #companyLogo in Index.html (replace it there for another client).
-  const logo = $('#companyLogo') ? '<img class="rep-logo" src="' + $('#companyLogo').src + '" alt="Client company logo">' : '';
+  // The report logo is the client company's logo, read from #companyLogo in Index.html (empty by default: no logo is printed until one is set there).
+  const logo = ($('#companyLogo') && $('#companyLogo').getAttribute('src')) ? '<img class="rep-logo" src="' + $('#companyLogo').src + '" alt="Client company logo">' : '';
   const qty = v => v === '' || v === null || v === undefined ? '—' : fmtNum(v, 0);
   const head = '<div class="rep-head">' + logo +
     '<div class="rep-meta"><h2>' + esc(t('req_print_title')) + ' <span class="mono">' + esc(d.id) + '</span></h2>' +
