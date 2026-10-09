@@ -3111,7 +3111,8 @@ function badPricesHtml(list) {
 }
 function reportHtml(d, range) {
   const cur = ' ' + t('currency');
-  const logo = $('#companyLogo') ? '<img class="rep-logo" src="' + $('#companyLogo').src + '" alt="ApexCare">' : '';
+  // The report logo is the client company's logo, read from #companyLogo in Index.html (replace it there for another client).
+  const logo = $('#companyLogo') ? '<img class="rep-logo" src="' + $('#companyLogo').src + '" alt="Client company logo">' : '';
   const head = '<div class="rep-head">' + logo +
     '<div class="rep-meta"><h2>' + esc(t('rep_title')) + '</h2>' +
       '<div><b>' + esc(t('rep_doctor')) + ':</b> ' + esc(d.doctor) + '</div>' +
@@ -3142,7 +3143,8 @@ function reportHtml(d, range) {
 }
 /* نسخة الطباعة / PDF لتفاصيل طلب واحد (تُحفظ PDF من نافذة الطباعة) */
 function requestPrintHtml(d) {
-  const logo = $('#companyLogo') ? '<img class="rep-logo" src="' + $('#companyLogo').src + '" alt="ApexCare">' : '';
+  // The report logo is the client company's logo, read from #companyLogo in Index.html (replace it there for another client).
+  const logo = $('#companyLogo') ? '<img class="rep-logo" src="' + $('#companyLogo').src + '" alt="Client company logo">' : '';
   const qty = v => v === '' || v === null || v === undefined ? '—' : fmtNum(v, 0);
   const head = '<div class="rep-head">' + logo +
     '<div class="rep-meta"><h2>' + esc(t('req_print_title')) + ' <span class="mono">' + esc(d.id) + '</span></h2>' +

@@ -400,7 +400,7 @@ function setupSheets() {
 
 function doGet() {
   return HtmlService.createTemplateFromFile('Index').evaluate()
-    .setTitle('مسار — ApexCare')
+    .setTitle('مسار — ApexCare') // the part after the dash is the client company name; change it per client
     .addMetaTag('viewport', 'width=device-width, initial-scale=1, viewport-fit=cover')
     .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
 }
