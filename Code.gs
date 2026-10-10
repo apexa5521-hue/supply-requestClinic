@@ -119,9 +119,10 @@ const DEFAULT_PERMS = {
   // مدير الفرع: مشاهدة فرعه + تقاريره ومؤشراته + التنبيه والشكاوى (بدون اعتماد أو إرسال)
   branch: ['overview', 'reports', 'complaints', 'monitor', 'lab_view', 'assets', 'boxes']
 };
-/* الطلب الشهري يُرفع من يوم 15 إلى 20، ويجب أن يُستلم قبل يوم 1 من الشهر التالي؛ الطارئ خلال 24 ساعة */
+/* الطلب الشهري يُرفع من يوم 15 إلى 20، ويجب أن يُستلم قبل يوم 1 من الشهر التالي؛ الطارئ: الهدف ساعتان والحد الأقصى 48 ساعة (زمن التموين) */
 const MONTHLY_WINDOW = [15, 20];
-const EMERGENCY_DUE_HOURS = 24;
+const EMERGENCY_DUE_HOURS = 48;   // الحد الأقصى لإرسال الطارئ: عليه يُقيَّم التموين
+const EMERGENCY_FAST_HOURS = 2;    // الهدف السريع للطارئ
 const AT_RISK_DAYS = 5;
 const NOTICE_TARGET_BY_SCREEN = { nurse: 'ممرضة', procurement: 'تموين', doctor: 'طبيب' };
 const COMPLAINT_TYPES = ['تأخير', 'نقص', 'زيادة', 'أخرى'];
@@ -2001,7 +2002,7 @@ function queryRequests_(filters) {
 }
 
 /* =====================================================================
- *  مواعيد الطلبات: الشهري يُرفع 15–20 ويُستلم قبل نهاية يوم 1 من الشهر التالي؛ الطارئ خلال 24 ساعة
+ *  مواعيد الطلبات: الشهري يُرفع 15–20 ويُستلم قبل نهاية يوم 1 من الشهر التالي؛ الطارئ: الهدف ساعتان والحد الأقصى 48 ساعة
  * ===================================================================== */
 
 /** بداية يوم 1 من الشهر التالي لـ 'yyyy-MM' بتوقيت الرياض */
@@ -2087,7 +2088,11 @@ function getMonitor_(user, opts) {
     onTimeRate: received ? Math.round(onTime / received * 100) : null,
     lateNow: late.length, atRisk: atRisk.length, lateSubmits: lateSubmits,
     lateProcurement: late.filter(function (x) { return x.owner === 'procurement'; }).length,
-    avgClearToPrepHrs: avg(toPrep), avgPrepToSendHrs: avg(toSend), avgSendToReceiveHrs: avg(toRecv), avgEmergencyHrs: avg(emergencyHrs)
+    avgClearToPrepHrs: avg(toPrep), avgPrepToSendHrs: avg(toSend), avgSendToReceiveHrs: avg(toRecv), avgEmergencyHrs: avg(emergencyHrs),
+    // زمن الطارئ (من الرفع إلى الإرسال): نسبة ما أُرسل خلال ساعتين، ونسبة ما أُرسل ضمن الحد الأقصى 48 ساعة
+    emergencySent: emergencyHrs.length,
+    emergencyFastRate: emergencyHrs.length ? Math.round(emergencyHrs.filter(function (h) { return h <= EMERGENCY_FAST_HOURS; }).length / emergencyHrs.length * 100) : null,
+    emergencyOnTimeRate: emergencyHrs.length ? Math.round(emergencyHrs.filter(function (h) { return h <= EMERGENCY_DUE_HOURS; }).length / emergencyHrs.length * 100) : null
   };
 
   // دورة الطلب الشهري حسب الطبيب: هل رُفع طلبه الشهري لهذا الشهر؟ ومتى (في الفترة أو متأخراً)؟
@@ -2114,7 +2119,7 @@ function getMonitor_(user, opts) {
     cycle: { month: cycleMonth, window: MONTHLY_WINDOW, today: today, open: today >= MONTHLY_WINDOW[0] && today <= MONTHLY_WINDOW[1],
       due: nextMonthStart_(cycleMonth), doctors: cycle, missing: cycle.filter(function (c) { return !c.count; }).length,
       lateSubmits: cycle.filter(function (c) { return c.state === 'late'; }).length, passed: passed },
-    rules: { window: MONTHLY_WINDOW, emergencyHours: EMERGENCY_DUE_HOURS, atRiskDays: AT_RISK_DAYS }
+    rules: { window: MONTHLY_WINDOW, emergencyHours: EMERGENCY_DUE_HOURS, emergencyFastHours: EMERGENCY_FAST_HOURS, atRiskDays: AT_RISK_DAYS }
   };
 }
 
@@ -3620,7 +3625,7 @@ function getAlerts_(user) {
     const open = perms.indexOf('complaints') !== -1 ? getComplaints_(user, true).length : 0;
     if (open) alerts.push({ type: 'danger', code: 'alert_open_complaints', n: open });
     if (perms.indexOf('monitor') !== -1) {
-      // متأخر = تجاوز موعد الاستلام (الشهري: يوم 1 من الشهر التالي، الطارئ: 24 ساعة)
+      // متأخر = تجاوز موعد الاستلام (الشهري: يوم 1 من الشهر التالي، الطارئ: 48 ساعة)
       const q = queryRequests_({});
       const late = q.filter(function (r) { return r.overdue; }).length;
       const risk = q.filter(function (r) { return r.atRisk; }).length;

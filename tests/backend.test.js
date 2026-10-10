@@ -1456,7 +1456,7 @@ test('permissions per role are editable by the admin and enforced on the server 
   throwsCode(() => api(a, 'saveRole', 'أدمن', 'quality', []), 'ERR_LAST_ADMIN');
 });
 
-test('monitor: monthly window 15–20 and due on the 1st, emergency within 24h; nudge + daily digest reach procurement and quality', () => {
+test('monitor: monthly window 15–20 and due on the 1st, emergency target 2h and limit 48h; nudge + daily digest reach procurement and quality', () => {
   const now = Date.now();
   const H = 36e5;
   const d = (ms) => new Date(ms);
@@ -1465,8 +1465,8 @@ test('monitor: monthly window 15–20 and due on the 1st, emergency within 24h; 
   const { api, login, gas, ctx } = boot(g => {
     g.seed('Requests', ['RequestID', 'Date', 'Clinic', 'Doctor', 'Nurse', 'Type', 'Status', 'SubmittedAt', 'Branch', 'ReceivedAt'], [
       ['REQ-A', day(2, 17), 'عيادة الأسنان 1', 'د. نورة', 'سارة', 'شهري', 'جديد', day(2, 17), 'الرياض', ''],
-      ['REQ-B', d(now - 30 * H), 'عيادة الأسنان 1', 'د. نورة', 'سارة', 'طارئ', 'قيد التجهيز', d(now - 30 * H), 'الرياض', ''],
-      ['REQ-C', d(now - 15 * H), 'عيادة الجلدية 1', 'د. نورة', 'سارة', 'طارئ', 'جديد', d(now - 15 * H), 'الرياض', ''],
+      ['REQ-B', d(now - 50 * H), 'عيادة الأسنان 1', 'د. نورة', 'سارة', 'طارئ', 'قيد التجهيز', d(now - 50 * H), 'الرياض', ''],
+      ['REQ-C', d(now - 30 * H), 'عيادة الجلدية 1', 'د. نورة', 'سارة', 'طارئ', 'جديد', d(now - 30 * H), 'الرياض', ''],
       ['REQ-D', d(now - 2 * H), 'عيادة الأسنان 1', 'د. نورة', 'سارة', 'طارئ', 'جديد', d(now - 2 * H), 'الرياض', ''],
       ['REQ-E', day(2, 3), 'عيادة الأسنان 2', 'د. سعد', 'ريم', 'شهري', 'تم الاستلام', day(2, 3), 'جدة', day(1, 5)]
     ]);
@@ -1483,6 +1483,7 @@ test('monitor: monthly window 15–20 and due on the 1st, emergency within 24h; 
   assert.deepEqual(m.cycle.doctors.map(x => x.doctor).sort(), ['د. خالد', 'د. سعد', 'د. فهد', 'د. نورة'].sort());
   assert.ok(m.cycle.doctors.every(x => ['ok', 'late', 'pending', 'missing'].includes(x.state)));
   assert.deepEqual(m.rules.window, [15, 20]);
+  assert.deepEqual([m.rules.emergencyHours, m.rules.emergencyFastHours], [48, 2]);
   const k = api(q, 'getMonitor', { month: ym(2) }).kpis;
   assert.deepEqual([k.requests, k.monthly, k.lateSubmits, k.received, k.onTimeRate], [2, 2, 0, 1, 0], 'REQ-E: submitted early (day 3 is fine), received after the 1st');
   // بطاقات التموين تحمل علامة التأخير + تنبيه أعلى الشاشة
