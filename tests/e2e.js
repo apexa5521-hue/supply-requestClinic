@@ -148,7 +148,7 @@ function log(msg) { console.log('  ✔ ' + msg); }
   await page.click('#loginBtn');
   await page.waitForSelector('#loginError:not(.hidden)');
   expect((await page.innerText('#loginError')).includes('غير صحيح'), 'wrong password shows an error');
-  expect(await page.evaluate(() => { const i = document.getElementById('companyLogo'); return i && !i.getAttribute('src') && getComputedStyle(i).display === 'none'; }), 'no client logo is shown on the login screen by default');
+  expect(await page.evaluate(() => { const i = document.getElementById('companyLogo'); return i && i.complete && i.naturalWidth > 100; }), 'client logo shows on the login screen');
   await shot(page, 'login-error');
 
   // ---------- Nurse: create request ----------
@@ -360,7 +360,7 @@ function log(msg) { console.log('  ✔ ' + msg); }
   await page.waitForSelector('.rep .rep-tiles');
   expect(await page.locator('.rep .rep-req').count() >= 1, 'doctor report lists the requests with items');
   expect(/\d/.test(await page.textContent('.rep-grand b')), 'doctor report shows a grand total');
-  expect(await page.locator('.rep-logo').count() === 0, 'report header has no client logo until one is set');
+  expect(await page.isVisible('.rep-logo'), 'report header carries the client logo');
   await page.click('[data-seg-name="repMode"][data-v="cum"]');
   expect(await page.isVisible('#repTo') && !(await page.isVisible('#repMonth')), 'cumulative mode asks for an end date');
   await page.click('#repGo');
