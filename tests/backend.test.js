@@ -2426,3 +2426,44 @@ test('nurse free-text item: added to the catalog with its type and clinic depart
   throwsCode(() => api(p, 'createRequest', { clinic: 'عيادة الأسنان 1', type: 'شهري', items: [{ name: 'Only nurses', qty: 1, free: true, type: 'مستهلك' }] }), 'ERR_FORBIDDEN');
   assert.equal(catRows().length, before + 1, 'rejected requests add nothing');
 });
+
+test('substitute item: procurement proposes, doctor approves or rejects, only approved substitutes ship', () => {
+  const { api, login, gas } = boot();
+  const n = login('سارة', '1111'), p = login('علي', '3333'), d = login('د. خالد', '4444');
+  const id = api(n, 'createRequest', { clinic: 'عيادة الأسنان 1', doctor: 'د. خالد', type: 'شهري', items: [{ name: 'PROPHY PASTE', qty: 4 }, { name: 'DENTAL FLOSS', qty: 10 }] }).id;
+  // قبل اعتماد الطبيب لا يوجد بديل
+  throwsCode(() => api(p, 'proposeSubstitute', { requestId: id, item: 'PROPHY PASTE', substitute: 'Itero Sleeve' }), 'ERR_NEEDS_APPROVAL');
+  api(d, 'doctorReview', id, 'اعتمد', '', []);
+  throwsCode(() => api(p, 'proposeSubstitute', { requestId: id, item: 'PROPHY PASTE', substitute: 'PROPHY PASTE' }), 'ERR_SUB_SAME');
+  throwsCode(() => api(p, 'proposeSubstitute', { requestId: id, item: 'PROPHY PASTE', substitute: 'لا يوجد' }), 'ERR_UNKNOWN_ITEM');
+  throwsCode(() => api(p, 'proposeSubstitute', { requestId: id, item: 'PROPHY PASTE', substitute: 'DENTAL FLOSS' }), 'ERR_SUB_EXISTS');
+  gas.mails.length = 0;
+  assert.equal(api(p, 'proposeSubstitute', { requestId: id, item: 'PROPHY PASTE', substitute: 'itero sleeve', note: 'غير متوفر' }).status, 'بانتظار الطبيب');
+  assert.ok(gas.mails.some(m => m.to === 'khaled@example.com' && /بديل بانتظار موافقتك/.test(m.subject)), 'doctor emailed');
+  throwsCode(() => api(p, 'proposeSubstitute', { requestId: id, item: 'PROPHY PASTE', substitute: 'Itero Sleeve' }), 'ERR_SUB_PENDING');
+  // البديل المعلّق لا يُرسل
+  let full = api(p, 'getRequestItemsFull', id);
+  const sub = full.items.find(i => i.item === 'Itero Sleeve');
+  assert.deepEqual([sub.substituteOf, sub.subStatus, sub.remainingQty, sub.requestedQty], ['PROPHY PASTE', 'بانتظار الطبيب', 0, 4]);
+  throwsCode(() => api(p, 'dispatchItems', id, ['Itero Sleeve']), 'ERR_NO_ITEMS');
+  // الطبيب يرى البديل ويوافق
+  const dr = api(d, 'getDoctorRequests').find(r => r.id === id);
+  assert.equal(dr.pendingSubs, 1);
+  assert.deepEqual([dr.subs[0].of, dr.subs[0].item, dr.subs[0].qty], ['PROPHY PASTE', 'Itero Sleeve', 4]);
+  assert.ok(api(d, 'getAlerts').some(a => a.code === 'alert_pending_subs' && a.n === 1));
+  throwsCode(() => api(p, 'reviewSubstitute', id, 'Itero Sleeve', true), 'ERR_FORBIDDEN');
+  api(d, 'reviewSubstitute', id, 'Itero Sleeve', true);
+  full = api(p, 'getRequestItemsFull', id);
+  assert.equal(full.items.find(i => i.item === 'Itero Sleeve').remainingQty, 4, 'approved substitute ships');
+  assert.equal(full.items.find(i => i.item === 'PROPHY PASTE').remainingQty, 0, 'the original is replaced');
+  assert.ok(rows(gas, 'Log').some(l => /وافق الطبيب على البديل/.test(l.Action)));
+  // رفض بديل: يبقى الأصلي كما هو
+  api(p, 'proposeSubstitute', { requestId: id, item: 'DENTAL FLOSS', substitute: 'MICRO BRUSH FINE', qty: 3 });
+  api(d, 'reviewSubstitute', id, 'MICRO BRUSH FINE', false, 'لا يناسب');
+  full = api(p, 'getRequestItemsFull', id);
+  assert.equal(full.items.find(i => i.item === 'DENTAL FLOSS').remainingQty, 10);
+  assert.equal(full.items.find(i => i.item === 'MICRO BRUSH FINE').remainingQty, 0);
+  assert.equal(full.items.find(i => i.item === 'MICRO BRUSH FINE').subStatus, 'مرفوض');
+  const ds = api(p, 'dispatchItems', id, ['Itero Sleeve', 'DENTAL FLOSS']);
+  assert.equal(ds.allSent, true, 'request is complete with the substitute and without the rejected one');
+});

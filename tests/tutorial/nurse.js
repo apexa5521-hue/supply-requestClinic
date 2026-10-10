@@ -38,6 +38,12 @@ const scenes = {
     ur: 'آئٹم کا نام لکھیں اور اس پر ٹیپ کریں، پھر جمع اور منفی سے مقدار طے کریں۔ ہر ضروری چیز شامل کریں تاکہ سب ایک ہی آرڈر میں آئے۔',
     id: 'Tulis nama barang dan ketuk, lalu atur jumlah dengan plus dan minus. Tambahkan semua barang yang Anda perlukan, agar semuanya datang dalam satu pesanan.'
   },
+  freeitem: {
+    en: 'Cannot find an item in the list? Type its name in the search box, then choose to add it as a consumable or as a material. It joins your request with a free-item tag, and procurement reviews it and completes its details. You can add up to five free items per request.',
+    ar: 'لم تجدي الصنف في القائمة؟ اكتبي اسمه في خانة البحث، وستظهر لك خيارات: أضيفيه كمستهلك، أو أضيفيه كماتيريال. اختاري النوع، فينضاف الصنف إلى طلبك بعلامة «صنف حر». التموين يراجعه ويستكمل بياناته، ويمكنك إضافة حتى خمسة أصناف حرة في الطلب الواحد.',
+    ur: 'فہرست میں آئٹم نہیں ملا؟ سرچ باکس میں اس کا نام لکھیں، پھر اسے کنزیومیبل یا میٹیریل کے طور پر شامل کریں۔ وہ آپ کی درخواست میں «فری آئٹم» کے نشان کے ساتھ شامل ہو جاتا ہے، اور پروکیورمنٹ اسے دیکھ کر اس کی تفصیلات مکمل کرتی ہے۔ ایک درخواست میں زیادہ سے زیادہ پانچ فری آئٹم شامل کیے جا سکتے ہیں۔',
+    id: 'Barang tidak ada di daftar? Ketik namanya di kotak pencarian, lalu pilih tambahkan sebagai barang habis pakai atau sebagai material. Barang itu masuk ke permintaan Anda dengan tanda barang bebas, dan bagian pengadaan yang meninjau serta melengkapi datanya. Anda bisa menambah hingga lima barang bebas dalam satu permintaan.'
+  },
   submit: {
     en: 'Check the summary, then tap Submit request. Your draft is saved by itself, so you never lose your work.',
     ar: 'راجعي الملخص، ثم اضغطي «إرسال الطلب». المسودة تُحفظ تلقائيًا فلا يضيع عملك.',
@@ -154,6 +160,13 @@ async function flow(h) {
     await click('.item-line:nth-child(1) [data-d="1"]'); await click('.item-line:nth-child(1) [data-d="1"]'); await click('.item-line:nth-child(2) [data-d="1"]');
   });
   let reqId = '', consId = '', extraId = '';
+  await scene('freeitem', 'doc', async () => {
+    await type('#itemSearch', 'High speed turbine');
+    await page.waitForSelector('#comboList .combo-free-opt'); await wait(900);
+    await point('#comboList .combo-free-opt[data-free="مستهلك"]'); await wait(500);
+    await click('#comboList .combo-free-opt[data-free="مستهلك"]'); await wait(700);
+    await page.keyboard.press('Escape'); await highlight('.item-line:last-child', 1400);
+  });
   await scene('submit', 'doc', async () => { await highlight('#sumBox', 1400); reqId = await submit(); });
   // طلب تعقيم سابق (يلغيه التموين لاحقاً في المشهد «ملغي»)
   extraId = (await h.api('createRequest', [{ clinic: 'Sterilization', branch: 'Buraydah', type: 'شهري', items: [{ name: 'Sterilization pouches', qty: 4 }] }], ['Sara', '1111'])).id;

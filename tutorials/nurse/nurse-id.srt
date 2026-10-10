@@ -1,123 +1,139 @@
 1
-00:00:01,157 --> 00:00:06,697
+00:00:00,967 --> 00:00:06,507
 Selamat datang di Masar. Video ini menunjukkan semua yang perawat butuhkan, langkah demi langkah.
 
 2
-00:00:07,149 --> 00:00:11,709
+00:00:06,959 --> 00:00:11,519
 Buka tautan sistem, tulis nama dan kata sandi Anda, lalu ketuk Sign in.
 
 3
-00:00:12,664 --> 00:00:17,307
+00:00:12,266 --> 00:00:16,909
 Di atas ada tiga pilihan. Doctor request perlu persetujuan dokter.
 
 4
-00:00:17,307 --> 00:00:24,764
+00:00:16,909 --> 00:00:24,366
 Clinic consumables tanpa persetujuan dokter dan langsung ke pengadaan. Send to lab untuk pekerjaan pasien.
 
 5
-00:00:25,214 --> 00:00:30,594
+00:00:24,817 --> 00:00:30,197
 Pada Doctor request, pilih klinik dulu, lalu dokter, lalu cabangnya.
 
 6
-00:00:31,045 --> 00:00:36,667
+00:00:30,647 --> 00:00:36,269
 Pilih jenisnya. Monthly untuk pesanan biasa, tanggal 15 sampai 20 setiap bulan.
 
 7
-00:00:36,667 --> 00:00:39,585
+00:00:36,269 --> 00:00:39,187
 Emergency hanya untuk kebutuhan mendesak.
 
 8
-00:00:40,036 --> 00:00:43,904
+00:00:39,637 --> 00:00:43,505
 Tulis nama barang dan ketuk, lalu atur jumlah dengan plus dan minus.
 
 9
-00:00:43,904 --> 00:00:48,626
+00:00:43,505 --> 00:00:48,227
 Tambahkan semua barang yang Anda perlukan, agar semuanya datang dalam satu pesanan.
 
 10
-00:00:51,054 --> 00:00:57,874
-Periksa ringkasan, lalu ketuk Submit request. Draf tersimpan otomatis, jadi pekerjaan Anda tidak hilang.
+00:00:50,151 --> 00:00:51,463
+Barang tidak ada di daftar?
 
 11
-00:00:58,335 --> 00:01:05,012
-Clinic consumables untuk Sterilisasi, ruang Triase, dan ruang perangkat derma, dan sekarang untuk semua
+00:00:51,463 --> 00:00:56,517
+Ketik namanya di kotak pencarian, lalu pilih tambahkan sebagai barang habis pakai atau sebagai material.
 
 12
-00:01:05,012 --> 00:01:09,615
-klinik gigi juga. Pilih tempatnya, tambahkan barang, lalu ketuk Submit.
+00:00:56,517 --> 00:01:01,522
+Barang itu masuk ke permintaan Anda dengan tanda barang bebas, dan bagian pengadaan yang meninjau serta
 
 13
-00:01:10,065 --> 00:01:16,086
-Di My requests terlihat bedanya. Doctor request berstatus Doctor review, menunggu dokter.
+00:01:01,522 --> 00:01:05,701
+melengkapi datanya. Anda bisa menambah hingga lima barang bebas dalam satu permintaan.
 
 14
-00:01:16,086 --> 00:01:20,145
-Clinic consumables berstatus New, sudah sampai di pengadaan.
+00:01:06,152 --> 00:01:12,972
+Periksa ringkasan, lalu ketuk Submit request. Draf tersimpan otomatis, jadi pekerjaan Anda tidak hilang.
 
 15
-00:01:20,597 --> 00:01:27,797
-Salah jumlah? Ketuk Edit items, ubah angkanya, atau ketuk tempat sampah untuk menghapus barang, lalu Save.
+00:01:13,427 --> 00:01:20,104
+Clinic consumables untuk Sterilisasi, ruang Triase, dan ruang perangkat derma, dan sekarang untuk semua
 
 16
-00:01:28,247 --> 00:01:33,373
-Salah mengirim permintaan? Ketuk Cancel request, dan tulis alasannya jika mau.
+00:01:20,104 --> 00:01:24,707
+klinik gigi juga. Pilih tempatnya, tambahkan barang, lalu ketuk Submit.
 
 17
-00:01:33,373 --> 00:01:39,747
-Ubah dan batal bisa selama permintaan di Doctor review atau New. Setelah itu, minta ke pengadaan.
+00:01:25,158 --> 00:01:31,179
+Di My requests terlihat bedanya. Doctor request berstatus Doctor review, menunggu dokter.
 
 18
-00:01:40,198 --> 00:01:44,169
-Details menampilkan setiap tahap dan waktunya, barang, dan komentar.
+00:01:31,179 --> 00:01:35,238
+Clinic consumables berstatus New, sudah sampai di pengadaan.
 
 19
-00:01:44,169 --> 00:01:47,088
-Anda juga bisa menulis komentar sebagai pengingat.
+00:01:35,688 --> 00:01:42,888
+Salah jumlah? Ketuk Edit items, ubah angkanya, atau ketuk tempat sampah untuk menghapus barang, lalu Save.
 
 20
-00:01:50,646 --> 00:01:55,993
-Saat sopir mengantar kotak ke cabang Anda, Anda mendapat pemberitahuan, dan kartunya berubah menjadi
+00:01:43,338 --> 00:01:48,464
+Salah mengirim permintaan? Ketuk Cancel request, dan tulis alasannya jika mau.
 
 21
-00:01:55,993 --> 00:01:56,956
-Arrived at branch.
+00:01:48,464 --> 00:01:54,838
+Ubah dan batal bisa selama permintaan di Doctor review atau New. Setelah itu, minta ke pengadaan.
 
 22
-00:02:00,440 --> 00:02:01,842
-Ketuk Receive and sign.
+00:01:55,288 --> 00:01:59,259
+Details menampilkan setiap tahap dan waktunya, barang, dan komentar.
 
 23
-00:02:01,842 --> 00:02:07,450
-Periksa setiap jumlah dan perbaiki yang kurang, lalu tanda tangan dan ketuk Confirm receipt.
+00:01:59,259 --> 00:02:02,178
+Anda juga bisa menulis komentar sebagai pengingat.
 
 24
-00:02:09,258 --> 00:02:15,425
-Jika pengadaan membatalkan permintaan, kartunya menunjukkan Cancelled beserta alasannya, dan Anda mendapat email.
+00:02:05,511 --> 00:02:10,858
+Saat sopir mengantar kotak ke cabang Anda, Anda mendapat pemberitahuan, dan kartunya berubah menjadi
 
 25
-00:02:15,425 --> 00:02:17,608
-Ajukan permintaan baru jika masih perlu.
+00:02:10,858 --> 00:02:11,821
+Arrived at branch.
 
 26
-00:02:18,084 --> 00:02:21,594
-Untuk lab, pilih dokter dan tulis nomor berkas pasien.
+00:02:15,030 --> 00:02:16,432
+Ketuk Receive and sign.
 
 27
-00:02:21,594 --> 00:02:26,924
-Untuk setiap pekerjaan, pilih lab dan jenisnya, tulis catatan, dan tambahkan foto.
+00:02:16,432 --> 00:02:22,040
+Periksa setiap jumlah dan perbaiki yang kurang, lalu tanda tangan dan ketuk Confirm receipt.
 
 28
-00:02:26,924 --> 00:02:29,264
-Tanggal jatuh tempo terisi otomatis.
+00:02:22,902 --> 00:02:29,069
+Jika pengadaan membatalkan permintaan, kartunya menunjukkan Cancelled beserta alasannya, dan Anda mendapat email.
 
 29
-00:02:33,790 --> 00:02:40,610
-Untuk scan iTero, tulis tanggal scan, nomor kasus iTero, dan nomor berkas, lalu pilih labnya.
+00:02:29,069 --> 00:02:31,252
+Ajukan permintaan baru jika masih perlu.
 
 30
-00:02:47,184 --> 00:02:50,954
-Saat pekerjaan kembali ke klinik Anda, ketuk Confirm receipt.
+00:02:31,703 --> 00:02:35,213
+Untuk lab, pilih dokter dan tulis nomor berkas pasien.
 
 31
-00:02:54,849 --> 00:03:00,489
+00:02:35,213 --> 00:02:40,543
+Untuk setiap pekerjaan, pilih lab dan jenisnya, tulis catatan, dan tambahkan foto.
+
+32
+00:02:40,543 --> 00:02:42,883
+Tanggal jatuh tempo terisi otomatis.
+
+33
+00:02:47,043 --> 00:02:53,863
+Untuk scan iTero, tulis tanggal scan, nomor kasus iTero, dan nomor berkas, lalu pilih labnya.
+
+34
+00:03:00,391 --> 00:03:04,161
+Saat pekerjaan kembali ke klinik Anda, ketuk Confirm receipt.
+
+35
+00:03:08,057 --> 00:03:13,697
 Itu saja. Untuk masalah apa pun, gunakan tombol Report pada permintaan. Terima kasih!

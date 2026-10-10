@@ -31,7 +31,8 @@ const SCHEMA = {
                  'RejectionReason', 'ReceiptURL', 'Branch', 'ApprovedAt', 'ClientKey', 'Department', 'Backdated',
                  'CancelReason', 'CancelledAt', 'CancelledBy'],
   // ItemStatus: حالة الصنف داخل الطلبية (قيد التجهيز / بانتظار المندوب / استلم المندوب) قبل إرساله
-  RequestItems: ['RequestID', 'ItemName', 'RequestedQty', 'ApprovedQty', 'ReceivedQty', 'DispatchedAt', 'DispatchBatch', 'ItemStatus', 'ItemStatusAt', 'ItemStatusBy'],
+  RequestItems: ['RequestID', 'ItemName', 'RequestedQty', 'ApprovedQty', 'ReceivedQty', 'DispatchedAt', 'DispatchBatch', 'ItemStatus', 'ItemStatusAt', 'ItemStatusBy',
+                 'SubstituteOf', 'SubStatus', 'SubNote', 'SubBy', 'SubAt'], // البديل: سطر جديد يشير لاسم الصنف الأصلي
   // سجل التراجعات: كل تراجع عن خطوة (شحنة أُرسلت بالغلط، حالة طلب، حالة صنف) مع السبب والوقت — تراه الجودة والإدارة
   Reversals:    ['Timestamp', 'RequestID', 'User', 'Role', 'Scope', 'From', 'To', 'Reason', 'Details'],
   // كل سطر = كمية صنف واحد داخل شحنة واحدة (يسمح بإرسال جزء من كمية الصنف)
@@ -94,6 +95,8 @@ TRANSITIONS[ST.VENDOR_RECV] = { from: [ST.VENDOR_WAIT], stamp: 'VendorReceivedAt
 TRANSITIONS[ST.SENT]        = { from: [ST.APPROVED, ST.PREP, ST.VENDOR_RECV], stamp: 'SentAt' };
 // حالات يمكن فيها إرسال أصناف (بعد الاعتماد)
 const DISPATCHABLE = [ST.APPROVED, ST.PREP, ST.VENDOR_WAIT, ST.VENDOR_RECV];
+/* مستهلك بديل يقترحه التموين لصنف غير متوفر بعد اعتماد الطبيب: لا يُرسل حتى يوافق الطبيب */
+const SUB_ST = { PENDING: 'بانتظار الطبيب', OK: 'معتمد', NO: 'مرفوض' };
 
 const REQUEST_TYPES = ['شهري', 'طارئ'];
 const SCREENS = ['nurse', 'procurement', 'doctor', 'lab', 'quality', 'executive', 'finance', 'dashboard', 'branch', 'admin'];
@@ -599,6 +602,8 @@ const API_ = {
   getRequestItemsFull:       { screens: ['procurement'].concat(MGMT), fn: getRequestItemsFull_ },
   updateItemApproval:        { screens: ['procurement'], fn: updateItemApproval_ },
   dispatchItems:             { screens: ['procurement'], fn: dispatchItems_ },
+  proposeSubstitute:         { screens: ['procurement'], fn: proposeSubstitute_ },
+  reviewSubstitute:          { screens: ['doctor'], fn: reviewSubstitute_ },
   setItemsStatus:            { screens: ['procurement'], fn: setItemsStatus_ },
   getRevertPlan:             { screens: ['procurement'], fn: function (u, id) { return cachedRead_(function () { return revertPlan_(id).plan; }); } },
   revertStep:                { screens: ['procurement'], fn: revertStep_ },
@@ -1995,6 +2000,10 @@ function queryRequests_(filters) {
     r.awaitingDoctor = r.needsReview && !r.cleared && AWAITING_DOCTOR.indexOf(r.status) !== -1;
     if (r.awaitingDoctor && r.status === ST.NEW) r.status = ST.REVIEW; // طلب قديم «جديد» = لدى الطبيب
     r.doctorApproved = r.needsReview && r.cleared;
+    r.subs = (byReq[r.id] || []).filter(function (x) { return str_(x.SubstituteOf); }).map(function (x) {
+      return { item: str_(x.ItemName), of: str_(x.SubstituteOf), qty: Number(x.RequestedQty) || 0, status: str_(x.SubStatus), note: str_(x.SubNote), by: str_(x.SubBy), at: x.SubAt };
+    });
+    r.pendingSubs = r.subs.filter(function (x) { return x.status === SUB_ST.PENDING; }).length;
     Object.assign(r, deadline_(r));
     r._ms = toMs_(r.date);
     return r;
@@ -2545,6 +2554,7 @@ function mapItem_(r, batches) {
     item: str_(r.ItemName), requestedQty: r.RequestedQty, approvedQty: r.ApprovedQty,
     receivedQty: r.ReceivedQty, dispatchedAt: r.DispatchedAt,
     itemStatus: str_(r.ItemStatus), itemStatusAt: r.ItemStatusAt,
+    substituteOf: str_(r.SubstituteOf), subStatus: str_(r.SubStatus), subNote: str_(r.SubNote),
     batch: batches ? batches.of(r) : (Number(r.DispatchBatch) || 0)
   };
 }
@@ -2567,6 +2577,8 @@ function receiptsIndex_() {
  */
 /** الكمية المستهدفة للصنف = المعتمدة إن حُددت وإلا المطلوبة */
 function targetQty_(r) {
+  const ss = str_(r.SubStatus);
+  if (ss === SUB_ST.PENDING || ss === SUB_ST.NO) return 0; // بديل لم يوافق عليه الطبيب (أو رفضه) لا يُرسل
   const a = num_(r.ApprovedQty);
   const q = isNaN(a) ? num_(r.RequestedQty) : a; // تاريخ/نص في خلية الكمية لا يتحول لرقم ضخم
   return Math.max(0, Math.min(100000, isNaN(q) ? 0 : Math.floor(q)));
@@ -2734,6 +2746,87 @@ function getRequestItemsFull_(user, requestId) {
   const notes = {};
   itemNotes_(requestId).forEach(function (n) { notes[n.item] = (notes[n.item] || 0) + 1; });
   return { items: st.items, shipments: st.ships, dispatchStatus: dispatchStatus, noteCounts: notes, request: req };
+}
+
+/**
+ * مستهلك بديل: بعد اعتماد الطبيب، إن لم يتوفر صنف يقترح التموين بديلاً من الكتالوج.
+ * البديل سطر جديد في RequestItems (SubstituteOf = الصنف الأصلي) لا يُرسل حتى يوافق الطبيب.
+ * الطبيب بدون حساب في النظام (أو مستهلكات عيادة): يُعتمد البديل مباشرة.
+ * payload = { requestId, item, substitute, qty?, note? }
+ */
+function proposeSubstitute_(user, payload) {
+  payload = payload || {};
+  const requestId = str_(payload.requestId), item = str_(payload.item), wanted = str_(payload.substitute);
+  if (!requestId || !item || !wanted) throw new Error('ERR_REQUIRED');
+  const cat = {};
+  getCatalog_(false).forEach(function (c) { cat[c.name.toLowerCase()] = c.name; });
+  const sub = cat[wanted.toLowerCase()];
+  if (!sub) throw new Error('ERR_UNKNOWN_ITEM');
+  if (sub.toLowerCase() === item.toLowerCase()) throw new Error('ERR_SUB_SAME');
+  const note = clean_(payload.note, 300);
+  let res;
+  withLock_(function () {
+    resetMemo_();
+    const f = findRequest_(requestId);
+    if (DISPATCHABLE.indexOf(str_(f.row.Status)) === -1 || !cleared_(f.row)) throw new Error('ERR_NEEDS_APPROVAL');
+    const req = mapRequest_(f.row);
+    const t = read_('RequestItems');
+    const rows = t.rows.filter(function (r) { return str_(r.RequestID) === req.id; });
+    const live = rows.filter(function (r) { return str_(r.SubStatus) !== SUB_ST.NO; });
+    const origRow = live.filter(function (r) { return str_(r.ItemName) === item; })[0];
+    if (!origRow) throw new Error('ERR_NOT_FOUND');
+    if (str_(origRow.SubStatus) === SUB_ST.PENDING) throw new Error('ERR_SUB_PENDING');
+    if (rows.some(function (r) { return str_(r.SubstituteOf) === item && str_(r.SubStatus) === SUB_ST.PENDING; })) throw new Error('ERR_SUB_PENDING');
+    if (live.some(function (r) { return str_(r.ItemName).toLowerCase() === sub.toLowerCase(); })) throw new Error('ERR_SUB_EXISTS');
+    const orig = shipState_(req, rows).items.filter(function (i) { return i.item === item && i.subStatus !== SUB_ST.NO; })[0];
+    if (!orig || orig.remainingQty <= 0) throw new Error('ERR_SUB_NOTHING_LEFT');
+    const qty = payload.qty === undefined || payload.qty === '' || payload.qty === null ? orig.remainingQty : Math.floor(Number(payload.qty));
+    if (!(qty >= 1 && qty <= 100000)) throw new Error('ERR_BAD_QTY');
+    const auto = !doctorAccounts_()[req.doctor]; // لا يوجد طبيب يراجع في النظام
+    const now = new Date();
+    append_('RequestItems', { RequestID: req.id, ItemName: sub, RequestedQty: qty, ApprovedQty: auto ? qty : '',
+      SubstituteOf: item, SubStatus: auto ? SUB_ST.OK : SUB_ST.PENDING, SubNote: note, SubBy: user.name, SubAt: now });
+    // البديل المعتمد يحل محل المتبقي من الصنف الأصلي
+    if (auto) setMany_(t, [{ row: origRow, obj: { ApprovedQty: orig.sentQty } }]);
+    logAction_(req.id, 'مستهلك بديل: ' + item + ' ← ' + sub + ' × ' + qty + (auto ? ' (اعتُمد — الطبيب بدون حساب)' : ' (بانتظار موافقة الطبيب)') + (note ? ' — ' + note : ''), user.name);
+    res = { request: req, auto: auto, sub: sub, qty: qty };
+  });
+  if (!res.auto) {
+    notifyUser_(doctorAccounts_()[res.request.doctor], 'مستهلك بديل بانتظار موافقتك - ' + requestId,
+      'اقترح التموين بديلاً لصنف غير متوفر في الطلب ' + requestId + ':\n' + item + ' ← ' + res.sub + ' × ' + res.qty + (note ? '\nملاحظة: ' + note : '') +
+      '\n\nافتح النظام للموافقة أو الرفض.');
+  }
+  return { status: res.auto ? SUB_ST.OK : SUB_ST.PENDING };
+}
+
+/** الطبيب يوافق على البديل (يحل محل المتبقي من الأصلي) أو يرفضه (يبقى الأصلي كما هو) */
+function reviewSubstitute_(user, requestId, substitute, accept, reason) {
+  requestId = str_(requestId); substitute = str_(substitute);
+  let req;
+  withLock_(function () {
+    resetMemo_();
+    const f = findRequest_(requestId);
+    req = mapRequest_(f.row);
+    if (!isMyDoctor_(user, req.doctor)) throw new Error('ERR_FORBIDDEN');
+    const t = read_('RequestItems');
+    const rows = t.rows.filter(function (r) { return str_(r.RequestID) === req.id; });
+    const row = rows.filter(function (r) { return str_(r.ItemName) === substitute && str_(r.SubStatus) === SUB_ST.PENDING; })[0];
+    if (!row) throw new Error('ERR_NOT_FOUND');
+    const of = str_(row.SubstituteOf);
+    if (accept) {
+      const origRow = rows.filter(function (r) { return str_(r.ItemName) === of && str_(r.SubStatus) !== SUB_ST.NO; })[0];
+      const orig = shipState_(req, rows).items.filter(function (i) { return i.item === of && i.subStatus !== SUB_ST.NO; })[0];
+      const ups = [{ row: row, obj: { SubStatus: SUB_ST.OK, ApprovedQty: Number(row.RequestedQty) || 0 } }];
+      if (origRow && orig) ups.push({ row: origRow, obj: { ApprovedQty: orig.sentQty } });
+      setMany_(t, ups);
+    } else {
+      setMany_(t, [{ row: row, obj: { SubStatus: SUB_ST.NO, SubNote: [str_(row.SubNote), clean_(reason, 300) ? 'سبب الرفض: ' + clean_(reason, 300) : ''].filter(String).join(' · ') } }]);
+    }
+    logAction_(req.id, (accept ? 'وافق الطبيب على البديل: ' : 'رفض الطبيب البديل: ') + of + ' ← ' + substitute + (!accept && reason ? ' — ' + clean_(reason, 300) : ''), user.name);
+  });
+  notifyProcurement_(req.department, (accept ? 'وافق الطبيب على البديل - ' : 'رفض الطبيب البديل - ') + requestId,
+    'الطلب ' + requestId + ': ' + substitute + (accept ? ' — يمكن إرساله الآن.' : ' — مرفوض' + (reason ? ' (' + clean_(reason, 300) + ')' : '') + '، والصنف الأصلي باقٍ كما هو.'));
+  return { ok: true };
 }
 
 function getRequestItemsWithCatalog_(user, requestId) {
@@ -3618,6 +3711,8 @@ function getAlerts_(user) {
   } else if (user.screen === 'doctor') {
     const pending = queryRequests_({ doctorUser: user }).filter(function (r) { return r.awaitingDoctor; }).length;
     if (pending) alerts.push({ type: 'warning', code: 'alert_pending_review', n: pending });
+    const subs = queryRequests_({ doctorUser: user }).reduce(function (a, r) { return a + (r.pendingSubs || 0); }, 0);
+    if (subs) alerts.push({ type: 'warning', code: 'alert_pending_subs', n: subs });
     const sv = surveyCycle_();
     if (sv.open && !surveyDone_(sv.id, user.name)) alerts.push({ type: 'info', code: 'alert_survey', n: Math.max(0, Math.ceil((toMs_(sv.closes) - now) / 864e5)) });
   } else {
@@ -5111,14 +5206,15 @@ function issueAssets_(user, payload) {
     }
     const now = new Date();
     const n = cat.serialized ? serials.length : 1;
-    const out = [];
+    const out = [], recs = [];
     for (let i = 0; i < n; i++) {
       const id = reserveId_('AST-', function (prefix) { return maxSeq_(freshTable_('Assets').rows, 'AssetID', prefix); }).id;
-      append_('Assets', { AssetID: id, Item: item, Serial: cat.serialized ? serials[i] : '', Clinic: clinic, Branch: c.branch, Qty: cat.serialized ? 1 : qty,
+      recs.push({ AssetID: id, Item: item, Serial: cat.serialized ? serials[i] : '', Clinic: clinic, Branch: c.branch, Qty: cat.serialized ? 1 : qty,
         Status: AS_ST.IN, IssuedAt: now, IssuedBy: user.name, Cost: unitCost, Notes: clean_(payload.notes, 300) + (ticketId ? (payload.notes ? ' · ' : '') + 'بديل للبلاغ ' + ticketId : ''),
         UpdatedAt: now, UpdatedBy: user.name });
       out.push(id);
     }
+    appendMany_('Assets', recs); // كتابة واحدة لكل القطع بدل سطر لكل قطعة (أسرع بكثير على الشيت)
     if (tk) setMany_(read_('AssetTickets'), [{ row: read_('AssetTickets').rows.filter(function (r) { return str_(r.TicketID) === ticketId; })[0], obj: { ReplacementAssetID: out.join(','), UpdatedBy: user.name } }]);
     logAction_(ticketId, 'صرف عهدة: ' + item + ' × ' + (cat.serialized ? serials.length + ' (' + serials.join('، ') + ')' : qty) + ' → ' + clinic, user.name);
     return out;

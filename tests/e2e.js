@@ -202,6 +202,10 @@ function log(msg) { console.log('  ✔ ' + msg); }
   await page.fill('#itemSearch', 'floss');
   await page.waitForSelector('.combo-opt');
   await page.keyboard.press('Enter');
+  // جزء من اسم صنف موجود: نتائج الكتالوج تظهر أولاً، وخيار الصنف الحر تحتها (لا يخفيها)
+  await page.fill('#itemSearch', 'قفاز');
+  await page.waitForSelector('#comboList .combo-opt[data-i]');
+  expect(await page.locator('#comboList .combo-opt[data-i]').count() >= 1 && await page.locator('#comboList .combo-free-opt').count() === 2, 'partial name lists catalog matches above the free-item options');
   await page.fill('#itemSearch', 'قفازات');
   await page.keyboard.press('Enter');
   // صنف غير موجود: الممرضة تكتبه كصنف حر (مستهلك أو ماتيريال)، ويظهر في الطلب بعلامة حر
@@ -225,9 +229,12 @@ function log(msg) { console.log('  ✔ ' + msg); }
   expect(await page.locator('.item-line').count() >= 3, 'items added via catalog search and doctor package');
   expect((await page.inputValue('.item-line:nth-child(1) input')) === '3', 'qty stepper increments');
   // الكمية صفر: خطأ واضح ويُمنع الإرسال
-  await page.fill('.item-line:nth-child(1) input', '0');
-  await page.dispatchEvent('.item-line:nth-child(1) input', 'input');
-  await page.waitForSelector('.item-line:nth-child(1) .qty-err', { timeout: 3000 }).catch(() => {});
+  // القائمة قد تُعاد رسمها بعد إضافة البكج: نعيد كتابة الصفر حتى يثبت
+  for (let k = 0; k < 4; k++) {
+    await page.fill('.item-line:nth-child(1) input', '0');
+    await page.dispatchEvent('.item-line:nth-child(1) input', 'input');
+    if (await page.waitForSelector('.item-line:nth-child(1) .qty-err:not(.hidden)', { timeout: 1500 }).then(() => true, () => false)) break;
+  }
   expect(await page.isVisible('.item-line:nth-child(1) .qty-err') && (await page.textContent('.item-line:nth-child(1) .qty-err')).includes('أقل كمية 1'), 'zero quantity shows "minimum is 1"');
   await page.click('#submitBtn');
   expect((await page.textContent('#submitErr')).includes('لا يمكن طلب صفر'), 'submit is blocked while a quantity is zero');
@@ -424,6 +431,15 @@ function log(msg) { console.log('  ✔ ' + msg); }
     'procurement sees the doctor-approved quantities, locked');
   const flossRow = await page.textContent(`#exp-${newId} .dsp-row:has-text("DENTAL FLOSS")`);
   expect(flossRow.includes('أُرسل 0 من 2'), 'the doctor quantity (2) is what procurement prepares: ' + flossRow.replace(/\s+/g, ' '));
+  // مستهلك بديل: رابط تحت كل صنف متبقٍ، والبديل يُختار من الكتالوج
+  expect(await page.locator(`#exp-${newId} .dsp-row:has-text("DENTAL FLOSS") [data-act="subItem"]`).count() === 1, 'each item left to send offers «add a substitute item»');
+  await (await page.$(`#exp-${newId} .dsp-table`)).screenshot({ path: __dirname + '/screenshots/proc-substitute-link.png' });
+  await page.click(`#exp-${newId} .dsp-row:has-text("DENTAL FLOSS") [data-act="subItem"]`);
+  await page.waitForSelector('.modal #subItem');
+  expect(await page.locator('.modal #subCat option').count() > 3, 'the substitute is picked from the catalog');
+  await shot(page, 'proc-substitute');
+  await page.keyboard.press('Escape');
+  await page.waitForTimeout(300);
   await page.check(`.req[data-rid="${newId}"] .req-main > .check`);
   expect(await bulkState() === 'قيد التجهيز:off,بانتظار المندوب:on,استلم المندوب:off,تم الإرسال:on',
     'in progress: vendor wait and dispatch are enabled');

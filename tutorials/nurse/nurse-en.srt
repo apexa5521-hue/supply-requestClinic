@@ -1,107 +1,123 @@
 1
-00:00:01,157 --> 00:00:06,697
+00:00:00,967 --> 00:00:06,507
 Welcome to Masar. This video shows nurses everything they need, step by step.
 
 2
-00:00:07,149 --> 00:00:11,709
+00:00:06,959 --> 00:00:11,519
 Open the system link, write your name and your password, then tap Sign in.
 
 3
-00:00:12,664 --> 00:00:17,722
+00:00:12,266 --> 00:00:17,324
 At the top there are three choices. Doctor request needs the doctor's approval.
 
 4
-00:00:17,722 --> 00:00:24,764
+00:00:17,324 --> 00:00:24,366
 Clinic consumables needs no doctor approval and goes straight to procurement. Send to lab is for patient work.
 
 5
-00:00:25,214 --> 00:00:30,594
+00:00:24,817 --> 00:00:30,197
 In a Doctor request, choose the clinic first, then the doctor, then the branch.
 
 6
-00:00:31,045 --> 00:00:37,094
+00:00:30,647 --> 00:00:36,696
 Choose the type. Monthly is the normal order, from the 15th to the 20th of the month.
 
 7
-00:00:37,094 --> 00:00:39,585
+00:00:36,696 --> 00:00:39,187
 Emergency is only for urgent needs.
 
 8
-00:00:40,036 --> 00:00:44,745
+00:00:39,637 --> 00:00:44,346
 Write the item name and tap it, then set the quantity with plus and minus.
 
 9
-00:00:44,745 --> 00:00:48,626
+00:00:44,346 --> 00:00:48,227
 Add every consumable you need, so they all come in one order.
 
 10
-00:00:51,054 --> 00:00:57,874
-Check the summary, then tap Submit request. Your draft is saved by itself, so you never lose your work.
+00:00:50,151 --> 00:00:52,043
+Cannot find an item in the list?
 
 11
-00:00:58,335 --> 00:01:05,143
-Clinic consumables is for Sterilization, the Triage room and the derma device rooms, and now for every
+00:00:52,043 --> 00:00:57,246
+Type its name in the search box, then choose to add it as a consumable or as a material.
 
 12
-00:01:05,143 --> 00:01:09,615
-dental clinic too. Choose the place, add the items, and tap Submit.
+00:00:57,246 --> 00:01:02,981
+It joins your request with a free-item tag, and procurement reviews it and completes its details.
 
 13
-00:01:10,065 --> 00:01:16,745
-In My requests you can see the difference. The doctor request shows Doctor review, so it waits for the doctor.
+00:01:02,981 --> 00:01:05,701
+You can add up to five free items per request.
 
 14
-00:01:16,745 --> 00:01:20,145
-Clinic consumables shows New, so it reached procurement.
+00:01:06,152 --> 00:01:12,972
+Check the summary, then tap Submit request. Your draft is saved by itself, so you never lose your work.
 
 15
-00:01:20,597 --> 00:01:27,797
-Made a mistake in a quantity? Tap Edit items, change the number, or tap the bin to remove the item, then Save.
+00:01:13,427 --> 00:01:20,235
+Clinic consumables is for Sterilization, the Triage room and the derma device rooms, and now for every
 
 16
-00:01:28,247 --> 00:01:33,515
-Raised a request by mistake? Tap Cancel request, and write the reason if you like.
+00:01:20,235 --> 00:01:24,707
+dental clinic too. Choose the place, add the items, and tap Submit.
 
 17
-00:01:33,515 --> 00:01:39,747
-You can edit or cancel while the request is in Doctor review or New. After that, ask procurement.
+00:01:25,158 --> 00:01:31,838
+In My requests you can see the difference. The doctor request shows Doctor review, so it waits for the doctor.
 
 18
-00:01:40,198 --> 00:01:47,088
-Details shows every step and its time, the items and the comments. You can also write a comment as a reminder.
+00:01:31,838 --> 00:01:35,238
+Clinic consumables shows New, so it reached procurement.
 
 19
-00:01:50,646 --> 00:01:56,956
-When the driver delivers the box to your branch, you get an alert, and the card turns to Arrived at branch.
+00:01:35,688 --> 00:01:42,888
+Made a mistake in a quantity? Tap Edit items, change the number, or tap the bin to remove the item, then Save.
 
 20
-00:02:00,440 --> 00:02:07,450
-Tap Receive and sign. Check every quantity and fix anything missing, then sign and tap Confirm receipt.
+00:01:43,338 --> 00:01:48,606
+Raised a request by mistake? Tap Cancel request, and write the reason if you like.
 
 21
-00:02:09,258 --> 00:02:15,127
-If procurement cancels a request, the card shows Cancelled with the reason, and you get an email.
+00:01:48,606 --> 00:01:54,838
+You can edit or cancel while the request is in Doctor review or New. After that, ask procurement.
 
 22
-00:02:15,127 --> 00:02:17,608
-Raise a new request if you still need it.
+00:01:55,288 --> 00:02:02,178
+Details shows every step and its time, the items and the comments. You can also write a comment as a reminder.
 
 23
-00:02:18,084 --> 00:02:22,340
-For the lab, choose the doctor and write the patient's file number.
+00:02:05,511 --> 00:02:11,821
+When the driver delivers the box to your branch, you get an alert, and the card turns to Arrived at branch.
 
 24
-00:02:22,340 --> 00:02:29,264
-For each work, choose the lab and the type, write your notes, and add a photo. The due date is set by itself.
+00:02:15,030 --> 00:02:22,040
+Tap Receive and sign. Check every quantity and fix anything missing, then sign and tap Confirm receipt.
 
 25
-00:02:33,790 --> 00:02:40,610
-For an iTero scan, write the scan date, the iTero case number and the file number, then choose the lab.
+00:02:22,902 --> 00:02:28,771
+If procurement cancels a request, the card shows Cancelled with the reason, and you get an email.
 
 26
-00:02:47,184 --> 00:02:50,954
-When the work comes back to your clinic, tap Confirm receipt.
+00:02:28,771 --> 00:02:31,252
+Raise a new request if you still need it.
 
 27
-00:02:54,849 --> 00:03:00,489
+00:02:31,703 --> 00:02:35,959
+For the lab, choose the doctor and write the patient's file number.
+
+28
+00:02:35,959 --> 00:02:42,883
+For each work, choose the lab and the type, write your notes, and add a photo. The due date is set by itself.
+
+29
+00:02:47,043 --> 00:02:53,863
+For an iTero scan, write the scan date, the iTero case number and the file number, then choose the lab.
+
+30
+00:03:00,391 --> 00:03:04,161
+When the work comes back to your clinic, tap Confirm receipt.
+
+31
+00:03:08,057 --> 00:03:13,697
 That's all. For any problem, use the Report button on the request. Thank you!

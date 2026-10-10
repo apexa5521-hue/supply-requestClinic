@@ -208,7 +208,7 @@ const overlayScript = `
  * cfg = { id, langs: ['ar', ...], scenes: { key: { en, ar, ur, id } }, steps: { key: { en, ar, ... } }, flow: async (h) => {} }
  */
 /* كلمات المال (الأسعار، القيمة، التكلفة، على حساب من) — ممنوعة في فيديو noMoney: في الصوت والترجمة وعلى الشاشة */
-const MONEY_RE = /\bSAR\b|ر\.س|\bprices?\b|\bpriced\b|\bcosts?\b|\bvalue\b|est\.? total|\bestimated\b|grand total|request total|الإجمالي التقديري|إجمالي الطلب|\btotal \(|\bbill(ed|ing)\b|\bcharged?\b|\bspend\b|\bcompany\b|سعر|أسعار|تكلفة|قيمة|ريال|على الشركة|حساب الشركة|يتحمل|تُحسب على|يُحسب على|يحسب على/i;
+const MONEY_RE = /\bSAR\b|ر\.س|\bprices?\b|\bpriced\b|\bcosts?\b|\bvalue\b|est\.? total|\bestimated\b|grand total|request total|الإجمالي التقديري|إجمالي الطلب|\btotal \(|\bbill(ed|ing)\b|\bcharged?\b|\bspend\b|\bcompany\b|سعر|أسعار|تكلفة|قيمة|(?<!ي)ريال|على الشركة|حساب الشركة|يتحمل|تُحسب على|يُحسب على|يحسب على/i;
 async function makeTutorial(cfg) {
   if (cfg.noMoney) {
     const bad = [];
