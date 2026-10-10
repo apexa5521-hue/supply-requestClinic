@@ -846,8 +846,10 @@ function log(msg) { console.log('  ✔ ' + msg); }
   expect(await page.isVisible('.modal #isSer') && !(await page.isVisible('.modal #isQty')), 'serialized tool asks for serial numbers, not a quantity');
   await page.fill('.modal #isSer .input >> nth=0', 'LS-101');
   await page.press('.modal #isSer .input >> nth=0', 'Enter');
-  await page.keyboard.type('LS-102');
-  await page.waitForFunction(() => document.querySelectorAll('.modal #isSer .input').length === 2, null, { timeout: 3000 }).catch(() => {});
+  // ننتظر السطر الجديد قبل الكتابة: الكتابة المبكرة كانت تذهب للسطر الأول
+  await page.waitForFunction(() => document.querySelectorAll('.modal #isSer .input').length === 2, null, { timeout: 5000 }).catch(() => {});
+  await page.fill('.modal #isSer .input >> nth=1', 'LS-102');
+  await page.waitForFunction(() => (document.querySelector('.modal #isSerN') || {}).textContent.includes('2'), null, { timeout: 3000 }).catch(() => {});
   expect((await page.locator('.modal #isSer .input').count()) === 2 && (await page.textContent('.modal #isSerN')).includes('2'), 'Enter adds the next serial row (2 units counted)');
   await page.click('.modal #isOk');
   expect(await toastHas(page, 'تم صرف 2 قطعة'), 'issued 2 handpieces by serial number');
@@ -1205,6 +1207,48 @@ function log(msg) { console.log('  ✔ ' + msg); }
   expect(await page.evaluate(() => document.documentElement.dir) === 'ltr', 'language toggle switches to LTR');
   await shot(page, 'dashboard-english');
   await page.click('.topbar [data-act="toggleLang"]');
+  await logout(page);
+
+  // ---------- الأصناف الحرة: التموين يعتمدها بسعر، أو يربطها بصنف موجود، أو يرفضها ----------
+  await page.evaluate(async () => {
+    const tok = (await __api(null, 'login', ['سارة', '1111'])).token;
+    await __api(tok, 'createRequest', [{ doctor: 'د. خالد', type: 'شهري', items: [
+      { name: 'salk', qty: 2, free: true, type: 'مستهلك' }, { name: 'gloves big', qty: 3, free: true, type: 'مستهلك' }, { name: 'wrong thing', qty: 1, free: true, type: 'ماتيريال' }] }]);
+  });
+  await login(page, 'علي', '3333');
+  await page.click('.sidebar [data-view="freeitems"]');
+  await page.waitForSelector('#fiList .fi-row');
+  expect(await page.locator('#fiList .fi-row').count() === 3, 'procurement «free items» tab lists the nurse-added items');
+  await shot(page, 'proc-free-items');
+  await page.click('#fiList .fi-row:has-text("wrong thing") [data-act="fiReject"]');
+  await page.waitForSelector('.modal #fiReason');
+  expect(await page.inputValue('.modal #fiReason') === 'موجود مسبقاً', 'reject suggests «already exists» as the reason');
+  await page.click('.modal #fiRejOk');
+  expect(await toastHas(page, '1 رفض'), 'free item rejected with a reason');
+  await page.waitForFunction(() => document.querySelectorAll('#fiList .fi-row').length === 2);
+  await page.check('#fiAll');
+  await page.click('#fiApproveBtn');
+  await page.waitForSelector('.modal .fi-dec');
+  expect(await page.locator('.modal .fi-dec').count() === 2, 'approving the selection opens one row per item');
+  await page.fill('.modal .fi-dec:has-text("salk") .fi-price', '15');
+  await page.selectOption('.modal .fi-dec:has-text("gloves big") .fi-match', 'قفازات طبية M');
+  expect(await page.isVisible('.modal .fi-dec:has-text("gloves big") .fi-match-hint .alias-of'), 'matching previews the nurse name next to the procurement name');
+  await shot(page, 'proc-free-approve');
+  await page.click('.modal #fiOk');
+  expect(await toastHas(page, '1 اعتماد · 1 ربط'), 'one approved with a price, one linked to an existing item');
+  await page.waitForSelector('#fiList .empty, #fiList .empty-state');
+  await logout(page);
+  await login(page, 'سارة', '1111');
+  await page.click('.sidebar [data-view="new"]');
+  await page.click('[data-seg-name="reqKind"][data-v="doctor"]');
+  await page.waitForSelector('#itemSearch');
+  await page.fill('#itemSearch', 'gloves');
+  await page.waitForSelector('#comboList .alias-nm');
+  expect((await page.textContent('#comboList .combo-opt:has(.alias-nm) .alias-of')).includes('قفازات طبية M'), 'nurse sees her name and the procurement name in two colors');
+  await (await page.$('#comboList .combo-opt:has(.alias-nm)')).scrollIntoViewIfNeeded();
+  await (await page.$('#comboList')).screenshot({ path: __dirname + '/screenshots/nurse-alias-search.png' });
+  await page.fill('#itemSearch', '');
+  await page.keyboard.press('Escape');
   await logout(page);
 
   // ---------- XSS check ----------

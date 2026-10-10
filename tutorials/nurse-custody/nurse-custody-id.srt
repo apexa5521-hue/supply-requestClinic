@@ -1,31 +1,31 @@
 1
-00:00:00,882 --> 00:00:06,402
+00:00:00,836 --> 00:00:06,356
 Video singkat tentang alat inventaris di klinik Anda, dan cara melaporkan alat yang bermasalah.
 
 2
-00:00:08,948 --> 00:00:13,666
+00:00:08,893 --> 00:00:13,611
 Untuk setiap alat terlihat standar, jumlah di klinik, dan kekurangannya.
 
 3
-00:00:13,666 --> 00:00:18,188
+00:00:13,611 --> 00:00:18,133
 Setiap handpiece punya nomor seri yang sama dengan stiker di alatnya.
 
 4
-00:00:18,638 --> 00:00:24,328
+00:00:18,584 --> 00:00:24,274
 Ketuk Report dan pilih masalahnya: rusak, kinerja rendah, hilang, atau lainnya.
 
 5
-00:00:26,632 --> 00:00:30,167
+00:00:26,626 --> 00:00:30,161
 Foto alatnya, wajib jika rusak, lalu ketuk Send.
 
 6
-00:00:30,167 --> 00:00:36,132
+00:00:30,161 --> 00:00:36,126
 Laporan sampai ke pengadaan, dan alat keluar dari hitungan klinik sampai kembali.
 
 7
-00:00:36,582 --> 00:00:42,032
+00:00:36,577 --> 00:00:42,027
 Atau gunakan tombol merah di atas. Jika alat belum terdaftar, tulis nomor serinya.
 
 8
-00:00:42,484 --> 00:00:50,144
+00:00:42,579 --> 00:00:50,239
 Pantau laporan Anda: diterima pengadaan, sedang diperbaiki, kembali ke klinik, atau rusak. Terima kasih!

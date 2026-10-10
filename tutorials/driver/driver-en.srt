@@ -1,35 +1,35 @@
 1
-00:00:00,867 --> 00:00:06,607
+00:00:00,847 --> 00:00:06,587
 This video is for the driver. You don't need an account, only your phone camera and one link.
 
 2
-00:00:07,058 --> 00:00:11,311
+00:00:07,037 --> 00:00:11,290
 Procurement sends you the link once. Add it to your phone home screen.
 
 3
-00:00:11,311 --> 00:00:15,078
+00:00:11,290 --> 00:00:15,057
 It shows every box you need to move, from where, and to where.
 
 4
-00:00:15,530 --> 00:00:21,600
+00:00:15,508 --> 00:00:21,578
 When you deliver a box, scan its QR sticker with the camera, and choose your language:
 
 5
-00:00:21,600 --> 00:00:24,000
+00:00:21,578 --> 00:00:23,978
 Arabic, English, Bengali or Hindi.
 
 6
-00:00:24,999 --> 00:00:30,709
+00:00:24,947 --> 00:00:30,657
 Choose where you delivered: the branch or procurement. The destination is chosen for you.
 
 7
-00:00:31,160 --> 00:00:36,580
+00:00:31,107 --> 00:00:36,527
 Take a photo of the box; it is required. Write your name once, and the phone remembers it.
 
 8
-00:00:37,030 --> 00:00:44,876
+00:00:36,978 --> 00:00:44,824
 Tap Delivered, and the nurse gets a message that the box has arrived. Scan, choose, take a photo, then Delivered.
 
 9
-00:00:44,876 --> 00:00:45,570
+00:00:44,824 --> 00:00:45,518
 Thank you!
