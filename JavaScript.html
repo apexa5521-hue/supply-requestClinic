@@ -2529,6 +2529,9 @@ function drawReceipt(id, sections, combined) {
     const when = v => { const d = toDate(v) || new Date(); return intl('d', 'stamp', 'en-GB').format(d); };
     x.fillStyle = '#fff'; x.fillRect(0, 0, W, H);
     x.fillStyle = '#3d8fc8'; x.fillRect(0, 0, W, 10);
+    // client company logo (from #companyLogo in Index.html), top-left of the receipt
+    const lg = $('#companyLogo');
+    if (lg && lg.getAttribute('src') && lg.complete && lg.naturalWidth) x.drawImage(lg, 20, 18, 120, Math.round(120 * lg.naturalHeight / lg.naturalWidth));
     x.textAlign = 'center'; x.fillStyle = '#3d8fc8'; x.font = 'bold 21px Arial, sans-serif';
     x.fillText('Supply Flow (مسار) · ' + (combined ? 'Combined receipt' : 'Receipt'), W / 2, 44);
     x.fillStyle = '#555'; x.font = '13px Arial, sans-serif';
@@ -3111,7 +3114,7 @@ function badPricesHtml(list) {
 }
 function reportHtml(d, range) {
   const cur = ' ' + t('currency');
-  // The report logo is the client company's logo, read from #companyLogo in Index.html (empty by default: no logo is printed until one is set there).
+  // The report logo is the client company's logo, read from #companyLogo in Index.html (if its src is empty, no logo is printed).
   const logo = ($('#companyLogo') && $('#companyLogo').getAttribute('src')) ? '<img class="rep-logo" src="' + $('#companyLogo').src + '" alt="Client company logo">' : '';
   const head = '<div class="rep-head">' + logo +
     '<div class="rep-meta"><h2>' + esc(t('rep_title')) + '</h2>' +
@@ -3143,7 +3146,7 @@ function reportHtml(d, range) {
 }
 /* نسخة الطباعة / PDF لتفاصيل طلب واحد (تُحفظ PDF من نافذة الطباعة) */
 function requestPrintHtml(d) {
-  // The report logo is the client company's logo, read from #companyLogo in Index.html (empty by default: no logo is printed until one is set there).
+  // The report logo is the client company's logo, read from #companyLogo in Index.html (if its src is empty, no logo is printed).
   const logo = ($('#companyLogo') && $('#companyLogo').getAttribute('src')) ? '<img class="rep-logo" src="' + $('#companyLogo').src + '" alt="Client company logo">' : '';
   const qty = v => v === '' || v === null || v === undefined ? '—' : fmtNum(v, 0);
   const head = '<div class="rep-head">' + logo +
