@@ -2134,15 +2134,12 @@ function setupCombo() {
     const exact = q && S.catalog.some(c => c.name.toLowerCase() === ql);
     const freeOk = q && !exact && canFreeItem();
     active = opts.length ? 0 : -1;
-    if (freeOk) {
-      const fl = '<div class="combo-free"><div class="combo-head">' + esc(t('free_head')) + '</div>' +
-        ['مستهلك', 'ماتيريال'].map(ty => '<button type="button" class="combo-opt combo-free-opt" data-free="' + esc(ty) + '" data-q="' + esc(q) + '">' + icon('plus', 'i-sm') + '<div class="grow"><div class="nm">' + esc(t(ty === 'مستهلك' ? 'free_opt_cons' : 'free_opt_mat', { n: q })) + '</div></div></button>').join('') + '</div>';
-      list.innerHTML = (opts.length ? '' : '') + fl;
-      list.classList.remove('hidden');
-      inp.setAttribute('aria-expanded', 'true');
-      return;
-    }
-    if (!opts.length) {
+    // صنف حر: يظهر تحت نتائج الكتالوج (لا يخفيها) عندما لا يطابق المكتوب اسم صنف بالضبط
+    const fl = !freeOk ? '' : '<div class="combo-free"><div class="combo-head">' + esc(t('free_head')) + '</div>' +
+      ['مستهلك', 'ماتيريال'].map(ty => '<button type="button" class="combo-opt combo-free-opt" data-free="' + esc(ty) + '" data-q="' + esc(q) + '">' + icon('plus', 'i-sm') + '<div class="grow"><div class="nm">' + esc(t(ty === 'مستهلك' ? 'free_opt_cons' : 'free_opt_mat', { n: q })) + '</div></div></button>').join('') + '</div>';
+    if (!opts.length && fl) {
+      list.innerHTML = fl;
+    } else if (!opts.length) {
       list.innerHTML = '<div class="combo-empty">' + esc(S.catalog.length ? t('no_items_match') : t('catalog_empty')) + (S.catalog.length ? '<div class="hint" style="margin-top:4px">' + esc(t('catalog_only_hint')) + '</div>' : '') + '</div>';
     } else {
       const added = {};
@@ -2150,7 +2147,7 @@ function setupCombo() {
       list.innerHTML = '<div class="combo-head">' + esc(t(q ? 'items_found' : 'items_all', { n: matches.length, total: S.catalog.length })) + (dept ? ' · ' + esc(t('items_dept_hint', { d: S.lang === 'ar' ? dept : (dept === 'جلدية' ? 'Derma' : 'Dental') })) : '') + '</div>' + opts.map((o, i) =>
         '<div class="combo-opt" role="option" data-i="' + i + '" aria-selected="' + (i === active) + '"><span class="ic">' + icon('package') + '</span><div class="grow"><div class="nm">' + hl(o.name, q) + ' ' + deptTag(o.c.dept) + '</div>' +
           ((o.c.commercial || o.c.category || o.c.price) ? '<div class="mt">' + esc([o.c.commercial, o.c.category].filter(Boolean).join(' · ')) + (o.c.price ? ' · ' + fmtNum(o.c.price, 2) + ' ' + esc(t('currency')) : '') + '</div>' : '') + '</div>' +
-          (added[o.name.toLowerCase()] ? '<span class="combo-added">' + icon('check', 'i-sm') + '×' + added[o.name.toLowerCase()] + '</span>' : '') + '</div>').join('');
+          (added[o.name.toLowerCase()] ? '<span class="combo-added">' + icon('check', 'i-sm') + '×' + added[o.name.toLowerCase()] + '</span>' : '') + '</div>').join('') + fl;
     }
     list.classList.remove('hidden');
     inp.setAttribute('aria-expanded', 'true');

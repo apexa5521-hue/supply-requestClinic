@@ -202,6 +202,10 @@ function log(msg) { console.log('  ✔ ' + msg); }
   await page.fill('#itemSearch', 'floss');
   await page.waitForSelector('.combo-opt');
   await page.keyboard.press('Enter');
+  // جزء من اسم صنف موجود: نتائج الكتالوج تظهر أولاً، وخيار الصنف الحر تحتها (لا يخفيها)
+  await page.fill('#itemSearch', 'قفاز');
+  await page.waitForSelector('#comboList .combo-opt[data-i]');
+  expect(await page.locator('#comboList .combo-opt[data-i]').count() >= 1 && await page.locator('#comboList .combo-free-opt').count() === 2, 'partial name lists catalog matches above the free-item options');
   await page.fill('#itemSearch', 'قفازات');
   await page.keyboard.press('Enter');
   // صنف غير موجود: الممرضة تكتبه كصنف حر (مستهلك أو ماتيريال)، ويظهر في الطلب بعلامة حر
