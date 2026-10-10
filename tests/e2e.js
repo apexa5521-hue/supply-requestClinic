@@ -433,6 +433,7 @@ function log(msg) { console.log('  ✔ ' + msg); }
   expect(flossRow.includes('أُرسل 0 من 2'), 'the doctor quantity (2) is what procurement prepares: ' + flossRow.replace(/\s+/g, ' '));
   // مستهلك بديل: رابط تحت كل صنف متبقٍ، والبديل يُختار من الكتالوج
   expect(await page.locator(`#exp-${newId} .dsp-row:has-text("DENTAL FLOSS") [data-act="subItem"]`).count() === 1, 'each item left to send offers «add a substitute item»');
+  await (await page.$(`#exp-${newId} .dsp-table`)).screenshot({ path: __dirname + '/screenshots/proc-substitute-link.png' });
   await page.click(`#exp-${newId} .dsp-row:has-text("DENTAL FLOSS") [data-act="subItem"]`);
   await page.waitForSelector('.modal #subItem');
   expect(await page.locator('.modal #subCat option').count() > 3, 'the substitute is picked from the catalog');
