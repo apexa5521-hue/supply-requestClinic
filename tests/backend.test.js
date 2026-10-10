@@ -2467,3 +2467,39 @@ test('substitute item: procurement proposes, doctor approves or rejects, only ap
   const ds = api(p, 'dispatchItems', id, ['Itero Sleeve', 'DENTAL FLOSS']);
   assert.equal(ds.allSent, true, 'request is complete with the substitute and without the rejected one');
 });
+
+test('free items: procurement reviews them — approve with a price, match to an existing item (alias), or reject', () => {
+  const { api, login, gas } = boot();
+  const n = login('سارة', '1111'), p = login('علي', '3333');
+  const id = api(n, 'createRequest', { clinic: 'عيادة الأسنان 1', doctor: 'د. خالد', type: 'شهري', items: [
+    { name: 'salk', qty: 2, free: true, type: 'مستهلك' },
+    { name: 'gloves big', qty: 3, free: true, type: 'مستهلك' },
+    { name: 'wrong thing', qty: 1, free: true, type: 'ماتيريال' }] }).id;
+  let list = api(p, 'getFreeItems');
+  assert.deepEqual(list.map(x => x.name).sort(), ['gloves big', 'salk', 'wrong thing']);
+  const salk = list.find(x => x.name === 'salk');
+  assert.deepEqual([salk.by, salk.type, salk.requests, salk.qty], ['سارة', 'مستهلك', [id], 2]);
+  assert.ok(api(p, 'getAlerts').some(a => a.code === 'alert_free_items' && a.n === 3));
+  throwsCode(() => api(n, 'getFreeItems'), 'ERR_FORBIDDEN');
+  throwsCode(() => api(p, 'reviewFreeItems', [{ name: 'salk', action: 'approve', price: '' }]), 'ERR_BAD_PRICE:salk');
+  throwsCode(() => api(p, 'reviewFreeItems', [{ name: 'gloves big', action: 'match', matchTo: 'لا يوجد' }]), 'ERR_BAD_MATCH:gloves big');
+  throwsCode(() => api(p, 'reviewFreeItems', [{ name: 'wrong thing', action: 'reject', reason: '' }]), 'ERR_REASON_REQUIRED');
+  const res = api(p, 'reviewFreeItems', [
+    { name: 'salk', action: 'approve', price: 15 },
+    { name: 'gloves big', action: 'match', matchTo: 'قفازات طبية M' },
+    { name: 'wrong thing', action: 'reject', reason: 'موجود مسبقاً' }]);
+  assert.deepEqual([res.approved, res.matched, res.rejected, res.renamed], [1, 1, 1, 1]);
+  assert.equal(api(p, 'getFreeItems').length, 0, 'nothing left to review');
+  // الكتالوج: المعتمد صنف عادي، والاسم البديل يظهر مع الصنف الأصلي، والمرفوض لا يُطلب
+  const cat = api(n, 'getConfig').catalog;
+  const s = cat.find(c => c.name === 'salk');
+  assert.ok(s && !s.freePending && s.category === '');
+  assert.ok(!cat.some(c => c.name === 'gloves big' || c.name === 'wrong thing'));
+  assert.deepEqual(cat.find(c => c.name === 'قفازات طبية M').aliases, ['gloves big']);
+  assert.equal(rows(gas, 'ItemsCatalog').find(r => r.ItemName === 'salk').Price, 15);
+  // الطلب المفتوح: سطر الاسم الحر تحوّل لاسم التموين
+  assert.ok(rows(gas, 'RequestItems').some(r => r.RequestID === id && r.ItemName === 'قفازات طبية M'));
+  // مستقبلاً: الممرضة تطلب بالاسم الذي تعرفه، ويصل للتموين باسمه
+  const id2 = api(n, 'createRequest', { clinic: 'عيادة الأسنان 1', doctor: 'د. خالد', type: 'شهري', items: [{ name: 'GLOVES BIG', qty: 1 }] }).id;
+  assert.ok(rows(gas, 'RequestItems').some(r => r.RequestID === id2 && r.ItemName === 'قفازات طبية M'));
+});

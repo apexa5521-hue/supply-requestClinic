@@ -11,6 +11,7 @@ const scenes = {
   approve: { ar: 'ثم اضغط «اعتماد»، فيذهب الطلب للتموين مباشرة.' },
   reject: { ar: 'إذا كان هناك خطأ اكتب السبب واضغط «رفض»، فيعود للممرضة لتصحيحه وإعادة إرساله.' },
   nurseedit: { ar: 'إذا ألغت الممرضة طلبًا قبل مراجعتك يختفي من مراجعاتك ويصلك إيميل، فلا حاجة لأي إجراء. وإذا عدّلت الأصناف تراها محدّثة والتعديل مكتوب في التعليقات.' },
+  sub: { ar: 'إذا لم يتوفر صنف اعتمدته، يقترح التموين بديلًا، ويظهر لك هنا: المطلوب مشطوب، وبجانبه البديل وكميته وملاحظة التموين. اضغط «موافقة على البديل» أو «رفض».' },
   report: { ar: 'اضغط «تقرير الطلبات» لترى ما طلبته لشهر أو تراكميًا، واطبعه أو احفظه PDF.' },
   lab: { ar: 'تابع أعمال المرضى: أين وصلت كل إرسالية، ومتى موعدها.' },
   password: { ar: 'لتغيير رقمك السري اضغط أيقونة القفل. شكرًا لك، وراجع الطلبات بسرعة حتى تصل مستلزماتك في وقتها.' }
@@ -31,6 +32,10 @@ async function flow(h) {
   const r2 = (await h.api('createRequest', [{ branch: 'Unayzah', doctor: 'Dr. Saad', type: 'طارئ', items: [{ name: 'Etchant Blue Tip', qty: 10 }] }], ['Mona', '1212'])).id;
   const r3 = (await h.api('createRequest', [{ branch: 'Unayzah', doctor: 'Dr. Saad', type: 'شهري', items: [{ name: 'MICRO BRUSH FINE', qty: 8 }, { name: 'Cotton rolls', qty: 5 }] }], ['Mona', '1212'])).id;
   await h.api('editRequestItems', [r3, [{ item: 'MICRO BRUSH FINE', qty: 4 }, { item: 'Cotton rolls', qty: 5 }]], ['Mona', '1212']);
+  // طلب معتمد اقترح له التموين بديلًا: يظهر للطبيب في بطاقة «بدائل بانتظار موافقتك»
+  const r4 = (await h.api('createRequest', [{ branch: 'Unayzah', doctor: 'Dr. Saad', type: 'شهري', items: [{ name: 'DENTAL FLOSS', qty: 4 }, { name: 'Cotton rolls', qty: 2 }] }], ['Mona', '1212'])).id;
+  await h.api('doctorReview', [r4, 'اعتمد', '', []], ['Dr. Saad', '4545']);
+  await h.api('proposeSubstitute', [{ requestId: r4, item: 'DENTAL FLOSS', substitute: 'Gloves M', note: 'Floss is out of stock this week' }], ['Ali', '3333']);
   await page.evaluate(() => { window.print = () => {}; });
 
   await scene('intro', '', async () => { await wait(500); });
@@ -77,6 +82,12 @@ async function flow(h) {
     await page.waitForSelector('#rvItems table'); await wait(600);
     await highlight('#rvItems table', 2200);
     await page.keyboard.press('Escape'); await wait(400);
+  });
+  await scene('sub', 'review', async () => {
+    await h.nav('reviews'); await page.waitForSelector('#docSubs .sub-card'); await wait(500);
+    await page.evaluate(() => window.scrollTo(0, 0));
+    await highlight('#docSubs .sub-row >> nth=0', 2200);
+    await click('#docSubs [data-act="subReview"][data-ok="1"] >> nth=0'); await wait(1300);
   });
   await scene('report', 'report', async () => {
     await click('#docReportBtn');

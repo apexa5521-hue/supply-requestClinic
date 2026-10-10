@@ -24,7 +24,8 @@ const SCHEMA = {
   Doctors:      ['DoctorName', 'Clinic', 'NurseName', 'Subspecialty', 'Billing'],
   // Ownership: مستهلك (افتراضي) أو عهدة (على حساب الشركة) · Serialized: نعم للأدوات ذات الرقم التسلسلي (الهاندبيس…)
   // Department: أسنان / جلدية (فارغ = مشترك يظهر للقسمين) · ItemType: مستهلك أو ماتيريال (Category يبقى لتصنيف الصنف)
-  ItemsCatalog: ['ItemName', 'CommercialName', 'Category', 'Price', 'Ownership', 'Serialized', 'Department', 'ItemType'],
+  ItemsCatalog: ['ItemName', 'CommercialName', 'Category', 'Price', 'Ownership', 'Serialized', 'Department', 'ItemType',
+                 'AliasOf', 'FreeStatus', 'FreeBy', 'FreeAt', 'FreeNote'], // الصنف الحر: مراجعة التموين، والاسم البديل (AliasOf) لصنف موجود
   Requests:     ['RequestID', 'Date', 'Clinic', 'Doctor', 'Nurse', 'Type', 'Status',
                  'SubmittedAt', 'SentAt', 'ReceivedAt', 'ReceiverName', 'SignatureURL',
                  'PrepAt', 'VendorWaitAt', 'VendorReceivedAt', 'ReviewAt', 'ReviewedAt',
@@ -191,6 +192,8 @@ function runSetupSteps_(force) {
 const ITEM_TYPES_ = ['مستهلك', 'ماتيريال'];
 /** صنف تكتبه الممرضة بحرية (غير موجود في القائمة): يُضاف للكتالوج ويعلّم بهذه الفئة ليميّزه التموين */
 const FREE_CATEGORY_ = 'حر — من الممرضة';
+/* مراجعة الأصناف الحرة لدى التموين: اعتماد بسعر، أو مطابقة لصنف موجود (يصبح اسماً بديلاً له)، أو رفض */
+const FREE_ST = { PENDING: 'بانتظار المراجعة', OK: 'معتمد', NO: 'مرفوض' };
 const FREE_ITEMS_MAX_ = 5;
 /** قائمة منسدلة في عمود ItemType (يقبل القيم الأخرى مع تحذير بدل الرفض) */
 function itemTypeDropdown_() {
@@ -603,6 +606,8 @@ const API_ = {
   updateItemApproval:        { screens: ['procurement'], fn: updateItemApproval_ },
   dispatchItems:             { screens: ['procurement'], fn: dispatchItems_ },
   proposeSubstitute:         { screens: ['procurement'], fn: proposeSubstitute_ },
+  getFreeItems:              { screens: ['procurement'], fn: getFreeItems_ },
+  reviewFreeItems:           { screens: ['procurement'], fn: reviewFreeItems_ },
   reviewSubstitute:          { screens: ['doctor'], fn: reviewSubstitute_ },
   setItemsStatus:            { screens: ['procurement'], fn: setItemsStatus_ },
   getRevertPlan:             { screens: ['procurement'], fn: function (u, id) { return cachedRead_(function () { return revertPlan_(id).plan; }); } },
@@ -1679,14 +1684,22 @@ function priceProblem_(v) {
 }
 
 function getCatalog_(withPrice) {
-  const seen = {};
-  return read_('ItemsCatalog').rows.filter(function (r) {
+  const seen = {}, aliases = {};
+  const rows = read_('ItemsCatalog').rows;
+  rows.forEach(function (r) {
+    const a = str_(r.AliasOf), n = str_(r.ItemName);
+    if (a && n && str_(r.FreeStatus) !== FREE_ST.NO) (aliases[a.toLowerCase()] = aliases[a.toLowerCase()] || []).push(n);
+  });
+  return rows.filter(function (r) {
     const n = str_(r.ItemName);
     if (!n || seen[n.toLowerCase()]) return false;
+    if (str_(r.AliasOf) || str_(r.FreeStatus) === FREE_ST.NO) return false; // اسم بديل أو صنف حر مرفوض: ليس صنفاً مستقلاً
     seen[n.toLowerCase()] = true;
     return true;
   }).map(function (r) {
     const o = { name: str_(r.ItemName), commercial: str_(r.CommercialName), category: str_(r.Category) };
+    const al = aliases[o.name.toLowerCase()]; if (al) o.aliases = al;
+    if (str_(r.Category) === FREE_CATEGORY_ && str_(r.FreeStatus) !== FREE_ST.OK) o.freePending = true;
     if (isAssetOwnership_(r.Ownership)) { o.asset = true; o.serialized = isYes_(r.Serialized); }
     const dp = normDept_(r.Department); if (dp) o.dept = dp;
     if (withPrice && !priceVisible_()) o.priceHidden = true;
@@ -2438,7 +2451,10 @@ function createRequest_(user, payload) {
   // الطلب من الكتالوج فقط — لا أصناف بأسماء حرة (يُعتمد اسم الكتالوج بحروفه)
   const catalogMaps = function () {
     const catalog = {}, catDept = {};
-    getCatalog_(false).forEach(function (c) { catalog[c.name.toLowerCase()] = c.name; catDept[c.name.toLowerCase()] = c.dept || ''; });
+    getCatalog_(false).forEach(function (c) {
+      catalog[c.name.toLowerCase()] = c.name; catDept[c.name.toLowerCase()] = c.dept || '';
+      (c.aliases || []).forEach(function (a) { catalog[a.toLowerCase()] = c.name; catDept[a.toLowerCase()] = c.dept || ''; }); // الاسم الذي تعرفه الممرضة ← اسم التموين
+    });
     return { catalog: catalog, catDept: catDept };
   };
   let maps = catalogMaps();
@@ -2453,7 +2469,8 @@ function createRequest_(user, payload) {
       if (it.name.length < 2) throw new Error('ERR_FREE_ITEM_NAME');
       if (ITEM_TYPES_.indexOf(it.type) === -1) throw new Error('ERR_FREE_ITEM_TYPE:' + it.name);
     });
-    freeNew.forEach(function (it) { append_('ItemsCatalog', { ItemName: it.name, Category: FREE_CATEGORY_, Department: dept, ItemType: it.type }); });
+    const at = new Date();
+    freeNew.forEach(function (it) { append_('ItemsCatalog', { ItemName: it.name, Category: FREE_CATEGORY_, Department: dept, ItemType: it.type, FreeStatus: FREE_ST.PENDING, FreeBy: user.name, FreeAt: at }); });
     resetMemo_();
     maps = catalogMaps();
   }
@@ -2827,6 +2844,96 @@ function reviewSubstitute_(user, requestId, substitute, accept, reason) {
   notifyProcurement_(req.department, (accept ? 'وافق الطبيب على البديل - ' : 'رفض الطبيب البديل - ') + requestId,
     'الطلب ' + requestId + ': ' + substitute + (accept ? ' — يمكن إرساله الآن.' : ' — مرفوض' + (reason ? ' (' + clean_(reason, 300) + ')' : '') + '، والصنف الأصلي باقٍ كما هو.'));
   return { ok: true };
+}
+
+/** الأصناف الحرة بانتظار مراجعة التموين (قسم المستخدم فقط إن كان له قسم) مع عدد الطلبات التي تحتويها */
+function getFreeItems_(user) {
+  const dept = user.screen === 'procurement' ? userDept_(user) : '';
+  const uses = {};
+  read_('RequestItems').rows.forEach(function (r) {
+    const k = str_(r.ItemName).toLowerCase();
+    const u = uses[k] || (uses[k] = { requests: {}, qty: 0 });
+    u.requests[str_(r.RequestID)] = true; u.qty += Number(r.RequestedQty) || 0;
+  });
+  return read_('ItemsCatalog').rows.filter(function (r) {
+    if (str_(r.Category) !== FREE_CATEGORY_ || str_(r.AliasOf)) return false;
+    const st = str_(r.FreeStatus);
+    if (st && st !== FREE_ST.PENDING) return false;
+    const d = normDept_(r.Department);
+    return !dept || !d || d === dept;
+  }).map(function (r) {
+    const u = uses[str_(r.ItemName).toLowerCase()] || { requests: {}, qty: 0 };
+    return { name: str_(r.ItemName), type: str_(r.ItemType), dept: normDept_(r.Department), by: str_(r.FreeBy), at: r.FreeAt,
+      requests: Object.keys(u.requests).filter(String), qty: u.qty };
+  });
+}
+
+/**
+ * قرار التموين على الأصناف الحرة (عدة أصناف دفعة واحدة):
+ * decisions = [{ name, action: 'approve' | 'match' | 'reject', price?, matchTo?, reason? }]
+ * approve: يصبح صنفاً عادياً بسعره · match: يصبح اسماً بديلاً لصنف موجود (والطلبات المفتوحة تتحول للاسم الأصلي)
+ * reject: لا يُطلب مستقبلاً، مع السبب
+ */
+function reviewFreeItems_(user, decisions) {
+  decisions = (decisions || []).filter(function (d) { return d && str_(d.name); });
+  if (!decisions.length) throw new Error('ERR_REQUIRED');
+  const out = { approved: 0, matched: 0, rejected: 0, renamed: 0 };
+  withLock_(function () {
+    resetMemo_();
+    const t = read_('ItemsCatalog');
+    const official = {};
+    getCatalog_(false).forEach(function (c) { if (!c.freePending) official[c.name.toLowerCase()] = c.name; });
+    const ups = [], renames = [];
+    decisions.forEach(function (d) {
+      const name = str_(d.name);
+      const row = t.rows.filter(function (r) {
+        return str_(r.ItemName) === name && str_(r.Category) === FREE_CATEGORY_ && !str_(r.AliasOf) && [FREE_ST.OK, FREE_ST.NO].indexOf(str_(r.FreeStatus)) === -1;
+      })[0];
+      if (!row) throw new Error('ERR_NOT_FOUND:' + name);
+      if (d.action === 'approve') {
+        const p = num_(d.price);
+        if (d.price === '' || d.price === null || d.price === undefined || isNaN(p) || p < 0 || p > PRICE_MAX) throw new Error('ERR_BAD_PRICE:' + name);
+        ups.push({ row: row, obj: { Price: round2_(p), Category: '', FreeStatus: FREE_ST.OK, FreeNote: 'اعتمده ' + user.name } });
+        out.approved++;
+      } else if (d.action === 'match') {
+        const target = official[str_(d.matchTo).toLowerCase()];
+        if (!target || target.toLowerCase() === name.toLowerCase()) throw new Error('ERR_BAD_MATCH:' + name);
+        ups.push({ row: row, obj: { AliasOf: target, Category: '', FreeStatus: FREE_ST.OK, FreeNote: 'اسم بديل لـ ' + target + ' — ' + user.name } });
+        renames.push({ from: name, to: target });
+        out.matched++;
+      } else if (d.action === 'reject') {
+        const reason = clean_(d.reason, 300);
+        if (!reason) throw new Error('ERR_REASON_REQUIRED');
+        ups.push({ row: row, obj: { FreeStatus: FREE_ST.NO, FreeNote: reason } });
+        out.rejected++;
+      } else throw new Error('ERR_BAD_DECISION');
+    });
+    setMany_(t, ups);
+    // الطلبات المفتوحة: سطر الاسم الحر الذي لم يُرسل بعد يتحول لاسم التموين (إن لم يكن الصنف الأصلي في نفس الطلب)
+    if (renames.length) {
+      const it = read_('RequestItems');
+      const closed = {};
+      requestRows_().forEach(function (r) { const st = str_(r.Status); if (st === ST.RECEIVED || isOff_(st)) closed[str_(r.RequestID)] = true; });
+      const byReq = {};
+      it.rows.forEach(function (r) { (byReq[str_(r.RequestID)] = byReq[str_(r.RequestID)] || []).push(r); });
+      const iu = [];
+      renames.forEach(function (m) {
+        it.rows.forEach(function (r) {
+          const id = str_(r.RequestID);
+          if (str_(r.ItemName) !== m.from || r.DispatchedAt || closed[id]) return;
+          if ((byReq[id] || []).some(function (x) { return str_(x.ItemName) === m.to; })) return;
+          iu.push({ row: r, obj: { ItemName: m.to } });
+        });
+      });
+      if (iu.length) setMany_(it, iu);
+      out.renamed = iu.length;
+    }
+    logAction_('', 'مراجعة الأصناف الحرة: ' + decisions.map(function (d) {
+      return d.name + ' ← ' + (d.action === 'approve' ? 'اعتُمد بسعر ' + d.price : d.action === 'match' ? 'اسم بديل لـ ' + d.matchTo : 'رُفض: ' + clean_(d.reason, 120));
+    }).join(' · '), user.name);
+    resetMemo_();
+  });
+  return out;
 }
 
 function getRequestItemsWithCatalog_(user, requestId) {
@@ -3699,6 +3806,8 @@ function getAlerts_(user) {
     if (urgentReview) alerts.push({ type: 'warning', code: 'alert_urgent_review', n: urgentReview });
     if (stale) alerts.push({ type: 'warning', code: 'alert_stale', n: stale });
     const overdue = all.filter(function (r) { return r.overdue && stageOf_(r).owner === 'procurement'; }).length;
+    const freeN = getFreeItems_(user).length;
+    if (freeN) alerts.push({ type: 'info', code: 'alert_free_items', n: freeN });
     if (overdue) alerts.push({ type: 'danger', code: 'alert_overdue_proc', n: overdue });
   } else if (user.screen === 'lab') {
     const lc = queryLabCases_(user, {});

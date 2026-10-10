@@ -8,6 +8,7 @@ const scenes = {
   filters: { ar: 'اختر طبيبًا لتظهر طلباته فقط، أو فلتر بالفرع أو العيادة أو الشهر، أو ابحث.' },
   dental: { ar: 'مستهلكات العيادة تصلك الآن من كل عيادات الأسنان أيضًا، بحالة «جديد» وبدون طبيب.' },
   open: { ar: 'الكميات هي ما اعتمده الطبيب. حدّد حالة كل صنف: قيد التجهيز، أو بانتظار المندوب، أو استلم المندوب.' },
+  sub: { ar: 'إذا لم يتوفر صنف اعتمده الطبيب، اضغط «إضافة مستهلك بديل» تحت الصنف، واختر البديل من الكتالوج. يرجع البديل للطبيب ليوافق عليه، ولا يُرسل قبل موافقته.' },
   ship: { ar: 'حدّد الأصناف واكتب كمية هذه الشحنة، ويمكنك إرسال جزء الآن والباقي لاحقًا.' },
   boxpick: { ar: 'اسم الطبيب والفرع معبّآن من الطلب، ويظهر هل تُحمَّل في بوكس موجود أو جديد. اضغط «تحميل في البوكس وإرسال».' },
   undo: { ar: 'أرسلت بالخطأ؟ اضغط «تراجع عن آخر خطوة» واكتب السبب. كل تراجع يُسجَّل لفريق الجودة.' },
@@ -30,6 +31,9 @@ async function flow(h) {
   const ID = 'REQ-260927-016';
   const row = `.req[data-rid="${ID}"]`, exp = `#exp-${ID}`;
   await page.evaluate(() => { window.print = () => {}; });
+  // طلب معتمد من د. سعد (له حساب): لمشهد المستهلك البديل
+  const subId = (await h.api('createRequest', [{ branch: 'Unayzah', doctor: 'Dr. Saad', type: 'شهري', items: [{ name: 'PROPHY PASTE', qty: 3 }, { name: 'Cotton rolls', qty: 4 }] }], ['Mona', '1212'])).id;
+  await h.api('doctorReview', [subId, 'اعتمد', '', []], ['Dr. Saad', '4545']);
   const dentalId = (await h.api('createRequest', [{ clinic: 'Dental Clinic 1', type: 'شهري', items: [{ name: 'Cotton rolls', qty: 6 }, { name: 'Gloves M', qty: 4 }] }], ['Sara', '1111'])).id;
   await scene('intro', '', async () => { await wait(500); });
   await scene('login', 'login', async () => { await h.login('Ali', '3333'); await highlight('#userRole', 1500); });
@@ -62,6 +66,20 @@ async function flow(h) {
     await point(sel);
     await page.selectOption(sel, 'بانتظار المندوب'); await wait(1300);
     if (!(await page.$(exp + ' .dsp'))) await click(row + ' .req-actions [data-act="procToggle"]');
+  });
+  await scene('sub', 'req', async () => {
+    const srow = `.req[data-rid="${subId}"]`, sexp = `#exp-${subId}`;
+    await page.locator(srow).scrollIntoViewIfNeeded();
+    await click(srow + ' .req-actions [data-act="procToggle"]');
+    await page.waitForSelector(sexp + ' [data-act="subItem"]'); await wait(500);
+    await click(sexp + ' [data-act="subItem"] >> nth=0');
+    await page.waitForSelector('.modal #subItem'); await wait(400);
+    await type('.modal #subItem', 'Gloves M');
+    await type('.modal #subNote', 'Nupro is out of stock this week');
+    await click('.modal #subOk'); await wait(1300);
+    await highlight(sexp + ' .sub-tag >> nth=0', 1500).catch(() => {});
+    await click(srow + ' .req-actions [data-act="procToggle"]'); await wait(400);
+    await page.locator(row).scrollIntoViewIfNeeded();
   });
   await scene('ship', 'ship', async () => {
     await page.waitForSelector(exp + ' .dsp');

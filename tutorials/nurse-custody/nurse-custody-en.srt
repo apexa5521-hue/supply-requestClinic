@@ -1,31 +1,31 @@
 1
-00:00:00,882 --> 00:00:06,402
+00:00:00,836 --> 00:00:06,356
 A short video about the custody tools in your clinic, and how to report a tool that has a problem.
 
 2
-00:00:08,948 --> 00:00:13,840
+00:00:08,893 --> 00:00:13,785
 For each tool you see the standard, how many are in the clinic, and any shortage.
 
 3
-00:00:13,840 --> 00:00:18,188
+00:00:13,785 --> 00:00:18,133
 Each handpiece has a serial number that matches the sticker on the tool.
 
 4
-00:00:18,638 --> 00:00:24,328
+00:00:18,584 --> 00:00:24,274
 Tap Report and choose the problem: broken, low performance, missing, or other.
 
 5
-00:00:26,632 --> 00:00:30,686
+00:00:26,626 --> 00:00:30,680
 Take a photo of the tool, required when it is broken, and tap Send.
 
 6
-00:00:30,686 --> 00:00:36,132
+00:00:30,680 --> 00:00:36,126
 The report reaches procurement, and the tool leaves your clinic count until it comes back.
 
 7
-00:00:36,582 --> 00:00:42,032
+00:00:36,577 --> 00:00:42,027
 Or use the red button at the top. If the tool is not registered, write its serial number.
 
 8
-00:00:42,484 --> 00:00:50,144
+00:00:42,579 --> 00:00:50,239
 Follow your reports: received by procurement, under repair, back in the clinic, or damaged. Thank you!

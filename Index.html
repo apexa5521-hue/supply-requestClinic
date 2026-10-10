@@ -666,6 +666,13 @@ button.kpi[aria-pressed="true"] { border-color: var(--tone); box-shadow: 0 0 0 3
 .sub-card { margin-bottom: 14px; border-color: color-mix(in srgb, var(--t-amber) 45%, var(--border)); }
 .sub-list { display: flex; flex-direction: column; }
 .sub-row { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; padding: 10px 16px; border-top: 1px solid var(--border); }
+/* الأصناف الحرة: اسم الممرضة بلون واسم التموين بلون آخر */
+.alias-nm { color: var(--t-violet, #7c3aed); font-weight: 700; }
+.alias-of { color: var(--t-green, #059669); font-weight: 600; font-size: .92em; }
+.alias-of::before { content: '← '; color: var(--muted); font-weight: 400; }
+[dir=ltr] .alias-of::before { content: '→ '; }
+.fi-row > input[type=checkbox] { width: 18px; height: 18px; flex: none; }
+.fi-dec { border: 1px solid var(--border); border-radius: 12px; }
 .sub-row s { color: var(--muted); }
 .combo-empty { padding: 16px; text-align: center; color: var(--muted); font-size: 13px; }
 
