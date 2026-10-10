@@ -227,6 +227,7 @@ function log(msg) { console.log('  ✔ ' + msg); }
   // الكمية صفر: خطأ واضح ويُمنع الإرسال
   await page.fill('.item-line:nth-child(1) input', '0');
   await page.dispatchEvent('.item-line:nth-child(1) input', 'input');
+  await page.waitForSelector('.item-line:nth-child(1) .qty-err', { timeout: 3000 }).catch(() => {});
   expect(await page.isVisible('.item-line:nth-child(1) .qty-err') && (await page.textContent('.item-line:nth-child(1) .qty-err')).includes('أقل كمية 1'), 'zero quantity shows "minimum is 1"');
   await page.click('#submitBtn');
   expect((await page.textContent('#submitErr')).includes('لا يمكن طلب صفر'), 'submit is blocked while a quantity is zero');
@@ -830,6 +831,7 @@ function log(msg) { console.log('  ✔ ' + msg); }
   await page.fill('.modal #isSer .input >> nth=0', 'LS-101');
   await page.press('.modal #isSer .input >> nth=0', 'Enter');
   await page.keyboard.type('LS-102');
+  await page.waitForFunction(() => document.querySelectorAll('.modal #isSer .input').length === 2, null, { timeout: 3000 }).catch(() => {});
   expect((await page.locator('.modal #isSer .input').count()) === 2 && (await page.textContent('.modal #isSerN')).includes('2'), 'Enter adds the next serial row (2 units counted)');
   await page.click('.modal #isOk');
   expect(await toastHas(page, 'تم صرف 2 قطعة'), 'issued 2 handpieces by serial number');
