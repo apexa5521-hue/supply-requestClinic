@@ -2537,10 +2537,13 @@ test('catalog admin: procurement adds, edits (rename follows open requests), cat
   throwsCode(() => api(p, 'deleteCatalogItem', 'Curing Light'), 'ERR_ITEM_IN_CUSTODY');
 });
 
-test('doctors admin: add a doctor with a new login, edit specialty/clinics, rename, link an existing account, delete', () => {
+test('doctors admin (admin only): add a doctor with a new login, edit specialty/clinics, rename, link an existing account, delete', () => {
   const { api, login, gas } = boot();
-  const p = login('علي', '3333'), n = login('سارة', '1111'), rm = login('ريم', '2222');
+  const p = login('المدير', '1234'), n = login('سارة', '1111'), rm = login('ريم', '2222');
   throwsCode(() => api(n, 'getDoctorsAdmin'), 'ERR_FORBIDDEN');
+  // التموين لا يضيف أطباء ولا ينشئ حسابات
+  throwsCode(() => api(login('علي', '3333'), 'getDoctorsAdmin'), 'ERR_FORBIDDEN');
+  throwsCode(() => api(login('علي', '3333'), 'saveDoctor', '', { name: 'د. س', login: 'x1', password: '9999' }), 'ERR_FORBIDDEN');
   let d = api(p, 'getDoctorsAdmin');
   assert.ok(d.doctors.some(x => x.name === 'د. خالد' && x.login === 'د. خالد' && x.hasAccount));
   assert.ok(d.clinics.length >= 3 && d.specialties.includes('Dentistry'));

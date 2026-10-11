@@ -1251,7 +1251,7 @@ function log(msg) { console.log('  ✔ ' + msg); }
   await page.keyboard.press('Escape');
   await logout(page);
 
-  // ---------- التموين يدير الأصناف والأطباء من الموقع ----------
+  // ---------- التموين يدير الأصناف من الموقع، والأدمن يدير الأطباء ----------
   await login(page, 'علي', '3333');
   await page.click('.sidebar [data-view="catalog"]');
   await page.waitForSelector('#caList table');
@@ -1279,7 +1279,10 @@ function log(msg) { console.log('  ✔ ' + msg); }
   await page.click('.modal [data-yes]');
   expect(await toastHas(page, 'حُذف'), 'item deleted from the catalog');
   await page.fill('#caQ', '');
-  // الأطباء: طبيب جديد بحساب دخول
+  expect(await page.locator('.sidebar [data-view="docadmin"]').count() === 0, 'procurement has no doctors tab (admin only)');
+  await logout(page);
+  // الأطباء (الأدمن فقط): طبيب جديد بحساب دخول
+  await login(page, 'المدير', '1234');
   await page.click('.sidebar [data-view="docadmin"]');
   await page.waitForSelector('#daList .da-row');
   await page.click('.card-head [data-act="daEdit"]');

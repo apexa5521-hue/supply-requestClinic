@@ -690,13 +690,13 @@ const API_ = {
   getFinance:                { screens: [], perm: 'finance', fn: getFinance_ },
   getPriceList:              { screens: [], perm: 'prices_edit', fn: getPriceList_ },
   setItemPrice:              { screens: [], perm: 'prices_edit', fn: setItemPrice_ },
-  // إدارة الكتالوج والأطباء من الموقع (التموين والأدمن)
+  // إدارة الكتالوج من الموقع (التموين والأدمن)، والأطباء وحساباتهم للأدمن فقط
   getCatalogAdmin:           { screens: ['procurement'], perm: 'users', fn: getCatalogAdmin_ },
   saveCatalogItem:           { screens: ['procurement'], perm: 'users', fn: saveCatalogItem_ },
   deleteCatalogItem:         { screens: ['procurement'], perm: 'users', fn: deleteCatalogItem_ },
-  getDoctorsAdmin:           { screens: ['procurement'], perm: 'users', fn: getDoctorsAdmin_ },
-  saveDoctor:                { screens: ['procurement'], perm: 'users', fn: saveDoctor_ },
-  deleteDoctor:              { screens: ['procurement'], perm: 'users', fn: deleteDoctor_ },
+  getDoctorsAdmin:           { screens: [], perm: 'users', fn: getDoctorsAdmin_ },
+  saveDoctor:                { screens: [], perm: 'users', fn: saveDoctor_ },
+  deleteDoctor:              { screens: [], perm: 'users', fn: deleteDoctor_ },
   saveRole:                  { screens: [], perm: 'users', fn: saveRole_ },
   deleteRole:                { screens: [], perm: 'users', fn: deleteRole_ }
 };

@@ -1135,7 +1135,7 @@ ACT.logout = () => {
 const NAV = {
   nurse:       [{ id: 'new', icon: 'plus', k: 'nav_new' }, { id: 'mine', icon: 'clipboard', k: 'nav_mine' }, { id: 'labmine', icon: 'flask', k: 'nav_lab' }, { id: 'assets', icon: 'tool', k: 'nav_assets' }],
   lab:         [{ id: 'labboard', icon: 'flask', k: 'nav_lab_board' }, { id: 'labkpi', icon: 'chart', k: 'nav_lab_kpi' }, { id: 'new', icon: 'plus', k: 'nav_lab_supply' }, { id: 'mine', icon: 'clipboard', k: 'nav_mine' }],
-  procurement: [{ id: 'requests', icon: 'package', k: 'nav_requests' }, { id: 'boxes', icon: 'truck', k: 'nav_boxes' }, { id: 'freeitems', icon: 'edit', k: 'nav_free_items' }, { id: 'catalog', icon: 'tag', k: 'nav_catalog' }, { id: 'docadmin', icon: 'steth', k: 'nav_doc_admin' }, { id: 'assets', icon: 'tool', k: 'nav_assets' }, { id: 'complaints', icon: 'alert', k: 'nav_complaints' }],
+  procurement: [{ id: 'requests', icon: 'package', k: 'nav_requests' }, { id: 'boxes', icon: 'truck', k: 'nav_boxes' }, { id: 'freeitems', icon: 'edit', k: 'nav_free_items' }, { id: 'catalog', icon: 'tag', k: 'nav_catalog' }, { id: 'assets', icon: 'tool', k: 'nav_assets' }, { id: 'complaints', icon: 'alert', k: 'nav_complaints' }],
   doctor:      [{ id: 'reviews', icon: 'steth', k: 'nav_reviews' }, { id: 'labdoc', icon: 'flask', k: 'nav_lab' }, { id: 'assets', icon: 'tool', k: 'nav_assets' }]
 };
 /* شاشات الإدارة (جودة / تنفيذية / مالية / أدمن): القائمة تُبنى من صلاحيات الدور التي يحددها الأدمن */
@@ -3665,7 +3665,7 @@ ACT.caDel = el => {
 };
 
 /* =====================================================================
-   DOCTORS ADMIN (procurement + admin): الأطباء وتخصصاتهم وعياداتهم وحساب الدخول
+   DOCTORS ADMIN (admin only): الأطباء وتخصصاتهم وعياداتهم وحساب الدخول
    ===================================================================== */
 const DA = { data: null, q: '' };
 function loadDoctorsAdmin(silent) {
