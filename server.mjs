@@ -12,7 +12,7 @@ import * as XLSX from 'xlsx';
 import { createGas } from './server/gas.mjs';
 import { driveConfigFromEnv, driveViewUrl } from './server/drive.mjs';
 import { googleAccessToken, mirrorToSheet, runExclusive } from './server/sync.mjs';
-import { Store, storageState } from './server/store.mjs';
+import { Store, storageState, encodeGrid } from './server/store.mjs';
 import { exportWorkbook, instantFromCell } from './server/workbook.mjs';
 const SHEET_TZ = process.env.SHEET_TZ || 'Asia/Riyadh';
 
@@ -205,6 +205,42 @@ app.post('/admin/import', express.raw({ type: '*/*', limit: '60mb' }), async (re
     res.status(500).send('فشل الاستيراد: ' + e.message);
   }
 });
+
+/* ---------- mirror to a Google Sheet (called every 15 min by Supabase pg_cron) ---------- */
+app.post('/sync/run', async (req, res) => {
+  const want = process.env.SYNC_KEY || '', got = String(req.get('x-sync-key') || '');
+  if (!(want.length >= 8 && got.length === want.length && crypto.timingSafeEqual(Buffer.from(got), Buffer.from(want)))) return res.sendStatus(403);
+  if (!process.env.GOOGLE_SA_JSON || !process.env.SHEET_SYNC_ID) return res.status(400).json({ ok: false, error: 'sync not configured' });
+  // off until the move: staff still work on the Google Sheet (Apps Script), so nothing may write over it.
+  // On moving day set SYNC_ENABLED=yes in Render (after importing the sheet) — see the README.
+  if (String(process.env.SYNC_ENABLED || '').toLowerCase() !== 'yes') return res.json({ ok: true, skipped: true, reason: 'SYNC_ENABLED is not yes (sync is off until the move to Render)' });
+  try {
+    await ready;
+    const out = await runExclusive(async () => {
+      // the in-memory tabs are exactly what the database holds (every save is flushed before it answers)
+      const grids = await serial(async () => gas.order.map(n => ({ name: n, grid: JSON.parse(encodeGrid(gas.sheets[n]._data)) })));
+      if (!grids.length) return { skipped: true, reason: 'database has no tabs yet' };
+      const token = await googleAccessToken(JSON.parse(process.env.GOOGLE_SA_JSON));
+      // photos stored in Drive: the sheet (backup link) gets the Drive link, not this server's /files/<id>
+      const fileLinks = {};
+      (await pool.query('select id, drive_id from gas_files where drive_id is not null')).rows.forEach(f => { fileLinks[f.id] = driveViewUrl(f.drive_id); });
+      const imp = await pool.query("select v from gas_kv where kind = 'meta' and k = 'imported_at'");
+      return mirrorToSheet({ spreadsheetId: process.env.SHEET_SYNC_ID, token, rows: grids, fileLinks, importedAt: imp.rows[0] ? imp.rows[0].v : null });
+    });
+    console.log('[sync]', JSON.stringify(out));
+    res.json({ ok: true, ...out });
+  } catch (e) {
+    if (e.code === 'PLAN_B_ACTIVE') {
+      // the backup link (GitHub + Apps Script) saved data in the sheet: never overwrite it — import it first
+      console.warn('[sync] blocked:', e.message);
+      return res.status(409).json({ ok: false, error: 'PLAN_B_ACTIVE', writtenAt: e.writtenAt,
+        message: 'الشيت فيه عمل من الرابط البديل بعد آخر مزامنة — استورده من صفحة /admin أولاً، ثم تعود المزامنة تلقائياً' });
+    }
+    console.error('[sync] failed:', e.message);
+    res.status(500).json({ ok: false, error: String(e.message).slice(0, 200) });
+  }
+});
+
 
 app.get('/health', async (req, res) => {
   let db;
