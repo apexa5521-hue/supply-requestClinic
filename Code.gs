@@ -495,11 +495,24 @@ function apiCore_(token, fn, args) {
     if (!allowed_(def, user)) throw new Error('ERR_FORBIDDEN');
     return sanitize_(def.fn.apply(null, [user].concat(args)));
   } finally {
+    if (MEMO_.dirty && Object.keys(MEMO_.dirty).length && fn !== 'login' && fn !== 'logout' && fn !== 'ping' && fn.indexOf('get') !== 0) markSheetWrite_();
     flushDirty_();
     savePlan_(plan);
     CACHED_READS_ = false;
     SCOPE_BRANCH_ = '';
   }
+}
+
+/**
+ * الخطة البديلة (الرابط القديم على GitHub + هذا الشيت): الشيت نسخة من قاعدة البيانات تُحدَّث كل 15 دقيقة،
+ * وفيه تبويب _SYNC. أي حفظ من الموظفين هنا يُسجَّل وقته في _SYNC!B3، فتتوقف المزامنة عن الكتابة فوقه
+ * حتى تُستورد بيانات الشيت لقاعدة البيانات (لا يضيع عمل وقت التعطل). التبويب غير موجود = لا شيء.
+ */
+function markSheetWrite_() {
+  try {
+    const sh = ss_().getSheetByName('_SYNC');
+    if (sh) sh.getRange(3, 1, 1, 2).setValues([['sheet_written_at', new Date().toISOString()]]);
+  } catch (e) { /* لا يمنع الحفظ نفسه */ }
 }
 
 /* ---------------------------------------------------------------------
