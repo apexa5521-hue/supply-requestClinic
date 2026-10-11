@@ -1,5 +1,6 @@
-# عند كل دمج في main: الاختبارات، ثم رفع الكود لـ Apps Script عبر clasp
-# (اختياري: يعمل فقط إذا أُضيفت الأسرار CLASPRC_JSON و SCRIPT_ID و DEPLOYMENT_ID).
+# عند كل دمج في main: الاختبارات، ثم:
+#  1) رفع الكود لـ Apps Script عبر clasp — الخطة البديلة (اختياري: يعمل فقط إذا أُضيفت الأسرار CLASPRC_JSON و SCRIPT_ID و DEPLOYMENT_ID)
+#  2) دمج main في فرع production-postgresql — الخطة الأساسية: Render ينشره تلقائياً
 # الواجهة على GitHub Pages ينشرها GitHub تلقائياً من الفرع (Index.html يحمّل JavaScript.html) — لا نشر ثانٍ هنا.
 name: Deploy
 
@@ -54,3 +55,24 @@ jobs:
       - name: Skipped (no Apps Script secrets)
         if: env.CLASPRC_JSON == '' || env.SCRIPT_ID == ''
         run: echo "Apps Script secrets are not set — only GitHub Pages was updated."
+
+  # الخطة الأساسية (Render + Supabase): نفس التحديثات تصل فرع production-postgresql تلقائياً
+  trial-branch:
+    needs: test
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Merge main into production-postgresql
+        run: |
+          if ! git ls-remote --exit-code --heads origin production-postgresql >/dev/null; then echo "no production-postgresql branch"; exit 0; fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git checkout -B production-postgresql origin/production-postgresql
+          if git merge-base --is-ancestor origin/main HEAD; then echo "already up to date"; exit 0; fi
+          # تعارض = يتوقف هنا (الفرع لا يتغير) ويظهر الفشل في Actions لحلّه يدوياً
+          git merge --no-edit origin/main -m "Merge main into production-postgresql (auto)"
+          git push origin production-postgresql

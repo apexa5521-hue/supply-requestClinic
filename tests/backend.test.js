@@ -2576,3 +2576,14 @@ test('doctors admin (admin only): add a doctor with a new login, edit specialty/
   assert.ok(!gas.dump('Users').some(u => u[0] === 'Dr.Majed'));
   assert.ok(!gas.dump('Doctors').some(x => x[0] === 'د. ماجد العتيبي'));
 });
+
+test('plan B: a save on the sheet (GitHub link) stamps _SYNC so the database mirror stops overwriting it; reads do not', () => {
+  const { api, login, gas } = boot(g => { g.seed('_SYNC', ['last_sync', '2026-01-01T00:00:00.000Z'], [['tabs', '20']]); });
+  const n = login('سارة', '1111');
+  api(n, 'getMyRequests');
+  assert.equal((gas.dump('_SYNC')[2] || [])[0], undefined, 'reads leave no mark');
+  api(n, 'createRequest', { clinic: 'عيادة الأسنان 1', doctor: 'د. نورة', type: 'شهري', items: [{ name: 'PROPHY PASTE', qty: 1 }] });
+  const row = gas.dump('_SYNC')[2];
+  assert.equal(row[0], 'sheet_written_at');
+  assert.ok(Date.parse(row[1]) > Date.parse('2026-01-01'), 'save time recorded');
+});
