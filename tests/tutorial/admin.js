@@ -45,7 +45,10 @@ async function flow(h) {
     await click('#uSave'); await wait(1400);
   });
   await scene('doctors', 'doctors', async () => {
-    await h.nav('docadmin');
+    // القائمة الجانبية طويلة للأدمن: نمرّرها للزر، وإن لم يظهر نفتح الصفحة مباشرة
+    const nb = page.locator('.sidebar [data-view="docadmin"]').first();
+    await nb.scrollIntoViewIfNeeded({ timeout: 3000 }).catch(() => {});
+    if (await nb.isVisible()) await h.nav('docadmin'); else { await page.evaluate(() => go('docadmin')); await wait(900); }
     await page.waitForSelector('#daList .da-row'); await wait(500);
     await highlight('#daList .da-row >> nth=0', 1300);
     await click('.card-head [data-act="daEdit"]');
@@ -63,7 +66,7 @@ async function flow(h) {
     await page.waitForSelector('#daList .da-row:has-text("Dr. Nasser")');
     await page.locator('#daList .da-row:has-text("Dr. Nasser")').scrollIntoViewIfNeeded();
     await highlight('#daList .da-row:has-text("Dr. Nasser")', 1800);
-    await h.nav('users'); await page.waitForSelector('#rTable');
+    await page.evaluate(() => go('users')); await page.waitForSelector('#rTable'); await wait(600);
   });
   await scene('roles', 'roles', async () => {
     await page.$eval('#rTable', el => el.scrollIntoView({ block: 'center', behavior: 'smooth' })); await wait(800);
