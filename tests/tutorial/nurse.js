@@ -180,6 +180,7 @@ async function flow(h) {
     await type('#itemSearch', 'blue');
     await page.waitForSelector('#comboList .alias-nm'); await wait(600);
     await highlight('#comboList .combo-opt:has(.alias-nm)', 2600);
+    await point('#comboList .combo-opt:has(.alias-nm) .alias-of'); await wait(5500); // القائمة تبقى مفتوحة حتى نهاية الشرح
     await page.keyboard.press('Escape'); await page.fill('#itemSearch', '');
   });
   await scene('submit', 'doc', async () => { await highlight('#sumBox', 1400); reqId = await submit(); });
