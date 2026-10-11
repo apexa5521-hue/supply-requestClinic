@@ -12,7 +12,7 @@ import * as XLSX from 'xlsx';
 import { createGas } from './server/gas.mjs';
 import { Store } from './server/store.mjs';
 import { driveConfigFromEnv, driveViewUrl } from './server/drive.mjs';
-import { googleAccessToken, mirrorToSheet, runExclusive } from './server/sync.mjs';
+import { googleAccessToken, mirrorToSheet, runExclusive, tzOffsetMs } from './server/sync.mjs';
 
 dotenv.config();
 const ROOT = path.dirname(fileURLToPath(import.meta.url));
@@ -117,15 +117,20 @@ app.post('/admin/import', express.raw({ type: '*/*', limit: '60mb' }), async (re
       const wb = XLSX.read(req.body, { type: 'buffer', cellDates: true });
       gas.order.slice().forEach(n => gas.ss.deleteSheet(gas.sheets[n]));
       const lines = [];
-      wb.SheetNames.forEach(name => {
+      // .xlsx dates carry the sheet's wall clock (Riyadh); SheetJS reads them as this server's local time
+      const tz = process.env.SHEET_TZ || 'Asia/Riyadh';
+      const fixDate = d => { const wall = d.getTime() - d.getTimezoneOffset() * 60000; return wall - tzOffsetMs(tz, wall); };
+      wb.SheetNames.filter(name => !name.startsWith('_')).forEach(name => {
         const grid = XLSX.utils.sheet_to_json(wb.Sheets[name], { header: 1, raw: true, defval: '', blankrows: false });
         const sh = gas.ss.insertSheet(name);
-        sh._data = grid.map(row => row.map(v => (v instanceof Date ? new VmDate(v.getTime()) : v)));
+        sh._data = grid.map(row => row.map(v => (v instanceof Date ? new VmDate(fixDate(v)) : v)));
         lines.push(name + ': ' + Math.max(0, grid.length - 1) + ' صف');
       });
       // sessions and memoized reads belong to the old data
       Object.keys(gas.cacheStore).forEach(k => delete gas.cacheStore[k]);
       await store.flush(gas);
+      // the sheet's backup work is now in the database: the mirror may overwrite the sheet again
+      await pool.query("insert into gas_kv (kind, k, v) values ('meta', 'imported_at', $1) on conflict (kind, k) do update set v = excluded.v", [new Date().toISOString()]);
       return lines;
     });
     res.type('text').send('تم الاستيراد ✓\n' + report.join('\n'));
@@ -147,11 +152,21 @@ app.post('/sync/run', async (req, res) => {
       if (!rows.length) return { skipped: true, reason: 'database has no tabs yet' };
       const grids = rows.map(r => ({ name: r.name, grid: JSON.parse(r.data) }));
       const token = await googleAccessToken(JSON.parse(process.env.GOOGLE_SA_JSON));
-      return mirrorToSheet({ spreadsheetId: process.env.SHEET_SYNC_ID, token, rows: grids });
+      // photos stored in Drive: the sheet (backup link) gets the Drive link, not this server's /files/<id>
+      const fileLinks = {};
+      (await pool.query('select id, drive_id from gas_files where drive_id is not null')).rows.forEach(f => { fileLinks[f.id] = driveViewUrl(f.drive_id); });
+      const imp = await pool.query("select v from gas_kv where kind = 'meta' and k = 'imported_at'");
+      return mirrorToSheet({ spreadsheetId: process.env.SHEET_SYNC_ID, token, rows: grids, fileLinks, importedAt: imp.rows[0] ? imp.rows[0].v : null });
     });
     console.log('[sync]', JSON.stringify(out));
     res.json({ ok: true, ...out });
   } catch (e) {
+    if (e.code === 'PLAN_B_ACTIVE') {
+      // the backup link (GitHub + Apps Script) saved data in the sheet: never overwrite it — import it first
+      console.warn('[sync] blocked:', e.message);
+      return res.status(409).json({ ok: false, error: 'PLAN_B_ACTIVE', writtenAt: e.writtenAt,
+        message: 'الشيت فيه عمل من الرابط البديل بعد آخر مزامنة — استورده من /admin/import أولاً، ثم تعود المزامنة تلقائياً' });
+    }
     console.error('[sync] failed:', e.message);
     res.status(500).json({ ok: false, error: String(e.message).slice(0, 200) });
   }
