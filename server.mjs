@@ -145,6 +145,9 @@ app.post('/sync/run', async (req, res) => {
   const want = process.env.SYNC_KEY || '', got = String(req.get('x-sync-key') || '');
   if (!(want.length >= 8 && got.length === want.length && crypto.timingSafeEqual(Buffer.from(got), Buffer.from(want)))) return res.sendStatus(403);
   if (!process.env.GOOGLE_SA_JSON || !process.env.SHEET_SYNC_ID) return res.status(400).json({ ok: false, error: 'sync not configured' });
+  // off until the move: staff still work on the Google Sheet (Apps Script), so nothing may write over it.
+  // On moving day set SYNC_ENABLED=yes in Render (after importing the sheet) — see the README.
+  if (String(process.env.SYNC_ENABLED || '').toLowerCase() !== 'yes') return res.json({ ok: true, skipped: true, reason: 'SYNC_ENABLED is not yes (sync is off until the move to Render)' });
   try {
     await ready;
     const out = await runExclusive(async () => {
