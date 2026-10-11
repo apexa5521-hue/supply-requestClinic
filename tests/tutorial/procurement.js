@@ -135,6 +135,8 @@ async function flow(h) {
   await h.api('createRequest', [{ clinic: 'Dental Clinic 1', doctor: 'Dr. Khalid', type: 'شهري', items: [
     { name: 'Nitrile gloves M', qty: 4, free: true, type: 'مستهلك' }, { name: 'Saliva ejectors', qty: 6, free: true, type: 'مستهلك' },
     { name: 'Gloves medium', qty: 2, free: true, type: 'مستهلك' }] }], ['Sara', '1111']);
+  // فيديو بلا أسعار: خانة السعر في نوافذ الاعتماد والأصناف لا تظهر أصلاً (تُعبّأ في الخلفية)
+  await page.addStyleTag({ content: '.fi-price-f, .modal .field:has(#caP) { display: none !important; }' });
   await scene('free', 'free', async () => {
     await h.nav('freeitems');
     await page.waitForSelector('#fiList .fi-row'); await wait(500);
@@ -167,11 +169,9 @@ async function flow(h) {
     await type('.modal #caC', 'Disposables');
     await page.evaluate(() => { const i = document.querySelector('.modal #caP'); if (i) i.value = '1'; });
     await highlight('.modal #caD', 800); await highlight('.modal #caT', 800);
+    await click('.modal #caOk'); await wait(1300);
   });
   await scene('catedit', 'catalog', async () => {
-    await point('.modal #caA'); await wait(300);
-    await highlight('.modal #caS', 800);
-    await click('.modal #caOk'); await wait(1300);
     await type('#caQ', 'handpiece'); await wait(700);
     await click('#caList tbody tr >> nth=0 >> [data-act="caEdit"]');
     await page.waitForSelector('.modal #caA'); await wait(500);
