@@ -1263,7 +1263,9 @@ function log(msg) { console.log('  ✔ ' + msg); }
   await page.selectOption('.modal #caT', 'مستهلك');
   await shot(page, 'proc-catalog-add');
   await page.click('.modal #caOk');
-  expect(await toastHas(page, 'Cotton Rolls'), 'procurement adds a consumable with category and price');
+  const added = await toastHas(page, 'Cotton Rolls');
+  const addErr = added ? '' : await page.evaluate(() => { const e = document.querySelector('.modal #caErr'); return e ? e.textContent + ' · price=' + document.querySelector('.modal #caP').value : 'no modal'; });
+  expect(added, 'procurement adds a consumable with category and price' + (addErr ? ' — ' + addErr : ''));
   await page.waitForSelector('#caList tr:has-text("Cotton Rolls")');
   await page.fill('#caQ', 'cotton');
   await page.click('#caList tr:has-text("Cotton Rolls") [data-act="caEdit"]');
