@@ -1,5 +1,5 @@
 # عند كل دمج في main: الاختبارات، ثم:
-#  1) رفع الكود لـ Apps Script عبر clasp — الخطة البديلة (اختياري: يعمل فقط إذا أُضيفت الأسرار CLASPRC_JSON و SCRIPT_ID و DEPLOYMENT_ID)
+#  1) تحديث Apps Script — الخطة البديلة (يعمل إذا أُضيفت الأسرار GAS_CLIENT_ID و GAS_CLIENT_SECRET و GAS_REFRESH_TOKEN و SCRIPT_ID و DEPLOYMENT_ID)
 #  2) دمج main في فرع production-postgresql — الخطة الأساسية: Render ينشره تلقائياً
 # الواجهة على GitHub Pages ينشرها GitHub تلقائياً من الفرع (Index.html يحمّل JavaScript.html) — لا نشر ثانٍ هنا.
 name: Deploy
@@ -30,31 +30,23 @@ jobs:
     needs: test
     runs-on: ubuntu-latest
     env:
-      CLASPRC_JSON: ${{ secrets.CLASPRC_JSON }}
+      GAS_CLIENT_ID: ${{ secrets.GAS_CLIENT_ID }}
+      GAS_CLIENT_SECRET: ${{ secrets.GAS_CLIENT_SECRET }}
+      GAS_REFRESH_TOKEN: ${{ secrets.GAS_REFRESH_TOKEN }}
       SCRIPT_ID: ${{ secrets.SCRIPT_ID }}
       DEPLOYMENT_ID: ${{ secrets.DEPLOYMENT_ID }}
     steps:
       - uses: actions/checkout@v4
-        if: env.CLASPRC_JSON != '' && env.SCRIPT_ID != ''
       - uses: actions/setup-node@v4
-        if: env.CLASPRC_JSON != '' && env.SCRIPT_ID != ''
         with:
           node-version: 20
-      - name: Push code and update the web app deployment
-        if: env.CLASPRC_JSON != '' && env.SCRIPT_ID != ''
-        run: |
-          npm install -g @google/clasp@2
-          printf '%s' "$CLASPRC_JSON" > ~/.clasprc.json
-          printf '{"scriptId":"%s","rootDir":"."}' "$SCRIPT_ID" > .clasp.json
-          clasp push --force
-          if [ -n "$DEPLOYMENT_ID" ]; then
-            clasp deploy --deploymentId "$DEPLOYMENT_ID" --description "auto ${GITHUB_SHA::7}"
-          else
-            clasp version "auto ${GITHUB_SHA::7}"
-          fi
+      # يستبدل Code و Index و JavaScript فقط، ثم يحدّث النشر الحالي (نفس رابط /exec)
+      - name: Update Apps Script (Code, Index, JavaScript) and the web-app deployment
+        if: env.GAS_REFRESH_TOKEN != '' && env.SCRIPT_ID != ''
+        run: node scripts/deploy-apps-script.mjs
       - name: Skipped (no Apps Script secrets)
-        if: env.CLASPRC_JSON == '' || env.SCRIPT_ID == ''
-        run: echo "Apps Script secrets are not set — only GitHub Pages was updated."
+        if: env.GAS_REFRESH_TOKEN == '' || env.SCRIPT_ID == ''
+        run: echo "Apps Script secrets are not set — only GitHub Pages and the Render branch were updated."
 
   # الخطة الأساسية (Render + Supabase): نفس التحديثات تصل فرع production-postgresql تلقائياً
   trial-branch:
