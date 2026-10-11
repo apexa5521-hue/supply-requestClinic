@@ -11,6 +11,19 @@ alter table gas_files add column if not exists drive_id text;
 alter table gas_files alter column bytes drop not null;
 `;
 
+// ---- storage guard: the free database has a hard size limit (Supabase free: 500 MB) ----
+// Photos that cannot go to Drive stay in the database, so they stop at PHOTO_STOP of the limit;
+// text (requests, approvals) keeps working until TEXT_STOP. A save that is refused is never silently dropped:
+// it fails with ERR_STORAGE_FULL and nothing of that save is written.
+export const PHOTO_STOP = 0.8, TEXT_STOP = 0.97;
+export class StorageFullError extends Error {
+  constructor(usedMb, limitMb) { super('ERR_STORAGE_FULL'); this.code = 'ERR_STORAGE_FULL'; this.usedMb = usedMb; this.limitMb = limitMb; }
+}
+export function storageState(usedBytes, limitMb) {
+  const used = usedBytes / 1048576, pct = used / limitMb;
+  return { usedMb: Math.round(used * 10) / 10, limitMb, percent: Math.round(pct * 1000) / 10, photosBlocked: pct >= PHOTO_STOP, textBlocked: pct >= TEXT_STOP };
+}
+
 const isDate = v => Object.prototype.toString.call(v) === '[object Date]';
 // Dates survive JSON as {"$d": iso}; revived as Dates of the runtime realm (vm context)
 export function encodeGrid(rows) {
@@ -23,7 +36,7 @@ const hash = s => crypto.createHash('md5').update(s).digest('hex');
 
 export class Store {
   // drive: { cfg, token?, upload } or null. With Drive set up, new files go to Drive and only the id is kept.
-  constructor(pool, drive = null) { this.pool = pool; this.drive = drive; this.sheetHash = {}; this.kvHash = { prop: '', cache: '' }; }
+  constructor(pool, drive = null, limitMb = Number(process.env.DB_LIMIT_MB) || 500) { this.pool = pool; this.drive = drive; this.limitMb = limitMb; this.sheetHash = {}; this.kvHash = { prop: '', cache: '' }; }
 
   async init() { await this.pool.query(SCHEMA); }
 
@@ -58,6 +71,8 @@ export class Store {
     const propsDirty = hash(propsJson) !== this.kvHash.prop, cacheDirty = hash(cacheJson) !== this.kvHash.cache;
     const newFiles = [...gas.files.values()].filter(f => !f.saved);
     if (!sheetUps.length && !sheetDels.length && !propsDirty && !cacheDirty && !newFiles.length) return 0;
+    // data changes (requests, approvals...) stop only when the database is almost full
+    if (sheetUps.length || sheetDels.length) await this.checkTextRoom();
     // Drive uploads happen before the transaction (network); a failed upload keeps the bytes in the database
     for (const f of newFiles) {
       if (f.driveId || !this.drive) continue;
@@ -68,6 +83,12 @@ export class Store {
         console.error('Drive upload failed, keeping file in database:', f.name, e.message);
         if (/token/.test(e.message)) this.drive.token = null;
       }
+    }
+    // photos that must stay in the database: refuse them when the database is nearly full (see storage guard)
+    const inDb = newFiles.filter(f => !f.driveId);
+    if (inDb.length) {
+      const st = storageState(await this.dbBytes(), this.limitMb);
+      if (st.photosBlocked) throw new StorageFullError(st.usedMb, st.limitMb);
     }
     const c = await this.pool.connect();
     try {
@@ -94,6 +115,22 @@ export class Store {
     if (cacheDirty) this.kvHash.cache = hash(cacheJson);
     newFiles.forEach(f => { f.saved = true; });
     return sheetUps.length + sheetDels.length + (propsDirty ? 1 : 0) + (cacheDirty ? 1 : 0) + newFiles.length;
+  }
+
+  /** size of the whole database in bytes (cached 60 s: the check runs on every save) */
+  async dbBytes() {
+    const now = Date.now();
+    if (this._size && now - this._size.at < 60000) return this._size.bytes;
+    const r = await this.pool.query('select pg_database_size(current_database())::bigint as b');
+    this._size = { at: now, bytes: Number(r.rows[0].b) };
+    return this._size.bytes;
+  }
+
+  /** text saves are refused only at TEXT_STOP (checked by the caller before writing text) */
+  async checkTextRoom() {
+    const st = storageState(await this.dbBytes(), this.limitMb);
+    if (st.textBlocked) throw new StorageFullError(st.usedMb, st.limitMb);
+    return st;
   }
 
   async replaceKv(c, kind, entries) {

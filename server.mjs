@@ -10,9 +10,9 @@ import crypto from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import * as XLSX from 'xlsx';
 import { createGas } from './server/gas.mjs';
-import { Store } from './server/store.mjs';
 import { driveConfigFromEnv, driveViewUrl } from './server/drive.mjs';
 import { googleAccessToken, mirrorToSheet, runExclusive } from './server/sync.mjs';
+import { Store, storageState } from './server/store.mjs';
 import { exportWorkbook, instantFromCell } from './server/workbook.mjs';
 const SHEET_TZ = process.env.SHEET_TZ || 'Asia/Riyadh';
 
@@ -73,7 +73,9 @@ app.post('/api', express.text({ type: '*/*', limit: '25mb' }), async (req, res) 
     res.type('application/json').send(out);
   } catch (err) {
     console.error('API Error:', err);
-    res.status(500).json({ ok: false, error: 'ERR_SERVER' });
+    // known refusals (e.g. ERR_STORAGE_FULL) reach the app as their code; anything else stays generic
+    const code = err && typeof err.code === 'string' && /^ERR_[A-Z_]+$/.test(err.code) ? err.code : 'ERR_SERVER';
+    res.status(500).json({ ok: false, error: code });
   }
 });
 
@@ -106,6 +108,13 @@ input{border:1px solid #cbd5e1}button{background:#2563eb;color:#fff;border:0;cur
 <input id="k" type="password" autocomplete="off" placeholder="الصق المفتاح هنا">
 
 <section>
+<h3>مساحة قاعدة البيانات</h3>
+<p>الحد المجاني 500 MB. الصور تروح لدرايف، وإذا وصلت القاعدة 80% تتوقف الصور المحفوظة داخلها، وإذا وصلت 97% تتوقف كل التعديلات.</p>
+<button id="stat">عرض الحجم</button>
+<div id="size" style="margin-top:8px"></div>
+</section>
+
+<section>
 <h3>تصدير كل البيانات (Excel)</h3>
 <p>ينزل ملف .xlsx على جهازك بكل التبويبات الحالية من قاعدة البيانات. ما يُحفظ شيء في Drive.</p>
 <button id="exp">تنزيل ملف Excel</button>
@@ -122,6 +131,14 @@ input{border:1px solid #cbd5e1}button{background:#2563eb;color:#fff;border:0;cur
 <script>
 const out = document.getElementById('out'), key = () => document.getElementById('k').value.trim();
 const show = t => { out.textContent = t; };
+document.getElementById('stat').onclick = async () => {
+  if (!key()) return show('اكتب مفتاح الأدمن أولاً');
+  const r = await fetch('/admin/status', { method: 'POST', headers: { 'x-admin-key': key() } });
+  if (!r.ok) return show(await r.text());
+  const j = await r.json(), warn = j.textBlocked ? 'توقفت التعديلات، ارفع الخطة فوراً' : j.photosBlocked ? 'الصور داخل القاعدة متوقفة، والتعديلات مستمرة' : 'المساحة تمام';
+  document.getElementById('size').innerHTML = '<b>' + j.usedMb + ' MB من ' + j.limitMb + ' MB (' + j.percent + '%)</b> — ' + warn +
+    '<br>أكبر الجداول: ' + j.tables.map(t => t.name + ' ' + t.mb + ' MB').join(' · ') + '<br>الصور في درايف: ' + (j.drive ? 'نعم' : 'لا (تُحفظ داخل القاعدة!)');
+};
 document.getElementById('exp').onclick = async () => {
   if (!key()) return show('اكتب مفتاح الأدمن أولاً');
   show('جاري تجهيز الملف…');
@@ -197,7 +214,21 @@ app.get('/health', async (req, res) => {
   } catch (err) {
     db = { connected: false, error: err.code || 'ERROR' };
   }
-  res.json({ status: bootError ? 'error' : 'ok', db, sheets: gas.order.length, timestamp: new Date().toISOString() });
+  let storage = null;
+  try { storage = storageState(await store.dbBytes(), store.limitMb); storage.drive = !!driveCfg; } catch (e) { storage = { error: e.code || 'ERROR' }; }
+  res.json({ status: bootError ? 'error' : 'ok', db, storage, sheets: gas.order.length, timestamp: new Date().toISOString() });
+});
+
+/* storage details for the admin page: size, the biggest tables */
+app.post('/admin/status', express.json({ limit: '1kb' }), async (req, res) => {
+  if (!keyOk(req)) return res.status(403).send('مفتاح الأدمن غير صحيح');
+  try {
+    await ready;
+    const st = storageState(await store.dbBytes(), store.limitMb);
+    const top = await pool.query(`select relname as name, pg_total_relation_size(relid)::bigint as bytes
+      from pg_catalog.pg_statio_user_tables order by 2 desc limit 6`);
+    res.json({ ...st, drive: !!driveCfg, tables: top.rows.map(r => ({ name: r.name, mb: Math.round(Number(r.bytes) / 1048576 * 10) / 10 })) });
+  } catch (e) { res.status(500).send('فشل قراءة الحجم: ' + e.message); }
 });
 
 ready = (async () => {
