@@ -1456,7 +1456,7 @@ test('permissions per role are editable by the admin and enforced on the server 
   throwsCode(() => api(a, 'saveRole', 'أدمن', 'quality', []), 'ERR_LAST_ADMIN');
 });
 
-test('monitor: monthly window 15–20 and due on the 1st, emergency within 24h; nudge + daily digest reach procurement and quality', () => {
+test('monitor: monthly window 15–20 and due on the 1st, emergency target 2h and limit 48h; nudge + daily digest reach procurement and quality', () => {
   const now = Date.now();
   const H = 36e5;
   const d = (ms) => new Date(ms);
@@ -1465,8 +1465,8 @@ test('monitor: monthly window 15–20 and due on the 1st, emergency within 24h; 
   const { api, login, gas, ctx } = boot(g => {
     g.seed('Requests', ['RequestID', 'Date', 'Clinic', 'Doctor', 'Nurse', 'Type', 'Status', 'SubmittedAt', 'Branch', 'ReceivedAt'], [
       ['REQ-A', day(2, 17), 'عيادة الأسنان 1', 'د. نورة', 'سارة', 'شهري', 'جديد', day(2, 17), 'الرياض', ''],
-      ['REQ-B', d(now - 30 * H), 'عيادة الأسنان 1', 'د. نورة', 'سارة', 'طارئ', 'قيد التجهيز', d(now - 30 * H), 'الرياض', ''],
-      ['REQ-C', d(now - 15 * H), 'عيادة الجلدية 1', 'د. نورة', 'سارة', 'طارئ', 'جديد', d(now - 15 * H), 'الرياض', ''],
+      ['REQ-B', d(now - 50 * H), 'عيادة الأسنان 1', 'د. نورة', 'سارة', 'طارئ', 'قيد التجهيز', d(now - 50 * H), 'الرياض', ''],
+      ['REQ-C', d(now - 30 * H), 'عيادة الجلدية 1', 'د. نورة', 'سارة', 'طارئ', 'جديد', d(now - 30 * H), 'الرياض', ''],
       ['REQ-D', d(now - 2 * H), 'عيادة الأسنان 1', 'د. نورة', 'سارة', 'طارئ', 'جديد', d(now - 2 * H), 'الرياض', ''],
       ['REQ-E', day(2, 3), 'عيادة الأسنان 2', 'د. سعد', 'ريم', 'شهري', 'تم الاستلام', day(2, 3), 'جدة', day(1, 5)]
     ]);
@@ -1483,6 +1483,7 @@ test('monitor: monthly window 15–20 and due on the 1st, emergency within 24h; 
   assert.deepEqual(m.cycle.doctors.map(x => x.doctor).sort(), ['د. خالد', 'د. سعد', 'د. فهد', 'د. نورة'].sort());
   assert.ok(m.cycle.doctors.every(x => ['ok', 'late', 'pending', 'missing'].includes(x.state)));
   assert.deepEqual(m.rules.window, [15, 20]);
+  assert.deepEqual([m.rules.emergencyHours, m.rules.emergencyFastHours], [48, 2]);
   const k = api(q, 'getMonitor', { month: ym(2) }).kpis;
   assert.deepEqual([k.requests, k.monthly, k.lateSubmits, k.received, k.onTimeRate], [2, 2, 0, 1, 0], 'REQ-E: submitted early (day 3 is fine), received after the 1st');
   // بطاقات التموين تحمل علامة التأخير + تنبيه أعلى الشاشة
@@ -2396,4 +2397,182 @@ test('nurse edits the items of her request (qty change / remove) under the same 
   assert.equal(rows(gas, 'RequestItems').find(x => x.RequestID === r2.id).RequestedQty, 6);
   api(p, 'bulkUpdateStatus', [r2.id], 'قيد التجهيز');
   throwsCode(() => api(n, 'editRequestItems', r2.id, [{ item: 'PROPHY PASTE', qty: 1 }]), 'ERR_WITHDRAW_REVIEW_ONLY');
+});
+
+test('nurse free-text item: added to the catalog with its type and clinic department; limits and duplicates enforced', () => {
+  const { api, login, gas } = boot();
+  const n = login('سارة', '1111'), p = login('علي', '3333');
+  const catRows = () => rows(gas, 'ItemsCatalog');
+  const before = catRows().length;
+  const r = api(n, 'createRequest', { clinic: 'عيادة الأسنان 1', type: 'شهري', items: [
+    { name: 'Sterile saliva ejector', qty: 3, free: true, type: 'مستهلك' },
+    { name: 'PROPHY PASTE', qty: 1 }
+  ] });
+  assert.match(r.id, /^REQ-/);
+  const added = catRows().slice(before);
+  assert.equal(added.length, 1, 'one new catalog row');
+  assert.deepEqual([added[0].ItemName, added[0].Category, added[0].ItemType, added[0].Department], ['Sterile saliva ejector', 'حر — من الممرضة', 'مستهلك', 'أسنان']);
+  assert.ok(rows(gas, 'RequestItems').some(x => x.RequestID === r.id && x.ItemName === 'Sterile saliva ejector' && Number(x.RequestedQty) === 3));
+  // the same name again is now a catalog item: no second row
+  api(n, 'createRequest', { clinic: 'عيادة الأسنان 1', type: 'شهري', items: [{ name: 'sterile SALIVA ejector', qty: 1, free: true, type: 'ماتيريال' }] });
+  assert.equal(catRows().length, before + 1, 'existing item is not duplicated');
+  // a name that already exists in the catalog is never re-added as a free item
+  api(n, 'createRequest', { clinic: 'عيادة الأسنان 1', type: 'شهري', items: [{ name: 'DENTAL FLOSS', qty: 1, free: true, type: 'مستهلك' }] });
+  assert.equal(catRows().length, before + 1);
+  throwsCode(() => api(n, 'createRequest', { clinic: 'عيادة الأسنان 1', type: 'شهري', items: [{ name: 'Free one', qty: 1, free: true, type: 'تجربة' }] }), 'ERR_FREE_ITEM_TYPE');
+  throwsCode(() => api(n, 'createRequest', { clinic: 'عيادة الأسنان 1', type: 'شهري', items: [{ name: 'x', qty: 1, free: true, type: 'مستهلك' }] }), 'ERR_FREE_ITEM_NAME');
+  const six = ['A1 item', 'B1 item', 'C1 item', 'D1 item', 'E1 item', 'F1 item'].map(name => ({ name, qty: 1, free: true, type: 'مستهلك' }));
+  throwsCode(() => api(n, 'createRequest', { clinic: 'عيادة الأسنان 1', type: 'شهري', items: six }), 'ERR_FREE_ITEMS_MAX');
+  throwsCode(() => api(p, 'createRequest', { clinic: 'عيادة الأسنان 1', type: 'شهري', items: [{ name: 'Only nurses', qty: 1, free: true, type: 'مستهلك' }] }), 'ERR_FORBIDDEN');
+  assert.equal(catRows().length, before + 1, 'rejected requests add nothing');
+});
+
+test('substitute item: procurement proposes, doctor approves or rejects, only approved substitutes ship', () => {
+  const { api, login, gas } = boot();
+  const n = login('سارة', '1111'), p = login('علي', '3333'), d = login('د. خالد', '4444');
+  const id = api(n, 'createRequest', { clinic: 'عيادة الأسنان 1', doctor: 'د. خالد', type: 'شهري', items: [{ name: 'PROPHY PASTE', qty: 4 }, { name: 'DENTAL FLOSS', qty: 10 }] }).id;
+  // قبل اعتماد الطبيب لا يوجد بديل
+  throwsCode(() => api(p, 'proposeSubstitute', { requestId: id, item: 'PROPHY PASTE', substitute: 'Itero Sleeve' }), 'ERR_NEEDS_APPROVAL');
+  api(d, 'doctorReview', id, 'اعتمد', '', []);
+  throwsCode(() => api(p, 'proposeSubstitute', { requestId: id, item: 'PROPHY PASTE', substitute: 'PROPHY PASTE' }), 'ERR_SUB_SAME');
+  throwsCode(() => api(p, 'proposeSubstitute', { requestId: id, item: 'PROPHY PASTE', substitute: 'لا يوجد' }), 'ERR_UNKNOWN_ITEM');
+  throwsCode(() => api(p, 'proposeSubstitute', { requestId: id, item: 'PROPHY PASTE', substitute: 'DENTAL FLOSS' }), 'ERR_SUB_EXISTS');
+  gas.mails.length = 0;
+  assert.equal(api(p, 'proposeSubstitute', { requestId: id, item: 'PROPHY PASTE', substitute: 'itero sleeve', note: 'غير متوفر' }).status, 'بانتظار الطبيب');
+  assert.ok(gas.mails.some(m => m.to === 'khaled@example.com' && /بديل بانتظار موافقتك/.test(m.subject)), 'doctor emailed');
+  throwsCode(() => api(p, 'proposeSubstitute', { requestId: id, item: 'PROPHY PASTE', substitute: 'Itero Sleeve' }), 'ERR_SUB_PENDING');
+  // البديل المعلّق لا يُرسل
+  let full = api(p, 'getRequestItemsFull', id);
+  const sub = full.items.find(i => i.item === 'Itero Sleeve');
+  assert.deepEqual([sub.substituteOf, sub.subStatus, sub.remainingQty, sub.requestedQty], ['PROPHY PASTE', 'بانتظار الطبيب', 0, 4]);
+  throwsCode(() => api(p, 'dispatchItems', id, ['Itero Sleeve']), 'ERR_NO_ITEMS');
+  // الطبيب يرى البديل ويوافق
+  const dr = api(d, 'getDoctorRequests').find(r => r.id === id);
+  assert.equal(dr.pendingSubs, 1);
+  assert.deepEqual([dr.subs[0].of, dr.subs[0].item, dr.subs[0].qty], ['PROPHY PASTE', 'Itero Sleeve', 4]);
+  assert.ok(api(d, 'getAlerts').some(a => a.code === 'alert_pending_subs' && a.n === 1));
+  throwsCode(() => api(p, 'reviewSubstitute', id, 'Itero Sleeve', true), 'ERR_FORBIDDEN');
+  api(d, 'reviewSubstitute', id, 'Itero Sleeve', true);
+  full = api(p, 'getRequestItemsFull', id);
+  assert.equal(full.items.find(i => i.item === 'Itero Sleeve').remainingQty, 4, 'approved substitute ships');
+  assert.equal(full.items.find(i => i.item === 'PROPHY PASTE').remainingQty, 0, 'the original is replaced');
+  assert.ok(rows(gas, 'Log').some(l => /وافق الطبيب على البديل/.test(l.Action)));
+  // رفض بديل: يبقى الأصلي كما هو
+  api(p, 'proposeSubstitute', { requestId: id, item: 'DENTAL FLOSS', substitute: 'MICRO BRUSH FINE', qty: 3 });
+  api(d, 'reviewSubstitute', id, 'MICRO BRUSH FINE', false, 'لا يناسب');
+  full = api(p, 'getRequestItemsFull', id);
+  assert.equal(full.items.find(i => i.item === 'DENTAL FLOSS').remainingQty, 10);
+  assert.equal(full.items.find(i => i.item === 'MICRO BRUSH FINE').remainingQty, 0);
+  assert.equal(full.items.find(i => i.item === 'MICRO BRUSH FINE').subStatus, 'مرفوض');
+  const ds = api(p, 'dispatchItems', id, ['Itero Sleeve', 'DENTAL FLOSS']);
+  assert.equal(ds.allSent, true, 'request is complete with the substitute and without the rejected one');
+});
+
+test('free items: procurement reviews them — approve with a price, match to an existing item (alias), or reject', () => {
+  const { api, login, gas } = boot();
+  const n = login('سارة', '1111'), p = login('علي', '3333');
+  const id = api(n, 'createRequest', { clinic: 'عيادة الأسنان 1', doctor: 'د. خالد', type: 'شهري', items: [
+    { name: 'salk', qty: 2, free: true, type: 'مستهلك' },
+    { name: 'gloves big', qty: 3, free: true, type: 'مستهلك' },
+    { name: 'wrong thing', qty: 1, free: true, type: 'ماتيريال' }] }).id;
+  let list = api(p, 'getFreeItems');
+  assert.deepEqual(list.map(x => x.name).sort(), ['gloves big', 'salk', 'wrong thing']);
+  const salk = list.find(x => x.name === 'salk');
+  assert.deepEqual([salk.by, salk.type, salk.requests, salk.qty], ['سارة', 'مستهلك', [id], 2]);
+  assert.ok(api(p, 'getAlerts').some(a => a.code === 'alert_free_items' && a.n === 3));
+  throwsCode(() => api(n, 'getFreeItems'), 'ERR_FORBIDDEN');
+  throwsCode(() => api(p, 'reviewFreeItems', [{ name: 'salk', action: 'approve', price: '' }]), 'ERR_BAD_PRICE:salk');
+  throwsCode(() => api(p, 'reviewFreeItems', [{ name: 'gloves big', action: 'match', matchTo: 'لا يوجد' }]), 'ERR_BAD_MATCH:gloves big');
+  throwsCode(() => api(p, 'reviewFreeItems', [{ name: 'wrong thing', action: 'reject', reason: '' }]), 'ERR_REASON_REQUIRED');
+  const res = api(p, 'reviewFreeItems', [
+    { name: 'salk', action: 'approve', price: 15 },
+    { name: 'gloves big', action: 'match', matchTo: 'قفازات طبية M' },
+    { name: 'wrong thing', action: 'reject', reason: 'موجود مسبقاً' }]);
+  assert.deepEqual([res.approved, res.matched, res.rejected, res.renamed], [1, 1, 1, 1]);
+  assert.equal(api(p, 'getFreeItems').length, 0, 'nothing left to review');
+  // الكتالوج: المعتمد صنف عادي، والاسم البديل يظهر مع الصنف الأصلي، والمرفوض لا يُطلب
+  const cat = api(n, 'getConfig').catalog;
+  const s = cat.find(c => c.name === 'salk');
+  assert.ok(s && !s.freePending && s.category === '');
+  assert.ok(!cat.some(c => c.name === 'gloves big' || c.name === 'wrong thing'));
+  assert.deepEqual(cat.find(c => c.name === 'قفازات طبية M').aliases, ['gloves big']);
+  assert.equal(rows(gas, 'ItemsCatalog').find(r => r.ItemName === 'salk').Price, 15);
+  // الطلب المفتوح: سطر الاسم الحر تحوّل لاسم التموين
+  assert.ok(rows(gas, 'RequestItems').some(r => r.RequestID === id && r.ItemName === 'قفازات طبية M'));
+  // مستقبلاً: الممرضة تطلب بالاسم الذي تعرفه، ويصل للتموين باسمه
+  const id2 = api(n, 'createRequest', { clinic: 'عيادة الأسنان 1', doctor: 'د. خالد', type: 'شهري', items: [{ name: 'GLOVES BIG', qty: 1 }] }).id;
+  assert.ok(rows(gas, 'RequestItems').some(r => r.RequestID === id2 && r.ItemName === 'قفازات طبية M'));
+});
+
+test('catalog admin: procurement adds, edits (rename follows open requests), categorizes and deletes items from the site', () => {
+  const { api, login, gas } = boot();
+  const n = login('سارة', '1111'), p = login('علي', '3333'), a = login('المدير', '1234');
+  throwsCode(() => api(n, 'getCatalogAdmin'), 'ERR_FORBIDDEN');
+  let cat = api(p, 'getCatalogAdmin');
+  assert.ok(cat.items.some(i => i.name === 'PROPHY PASTE' && i.category === 'Hygiene' && i.price === 60));
+  assert.ok(cat.categories.includes('Hygiene'));
+  // إضافة
+  throwsCode(() => api(p, 'saveCatalogItem', '', { name: 'Gauze 4x4', price: 'abc' }), 'ERR_BAD_PRICE');
+  throwsCode(() => api(p, 'saveCatalogItem', '', { name: 'prophy paste', price: 5 }), 'ERR_ITEM_EXISTS');
+  api(p, 'saveCatalogItem', '', { name: 'Gauze 4x4', commercial: 'Sterile', category: 'Disposables', price: 9.5, dept: 'أسنان', type: 'مستهلك' });
+  const dump = () => { const d = gas.dump('ItemsCatalog'); const h = d[0]; return d.slice(1).map(r => Object.fromEntries(h.map((k, i) => [k, r[i]]))); };
+  const g = dump().find(r => r.ItemName === 'Gauze 4x4');
+  assert.deepEqual([g.Price, g.Category, g.Department, g.ItemType], [9.5, 'Disposables', 'أسنان', 'مستهلك']);
+  assert.ok(api(n, 'getConfig').catalog.some(c => c.name === 'Gauze 4x4'), 'nurses can order it right away');
+  // تعديل مع تغيير الاسم: الطلب المفتوح يتبع الاسم الجديد
+  const id = api(n, 'createRequest', { clinic: 'عيادة الأسنان 1', doctor: 'د. نورة', type: 'شهري', items: [{ name: 'Gauze 4x4', qty: 2 }] }).id;
+  const res = api(p, 'saveCatalogItem', 'Gauze 4x4', { name: 'Gauze 4x4 Sterile', category: 'Disposables', price: 11, dept: '', type: 'ماتيريال' });
+  assert.equal(res.renamed, 1);
+  const items = api(p, 'getRequestItemsFull', id);
+  assert.ok(JSON.stringify(items).includes('Gauze 4x4 Sterile'), 'open request line renamed');
+  const g2 = dump().find(r => r.ItemName === 'Gauze 4x4 Sterile');
+  assert.deepEqual([g2.Price, g2.Department, g2.ItemType], [11, '', 'ماتيريال']);
+  // الحذف: ممنوع وهو في طلب مفتوح، ومسموح بعد إلغائه
+  throwsCode(() => api(p, 'deleteCatalogItem', 'Gauze 4x4 Sterile'), 'ERR_ITEM_IN_USE:1');
+  api(n, 'withdrawRequest', id, 'غلط');
+  api(a, 'deleteCatalogItem', 'Gauze 4x4 Sterile');
+  assert.ok(!dump().some(r => r.ItemName === 'Gauze 4x4 Sterile'));
+  // عهدة مصروفة: لا تُحذف
+  api(p, 'issueAssets', { clinic: 'عيادة الأسنان 1', item: 'Curing Light', qty: 1 });
+  throwsCode(() => api(p, 'deleteCatalogItem', 'Curing Light'), 'ERR_ITEM_IN_CUSTODY');
+});
+
+test('doctors admin (admin only): add a doctor with a new login, edit specialty/clinics, rename, link an existing account, delete', () => {
+  const { api, login, gas } = boot();
+  const p = login('المدير', '1234'), n = login('سارة', '1111'), rm = login('ريم', '2222');
+  throwsCode(() => api(n, 'getDoctorsAdmin'), 'ERR_FORBIDDEN');
+  // التموين لا يضيف أطباء ولا ينشئ حسابات
+  throwsCode(() => api(login('علي', '3333'), 'getDoctorsAdmin'), 'ERR_FORBIDDEN');
+  throwsCode(() => api(login('علي', '3333'), 'saveDoctor', '', { name: 'د. س', login: 'x1', password: '9999' }), 'ERR_FORBIDDEN');
+  let d = api(p, 'getDoctorsAdmin');
+  assert.ok(d.doctors.some(x => x.name === 'د. خالد' && x.login === 'د. خالد' && x.hasAccount));
+  assert.ok(d.clinics.length >= 3 && d.specialties.includes('Dentistry'));
+  throwsCode(() => api(p, 'saveDoctor', '', { name: 'د. ماجد', login: 'Dr.Majed' }), 'ERR_PASSWORD_REQUIRED');
+  throwsCode(() => api(p, 'saveDoctor', '', { name: 'د. ماجد', login: 'علي', password: '9999' }), 'ERR_USER_EXISTS');
+  throwsCode(() => api(p, 'saveDoctor', '', { name: 'د. خالد' }), 'ERR_DOCTOR_EXISTS');
+  const r = api(p, 'saveDoctor', '', { name: 'د. ماجد', specialty: 'Dentistry', subspecialty: 'Endodontics', clinics: ['عيادة الأسنان 2'], login: 'Dr.Majed', password: '9090' });
+  assert.equal(r.created, true);
+  // الطبيب الجديد يدخل بحسابه ويرى صفحة الطبيب، والممرضة تجده في العيادة
+  const m = login('Dr.Majed', '9090');
+  assert.equal(api(m, 'getConfig').user.screen, 'doctor');
+  assert.ok(api(n, 'getDoctors', 'عيادة الأسنان 2').some(x => x.name === 'د. ماجد'));
+  d = api(p, 'getDoctorsAdmin');
+  const mj = d.doctors.find(x => x.name === 'د. ماجد');
+  assert.deepEqual([mj.specialty, mj.subspecialty, mj.clinics, mj.login, mj.hasAccount], ['Dentistry', 'Endodontics', ['عيادة الأسنان 2'], 'Dr.Majed', true]);
+  // تعديل: اسم جديد وتخصص وعيادتان + رقم سري جديد — الطلبات والحساب يتبعان الاسم
+  const id = api(rm, 'createRequest', { clinic: 'عيادة الأسنان 2', doctor: 'د. ماجد', type: 'شهري', items: [{ name: 'PROPHY PASTE', qty: 1 }] }).id;
+  const e = api(p, 'saveDoctor', 'د. ماجد', { name: 'د. ماجد العتيبي', specialty: 'Derma', subspecialty: 'Laser', clinics: ['عيادة الجلدية 1', 'عيادة الأسنان 2'], login: 'Dr.Majed', password: '1212' });
+  assert.equal(e.renamed, 1);
+  const m2 = login('Dr.Majed', '1212');
+  assert.ok(api(m2, 'getDoctorRequests').some(x => x.id === id), 'renamed doctor still sees his request');
+  // ربط حساب طبيب موجود بطبيب بلا حساب
+  api(p, 'saveDoctor', 'د. نورة', { name: 'د. نورة', specialty: 'Dentistry', clinics: ['عيادة الأسنان 1'], login: 'د. خالد' });
+  const users = gas.dump('Users'); const h = users[0];
+  assert.equal(users.find(u => u[0] === 'د. خالد')[h.indexOf('DoctorName')], 'د. نورة');
+  // الحذف: ممنوع مع طلب مفتوح، ثم مع حسابه
+  throwsCode(() => api(p, 'deleteDoctor', 'د. ماجد العتيبي', { deleteAccount: true }), 'ERR_DOCTOR_IN_USE:1');
+  api(rm, 'withdrawRequest', id, 'غلط');
+  assert.equal(api(p, 'deleteDoctor', 'د. ماجد العتيبي', { deleteAccount: true }).accountDeleted, true);
+  assert.ok(!gas.dump('Users').some(u => u[0] === 'Dr.Majed'));
+  assert.ok(!gas.dump('Doctors').some(x => x[0] === 'د. ماجد العتيبي'));
 });

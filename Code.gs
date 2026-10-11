@@ -1,5 +1,5 @@
 /**
- * SupplyFlow — نظام طلبات المستلزمات - ApexCare Clinics
+ * SupplyFlow — نظام طلبات المستلزمات
  *
  * كل استدعاءات الواجهة تمر عبر دالة واحدة `api(token, fn, args)` (أو doPost عند
  * الاستضافة الخارجية). الدوال الداخلية تنتهي بـ "_" حتى لا يمكن استدعاؤها
@@ -21,17 +21,20 @@ const SCHEMA = {
   Users:        ['Name', 'Password', 'Role', 'Clinic', 'Email', 'PasswordChangedAt', 'DoctorName', 'Department', 'Branch', 'PriceView'],
   Roles:        ['RoleName', 'Screen', 'Permissions'],
   Clinics:      ['ClinicName', 'Branch', 'Type'],
-  Doctors:      ['DoctorName', 'Clinic', 'NurseName', 'Subspecialty', 'Billing'],
+  // Specialty: Dentistry / Derma · LoginName: اسم دخول حساب الطبيب (للاطلاع؛ الربط الفعلي في Users.DoctorName)
+  Doctors:      ['DoctorName', 'Clinic', 'NurseName', 'Subspecialty', 'Billing', 'Specialty', 'LoginName'],
   // Ownership: مستهلك (افتراضي) أو عهدة (على حساب الشركة) · Serialized: نعم للأدوات ذات الرقم التسلسلي (الهاندبيس…)
   // Department: أسنان / جلدية (فارغ = مشترك يظهر للقسمين) · ItemType: مستهلك أو ماتيريال (Category يبقى لتصنيف الصنف)
-  ItemsCatalog: ['ItemName', 'CommercialName', 'Category', 'Price', 'Ownership', 'Serialized', 'Department', 'ItemType'],
+  ItemsCatalog: ['ItemName', 'CommercialName', 'Category', 'Price', 'Ownership', 'Serialized', 'Department', 'ItemType',
+                 'AliasOf', 'FreeStatus', 'FreeBy', 'FreeAt', 'FreeNote'], // الصنف الحر: مراجعة التموين، والاسم البديل (AliasOf) لصنف موجود
   Requests:     ['RequestID', 'Date', 'Clinic', 'Doctor', 'Nurse', 'Type', 'Status',
                  'SubmittedAt', 'SentAt', 'ReceivedAt', 'ReceiverName', 'SignatureURL',
                  'PrepAt', 'VendorWaitAt', 'VendorReceivedAt', 'ReviewAt', 'ReviewedAt',
                  'RejectionReason', 'ReceiptURL', 'Branch', 'ApprovedAt', 'ClientKey', 'Department', 'Backdated',
                  'CancelReason', 'CancelledAt', 'CancelledBy'],
   // ItemStatus: حالة الصنف داخل الطلبية (قيد التجهيز / بانتظار المندوب / استلم المندوب) قبل إرساله
-  RequestItems: ['RequestID', 'ItemName', 'RequestedQty', 'ApprovedQty', 'ReceivedQty', 'DispatchedAt', 'DispatchBatch', 'ItemStatus', 'ItemStatusAt', 'ItemStatusBy'],
+  RequestItems: ['RequestID', 'ItemName', 'RequestedQty', 'ApprovedQty', 'ReceivedQty', 'DispatchedAt', 'DispatchBatch', 'ItemStatus', 'ItemStatusAt', 'ItemStatusBy',
+                 'SubstituteOf', 'SubStatus', 'SubNote', 'SubBy', 'SubAt'], // البديل: سطر جديد يشير لاسم الصنف الأصلي
   // سجل التراجعات: كل تراجع عن خطوة (شحنة أُرسلت بالغلط، حالة طلب، حالة صنف) مع السبب والوقت — تراه الجودة والإدارة
   Reversals:    ['Timestamp', 'RequestID', 'User', 'Role', 'Scope', 'From', 'To', 'Reason', 'Details'],
   // كل سطر = كمية صنف واحد داخل شحنة واحدة (يسمح بإرسال جزء من كمية الصنف)
@@ -94,6 +97,8 @@ TRANSITIONS[ST.VENDOR_RECV] = { from: [ST.VENDOR_WAIT], stamp: 'VendorReceivedAt
 TRANSITIONS[ST.SENT]        = { from: [ST.APPROVED, ST.PREP, ST.VENDOR_RECV], stamp: 'SentAt' };
 // حالات يمكن فيها إرسال أصناف (بعد الاعتماد)
 const DISPATCHABLE = [ST.APPROVED, ST.PREP, ST.VENDOR_WAIT, ST.VENDOR_RECV];
+/* مستهلك بديل يقترحه التموين لصنف غير متوفر بعد اعتماد الطبيب: لا يُرسل حتى يوافق الطبيب */
+const SUB_ST = { PENDING: 'بانتظار الطبيب', OK: 'معتمد', NO: 'مرفوض' };
 
 const REQUEST_TYPES = ['شهري', 'طارئ'];
 const SCREENS = ['nurse', 'procurement', 'doctor', 'lab', 'quality', 'executive', 'finance', 'dashboard', 'branch', 'admin'];
@@ -119,9 +124,10 @@ const DEFAULT_PERMS = {
   // مدير الفرع: مشاهدة فرعه + تقاريره ومؤشراته + التنبيه والشكاوى (بدون اعتماد أو إرسال)
   branch: ['overview', 'reports', 'complaints', 'monitor', 'lab_view', 'assets', 'boxes']
 };
-/* الطلب الشهري يُرفع من يوم 15 إلى 20، ويجب أن يُستلم قبل يوم 1 من الشهر التالي؛ الطارئ خلال 24 ساعة */
+/* الطلب الشهري يُرفع من يوم 15 إلى 20، ويجب أن يُستلم قبل يوم 1 من الشهر التالي؛ الطارئ: الهدف ساعتان والحد الأقصى 48 ساعة (زمن التموين) */
 const MONTHLY_WINDOW = [15, 20];
-const EMERGENCY_DUE_HOURS = 24;
+const EMERGENCY_DUE_HOURS = 48;   // الحد الأقصى لإرسال الطارئ: عليه يُقيَّم التموين
+const EMERGENCY_FAST_HOURS = 2;    // الهدف السريع للطارئ
 const AT_RISK_DAYS = 5;
 const NOTICE_TARGET_BY_SCREEN = { nurse: 'ممرضة', procurement: 'تموين', doctor: 'طبيب' };
 const COMPLAINT_TYPES = ['تأخير', 'نقص', 'زيادة', 'أخرى'];
@@ -185,6 +191,11 @@ function runSetupSteps_(force) {
 }
 
 const ITEM_TYPES_ = ['مستهلك', 'ماتيريال'];
+/** صنف تكتبه الممرضة بحرية (غير موجود في القائمة): يُضاف للكتالوج ويعلّم بهذه الفئة ليميّزه التموين */
+const FREE_CATEGORY_ = 'حر — من الممرضة';
+/* مراجعة الأصناف الحرة لدى التموين: اعتماد بسعر، أو مطابقة لصنف موجود (يصبح اسماً بديلاً له)، أو رفض */
+const FREE_ST = { PENDING: 'بانتظار المراجعة', OK: 'معتمد', NO: 'مرفوض' };
+const FREE_ITEMS_MAX_ = 5;
 /** قائمة منسدلة في عمود ItemType (يقبل القيم الأخرى مع تحذير بدل الرفض) */
 function itemTypeDropdown_() {
   if (typeof SpreadsheetApp === 'undefined' || !SpreadsheetApp.newDataValidation) return;
@@ -397,7 +408,7 @@ function setupSheets() {
 
 function doGet() {
   return HtmlService.createTemplateFromFile('Index').evaluate()
-    .setTitle('مسار — ApexCare')
+    .setTitle('مسار') // add the client company name after a dash here when requested
     .addMetaTag('viewport', 'width=device-width, initial-scale=1, viewport-fit=cover')
     .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
 }
@@ -595,6 +606,10 @@ const API_ = {
   getRequestItemsFull:       { screens: ['procurement'].concat(MGMT), fn: getRequestItemsFull_ },
   updateItemApproval:        { screens: ['procurement'], fn: updateItemApproval_ },
   dispatchItems:             { screens: ['procurement'], fn: dispatchItems_ },
+  proposeSubstitute:         { screens: ['procurement'], fn: proposeSubstitute_ },
+  getFreeItems:              { screens: ['procurement'], fn: getFreeItems_ },
+  reviewFreeItems:           { screens: ['procurement'], fn: reviewFreeItems_ },
+  reviewSubstitute:          { screens: ['doctor'], fn: reviewSubstitute_ },
   setItemsStatus:            { screens: ['procurement'], fn: setItemsStatus_ },
   getRevertPlan:             { screens: ['procurement'], fn: function (u, id) { return cachedRead_(function () { return revertPlan_(id).plan; }); } },
   revertStep:                { screens: ['procurement'], fn: revertStep_ },
@@ -675,6 +690,13 @@ const API_ = {
   getFinance:                { screens: [], perm: 'finance', fn: getFinance_ },
   getPriceList:              { screens: [], perm: 'prices_edit', fn: getPriceList_ },
   setItemPrice:              { screens: [], perm: 'prices_edit', fn: setItemPrice_ },
+  // إدارة الكتالوج من الموقع (التموين والأدمن)، والأطباء وحساباتهم للأدمن فقط
+  getCatalogAdmin:           { screens: ['procurement'], perm: 'users', fn: getCatalogAdmin_ },
+  saveCatalogItem:           { screens: ['procurement'], perm: 'users', fn: saveCatalogItem_ },
+  deleteCatalogItem:         { screens: ['procurement'], perm: 'users', fn: deleteCatalogItem_ },
+  getDoctorsAdmin:           { screens: [], perm: 'users', fn: getDoctorsAdmin_ },
+  saveDoctor:                { screens: [], perm: 'users', fn: saveDoctor_ },
+  deleteDoctor:              { screens: [], perm: 'users', fn: deleteDoctor_ },
   saveRole:                  { screens: [], perm: 'users', fn: saveRole_ },
   deleteRole:                { screens: [], perm: 'users', fn: deleteRole_ }
 };
@@ -1670,14 +1692,22 @@ function priceProblem_(v) {
 }
 
 function getCatalog_(withPrice) {
-  const seen = {};
-  return read_('ItemsCatalog').rows.filter(function (r) {
+  const seen = {}, aliases = {};
+  const rows = read_('ItemsCatalog').rows;
+  rows.forEach(function (r) {
+    const a = str_(r.AliasOf), n = str_(r.ItemName);
+    if (a && n && str_(r.FreeStatus) !== FREE_ST.NO) (aliases[a.toLowerCase()] = aliases[a.toLowerCase()] || []).push(n);
+  });
+  return rows.filter(function (r) {
     const n = str_(r.ItemName);
     if (!n || seen[n.toLowerCase()]) return false;
+    if (str_(r.AliasOf) || str_(r.FreeStatus) === FREE_ST.NO) return false; // اسم بديل أو صنف حر مرفوض: ليس صنفاً مستقلاً
     seen[n.toLowerCase()] = true;
     return true;
   }).map(function (r) {
     const o = { name: str_(r.ItemName), commercial: str_(r.CommercialName), category: str_(r.Category) };
+    const al = aliases[o.name.toLowerCase()]; if (al) o.aliases = al;
+    if (str_(r.Category) === FREE_CATEGORY_ && str_(r.FreeStatus) !== FREE_ST.OK) o.freePending = true;
     if (isAssetOwnership_(r.Ownership)) { o.asset = true; o.serialized = isYes_(r.Serialized); }
     const dp = normDept_(r.Department); if (dp) o.dept = dp;
     if (withPrice && !priceVisible_()) o.priceHidden = true;
@@ -1991,6 +2021,10 @@ function queryRequests_(filters) {
     r.awaitingDoctor = r.needsReview && !r.cleared && AWAITING_DOCTOR.indexOf(r.status) !== -1;
     if (r.awaitingDoctor && r.status === ST.NEW) r.status = ST.REVIEW; // طلب قديم «جديد» = لدى الطبيب
     r.doctorApproved = r.needsReview && r.cleared;
+    r.subs = (byReq[r.id] || []).filter(function (x) { return str_(x.SubstituteOf); }).map(function (x) {
+      return { item: str_(x.ItemName), of: str_(x.SubstituteOf), qty: Number(x.RequestedQty) || 0, status: str_(x.SubStatus), note: str_(x.SubNote), by: str_(x.SubBy), at: x.SubAt };
+    });
+    r.pendingSubs = r.subs.filter(function (x) { return x.status === SUB_ST.PENDING; }).length;
     Object.assign(r, deadline_(r));
     r._ms = toMs_(r.date);
     return r;
@@ -1998,7 +2032,7 @@ function queryRequests_(filters) {
 }
 
 /* =====================================================================
- *  مواعيد الطلبات: الشهري يُرفع 15–20 ويُستلم قبل نهاية يوم 1 من الشهر التالي؛ الطارئ خلال 24 ساعة
+ *  مواعيد الطلبات: الشهري يُرفع 15–20 ويُستلم قبل نهاية يوم 1 من الشهر التالي؛ الطارئ: الهدف ساعتان والحد الأقصى 48 ساعة
  * ===================================================================== */
 
 /** بداية يوم 1 من الشهر التالي لـ 'yyyy-MM' بتوقيت الرياض */
@@ -2084,7 +2118,11 @@ function getMonitor_(user, opts) {
     onTimeRate: received ? Math.round(onTime / received * 100) : null,
     lateNow: late.length, atRisk: atRisk.length, lateSubmits: lateSubmits,
     lateProcurement: late.filter(function (x) { return x.owner === 'procurement'; }).length,
-    avgClearToPrepHrs: avg(toPrep), avgPrepToSendHrs: avg(toSend), avgSendToReceiveHrs: avg(toRecv), avgEmergencyHrs: avg(emergencyHrs)
+    avgClearToPrepHrs: avg(toPrep), avgPrepToSendHrs: avg(toSend), avgSendToReceiveHrs: avg(toRecv), avgEmergencyHrs: avg(emergencyHrs),
+    // زمن الطارئ (من الرفع إلى الإرسال): نسبة ما أُرسل خلال ساعتين، ونسبة ما أُرسل ضمن الحد الأقصى 48 ساعة
+    emergencySent: emergencyHrs.length,
+    emergencyFastRate: emergencyHrs.length ? Math.round(emergencyHrs.filter(function (h) { return h <= EMERGENCY_FAST_HOURS; }).length / emergencyHrs.length * 100) : null,
+    emergencyOnTimeRate: emergencyHrs.length ? Math.round(emergencyHrs.filter(function (h) { return h <= EMERGENCY_DUE_HOURS; }).length / emergencyHrs.length * 100) : null
   };
 
   // دورة الطلب الشهري حسب الطبيب: هل رُفع طلبه الشهري لهذا الشهر؟ ومتى (في الفترة أو متأخراً)؟
@@ -2111,7 +2149,7 @@ function getMonitor_(user, opts) {
     cycle: { month: cycleMonth, window: MONTHLY_WINDOW, today: today, open: today >= MONTHLY_WINDOW[0] && today <= MONTHLY_WINDOW[1],
       due: nextMonthStart_(cycleMonth), doctors: cycle, missing: cycle.filter(function (c) { return !c.count; }).length,
       lateSubmits: cycle.filter(function (c) { return c.state === 'late'; }).length, passed: passed },
-    rules: { window: MONTHLY_WINDOW, emergencyHours: EMERGENCY_DUE_HOURS, atRiskDays: AT_RISK_DAYS }
+    rules: { window: MONTHLY_WINDOW, emergencyHours: EMERGENCY_DUE_HOURS, emergencyFastHours: EMERGENCY_FAST_HOURS, atRiskDays: AT_RISK_DAYS }
   };
 }
 
@@ -2413,16 +2451,38 @@ function createRequest_(user, payload) {
     if (!(qty >= 1)) throw new Error('ERR_QTY_MIN1'); // لا يُقبل طلب صفر (أقل كمية 1)
     if (!(qty <= 100000)) throw new Error('ERR_BAD_QTY');
     const key = name.toLowerCase();
-    if (!merged[key]) { merged[key] = { name: name, qty: 0 }; order.push(key); }
+    if (!merged[key]) { merged[key] = { name: name, qty: 0, free: !!(it && it.free), type: str_(it && it.type) }; order.push(key); }
     merged[key].qty += qty;
   });
   const items = order.map(function (k) { return merged[k]; });
   if (!items.length) throw new Error('ERR_NO_ITEMS');
   // الطلب من الكتالوج فقط — لا أصناف بأسماء حرة (يُعتمد اسم الكتالوج بحروفه)
-  const catalog = {}, catDept = {};
-  getCatalog_(false).forEach(function (c) { catalog[c.name.toLowerCase()] = c.name; catDept[c.name.toLowerCase()] = c.dept || ''; });
+  const catalogMaps = function () {
+    const catalog = {}, catDept = {};
+    getCatalog_(false).forEach(function (c) {
+      catalog[c.name.toLowerCase()] = c.name; catDept[c.name.toLowerCase()] = c.dept || '';
+      (c.aliases || []).forEach(function (a) { catalog[a.toLowerCase()] = c.name; catDept[a.toLowerCase()] = c.dept || ''; }); // الاسم الذي تعرفه الممرضة ← اسم التموين
+    });
+    return { catalog: catalog, catDept: catDept };
+  };
+  let maps = catalogMaps();
   // قسم الطلب من عيادته: طلب الأسنان لا يقبل مستهلكات الجلدية والعكس (المشترك مسموح للقسمين)
   const dept = forLab ? userDept_(user) : clinic ? clinicDept_(clinic) : '';
+  // الصنف الحر: تكتبه الممرضة إذا ما وجدته في القائمة، ويُضاف للكتالوج بنوعه وقسم عيادتها
+  const freeNew = items.filter(function (it) { return it.free && !maps.catalog[it.name.toLowerCase()]; });
+  if (freeNew.length) {
+    if (forLab || user.screen !== 'nurse') throw new Error('ERR_FREE_ITEM_FORBIDDEN');
+    if (freeNew.length > FREE_ITEMS_MAX_) throw new Error('ERR_FREE_ITEMS_MAX');
+    freeNew.forEach(function (it) {
+      if (it.name.length < 2) throw new Error('ERR_FREE_ITEM_NAME');
+      if (ITEM_TYPES_.indexOf(it.type) === -1) throw new Error('ERR_FREE_ITEM_TYPE:' + it.name);
+    });
+    const at = new Date();
+    freeNew.forEach(function (it) { append_('ItemsCatalog', { ItemName: it.name, Category: FREE_CATEGORY_, Department: dept, ItemType: it.type, FreeStatus: FREE_ST.PENDING, FreeBy: user.name, FreeAt: at }); });
+    resetMemo_();
+    maps = catalogMaps();
+  }
+  const catalog = maps.catalog, catDept = maps.catDept;
   items.forEach(function (it) {
     const canon = catalog[it.name.toLowerCase()];
     if (!canon) throw new Error('ERR_UNKNOWN_ITEM');
@@ -2519,6 +2579,7 @@ function mapItem_(r, batches) {
     item: str_(r.ItemName), requestedQty: r.RequestedQty, approvedQty: r.ApprovedQty,
     receivedQty: r.ReceivedQty, dispatchedAt: r.DispatchedAt,
     itemStatus: str_(r.ItemStatus), itemStatusAt: r.ItemStatusAt,
+    substituteOf: str_(r.SubstituteOf), subStatus: str_(r.SubStatus), subNote: str_(r.SubNote),
     batch: batches ? batches.of(r) : (Number(r.DispatchBatch) || 0)
   };
 }
@@ -2541,6 +2602,8 @@ function receiptsIndex_() {
  */
 /** الكمية المستهدفة للصنف = المعتمدة إن حُددت وإلا المطلوبة */
 function targetQty_(r) {
+  const ss = str_(r.SubStatus);
+  if (ss === SUB_ST.PENDING || ss === SUB_ST.NO) return 0; // بديل لم يوافق عليه الطبيب (أو رفضه) لا يُرسل
   const a = num_(r.ApprovedQty);
   const q = isNaN(a) ? num_(r.RequestedQty) : a; // تاريخ/نص في خلية الكمية لا يتحول لرقم ضخم
   return Math.max(0, Math.min(100000, isNaN(q) ? 0 : Math.floor(q)));
@@ -2708,6 +2771,177 @@ function getRequestItemsFull_(user, requestId) {
   const notes = {};
   itemNotes_(requestId).forEach(function (n) { notes[n.item] = (notes[n.item] || 0) + 1; });
   return { items: st.items, shipments: st.ships, dispatchStatus: dispatchStatus, noteCounts: notes, request: req };
+}
+
+/**
+ * مستهلك بديل: بعد اعتماد الطبيب، إن لم يتوفر صنف يقترح التموين بديلاً من الكتالوج.
+ * البديل سطر جديد في RequestItems (SubstituteOf = الصنف الأصلي) لا يُرسل حتى يوافق الطبيب.
+ * الطبيب بدون حساب في النظام (أو مستهلكات عيادة): يُعتمد البديل مباشرة.
+ * payload = { requestId, item, substitute, qty?, note? }
+ */
+function proposeSubstitute_(user, payload) {
+  payload = payload || {};
+  const requestId = str_(payload.requestId), item = str_(payload.item), wanted = str_(payload.substitute);
+  if (!requestId || !item || !wanted) throw new Error('ERR_REQUIRED');
+  const cat = {};
+  getCatalog_(false).forEach(function (c) { cat[c.name.toLowerCase()] = c.name; });
+  const sub = cat[wanted.toLowerCase()];
+  if (!sub) throw new Error('ERR_UNKNOWN_ITEM');
+  if (sub.toLowerCase() === item.toLowerCase()) throw new Error('ERR_SUB_SAME');
+  const note = clean_(payload.note, 300);
+  let res;
+  withLock_(function () {
+    resetMemo_();
+    const f = findRequest_(requestId);
+    if (DISPATCHABLE.indexOf(str_(f.row.Status)) === -1 || !cleared_(f.row)) throw new Error('ERR_NEEDS_APPROVAL');
+    const req = mapRequest_(f.row);
+    const t = read_('RequestItems');
+    const rows = t.rows.filter(function (r) { return str_(r.RequestID) === req.id; });
+    const live = rows.filter(function (r) { return str_(r.SubStatus) !== SUB_ST.NO; });
+    const origRow = live.filter(function (r) { return str_(r.ItemName) === item; })[0];
+    if (!origRow) throw new Error('ERR_NOT_FOUND');
+    if (str_(origRow.SubStatus) === SUB_ST.PENDING) throw new Error('ERR_SUB_PENDING');
+    if (rows.some(function (r) { return str_(r.SubstituteOf) === item && str_(r.SubStatus) === SUB_ST.PENDING; })) throw new Error('ERR_SUB_PENDING');
+    if (live.some(function (r) { return str_(r.ItemName).toLowerCase() === sub.toLowerCase(); })) throw new Error('ERR_SUB_EXISTS');
+    const orig = shipState_(req, rows).items.filter(function (i) { return i.item === item && i.subStatus !== SUB_ST.NO; })[0];
+    if (!orig || orig.remainingQty <= 0) throw new Error('ERR_SUB_NOTHING_LEFT');
+    const qty = payload.qty === undefined || payload.qty === '' || payload.qty === null ? orig.remainingQty : Math.floor(Number(payload.qty));
+    if (!(qty >= 1 && qty <= 100000)) throw new Error('ERR_BAD_QTY');
+    const auto = !doctorAccounts_()[req.doctor]; // لا يوجد طبيب يراجع في النظام
+    const now = new Date();
+    append_('RequestItems', { RequestID: req.id, ItemName: sub, RequestedQty: qty, ApprovedQty: auto ? qty : '',
+      SubstituteOf: item, SubStatus: auto ? SUB_ST.OK : SUB_ST.PENDING, SubNote: note, SubBy: user.name, SubAt: now });
+    // البديل المعتمد يحل محل المتبقي من الصنف الأصلي
+    if (auto) setMany_(t, [{ row: origRow, obj: { ApprovedQty: orig.sentQty } }]);
+    logAction_(req.id, 'مستهلك بديل: ' + item + ' ← ' + sub + ' × ' + qty + (auto ? ' (اعتُمد — الطبيب بدون حساب)' : ' (بانتظار موافقة الطبيب)') + (note ? ' — ' + note : ''), user.name);
+    res = { request: req, auto: auto, sub: sub, qty: qty };
+  });
+  if (!res.auto) {
+    notifyUser_(doctorAccounts_()[res.request.doctor], 'مستهلك بديل بانتظار موافقتك - ' + requestId,
+      'اقترح التموين بديلاً لصنف غير متوفر في الطلب ' + requestId + ':\n' + item + ' ← ' + res.sub + ' × ' + res.qty + (note ? '\nملاحظة: ' + note : '') +
+      '\n\nافتح النظام للموافقة أو الرفض.');
+  }
+  return { status: res.auto ? SUB_ST.OK : SUB_ST.PENDING };
+}
+
+/** الطبيب يوافق على البديل (يحل محل المتبقي من الأصلي) أو يرفضه (يبقى الأصلي كما هو) */
+function reviewSubstitute_(user, requestId, substitute, accept, reason) {
+  requestId = str_(requestId); substitute = str_(substitute);
+  let req;
+  withLock_(function () {
+    resetMemo_();
+    const f = findRequest_(requestId);
+    req = mapRequest_(f.row);
+    if (!isMyDoctor_(user, req.doctor)) throw new Error('ERR_FORBIDDEN');
+    const t = read_('RequestItems');
+    const rows = t.rows.filter(function (r) { return str_(r.RequestID) === req.id; });
+    const row = rows.filter(function (r) { return str_(r.ItemName) === substitute && str_(r.SubStatus) === SUB_ST.PENDING; })[0];
+    if (!row) throw new Error('ERR_NOT_FOUND');
+    const of = str_(row.SubstituteOf);
+    if (accept) {
+      const origRow = rows.filter(function (r) { return str_(r.ItemName) === of && str_(r.SubStatus) !== SUB_ST.NO; })[0];
+      const orig = shipState_(req, rows).items.filter(function (i) { return i.item === of && i.subStatus !== SUB_ST.NO; })[0];
+      const ups = [{ row: row, obj: { SubStatus: SUB_ST.OK, ApprovedQty: Number(row.RequestedQty) || 0 } }];
+      if (origRow && orig) ups.push({ row: origRow, obj: { ApprovedQty: orig.sentQty } });
+      setMany_(t, ups);
+    } else {
+      setMany_(t, [{ row: row, obj: { SubStatus: SUB_ST.NO, SubNote: [str_(row.SubNote), clean_(reason, 300) ? 'سبب الرفض: ' + clean_(reason, 300) : ''].filter(String).join(' · ') } }]);
+    }
+    logAction_(req.id, (accept ? 'وافق الطبيب على البديل: ' : 'رفض الطبيب البديل: ') + of + ' ← ' + substitute + (!accept && reason ? ' — ' + clean_(reason, 300) : ''), user.name);
+  });
+  notifyProcurement_(req.department, (accept ? 'وافق الطبيب على البديل - ' : 'رفض الطبيب البديل - ') + requestId,
+    'الطلب ' + requestId + ': ' + substitute + (accept ? ' — يمكن إرساله الآن.' : ' — مرفوض' + (reason ? ' (' + clean_(reason, 300) + ')' : '') + '، والصنف الأصلي باقٍ كما هو.'));
+  return { ok: true };
+}
+
+/** الأصناف الحرة بانتظار مراجعة التموين (قسم المستخدم فقط إن كان له قسم) مع عدد الطلبات التي تحتويها */
+function getFreeItems_(user) {
+  const dept = user.screen === 'procurement' ? userDept_(user) : '';
+  const uses = {};
+  read_('RequestItems').rows.forEach(function (r) {
+    const k = str_(r.ItemName).toLowerCase();
+    const u = uses[k] || (uses[k] = { requests: {}, qty: 0 });
+    u.requests[str_(r.RequestID)] = true; u.qty += Number(r.RequestedQty) || 0;
+  });
+  return read_('ItemsCatalog').rows.filter(function (r) {
+    if (str_(r.Category) !== FREE_CATEGORY_ || str_(r.AliasOf)) return false;
+    const st = str_(r.FreeStatus);
+    if (st && st !== FREE_ST.PENDING) return false;
+    const d = normDept_(r.Department);
+    return !dept || !d || d === dept;
+  }).map(function (r) {
+    const u = uses[str_(r.ItemName).toLowerCase()] || { requests: {}, qty: 0 };
+    return { name: str_(r.ItemName), type: str_(r.ItemType), dept: normDept_(r.Department), by: str_(r.FreeBy), at: r.FreeAt,
+      requests: Object.keys(u.requests).filter(String), qty: u.qty };
+  });
+}
+
+/**
+ * قرار التموين على الأصناف الحرة (عدة أصناف دفعة واحدة):
+ * decisions = [{ name, action: 'approve' | 'match' | 'reject', price?, matchTo?, reason? }]
+ * approve: يصبح صنفاً عادياً بسعره · match: يصبح اسماً بديلاً لصنف موجود (والطلبات المفتوحة تتحول للاسم الأصلي)
+ * reject: لا يُطلب مستقبلاً، مع السبب
+ */
+function reviewFreeItems_(user, decisions) {
+  decisions = (decisions || []).filter(function (d) { return d && str_(d.name); });
+  if (!decisions.length) throw new Error('ERR_REQUIRED');
+  const out = { approved: 0, matched: 0, rejected: 0, renamed: 0 };
+  withLock_(function () {
+    resetMemo_();
+    const t = read_('ItemsCatalog');
+    const official = {};
+    getCatalog_(false).forEach(function (c) { if (!c.freePending) official[c.name.toLowerCase()] = c.name; });
+    const ups = [], renames = [];
+    decisions.forEach(function (d) {
+      const name = str_(d.name);
+      const row = t.rows.filter(function (r) {
+        return str_(r.ItemName) === name && str_(r.Category) === FREE_CATEGORY_ && !str_(r.AliasOf) && [FREE_ST.OK, FREE_ST.NO].indexOf(str_(r.FreeStatus)) === -1;
+      })[0];
+      if (!row) throw new Error('ERR_NOT_FOUND:' + name);
+      if (d.action === 'approve') {
+        const p = num_(d.price);
+        if (d.price === '' || d.price === null || d.price === undefined || isNaN(p) || p < 0 || p > PRICE_MAX) throw new Error('ERR_BAD_PRICE:' + name);
+        ups.push({ row: row, obj: { Price: round2_(p), Category: '', FreeStatus: FREE_ST.OK, FreeNote: 'اعتمده ' + user.name } });
+        out.approved++;
+      } else if (d.action === 'match') {
+        const target = official[str_(d.matchTo).toLowerCase()];
+        if (!target || target.toLowerCase() === name.toLowerCase()) throw new Error('ERR_BAD_MATCH:' + name);
+        ups.push({ row: row, obj: { AliasOf: target, Category: '', FreeStatus: FREE_ST.OK, FreeNote: 'اسم بديل لـ ' + target + ' — ' + user.name } });
+        renames.push({ from: name, to: target });
+        out.matched++;
+      } else if (d.action === 'reject') {
+        const reason = clean_(d.reason, 300);
+        if (!reason) throw new Error('ERR_REASON_REQUIRED');
+        ups.push({ row: row, obj: { FreeStatus: FREE_ST.NO, FreeNote: reason } });
+        out.rejected++;
+      } else throw new Error('ERR_BAD_DECISION');
+    });
+    setMany_(t, ups);
+    // الطلبات المفتوحة: سطر الاسم الحر الذي لم يُرسل بعد يتحول لاسم التموين (إن لم يكن الصنف الأصلي في نفس الطلب)
+    if (renames.length) {
+      const it = read_('RequestItems');
+      const closed = {};
+      requestRows_().forEach(function (r) { const st = str_(r.Status); if (st === ST.RECEIVED || isOff_(st)) closed[str_(r.RequestID)] = true; });
+      const byReq = {};
+      it.rows.forEach(function (r) { (byReq[str_(r.RequestID)] = byReq[str_(r.RequestID)] || []).push(r); });
+      const iu = [];
+      renames.forEach(function (m) {
+        it.rows.forEach(function (r) {
+          const id = str_(r.RequestID);
+          if (str_(r.ItemName) !== m.from || r.DispatchedAt || closed[id]) return;
+          if ((byReq[id] || []).some(function (x) { return str_(x.ItemName) === m.to; })) return;
+          iu.push({ row: r, obj: { ItemName: m.to } });
+        });
+      });
+      if (iu.length) setMany_(it, iu);
+      out.renamed = iu.length;
+    }
+    logAction_('', 'مراجعة الأصناف الحرة: ' + decisions.map(function (d) {
+      return d.name + ' ← ' + (d.action === 'approve' ? 'اعتُمد بسعر ' + d.price : d.action === 'match' ? 'اسم بديل لـ ' + d.matchTo : 'رُفض: ' + clean_(d.reason, 120));
+    }).join(' · '), user.name);
+    resetMemo_();
+  });
+  return out;
 }
 
 function getRequestItemsWithCatalog_(user, requestId) {
@@ -3580,6 +3814,8 @@ function getAlerts_(user) {
     if (urgentReview) alerts.push({ type: 'warning', code: 'alert_urgent_review', n: urgentReview });
     if (stale) alerts.push({ type: 'warning', code: 'alert_stale', n: stale });
     const overdue = all.filter(function (r) { return r.overdue && stageOf_(r).owner === 'procurement'; }).length;
+    const freeN = getFreeItems_(user).length;
+    if (freeN) alerts.push({ type: 'info', code: 'alert_free_items', n: freeN });
     if (overdue) alerts.push({ type: 'danger', code: 'alert_overdue_proc', n: overdue });
   } else if (user.screen === 'lab') {
     const lc = queryLabCases_(user, {});
@@ -3592,6 +3828,8 @@ function getAlerts_(user) {
   } else if (user.screen === 'doctor') {
     const pending = queryRequests_({ doctorUser: user }).filter(function (r) { return r.awaitingDoctor; }).length;
     if (pending) alerts.push({ type: 'warning', code: 'alert_pending_review', n: pending });
+    const subs = queryRequests_({ doctorUser: user }).reduce(function (a, r) { return a + (r.pendingSubs || 0); }, 0);
+    if (subs) alerts.push({ type: 'warning', code: 'alert_pending_subs', n: subs });
     const sv = surveyCycle_();
     if (sv.open && !surveyDone_(sv.id, user.name)) alerts.push({ type: 'info', code: 'alert_survey', n: Math.max(0, Math.ceil((toMs_(sv.closes) - now) / 864e5)) });
   } else {
@@ -3599,7 +3837,7 @@ function getAlerts_(user) {
     const open = perms.indexOf('complaints') !== -1 ? getComplaints_(user, true).length : 0;
     if (open) alerts.push({ type: 'danger', code: 'alert_open_complaints', n: open });
     if (perms.indexOf('monitor') !== -1) {
-      // متأخر = تجاوز موعد الاستلام (الشهري: يوم 1 من الشهر التالي، الطارئ: 24 ساعة)
+      // متأخر = تجاوز موعد الاستلام (الشهري: يوم 1 من الشهر التالي، الطارئ: 48 ساعة)
       const q = queryRequests_({});
       const late = q.filter(function (r) { return r.overdue; }).length;
       const risk = q.filter(function (r) { return r.atRisk; }).length;
@@ -4323,6 +4561,245 @@ function deleteRole_(user, name) {
   return getRoles_();
 }
 
+
+/* =====================================================================
+ *  إدارة الكتالوج من الموقع: إضافة وتعديل وحذف الأصناف وتصنيفها
+ *  (الاسم البديل AliasOf والأصناف الحرة غير المعتمدة لا تظهر هنا — لها تبويبها)
+ * ===================================================================== */
+
+/** الجدول بكل أعمدة SCHEMA (يضيف الناقص في الشيت ويقرأه من جديد بدل نسخة الكاش القديمة) */
+function tableWithCols_(name) {
+  const t = read_(name);
+  if (!(SCHEMA[name] || []).some(function (h) { return !(h in t.col); })) return t;
+  ensureHeaders_(sheet_(name), [t.headers.slice()], SCHEMA[name]);
+  markDirty_(name);
+  return read_(name);
+}
+
+/** أماكن اسم الصنف في باقي التبويبات: تُحدَّث عند تغيير الاسم حتى لا تنقطع الطلبات والعهدة */
+const ITEM_NAME_REFS_ = [['RequestItems', 'ItemName'], ['ShipmentItems', 'ItemName'], ['ItemNotes', 'ItemName'],
+  ['ClinicStandards', 'Item'], ['Assets', 'Item'], ['AssetTickets', 'Item'], ['ItemsCatalog', 'AliasOf']];
+
+function getCatalogAdmin_(user) {
+  const aliases = {};
+  const t = read_('ItemsCatalog');
+  t.rows.forEach(function (r) {
+    const a = str_(r.AliasOf);
+    if (a && str_(r.ItemName) && str_(r.FreeStatus) !== FREE_ST.NO) (aliases[a.toLowerCase()] = aliases[a.toLowerCase()] || []).push(str_(r.ItemName));
+  });
+  const cats = {};
+  const items = t.rows.filter(function (r) {
+    if (!str_(r.ItemName) || str_(r.AliasOf)) return false;
+    return !(str_(r.Category) === FREE_CATEGORY_ && str_(r.FreeStatus) !== FREE_ST.OK);
+  }).map(function (r) {
+    const c = str_(r.Category);
+    if (c) cats[c] = true;
+    return { name: str_(r.ItemName), commercial: str_(r.CommercialName), category: c, price: price_(r.Price), priceIssue: priceProblem_(r.Price),
+      dept: normDept_(r.Department), type: str_(r.ItemType) || ITEM_TYPES_[0], asset: isAssetOwnership_(r.Ownership), serialized: isYes_(r.Serialized),
+      aliases: aliases[str_(r.ItemName).toLowerCase()] || [] };
+  }).sort(function (a, b) { return a.name.localeCompare(b.name); });
+  return { items: items, categories: Object.keys(cats).sort(), types: ITEM_TYPES_, depts: DEPTS };
+}
+
+function catalogFields_(it) {
+  it = it || {};
+  const name = clean_(it.name, 120);
+  if (!name) throw new Error('ERR_REQUIRED');
+  const p = num_(it.price);
+  if (it.price === '' || it.price === null || it.price === undefined || isNaN(p) || p < 0 || p > PRICE_MAX) throw new Error('ERR_BAD_PRICE');
+  const type = ITEM_TYPES_.indexOf(str_(it.type)) !== -1 ? str_(it.type) : ITEM_TYPES_[0];
+  return { name: name, obj: { ItemName: name, CommercialName: clean_(it.commercial, 120), Category: clean_(it.category, 80), Price: round2_(p),
+    Department: normDept_(it.dept), ItemType: type, Ownership: it.asset ? 'عهدة' : '', Serialized: it.asset && it.serialized ? 'نعم' : '' } };
+}
+
+/** إضافة صنف (orig فارغ) أو تعديله؛ تغيير الاسم ينتقل للطلبات والشحنات والعهدة والأسماء البديلة */
+function saveCatalogItem_(user, orig, it) {
+  orig = str_(orig);
+  const f = catalogFields_(it);
+  let renamed = 0;
+  withLock_(function () {
+    resetMemo_();
+    const t = read_('ItemsCatalog');
+    const same = function (r, n) { return str_(r.ItemName).toLowerCase() === n.toLowerCase(); };
+    const clash = t.rows.filter(function (r) { return same(r, f.name) && (!orig || !same(r, orig)); })[0];
+    if (clash) throw new Error('ERR_ITEM_EXISTS');
+    if (!orig) {
+      append_('ItemsCatalog', f.obj);
+      logAction_('', 'إضافة صنف للكتالوج: ' + f.name + ' (' + f.obj.Price + ')', user.name);
+      return;
+    }
+    const t2 = tableWithCols_('ItemsCatalog');
+    const row = t2.rows.filter(function (r) { return same(r, orig) && !str_(r.AliasOf); })[0];
+    if (!row) throw new Error('ERR_NOT_FOUND');
+    const old = str_(row.ItemName);
+    setMany_(t2, [{ row: row, obj: f.obj }]);
+    // السعر بتنسيق رقمي حتى لا يتحول لتاريخ في الشيت
+    sheet_('ItemsCatalog').getRange(row._row, t2.col.Price + 1).setNumberFormat('#,##0.00');
+    if (old !== f.name) {
+      ITEM_NAME_REFS_.forEach(function (ref) {
+        if (!ss_().getSheetByName(ref[0])) return;
+        const rt = ref[0] === 'ItemsCatalog' ? read_('ItemsCatalog') : read_(ref[0]);
+        if (rt.col[ref[1]] === undefined) return;
+        const ups = rt.rows.filter(function (r) { return str_(r[ref[1]]) === old; }).map(function (r) { const o = {}; o[ref[1]] = f.name; return { row: r, obj: o }; });
+        if (ups.length) { setMany_(rt, ups); if (ref[0] !== 'ItemsCatalog') renamed += ups.length; }
+      });
+    }
+    logAction_('', 'تعديل صنف: ' + old + (old !== f.name ? ' ← ' + f.name : '') + ' · ' + [f.obj.Category, f.obj.Department, f.obj.ItemType, f.obj.Price].filter(String).join(' · '), user.name);
+    resetMemo_();
+  });
+  return { ok: true, name: f.name, renamed: renamed };
+}
+
+/** حذف صنف: يُمنع إن كان في طلب مفتوح لم يُرسل أو عهدة قائمة؛ أسماؤه البديلة تُحذف معه */
+function deleteCatalogItem_(user, name) {
+  name = str_(name);
+  if (!name) throw new Error('ERR_REQUIRED');
+  withLock_(function () {
+    resetMemo_();
+    const t = freshTable_('ItemsCatalog');
+    const key = name.toLowerCase();
+    const row = t.rows.filter(function (r) { return str_(r.ItemName).toLowerCase() === key && !str_(r.AliasOf); })[0];
+    if (!row) throw new Error('ERR_NOT_FOUND');
+    const closed = {};
+    requestRows_().forEach(function (r) { const st = str_(r.Status); if (st === ST.RECEIVED || isOff_(st)) closed[str_(r.RequestID)] = true; });
+    const open = {};
+    read_('RequestItems').rows.forEach(function (r) {
+      if (str_(r.ItemName).toLowerCase() === key && !r.DispatchedAt && !closed[str_(r.RequestID)]) open[str_(r.RequestID)] = true;
+    });
+    const n = Object.keys(open).length;
+    if (n) throw new Error('ERR_ITEM_IN_USE:' + n);
+    if (ss_().getSheetByName('Assets') && read_('Assets').rows.some(function (r) { return str_(r.Item).toLowerCase() === key && !/مسترجع|returned|مفقود|تالف/i.test(str_(r.Status)); })) throw new Error('ERR_ITEM_IN_CUSTODY');
+    // من الأسفل للأعلى حتى لا تتغير أرقام الصفوف أثناء الحذف
+    t.rows.filter(function (r) { return r === row || str_(r.AliasOf).toLowerCase() === key; })
+      .sort(function (a, b) { return b._row - a._row; })
+      .forEach(function (r) { sheet_('ItemsCatalog').deleteRow(r._row); });
+    markDirty_('ItemsCatalog');
+    logAction_('', 'حذف صنف من الكتالوج: ' + str_(row.ItemName), user.name);
+    resetMemo_();
+  });
+  return { ok: true };
+}
+
+/* =====================================================================
+ *  إدارة الأطباء من الموقع: إضافة وتعديل وحذف، التخصص والعيادات، وربط حساب الدخول
+ * ===================================================================== */
+
+/** اسم الحساب المرتبط بكل طبيب (الربط الصريح DoctorName أو التطابق بالاسم) */
+function doctorLogin_(doc) {
+  const acc = doctorAccounts_();
+  return acc[doc] || '';
+}
+
+function getDoctorsAdmin_(user) {
+  const specs = {}, subs = {};
+  const docs = read_('Doctors').rows.filter(function (r) { return str_(r.DoctorName); }).map(function (r) {
+    const d = { name: str_(r.DoctorName), specialty: str_(r.Specialty || r.Type || r['التخصص']), subspecialty: str_(r.Subspecialty),
+      clinics: str_(r.Clinic).split(/[,،]/).map(str_).filter(String), nurse: str_(r.NurseName), login: doctorLogin_(str_(r.DoctorName)) || str_(r.LoginName) };
+    if (d.specialty) specs[d.specialty] = true;
+    if (d.subspecialty) subs[d.subspecialty] = true;
+    return d;
+  }).sort(function (a, b) { return a.name.localeCompare(b.name); });
+  const users = {};
+  read_('Users').rows.forEach(function (u) { if (str_(u.Name)) users[loginKey_(u.Name)] = roleScreen_(u.Role); });
+  docs.forEach(function (d) { d.hasAccount = !!d.login && users[loginKey_(d.login)] === 'doctor'; });
+  ['Dentistry', 'Derma'].forEach(function (x) { specs[x] = true; });
+  return { doctors: docs, specialties: Object.keys(specs).sort(), subspecialties: Object.keys(subs).sort(),
+    clinics: getClinics_().map(function (c) { return { name: c.name, branch: c.branch, type: c.type }; }) };
+}
+
+/** دور الطبيب الافتراضي للحسابات الجديدة (أول دور شاشته doctor) */
+function doctorRole_() {
+  const r = getRoles_().filter(function (x) { return x.screen === 'doctor'; })[0];
+  if (!r) throw new Error('ERR_ROLE_UNMAPPED');
+  return r.name;
+}
+
+/**
+ * حفظ طبيب (orig فارغ = جديد). d = { name, specialty, subspecialty, clinics[], nurse, login, password }
+ * login: اسم الدخول — إن لم يوجد يُنشأ حساب طبيب بالرقم السري، وإن وُجد (حساب طبيب) يُربط به ويُغيَّر رقمه إن كُتب.
+ * تغيير اسم الطبيب ينتقل لطلباته وبوكسه وإرساليات المعمل وربط حسابه.
+ */
+function saveDoctor_(user, orig, d) {
+  orig = str_(orig);
+  d = d || {};
+  const name = clean_(d.name, 120);
+  if (!name) throw new Error('ERR_REQUIRED');
+  const login = clean_(d.login, 80), password = latinDigits_(String(d.password || '')).trim();
+  if (password && password.length < PW_MIN) throw new Error('ERR_WEAK_PASSWORD');
+  const clinics = (Array.isArray(d.clinics) ? d.clinics : str_(d.clinics).split(/[,،]/)).map(function (c) { return clean_(c, 120); }).filter(String);
+  const out = { ok: true, created: false, renamed: 0 };
+  withLock_(function () {
+    resetMemo_();
+    const t = read_('Doctors');
+    const clash = t.rows.filter(function (r) { return doctorKey_(str_(r.DoctorName)) === doctorKey_(name) && (!orig || str_(r.DoctorName) !== orig); })[0];
+    if (clash) throw new Error('ERR_DOCTOR_EXISTS');
+    // الحساب: نتحقق قبل أي كتابة
+    const ut = read_('Users');
+    const acct = login ? ut.rows.filter(function (u) { return loginKey_(u.Name) === loginKey_(login); })[0] : null;
+    if (acct && roleScreen_(acct.Role) !== 'doctor') throw new Error('ERR_USER_EXISTS');
+    if (login && !acct && !password) throw new Error('ERR_PASSWORD_REQUIRED');
+    const obj = { DoctorName: name, Specialty: clean_(d.specialty, 60), Subspecialty: clean_(d.subspecialty, 80), Clinic: clinics.join(', '),
+      NurseName: clean_(d.nurse, 80), LoginName: login };
+    if (!orig) append_('Doctors', obj);
+    else {
+      const row = t.rows.filter(function (r) { return str_(r.DoctorName) === orig; })[0];
+      if (!row) throw new Error('ERR_NOT_FOUND');
+      const t2 = tableWithCols_('Doctors');
+      const row2 = t2.rows.filter(function (r) { return str_(r.DoctorName) === orig; })[0];
+      setMany_(t2, [{ row: row2, obj: obj }]);
+      if (orig !== name) {
+        [['Requests', 'Doctor'], ['Boxes', 'Owner'], ['LabCases', 'Doctor'], ['Users', 'DoctorName']].forEach(function (ref) {
+          if (!ss_().getSheetByName(ref[0])) return;
+          const rt = read_(ref[0]);
+          if (rt.col[ref[1]] === undefined) return;
+          const ups = rt.rows.filter(function (r) { return str_(r[ref[1]]) === orig; }).map(function (r) { const o = {}; o[ref[1]] = name; return { row: r, obj: o }; });
+          if (ups.length) { setMany_(rt, ups); if (ref[0] === 'Requests') out.renamed = ups.length; }
+        });
+      }
+    }
+    if (login) {
+      const ut2 = read_('Users');
+      const a2 = ut2.rows.filter(function (u) { return loginKey_(u.Name) === loginKey_(login); })[0];
+      if (a2) {
+        const upd = { DoctorName: name };
+        if (password) { upd.Password = hashPassword_(password); upd.PasswordChangedAt = new Date(); }
+        setMany_(ut2, [{ row: a2, obj: upd }]);
+      } else {
+        append_('Users', { Name: login, Password: hashPassword_(password), Role: doctorRole_(), DoctorName: name, Department: normDept_(obj.Specialty) });
+        out.created = true;
+      }
+    }
+    logAction_('', (orig ? 'تعديل طبيب: ' + orig + (orig !== name ? ' ← ' + name : '') : 'إضافة طبيب: ' + name) +
+      (login ? ' · الحساب: ' + login + (out.created ? ' (جديد)' : '') + (password ? ' · رقم سري جديد' : '') : ''), user.name);
+    resetMemo_();
+  });
+  return out;
+}
+
+/** حذف طبيب: يُمنع إن كان له طلب مفتوح؛ ويُحذف حسابه أيضاً إن طُلب ذلك */
+function deleteDoctor_(user, name, opts) {
+  name = str_(name);
+  if (!name) throw new Error('ERR_REQUIRED');
+  let accountDeleted = false;
+  withLock_(function () {
+    resetMemo_();
+    const t = read_('Doctors');
+    const row = t.rows.filter(function (r) { return str_(r.DoctorName) === name; })[0];
+    if (!row) throw new Error('ERR_NOT_FOUND');
+    const open = requestRows_().filter(function (r) { const st = str_(r.Status); return str_(r.Doctor) === name && st !== ST.RECEIVED && !isOff_(st); }).length;
+    if (open) throw new Error('ERR_DOCTOR_IN_USE:' + open);
+    const login = doctorLogin_(name);
+    deleteRow_(t, row);
+    if (opts && opts.deleteAccount && login) {
+      const ut = read_('Users');
+      const a = ut.rows.filter(function (u) { return str_(u.Name) === login && roleScreen_(u.Role) === 'doctor'; })[0];
+      if (a) { deleteRow_(ut, a); accountDeleted = true; }
+    }
+    logAction_('', 'حذف طبيب: ' + name + (accountDeleted ? ' (وحسابه ' + login + ')' : ''), user.name);
+    resetMemo_();
+  });
+  return { ok: true, accountDeleted: accountDeleted };
+}
 
 /* =====================================================================
  *  المعمل: إرساليات المرضى من العيادة للمعمل (داخلي أو خارجي)
@@ -5085,14 +5562,15 @@ function issueAssets_(user, payload) {
     }
     const now = new Date();
     const n = cat.serialized ? serials.length : 1;
-    const out = [];
+    const out = [], recs = [];
     for (let i = 0; i < n; i++) {
       const id = reserveId_('AST-', function (prefix) { return maxSeq_(freshTable_('Assets').rows, 'AssetID', prefix); }).id;
-      append_('Assets', { AssetID: id, Item: item, Serial: cat.serialized ? serials[i] : '', Clinic: clinic, Branch: c.branch, Qty: cat.serialized ? 1 : qty,
+      recs.push({ AssetID: id, Item: item, Serial: cat.serialized ? serials[i] : '', Clinic: clinic, Branch: c.branch, Qty: cat.serialized ? 1 : qty,
         Status: AS_ST.IN, IssuedAt: now, IssuedBy: user.name, Cost: unitCost, Notes: clean_(payload.notes, 300) + (ticketId ? (payload.notes ? ' · ' : '') + 'بديل للبلاغ ' + ticketId : ''),
         UpdatedAt: now, UpdatedBy: user.name });
       out.push(id);
     }
+    appendMany_('Assets', recs); // كتابة واحدة لكل القطع بدل سطر لكل قطعة (أسرع بكثير على الشيت)
     if (tk) setMany_(read_('AssetTickets'), [{ row: read_('AssetTickets').rows.filter(function (r) { return str_(r.TicketID) === ticketId; })[0], obj: { ReplacementAssetID: out.join(','), UpdatedBy: user.name } }]);
     logAction_(ticketId, 'صرف عهدة: ' + item + ' × ' + (cat.serialized ? serials.length + ' (' + serials.join('، ') + ')' : qty) + ' → ' + clinic, user.name);
     return out;

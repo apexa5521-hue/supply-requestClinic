@@ -148,7 +148,7 @@ function log(msg) { console.log('  ✔ ' + msg); }
   await page.click('#loginBtn');
   await page.waitForSelector('#loginError:not(.hidden)');
   expect((await page.innerText('#loginError')).includes('غير صحيح'), 'wrong password shows an error');
-  expect(await page.evaluate(() => { const i = document.getElementById('companyLogo'); return i && i.complete && i.naturalWidth > 100; }), 'company logo shows on the login screen');
+  expect(await page.evaluate(() => { const i = document.getElementById('companyLogo'); return i && i.complete && i.naturalWidth > 100; }), 'client logo shows on the login screen');
   await shot(page, 'login-error');
 
   // ---------- Nurse: create request ----------
@@ -202,13 +202,22 @@ function log(msg) { console.log('  ✔ ' + msg); }
   await page.fill('#itemSearch', 'floss');
   await page.waitForSelector('.combo-opt');
   await page.keyboard.press('Enter');
+  // جزء من اسم صنف موجود: نتائج الكتالوج تظهر أولاً، وخيار الصنف الحر تحتها (لا يخفيها)
+  await page.fill('#itemSearch', 'قفاز');
+  await page.waitForSelector('#comboList .combo-opt[data-i]');
+  expect(await page.locator('#comboList .combo-opt[data-i]').count() >= 1 && await page.locator('#comboList .combo-free-opt').count() === 2, 'partial name lists catalog matches above the free-item options');
   await page.fill('#itemSearch', 'قفازات');
   await page.keyboard.press('Enter');
-  // الطلب من الكتالوج فقط: لا خيار لإضافة اسم حر
+  // صنف غير موجود: الممرضة تكتبه كصنف حر (مستهلك أو ماتيريال)، ويظهر في الطلب بعلامة حر
   await page.fill('#itemSearch', 'شاش معقم');
-  await page.waitForSelector('#comboList .combo-empty');
-  expect(await page.locator('#comboList .combo-opt').count() === 0 && (await page.textContent('#comboList')).includes('الكتالوج فقط'), 'no free-text item option — catalog items only');
-  await page.keyboard.press('Enter');
+  await page.waitForSelector('#comboList .combo-free-opt');
+  expect(await page.locator('#comboList .combo-free-opt').count() === 2, 'free item: add as consumable or material');
+  await shot(page, 'new-free-item');
+  await page.click('#comboList .combo-free-opt[data-free="مستهلك"]');
+  await page.waitForSelector('#itemsList .item-line:has-text("شاش معقم")');
+  expect((await page.textContent('#itemsList')).includes('صنف حر'), 'free item marked on the request line');
+  await page.locator('#itemsList .item-line:has-text("شاش معقم") [data-act="rmItem"]').click();
+  await page.keyboard.press('Escape');
   await page.fill('#itemSearch', 'etchant');
   await page.waitForSelector('#comboList .combo-opt');
   await page.keyboard.press('Enter');
@@ -220,8 +229,12 @@ function log(msg) { console.log('  ✔ ' + msg); }
   expect(await page.locator('.item-line').count() >= 3, 'items added via catalog search and doctor package');
   expect((await page.inputValue('.item-line:nth-child(1) input')) === '3', 'qty stepper increments');
   // الكمية صفر: خطأ واضح ويُمنع الإرسال
-  await page.fill('.item-line:nth-child(1) input', '0');
-  await page.dispatchEvent('.item-line:nth-child(1) input', 'input');
+  // القائمة قد تُعاد رسمها بعد إضافة البكج: نعيد كتابة الصفر حتى يثبت
+  for (let k = 0; k < 4; k++) {
+    await page.fill('.item-line:nth-child(1) input', '0');
+    await page.dispatchEvent('.item-line:nth-child(1) input', 'input');
+    if (await page.waitForSelector('.item-line:nth-child(1) .qty-err:not(.hidden)', { timeout: 1500 }).then(() => true, () => false)) break;
+  }
   expect(await page.isVisible('.item-line:nth-child(1) .qty-err') && (await page.textContent('.item-line:nth-child(1) .qty-err')).includes('أقل كمية 1'), 'zero quantity shows "minimum is 1"');
   await page.click('#submitBtn');
   expect((await page.textContent('#submitErr')).includes('لا يمكن طلب صفر'), 'submit is blocked while a quantity is zero');
@@ -355,7 +368,7 @@ function log(msg) { console.log('  ✔ ' + msg); }
   await page.waitForSelector('.rep .rep-tiles');
   expect(await page.locator('.rep .rep-req').count() >= 1, 'doctor report lists the requests with items');
   expect(/\d/.test(await page.textContent('.rep-grand b')), 'doctor report shows a grand total');
-  expect(await page.isVisible('.rep-logo'), 'report header carries the company logo');
+  expect(await page.isVisible('.rep-logo'), 'report header carries the client logo');
   await page.click('[data-seg-name="repMode"][data-v="cum"]');
   expect(await page.isVisible('#repTo') && !(await page.isVisible('#repMonth')), 'cumulative mode asks for an end date');
   await page.click('#repGo');
@@ -418,6 +431,15 @@ function log(msg) { console.log('  ✔ ' + msg); }
     'procurement sees the doctor-approved quantities, locked');
   const flossRow = await page.textContent(`#exp-${newId} .dsp-row:has-text("DENTAL FLOSS")`);
   expect(flossRow.includes('أُرسل 0 من 2'), 'the doctor quantity (2) is what procurement prepares: ' + flossRow.replace(/\s+/g, ' '));
+  // مستهلك بديل: رابط تحت كل صنف متبقٍ، والبديل يُختار من الكتالوج
+  expect(await page.locator(`#exp-${newId} .dsp-row:has-text("DENTAL FLOSS") [data-act="subItem"]`).count() === 1, 'each item left to send offers «add a substitute item»');
+  await (await page.$(`#exp-${newId} .dsp-table`)).screenshot({ path: __dirname + '/screenshots/proc-substitute-link.png' });
+  await page.click(`#exp-${newId} .dsp-row:has-text("DENTAL FLOSS") [data-act="subItem"]`);
+  await page.waitForSelector('.modal #subItem');
+  expect(await page.locator('.modal #subCat option').count() > 3, 'the substitute is picked from the catalog');
+  await shot(page, 'proc-substitute');
+  await page.keyboard.press('Escape');
+  await page.waitForTimeout(300);
   await page.check(`.req[data-rid="${newId}"] .req-main > .check`);
   expect(await bulkState() === 'قيد التجهيز:off,بانتظار المندوب:on,استلم المندوب:off,تم الإرسال:on',
     'in progress: vendor wait and dispatch are enabled');
@@ -824,7 +846,10 @@ function log(msg) { console.log('  ✔ ' + msg); }
   expect(await page.isVisible('.modal #isSer') && !(await page.isVisible('.modal #isQty')), 'serialized tool asks for serial numbers, not a quantity');
   await page.fill('.modal #isSer .input >> nth=0', 'LS-101');
   await page.press('.modal #isSer .input >> nth=0', 'Enter');
-  await page.keyboard.type('LS-102');
+  // ننتظر السطر الجديد قبل الكتابة: الكتابة المبكرة كانت تذهب للسطر الأول
+  await page.waitForFunction(() => document.querySelectorAll('.modal #isSer .input').length === 2, null, { timeout: 5000 }).catch(() => {});
+  await page.fill('.modal #isSer .input >> nth=1', 'LS-102');
+  await page.waitForFunction(() => (document.querySelector('.modal #isSerN') || {}).textContent.includes('2'), null, { timeout: 3000 }).catch(() => {});
   expect((await page.locator('.modal #isSer .input').count()) === 2 && (await page.textContent('.modal #isSerN')).includes('2'), 'Enter adds the next serial row (2 units counted)');
   await page.click('.modal #isOk');
   expect(await toastHas(page, 'تم صرف 2 قطعة'), 'issued 2 handpieces by serial number');
@@ -1182,6 +1207,103 @@ function log(msg) { console.log('  ✔ ' + msg); }
   expect(await page.evaluate(() => document.documentElement.dir) === 'ltr', 'language toggle switches to LTR');
   await shot(page, 'dashboard-english');
   await page.click('.topbar [data-act="toggleLang"]');
+  await logout(page);
+
+  // ---------- الأصناف الحرة: التموين يعتمدها بسعر، أو يربطها بصنف موجود، أو يرفضها ----------
+  await page.evaluate(async () => {
+    const tok = (await __api(null, 'login', ['سارة', '1111'])).token;
+    await __api(tok, 'createRequest', [{ doctor: 'د. خالد', type: 'شهري', items: [
+      { name: 'salk', qty: 2, free: true, type: 'مستهلك' }, { name: 'gloves big', qty: 3, free: true, type: 'مستهلك' }, { name: 'wrong thing', qty: 1, free: true, type: 'ماتيريال' }] }]);
+  });
+  await login(page, 'علي', '3333');
+  await page.click('.sidebar [data-view="freeitems"]');
+  await page.waitForSelector('#fiList .fi-row');
+  expect(await page.locator('#fiList .fi-row').count() === 3, 'procurement «free items» tab lists the nurse-added items');
+  await shot(page, 'proc-free-items');
+  await page.click('#fiList .fi-row:has-text("wrong thing") [data-act="fiReject"]');
+  await page.waitForSelector('.modal #fiReason');
+  expect(await page.inputValue('.modal #fiReason') === 'موجود مسبقاً', 'reject suggests «already exists» as the reason');
+  await page.click('.modal #fiRejOk');
+  expect(await toastHas(page, '1 رفض'), 'free item rejected with a reason');
+  await page.waitForFunction(() => document.querySelectorAll('#fiList .fi-row').length === 2);
+  await page.check('#fiAll');
+  await page.click('#fiApproveBtn');
+  await page.waitForSelector('.modal .fi-dec');
+  expect(await page.locator('.modal .fi-dec').count() === 2, 'approving the selection opens one row per item');
+  await page.fill('.modal .fi-dec:has-text("salk") .fi-price', '15');
+  await page.selectOption('.modal .fi-dec:has-text("gloves big") .fi-match', 'قفازات طبية M');
+  expect(await page.isVisible('.modal .fi-dec:has-text("gloves big") .fi-match-hint .alias-of'), 'matching previews the nurse name next to the procurement name');
+  await shot(page, 'proc-free-approve');
+  await page.click('.modal #fiOk');
+  expect(await toastHas(page, '1 اعتماد · 1 ربط'), 'one approved with a price, one linked to an existing item');
+  await page.waitForSelector('#fiList .empty, #fiList .empty-state');
+  await logout(page);
+  await login(page, 'سارة', '1111');
+  await page.click('.sidebar [data-view="new"]');
+  await page.click('[data-seg-name="reqKind"][data-v="doctor"]');
+  await page.waitForSelector('#itemSearch');
+  await page.fill('#itemSearch', 'gloves');
+  await page.waitForSelector('#comboList .alias-nm');
+  expect((await page.textContent('#comboList .combo-opt:has(.alias-nm) .alias-of')).includes('قفازات طبية M'), 'nurse sees her name and the procurement name in two colors');
+  await (await page.$('#comboList .combo-opt:has(.alias-nm)')).scrollIntoViewIfNeeded();
+  await (await page.$('#comboList')).screenshot({ path: __dirname + '/screenshots/nurse-alias-search.png' });
+  await page.fill('#itemSearch', '');
+  await page.keyboard.press('Escape');
+  await logout(page);
+
+  // ---------- التموين يدير الأصناف من الموقع، والأدمن يدير الأطباء ----------
+  await login(page, 'علي', '3333');
+  await page.click('.sidebar [data-view="catalog"]');
+  await page.waitForSelector('#caList table');
+  await page.click('.card-head [data-act="caEdit"]');
+  await page.waitForSelector('.modal #caN');
+  await page.fill('.modal #caN', 'Cotton Rolls');
+  await page.fill('.modal #caC', 'Disposables');
+  await page.fill('.modal #caP', '7.25');
+  await page.selectOption('.modal #caT', 'مستهلك');
+  await shot(page, 'proc-catalog-add');
+  await page.click('.modal #caOk');
+  const added = await toastHas(page, 'Cotton Rolls');
+  const addErr = added ? '' : await page.evaluate(() => { const e = document.querySelector('.modal #caErr'); return e ? e.textContent + ' · price=' + document.querySelector('.modal #caP').value : 'no modal'; });
+  expect(added, 'procurement adds a consumable with category and price' + (addErr ? ' — ' + addErr : ''));
+  await page.waitForSelector('#caList tr:has-text("Cotton Rolls")');
+  await page.fill('#caQ', 'cotton');
+  await page.click('#caList tr:has-text("Cotton Rolls") [data-act="caEdit"]');
+  await page.waitForSelector('.modal #caN');
+  await page.fill('.modal #caP', '8');
+  await page.selectOption('.modal #caD', 'أسنان');
+  await page.click('.modal #caOk');
+  await page.waitForSelector('#caList tbody tr:has-text("Cotton Rolls") .tag.dept.dental');
+  const cotton = await page.textContent('#caList tbody tr:has-text("Cotton Rolls")');
+  expect(/\b8(\.00)?\b/.test(cotton) && !cotton.includes('7.25'), 'item edited: price and department — ' + cotton.replace(/\s+/g, ' '));
+  await shot(page, 'proc-catalog');
+  await page.click('#caList tr:has-text("Cotton Rolls") [data-act="caDel"]');
+  await page.click('.modal [data-yes]');
+  expect(await toastHas(page, 'حُذف'), 'item deleted from the catalog');
+  await page.fill('#caQ', '');
+  expect(await page.locator('.sidebar [data-view="docadmin"]').count() === 0, 'procurement has no doctors tab (admin only)');
+  await logout(page);
+  // الأطباء (الأدمن فقط): طبيب جديد بحساب دخول
+  await login(page, 'المدير', '1234');
+  await page.click('.sidebar [data-view="docadmin"]');
+  await page.waitForSelector('#daList .da-row');
+  await page.click('.card-head [data-act="daEdit"]');
+  await page.waitForSelector('.modal #daN');
+  await page.fill('.modal #daN', 'د. ماجد');
+  await page.fill('.modal #daS', 'Dentistry');
+  await page.fill('.modal #daSub', 'Endodontics');
+  await page.check('.modal .da-cl[value="عيادة الأسنان 1"]');
+  await page.fill('.modal #daL', 'Dr.Majed');
+  await page.fill('.modal #daPw', '9090');
+  await shot(page, 'proc-doctor-add');
+  await page.click('.modal #daOk');
+  expect(await toastHas(page, 'أُنشئ حساب Dr.Majed'), 'doctor added with a new login account');
+  await page.waitForSelector('#daList .da-row:has-text("د. ماجد")');
+  expect((await page.textContent('#daList .da-row:has-text("د. ماجد")')).includes('Dr.Majed'), 'doctor list shows the linked username');
+  await shot(page, 'proc-doctors');
+  await logout(page);
+  await login(page, 'Dr.Majed', '9090');
+  expect(await page.isVisible('.sidebar [data-view="reviews"]'), 'the new doctor logs in to the doctor page');
   await logout(page);
 
   // ---------- XSS check ----------
