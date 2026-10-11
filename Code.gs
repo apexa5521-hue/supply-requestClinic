@@ -21,7 +21,8 @@ const SCHEMA = {
   Users:        ['Name', 'Password', 'Role', 'Clinic', 'Email', 'PasswordChangedAt', 'DoctorName', 'Department', 'Branch', 'PriceView'],
   Roles:        ['RoleName', 'Screen', 'Permissions'],
   Clinics:      ['ClinicName', 'Branch', 'Type'],
-  Doctors:      ['DoctorName', 'Clinic', 'NurseName', 'Subspecialty', 'Billing'],
+  // Specialty: Dentistry / Derma · LoginName: اسم دخول حساب الطبيب (للاطلاع؛ الربط الفعلي في Users.DoctorName)
+  Doctors:      ['DoctorName', 'Clinic', 'NurseName', 'Subspecialty', 'Billing', 'Specialty', 'LoginName'],
   // Ownership: مستهلك (افتراضي) أو عهدة (على حساب الشركة) · Serialized: نعم للأدوات ذات الرقم التسلسلي (الهاندبيس…)
   // Department: أسنان / جلدية (فارغ = مشترك يظهر للقسمين) · ItemType: مستهلك أو ماتيريال (Category يبقى لتصنيف الصنف)
   ItemsCatalog: ['ItemName', 'CommercialName', 'Category', 'Price', 'Ownership', 'Serialized', 'Department', 'ItemType',
@@ -689,6 +690,13 @@ const API_ = {
   getFinance:                { screens: [], perm: 'finance', fn: getFinance_ },
   getPriceList:              { screens: [], perm: 'prices_edit', fn: getPriceList_ },
   setItemPrice:              { screens: [], perm: 'prices_edit', fn: setItemPrice_ },
+  // إدارة الكتالوج والأطباء من الموقع (التموين والأدمن)
+  getCatalogAdmin:           { screens: ['procurement'], perm: 'users', fn: getCatalogAdmin_ },
+  saveCatalogItem:           { screens: ['procurement'], perm: 'users', fn: saveCatalogItem_ },
+  deleteCatalogItem:         { screens: ['procurement'], perm: 'users', fn: deleteCatalogItem_ },
+  getDoctorsAdmin:           { screens: ['procurement'], perm: 'users', fn: getDoctorsAdmin_ },
+  saveDoctor:                { screens: ['procurement'], perm: 'users', fn: saveDoctor_ },
+  deleteDoctor:              { screens: ['procurement'], perm: 'users', fn: deleteDoctor_ },
   saveRole:                  { screens: [], perm: 'users', fn: saveRole_ },
   deleteRole:                { screens: [], perm: 'users', fn: deleteRole_ }
 };
@@ -4553,6 +4561,245 @@ function deleteRole_(user, name) {
   return getRoles_();
 }
 
+
+/* =====================================================================
+ *  إدارة الكتالوج من الموقع: إضافة وتعديل وحذف الأصناف وتصنيفها
+ *  (الاسم البديل AliasOf والأصناف الحرة غير المعتمدة لا تظهر هنا — لها تبويبها)
+ * ===================================================================== */
+
+/** الجدول بكل أعمدة SCHEMA (يضيف الناقص في الشيت ويقرأه من جديد بدل نسخة الكاش القديمة) */
+function tableWithCols_(name) {
+  const t = read_(name);
+  if (!(SCHEMA[name] || []).some(function (h) { return !(h in t.col); })) return t;
+  ensureHeaders_(sheet_(name), [t.headers.slice()], SCHEMA[name]);
+  markDirty_(name);
+  return read_(name);
+}
+
+/** أماكن اسم الصنف في باقي التبويبات: تُحدَّث عند تغيير الاسم حتى لا تنقطع الطلبات والعهدة */
+const ITEM_NAME_REFS_ = [['RequestItems', 'ItemName'], ['ShipmentItems', 'ItemName'], ['ItemNotes', 'ItemName'],
+  ['ClinicStandards', 'Item'], ['Assets', 'Item'], ['AssetTickets', 'Item'], ['ItemsCatalog', 'AliasOf']];
+
+function getCatalogAdmin_(user) {
+  const aliases = {};
+  const t = read_('ItemsCatalog');
+  t.rows.forEach(function (r) {
+    const a = str_(r.AliasOf);
+    if (a && str_(r.ItemName) && str_(r.FreeStatus) !== FREE_ST.NO) (aliases[a.toLowerCase()] = aliases[a.toLowerCase()] || []).push(str_(r.ItemName));
+  });
+  const cats = {};
+  const items = t.rows.filter(function (r) {
+    if (!str_(r.ItemName) || str_(r.AliasOf)) return false;
+    return !(str_(r.Category) === FREE_CATEGORY_ && str_(r.FreeStatus) !== FREE_ST.OK);
+  }).map(function (r) {
+    const c = str_(r.Category);
+    if (c) cats[c] = true;
+    return { name: str_(r.ItemName), commercial: str_(r.CommercialName), category: c, price: price_(r.Price), priceIssue: priceProblem_(r.Price),
+      dept: normDept_(r.Department), type: str_(r.ItemType) || ITEM_TYPES_[0], asset: isAssetOwnership_(r.Ownership), serialized: isYes_(r.Serialized),
+      aliases: aliases[str_(r.ItemName).toLowerCase()] || [] };
+  }).sort(function (a, b) { return a.name.localeCompare(b.name); });
+  return { items: items, categories: Object.keys(cats).sort(), types: ITEM_TYPES_, depts: DEPTS };
+}
+
+function catalogFields_(it) {
+  it = it || {};
+  const name = clean_(it.name, 120);
+  if (!name) throw new Error('ERR_REQUIRED');
+  const p = num_(it.price);
+  if (it.price === '' || it.price === null || it.price === undefined || isNaN(p) || p < 0 || p > PRICE_MAX) throw new Error('ERR_BAD_PRICE');
+  const type = ITEM_TYPES_.indexOf(str_(it.type)) !== -1 ? str_(it.type) : ITEM_TYPES_[0];
+  return { name: name, obj: { ItemName: name, CommercialName: clean_(it.commercial, 120), Category: clean_(it.category, 80), Price: round2_(p),
+    Department: normDept_(it.dept), ItemType: type, Ownership: it.asset ? 'عهدة' : '', Serialized: it.asset && it.serialized ? 'نعم' : '' } };
+}
+
+/** إضافة صنف (orig فارغ) أو تعديله؛ تغيير الاسم ينتقل للطلبات والشحنات والعهدة والأسماء البديلة */
+function saveCatalogItem_(user, orig, it) {
+  orig = str_(orig);
+  const f = catalogFields_(it);
+  let renamed = 0;
+  withLock_(function () {
+    resetMemo_();
+    const t = read_('ItemsCatalog');
+    const same = function (r, n) { return str_(r.ItemName).toLowerCase() === n.toLowerCase(); };
+    const clash = t.rows.filter(function (r) { return same(r, f.name) && (!orig || !same(r, orig)); })[0];
+    if (clash) throw new Error('ERR_ITEM_EXISTS');
+    if (!orig) {
+      append_('ItemsCatalog', f.obj);
+      logAction_('', 'إضافة صنف للكتالوج: ' + f.name + ' (' + f.obj.Price + ')', user.name);
+      return;
+    }
+    const t2 = tableWithCols_('ItemsCatalog');
+    const row = t2.rows.filter(function (r) { return same(r, orig) && !str_(r.AliasOf); })[0];
+    if (!row) throw new Error('ERR_NOT_FOUND');
+    const old = str_(row.ItemName);
+    setMany_(t2, [{ row: row, obj: f.obj }]);
+    // السعر بتنسيق رقمي حتى لا يتحول لتاريخ في الشيت
+    sheet_('ItemsCatalog').getRange(row._row, t2.col.Price + 1).setNumberFormat('#,##0.00');
+    if (old !== f.name) {
+      ITEM_NAME_REFS_.forEach(function (ref) {
+        if (!ss_().getSheetByName(ref[0])) return;
+        const rt = ref[0] === 'ItemsCatalog' ? read_('ItemsCatalog') : read_(ref[0]);
+        if (rt.col[ref[1]] === undefined) return;
+        const ups = rt.rows.filter(function (r) { return str_(r[ref[1]]) === old; }).map(function (r) { const o = {}; o[ref[1]] = f.name; return { row: r, obj: o }; });
+        if (ups.length) { setMany_(rt, ups); if (ref[0] !== 'ItemsCatalog') renamed += ups.length; }
+      });
+    }
+    logAction_('', 'تعديل صنف: ' + old + (old !== f.name ? ' ← ' + f.name : '') + ' · ' + [f.obj.Category, f.obj.Department, f.obj.ItemType, f.obj.Price].filter(String).join(' · '), user.name);
+    resetMemo_();
+  });
+  return { ok: true, name: f.name, renamed: renamed };
+}
+
+/** حذف صنف: يُمنع إن كان في طلب مفتوح لم يُرسل أو عهدة قائمة؛ أسماؤه البديلة تُحذف معه */
+function deleteCatalogItem_(user, name) {
+  name = str_(name);
+  if (!name) throw new Error('ERR_REQUIRED');
+  withLock_(function () {
+    resetMemo_();
+    const t = freshTable_('ItemsCatalog');
+    const key = name.toLowerCase();
+    const row = t.rows.filter(function (r) { return str_(r.ItemName).toLowerCase() === key && !str_(r.AliasOf); })[0];
+    if (!row) throw new Error('ERR_NOT_FOUND');
+    const closed = {};
+    requestRows_().forEach(function (r) { const st = str_(r.Status); if (st === ST.RECEIVED || isOff_(st)) closed[str_(r.RequestID)] = true; });
+    const open = {};
+    read_('RequestItems').rows.forEach(function (r) {
+      if (str_(r.ItemName).toLowerCase() === key && !r.DispatchedAt && !closed[str_(r.RequestID)]) open[str_(r.RequestID)] = true;
+    });
+    const n = Object.keys(open).length;
+    if (n) throw new Error('ERR_ITEM_IN_USE:' + n);
+    if (ss_().getSheetByName('Assets') && read_('Assets').rows.some(function (r) { return str_(r.Item).toLowerCase() === key && !/مسترجع|returned|مفقود|تالف/i.test(str_(r.Status)); })) throw new Error('ERR_ITEM_IN_CUSTODY');
+    // من الأسفل للأعلى حتى لا تتغير أرقام الصفوف أثناء الحذف
+    t.rows.filter(function (r) { return r === row || str_(r.AliasOf).toLowerCase() === key; })
+      .sort(function (a, b) { return b._row - a._row; })
+      .forEach(function (r) { sheet_('ItemsCatalog').deleteRow(r._row); });
+    markDirty_('ItemsCatalog');
+    logAction_('', 'حذف صنف من الكتالوج: ' + str_(row.ItemName), user.name);
+    resetMemo_();
+  });
+  return { ok: true };
+}
+
+/* =====================================================================
+ *  إدارة الأطباء من الموقع: إضافة وتعديل وحذف، التخصص والعيادات، وربط حساب الدخول
+ * ===================================================================== */
+
+/** اسم الحساب المرتبط بكل طبيب (الربط الصريح DoctorName أو التطابق بالاسم) */
+function doctorLogin_(doc) {
+  const acc = doctorAccounts_();
+  return acc[doc] || '';
+}
+
+function getDoctorsAdmin_(user) {
+  const specs = {}, subs = {};
+  const docs = read_('Doctors').rows.filter(function (r) { return str_(r.DoctorName); }).map(function (r) {
+    const d = { name: str_(r.DoctorName), specialty: str_(r.Specialty || r.Type || r['التخصص']), subspecialty: str_(r.Subspecialty),
+      clinics: str_(r.Clinic).split(/[,،]/).map(str_).filter(String), nurse: str_(r.NurseName), login: doctorLogin_(str_(r.DoctorName)) || str_(r.LoginName) };
+    if (d.specialty) specs[d.specialty] = true;
+    if (d.subspecialty) subs[d.subspecialty] = true;
+    return d;
+  }).sort(function (a, b) { return a.name.localeCompare(b.name); });
+  const users = {};
+  read_('Users').rows.forEach(function (u) { if (str_(u.Name)) users[loginKey_(u.Name)] = roleScreen_(u.Role); });
+  docs.forEach(function (d) { d.hasAccount = !!d.login && users[loginKey_(d.login)] === 'doctor'; });
+  ['Dentistry', 'Derma'].forEach(function (x) { specs[x] = true; });
+  return { doctors: docs, specialties: Object.keys(specs).sort(), subspecialties: Object.keys(subs).sort(),
+    clinics: getClinics_().map(function (c) { return { name: c.name, branch: c.branch, type: c.type }; }) };
+}
+
+/** دور الطبيب الافتراضي للحسابات الجديدة (أول دور شاشته doctor) */
+function doctorRole_() {
+  const r = getRoles_().filter(function (x) { return x.screen === 'doctor'; })[0];
+  if (!r) throw new Error('ERR_ROLE_UNMAPPED');
+  return r.name;
+}
+
+/**
+ * حفظ طبيب (orig فارغ = جديد). d = { name, specialty, subspecialty, clinics[], nurse, login, password }
+ * login: اسم الدخول — إن لم يوجد يُنشأ حساب طبيب بالرقم السري، وإن وُجد (حساب طبيب) يُربط به ويُغيَّر رقمه إن كُتب.
+ * تغيير اسم الطبيب ينتقل لطلباته وبوكسه وإرساليات المعمل وربط حسابه.
+ */
+function saveDoctor_(user, orig, d) {
+  orig = str_(orig);
+  d = d || {};
+  const name = clean_(d.name, 120);
+  if (!name) throw new Error('ERR_REQUIRED');
+  const login = clean_(d.login, 80), password = latinDigits_(String(d.password || '')).trim();
+  if (password && password.length < PW_MIN) throw new Error('ERR_WEAK_PASSWORD');
+  const clinics = (Array.isArray(d.clinics) ? d.clinics : str_(d.clinics).split(/[,،]/)).map(function (c) { return clean_(c, 120); }).filter(String);
+  const out = { ok: true, created: false, renamed: 0 };
+  withLock_(function () {
+    resetMemo_();
+    const t = read_('Doctors');
+    const clash = t.rows.filter(function (r) { return doctorKey_(str_(r.DoctorName)) === doctorKey_(name) && (!orig || str_(r.DoctorName) !== orig); })[0];
+    if (clash) throw new Error('ERR_DOCTOR_EXISTS');
+    // الحساب: نتحقق قبل أي كتابة
+    const ut = read_('Users');
+    const acct = login ? ut.rows.filter(function (u) { return loginKey_(u.Name) === loginKey_(login); })[0] : null;
+    if (acct && roleScreen_(acct.Role) !== 'doctor') throw new Error('ERR_USER_EXISTS');
+    if (login && !acct && !password) throw new Error('ERR_PASSWORD_REQUIRED');
+    const obj = { DoctorName: name, Specialty: clean_(d.specialty, 60), Subspecialty: clean_(d.subspecialty, 80), Clinic: clinics.join(', '),
+      NurseName: clean_(d.nurse, 80), LoginName: login };
+    if (!orig) append_('Doctors', obj);
+    else {
+      const row = t.rows.filter(function (r) { return str_(r.DoctorName) === orig; })[0];
+      if (!row) throw new Error('ERR_NOT_FOUND');
+      const t2 = tableWithCols_('Doctors');
+      const row2 = t2.rows.filter(function (r) { return str_(r.DoctorName) === orig; })[0];
+      setMany_(t2, [{ row: row2, obj: obj }]);
+      if (orig !== name) {
+        [['Requests', 'Doctor'], ['Boxes', 'Owner'], ['LabCases', 'Doctor'], ['Users', 'DoctorName']].forEach(function (ref) {
+          if (!ss_().getSheetByName(ref[0])) return;
+          const rt = read_(ref[0]);
+          if (rt.col[ref[1]] === undefined) return;
+          const ups = rt.rows.filter(function (r) { return str_(r[ref[1]]) === orig; }).map(function (r) { const o = {}; o[ref[1]] = name; return { row: r, obj: o }; });
+          if (ups.length) { setMany_(rt, ups); if (ref[0] === 'Requests') out.renamed = ups.length; }
+        });
+      }
+    }
+    if (login) {
+      const ut2 = read_('Users');
+      const a2 = ut2.rows.filter(function (u) { return loginKey_(u.Name) === loginKey_(login); })[0];
+      if (a2) {
+        const upd = { DoctorName: name };
+        if (password) { upd.Password = hashPassword_(password); upd.PasswordChangedAt = new Date(); }
+        setMany_(ut2, [{ row: a2, obj: upd }]);
+      } else {
+        append_('Users', { Name: login, Password: hashPassword_(password), Role: doctorRole_(), DoctorName: name, Department: normDept_(obj.Specialty) });
+        out.created = true;
+      }
+    }
+    logAction_('', (orig ? 'تعديل طبيب: ' + orig + (orig !== name ? ' ← ' + name : '') : 'إضافة طبيب: ' + name) +
+      (login ? ' · الحساب: ' + login + (out.created ? ' (جديد)' : '') + (password ? ' · رقم سري جديد' : '') : ''), user.name);
+    resetMemo_();
+  });
+  return out;
+}
+
+/** حذف طبيب: يُمنع إن كان له طلب مفتوح؛ ويُحذف حسابه أيضاً إن طُلب ذلك */
+function deleteDoctor_(user, name, opts) {
+  name = str_(name);
+  if (!name) throw new Error('ERR_REQUIRED');
+  let accountDeleted = false;
+  withLock_(function () {
+    resetMemo_();
+    const t = read_('Doctors');
+    const row = t.rows.filter(function (r) { return str_(r.DoctorName) === name; })[0];
+    if (!row) throw new Error('ERR_NOT_FOUND');
+    const open = requestRows_().filter(function (r) { const st = str_(r.Status); return str_(r.Doctor) === name && st !== ST.RECEIVED && !isOff_(st); }).length;
+    if (open) throw new Error('ERR_DOCTOR_IN_USE:' + open);
+    const login = doctorLogin_(name);
+    deleteRow_(t, row);
+    if (opts && opts.deleteAccount && login) {
+      const ut = read_('Users');
+      const a = ut.rows.filter(function (u) { return str_(u.Name) === login && roleScreen_(u.Role) === 'doctor'; })[0];
+      if (a) { deleteRow_(ut, a); accountDeleted = true; }
+    }
+    logAction_('', 'حذف طبيب: ' + name + (accountDeleted ? ' (وحسابه ' + login + ')' : ''), user.name);
+    resetMemo_();
+  });
+  return { ok: true, accountDeleted: accountDeleted };
+}
 
 /* =====================================================================
  *  المعمل: إرساليات المرضى من العيادة للمعمل (داخلي أو خارجي)

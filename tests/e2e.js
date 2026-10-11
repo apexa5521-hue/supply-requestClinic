@@ -1251,6 +1251,56 @@ function log(msg) { console.log('  ✔ ' + msg); }
   await page.keyboard.press('Escape');
   await logout(page);
 
+  // ---------- التموين يدير الأصناف والأطباء من الموقع ----------
+  await login(page, 'علي', '3333');
+  await page.click('.sidebar [data-view="catalog"]');
+  await page.waitForSelector('#caList table');
+  await page.click('.card-head [data-act="caEdit"]');
+  await page.waitForSelector('.modal #caN');
+  await page.fill('.modal #caN', 'Cotton Rolls');
+  await page.fill('.modal #caC', 'Disposables');
+  await page.fill('.modal #caP', '7.25');
+  await page.selectOption('.modal #caT', 'مستهلك');
+  await shot(page, 'proc-catalog-add');
+  await page.click('.modal #caOk');
+  expect(await toastHas(page, 'Cotton Rolls'), 'procurement adds a consumable with category and price');
+  await page.waitForSelector('#caList tr:has-text("Cotton Rolls")');
+  await page.fill('#caQ', 'cotton');
+  await page.click('#caList tr:has-text("Cotton Rolls") [data-act="caEdit"]');
+  await page.waitForSelector('.modal #caN');
+  await page.fill('.modal #caP', '8');
+  await page.selectOption('.modal #caD', 'أسنان');
+  await page.click('.modal #caOk');
+  await page.waitForSelector('#caList tbody tr:has-text("Cotton Rolls") .tag.dept.dental');
+  const cotton = await page.textContent('#caList tbody tr:has-text("Cotton Rolls")');
+  expect(/\b8(\.00)?\b/.test(cotton) && !cotton.includes('7.25'), 'item edited: price and department — ' + cotton.replace(/\s+/g, ' '));
+  await shot(page, 'proc-catalog');
+  await page.click('#caList tr:has-text("Cotton Rolls") [data-act="caDel"]');
+  await page.click('.modal [data-yes]');
+  expect(await toastHas(page, 'حُذف'), 'item deleted from the catalog');
+  await page.fill('#caQ', '');
+  // الأطباء: طبيب جديد بحساب دخول
+  await page.click('.sidebar [data-view="docadmin"]');
+  await page.waitForSelector('#daList .da-row');
+  await page.click('.card-head [data-act="daEdit"]');
+  await page.waitForSelector('.modal #daN');
+  await page.fill('.modal #daN', 'د. ماجد');
+  await page.fill('.modal #daS', 'Dentistry');
+  await page.fill('.modal #daSub', 'Endodontics');
+  await page.check('.modal .da-cl[value="عيادة الأسنان 1"]');
+  await page.fill('.modal #daL', 'Dr.Majed');
+  await page.fill('.modal #daPw', '9090');
+  await shot(page, 'proc-doctor-add');
+  await page.click('.modal #daOk');
+  expect(await toastHas(page, 'أُنشئ حساب Dr.Majed'), 'doctor added with a new login account');
+  await page.waitForSelector('#daList .da-row:has-text("د. ماجد")');
+  expect((await page.textContent('#daList .da-row:has-text("د. ماجد")')).includes('Dr.Majed'), 'doctor list shows the linked username');
+  await shot(page, 'proc-doctors');
+  await logout(page);
+  await login(page, 'Dr.Majed', '9090');
+  expect(await page.isVisible('.sidebar [data-view="reviews"]'), 'the new doctor logs in to the doctor page');
+  await logout(page);
+
   // ---------- XSS check ----------
   await login(page, 'سارة', '1111');
   await page.evaluate(() => __api(null, 'login', ['سارة', '1111']));

@@ -2503,3 +2503,73 @@ test('free items: procurement reviews them — approve with a price, match to an
   const id2 = api(n, 'createRequest', { clinic: 'عيادة الأسنان 1', doctor: 'د. خالد', type: 'شهري', items: [{ name: 'GLOVES BIG', qty: 1 }] }).id;
   assert.ok(rows(gas, 'RequestItems').some(r => r.RequestID === id2 && r.ItemName === 'قفازات طبية M'));
 });
+
+test('catalog admin: procurement adds, edits (rename follows open requests), categorizes and deletes items from the site', () => {
+  const { api, login, gas } = boot();
+  const n = login('سارة', '1111'), p = login('علي', '3333'), a = login('المدير', '1234');
+  throwsCode(() => api(n, 'getCatalogAdmin'), 'ERR_FORBIDDEN');
+  let cat = api(p, 'getCatalogAdmin');
+  assert.ok(cat.items.some(i => i.name === 'PROPHY PASTE' && i.category === 'Hygiene' && i.price === 60));
+  assert.ok(cat.categories.includes('Hygiene'));
+  // إضافة
+  throwsCode(() => api(p, 'saveCatalogItem', '', { name: 'Gauze 4x4', price: 'abc' }), 'ERR_BAD_PRICE');
+  throwsCode(() => api(p, 'saveCatalogItem', '', { name: 'prophy paste', price: 5 }), 'ERR_ITEM_EXISTS');
+  api(p, 'saveCatalogItem', '', { name: 'Gauze 4x4', commercial: 'Sterile', category: 'Disposables', price: 9.5, dept: 'أسنان', type: 'مستهلك' });
+  const dump = () => { const d = gas.dump('ItemsCatalog'); const h = d[0]; return d.slice(1).map(r => Object.fromEntries(h.map((k, i) => [k, r[i]]))); };
+  const g = dump().find(r => r.ItemName === 'Gauze 4x4');
+  assert.deepEqual([g.Price, g.Category, g.Department, g.ItemType], [9.5, 'Disposables', 'أسنان', 'مستهلك']);
+  assert.ok(api(n, 'getConfig').catalog.some(c => c.name === 'Gauze 4x4'), 'nurses can order it right away');
+  // تعديل مع تغيير الاسم: الطلب المفتوح يتبع الاسم الجديد
+  const id = api(n, 'createRequest', { clinic: 'عيادة الأسنان 1', doctor: 'د. نورة', type: 'شهري', items: [{ name: 'Gauze 4x4', qty: 2 }] }).id;
+  const res = api(p, 'saveCatalogItem', 'Gauze 4x4', { name: 'Gauze 4x4 Sterile', category: 'Disposables', price: 11, dept: '', type: 'ماتيريال' });
+  assert.equal(res.renamed, 1);
+  const items = api(p, 'getRequestItemsFull', id);
+  assert.ok(JSON.stringify(items).includes('Gauze 4x4 Sterile'), 'open request line renamed');
+  const g2 = dump().find(r => r.ItemName === 'Gauze 4x4 Sterile');
+  assert.deepEqual([g2.Price, g2.Department, g2.ItemType], [11, '', 'ماتيريال']);
+  // الحذف: ممنوع وهو في طلب مفتوح، ومسموح بعد إلغائه
+  throwsCode(() => api(p, 'deleteCatalogItem', 'Gauze 4x4 Sterile'), 'ERR_ITEM_IN_USE:1');
+  api(n, 'withdrawRequest', id, 'غلط');
+  api(a, 'deleteCatalogItem', 'Gauze 4x4 Sterile');
+  assert.ok(!dump().some(r => r.ItemName === 'Gauze 4x4 Sterile'));
+  // عهدة مصروفة: لا تُحذف
+  api(p, 'issueAssets', { clinic: 'عيادة الأسنان 1', item: 'Curing Light', qty: 1 });
+  throwsCode(() => api(p, 'deleteCatalogItem', 'Curing Light'), 'ERR_ITEM_IN_CUSTODY');
+});
+
+test('doctors admin: add a doctor with a new login, edit specialty/clinics, rename, link an existing account, delete', () => {
+  const { api, login, gas } = boot();
+  const p = login('علي', '3333'), n = login('سارة', '1111'), rm = login('ريم', '2222');
+  throwsCode(() => api(n, 'getDoctorsAdmin'), 'ERR_FORBIDDEN');
+  let d = api(p, 'getDoctorsAdmin');
+  assert.ok(d.doctors.some(x => x.name === 'د. خالد' && x.login === 'د. خالد' && x.hasAccount));
+  assert.ok(d.clinics.length >= 3 && d.specialties.includes('Dentistry'));
+  throwsCode(() => api(p, 'saveDoctor', '', { name: 'د. ماجد', login: 'Dr.Majed' }), 'ERR_PASSWORD_REQUIRED');
+  throwsCode(() => api(p, 'saveDoctor', '', { name: 'د. ماجد', login: 'علي', password: '9999' }), 'ERR_USER_EXISTS');
+  throwsCode(() => api(p, 'saveDoctor', '', { name: 'د. خالد' }), 'ERR_DOCTOR_EXISTS');
+  const r = api(p, 'saveDoctor', '', { name: 'د. ماجد', specialty: 'Dentistry', subspecialty: 'Endodontics', clinics: ['عيادة الأسنان 2'], login: 'Dr.Majed', password: '9090' });
+  assert.equal(r.created, true);
+  // الطبيب الجديد يدخل بحسابه ويرى صفحة الطبيب، والممرضة تجده في العيادة
+  const m = login('Dr.Majed', '9090');
+  assert.equal(api(m, 'getConfig').user.screen, 'doctor');
+  assert.ok(api(n, 'getDoctors', 'عيادة الأسنان 2').some(x => x.name === 'د. ماجد'));
+  d = api(p, 'getDoctorsAdmin');
+  const mj = d.doctors.find(x => x.name === 'د. ماجد');
+  assert.deepEqual([mj.specialty, mj.subspecialty, mj.clinics, mj.login, mj.hasAccount], ['Dentistry', 'Endodontics', ['عيادة الأسنان 2'], 'Dr.Majed', true]);
+  // تعديل: اسم جديد وتخصص وعيادتان + رقم سري جديد — الطلبات والحساب يتبعان الاسم
+  const id = api(rm, 'createRequest', { clinic: 'عيادة الأسنان 2', doctor: 'د. ماجد', type: 'شهري', items: [{ name: 'PROPHY PASTE', qty: 1 }] }).id;
+  const e = api(p, 'saveDoctor', 'د. ماجد', { name: 'د. ماجد العتيبي', specialty: 'Derma', subspecialty: 'Laser', clinics: ['عيادة الجلدية 1', 'عيادة الأسنان 2'], login: 'Dr.Majed', password: '1212' });
+  assert.equal(e.renamed, 1);
+  const m2 = login('Dr.Majed', '1212');
+  assert.ok(api(m2, 'getDoctorRequests').some(x => x.id === id), 'renamed doctor still sees his request');
+  // ربط حساب طبيب موجود بطبيب بلا حساب
+  api(p, 'saveDoctor', 'د. نورة', { name: 'د. نورة', specialty: 'Dentistry', clinics: ['عيادة الأسنان 1'], login: 'د. خالد' });
+  const users = gas.dump('Users'); const h = users[0];
+  assert.equal(users.find(u => u[0] === 'د. خالد')[h.indexOf('DoctorName')], 'د. نورة');
+  // الحذف: ممنوع مع طلب مفتوح، ثم مع حسابه
+  throwsCode(() => api(p, 'deleteDoctor', 'د. ماجد العتيبي', { deleteAccount: true }), 'ERR_DOCTOR_IN_USE:1');
+  api(rm, 'withdrawRequest', id, 'غلط');
+  assert.equal(api(p, 'deleteDoctor', 'د. ماجد العتيبي', { deleteAccount: true }).accountDeleted, true);
+  assert.ok(!gas.dump('Users').some(u => u[0] === 'Dr.Majed'));
+  assert.ok(!gas.dump('Doctors').some(x => x[0] === 'د. ماجد العتيبي'));
+});
