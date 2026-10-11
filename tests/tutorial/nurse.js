@@ -44,6 +44,12 @@ const scenes = {
     ur: 'فہرست میں آئٹم نہیں ملا؟ سرچ باکس میں اس کا نام لکھیں، پھر اسے کنزیومیبل یا میٹیریل کے طور پر شامل کریں۔ وہ آپ کی درخواست میں «فری آئٹم» کے نشان کے ساتھ شامل ہو جاتا ہے، اور پروکیورمنٹ اسے دیکھ کر اس کی تفصیلات مکمل کرتی ہے۔ ایک درخواست میں زیادہ سے زیادہ پانچ فری آئٹم شامل کیے جا سکتے ہیں۔',
     id: 'Barang tidak ada di daftar? Ketik namanya di kotak pencarian, lalu pilih tambahkan sebagai barang habis pakai atau sebagai material. Barang itu masuk ke permintaan Anda dengan tanda barang bebas, dan bagian pengadaan yang meninjau serta melengkapi datanya. Anda bisa menambah hingga lima barang bebas dalam satu permintaan.'
   },
+  alias: {
+    en: 'When procurement links a free item to an existing one, you will find it next time by the name you know. Your name appears in purple, and the procurement name next to it in green. Pick it, and the request goes out with the procurement name.',
+    ar: 'لما يربط التموين صنفًا حرًا بصنف موجود، تلقينه المرة الجاية بالاسم اللي تعرفينه: اسمك يظهر بالبنفسجي، وبجانبه اسم التموين بالأخضر. اختاريه، والطلب يروح باسم التموين.',
+    ur: 'جب پروکیورمنٹ کسی فری آئٹم کو موجودہ آئٹم سے جوڑ دیتی ہے، تو اگلی بار آپ اسے اپنے جانے پہچانے نام سے ڈھونڈ سکتی ہیں۔ آپ کا نام جامنی رنگ میں اور اس کے ساتھ پروکیورمنٹ کا نام سبز رنگ میں نظر آتا ہے۔ اسے منتخب کریں، اور درخواست پروکیورمنٹ کے نام سے جاتی ہے۔',
+    id: 'Saat bagian pengadaan menautkan barang bebas ke barang yang sudah ada, lain kali Anda bisa menemukannya dengan nama yang Anda kenal. Nama Anda tampil ungu, dan nama dari pengadaan di sebelahnya tampil hijau. Pilih, dan permintaan dikirim dengan nama dari pengadaan.'
+  },
   submit: {
     en: 'Check the summary, then tap Submit request. Your draft is saved by itself, so you never lose your work.',
     ar: 'راجعي الملخص، ثم اضغطي «إرسال الطلب». المسودة تُحفظ تلقائيًا فلا يضيع عملك.',
@@ -138,6 +144,9 @@ async function flow(h) {
   const { page, scene, click, type, point, highlight, wait } = h;
   const addItem = async q => { await type('#itemSearch', q); await page.waitForSelector('#comboList .combo-opt'); await wait(400); await click('#comboList .combo-opt'); };
   const submit = async () => { await click('#submitBtn'); const tt = await (await page.waitForSelector('.toast:last-child')).textContent(); await wait(600); return (/REQ-[\d-]+/.exec(tt) || [''])[0]; };
+  // صنف حر سابق ربطه التموين بصنف موجود: الممرضة تجده باسمها (مشهد «alias»)
+  await h.api('createRequest', [{ clinic: 'Dental Clinic 1', doctor: 'Dr. Khalid', type: 'شهري', items: [{ name: 'Blue gloves', qty: 2, free: true, type: 'مستهلك' }] }], ['Sara', '1111']);
+  await h.api('reviewFreeItems', [[{ name: 'Blue gloves', action: 'match', matchTo: 'Gloves M' }]], ['Ali', '3333']);
   await scene('intro', '', async () => { await wait(500); });
   await scene('login', 'login', async () => { await h.login('Sara', '1111'); });
   await scene('kinds', 'kinds', async () => {
@@ -166,6 +175,12 @@ async function flow(h) {
     await point('#comboList .combo-free-opt[data-free="مستهلك"]'); await wait(500);
     await click('#comboList .combo-free-opt[data-free="مستهلك"]'); await wait(700);
     await page.keyboard.press('Escape'); await highlight('.item-line:last-child', 1400);
+  });
+  await scene('alias', 'doc', async () => {
+    await type('#itemSearch', 'blue');
+    await page.waitForSelector('#comboList .alias-nm'); await wait(600);
+    await highlight('#comboList .combo-opt:has(.alias-nm)', 2600);
+    await page.keyboard.press('Escape'); await page.fill('#itemSearch', '');
   });
   await scene('submit', 'doc', async () => { await highlight('#sumBox', 1400); reqId = await submit(); });
   // طلب تعقيم سابق (يلغيه التموين لاحقاً في المشهد «ملغي»)
