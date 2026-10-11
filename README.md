@@ -326,6 +326,15 @@
 
 ## النشر التلقائي من GitHub
 - **الواجهة:** GitHub Pages ينشر الفرع `main` تلقائياً بعد كل دمج. رابط الفريق `…/supply-requestClinic/Index.html` يحمّل `JavaScript.html` من نفس المكان، فيصل أي تعديل في الواجهة خلال دقيقة أو اثنتين (تحديث الصفحة بـ Ctrl+Shift+R).
-- **الخادم (Apps Script):** `.github/workflows/deploy.yml` يشغّل الاختبارات، ثم يرفع الكود لـ Apps Script ويحدّث نفس رابط النشر — بشرط إضافة الأسرار في Settings ▸ Secrets and variables ▸ Actions:
-  `CLASPRC_JSON` (محتوى `~/.clasprc.json` بعد `clasp login`) · `SCRIPT_ID` (Apps Script ▸ Project Settings) · `DEPLOYMENT_ID` (Deploy ▸ Manage deployments).
-  بدونها تُتخطى الخطوة، ويُحدَّث Code.gs يدوياً (نسخ ثم New version).
+- **الخادم (Apps Script):** `.github/workflows/deploy.yml` يشغّل الاختبارات، ثم `scripts/deploy-apps-script.mjs`:
+  - يستبدل `Code` و`Index` و`JavaScript` فقط، وباقي ملفات المشروع وإعداداته تبقى كما هي.
+  - ينشئ نسخة جديدة، ويوجّه النشر الحالي إليها فيبقى نفس رابط `/exec`.
+
+  الشرط: إضافة هذه الأسرار في Settings ▸ Secrets and variables ▸ Actions:
+  - `GAS_CLIENT_ID` و`GAS_CLIENT_SECRET`: عميل OAuth في Google Cloud.
+  - `GAS_REFRESH_TOKEN`: من OAuth Playground بالنطاقين `script.projects` و`script.deployments`.
+  - `SCRIPT_ID`: من Apps Script ▸ Project Settings.
+  - `DEPLOYMENT_ID`: الجزء بين `/s/` و`/exec` في رابط النشر.
+
+  بدون هذه الأسرار تُتخطى الخطوة، ويُحدَّث Code.gs يدوياً (نسخ ثم New version).
+- **الخطة الأساسية (Render):** نفس الـ workflow يدمج `main` في فرع `production-postgresql`، وRender يعيد النشر منه تلقائياً.
