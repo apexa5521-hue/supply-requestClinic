@@ -260,7 +260,7 @@ async function makeTutorial(cfg) {
   if (cfg.noMoney) await page.evaluate(src => {
     const re = new RegExp(src, 'i');
     window.__money = [];
-    const SEL = '.mt,.rp-tile,.kpi,.field,.sum-row,.meta-grid > div,label,li,.tag,.badge,.chip,.hint,dt,dd,th,td,tr,.card-head,section.card';
+    const SEL = '#sideNav > *,.mt,.rp-tile,.kpi,.field,.sum-row,.meta-grid > div,label,li,.tag,.badge,.chip,.hint,dt,dd,th,td,tr,.card-head,section.card';
     const hideEl = el => {
       if (!el || el.dataset.tvHidden) return;
       el.dataset.tvHidden = '1';

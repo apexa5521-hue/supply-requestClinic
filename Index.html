@@ -410,6 +410,8 @@ table.table { width: 100%; border-collapse: collapse; font-size: 13.5px; }
 [dir="rtl"] .nav-item[aria-current="page"]::before { border-radius: 3px 0 0 3px; }
 .nav-item .count-pill { margin-inline-start: auto; background: var(--primary); color: var(--on-primary); }
 .sidebar-foot { margin-top: auto; display: flex; flex-direction: column; gap: 10px; }
+/* قائمة طويلة (الأدمن) على شاشة قصيرة: القائمة تتمرر، وبطاقة المستخدم تبقى ظاهرة تحت */
+.sidebar #sideNav { flex: 1 1 auto; min-height: 0; overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; margin-inline: -4px; padding-inline: 4px; }
 .user-card { display: flex; align-items: center; gap: 10px; padding: 10px; border-radius: 13px; background: var(--surface-2); border: 1px solid var(--border); }
 .avatar { width: 36px; height: 36px; border-radius: 11px; display: grid; place-items: center; font-weight: 700; font-size: 14px; color: #fff; background: linear-gradient(145deg, var(--t-teal), var(--primary)); flex: none; }
 .user-card .who { min-width: 0; }
