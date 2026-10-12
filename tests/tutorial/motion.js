@@ -144,7 +144,8 @@ async function flow(h) {
     await click(`#docList [data-id="${rej.id}"]`);
     await page.waitForSelector('#rvReason'); await wait(400);
     await type('#rvReason', 'الكمية أكثر من حاجة العيادة هذا الشهر');
-    await click('#rvReject'); await wait(1000);
+    await click('#rvReject'); await page.waitForSelector('.modal [data-yes]'); await wait(600);
+    await click('.modal [data-yes]'); await wait(1000);
   });
   await scene('resubmit', 'reject', async () => {
     await relogin('Sara', '1111');
