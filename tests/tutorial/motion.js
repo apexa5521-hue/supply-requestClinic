@@ -126,7 +126,7 @@ async function flow(h) {
     await page.waitForSelector(exp + ' .dsp-row:has-text("DENTAL FLOSS") [data-act="subItem"]');
     await click(exp + ' .dsp-row:has-text("DENTAL FLOSS") [data-act="subItem"]');
     await page.waitForSelector('.modal #subItem');
-    await type('.modal #subItem', 'MICRO BRUSH FINE'); await page.keyboard.press('Escape').catch(() => {});
+    await type('.modal #subItem', 'MICRO BRUSH FINE'); await wait(300);
     await click('.modal #subOk'); await wait(1200);
   });
   await scene('subok', 'sub', async () => {
