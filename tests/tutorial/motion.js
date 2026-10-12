@@ -35,7 +35,12 @@ const steps = {
 async function flow(h) {
   const { page, scene, click, type, point, highlight, wait } = h;
   const addItem = async q => { await type('#itemSearch', q); await page.waitForSelector('#comboList .combo-opt[data-i]'); await wait(300); await click('#comboList .combo-opt[data-i]'); };
-  const relogin = async (name, pass) => { await h.logout(); await h.login(name, pass); };
+  // تبديل الحساب سريعًا (الدخول الأول فقط يُعرض كاملًا) حتى لا يطول الفيديو على شاشة الدخول
+  const relogin = async (name, pass) => {
+    await h.logout();
+    await page.fill('#loginName', name); await page.fill('#loginPass', pass);
+    await click('#loginBtn'); await page.waitForSelector('#appShell:not(.hidden)'); await wait(500);
+  };
   await page.evaluate(() => { window.print = () => {}; });
   let reqId = '';
 
@@ -183,13 +188,16 @@ async function flow(h) {
   // مزايا أخرى
   await scene('custody', 'more', async () => {
     await h.api('issueAssets', [{ clinic: 'Dental Clinic 1', item: 'Curing Light', qty: 1, doctor: 'Dr. Khalid' }], ['Ali', '3333']);
+    // فيديو بلا أسعار: قيمة العهدة لا تُعرض (وإلا يخفي المحرك الشريط كله)
+    await page.evaluate(() => { S.user.noPrices = true; });
     await h.nav('assets');
     await click('[data-seg-name="asTab"][data-v="clinics"]');
-    await page.waitForSelector('#asClinics .as-docs').catch(() => {});
+    await page.waitForSelector('#asClinics .as-docs', { timeout: 8000 }).catch(() => {});
     await highlight('#asClinics section:has-text("Dental Clinic 1") .as-docs', 1600);
     await highlight('#asClinics section:has-text("Dental Clinic 1") .as-doc', 1200);
   });
   await scene('settings', 'more', async () => {
+    await page.evaluate(() => { S.user.noPrices = false; });
     await relogin('Admin', '9999');
     await h.nav('settings');
     await page.waitForSelector('#stBox .st-key');
