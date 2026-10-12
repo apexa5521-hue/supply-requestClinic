@@ -2672,9 +2672,131 @@ test('order rules: procurement/management set limits that apply at once; nurse s
   // a withdrawn/cancelled request gives the slot back
   api(p, 'cancelRequests', [ok.id], 'تجربة');
   assert.equal(api(n, 'getOrderRules').left.emergency, 1);
+  // procurement locks free items: nurses can't add an item that is not in the list
+  api(p, 'saveOrderRules', Object.assign({}, base, { freeLocked: 1 }));
+  assert.equal(api(n, 'getConfig').orderRules.freeLocked, 1);
+  throwsCode(() => api(r2, 'createRequest', { doctor: 'د. سعد', type: 'شهري', items: [{ name: 'شيء جديد', qty: 1, free: true, type: 'مستهلك' }] }), 'ERR_FREE_ITEMS_LOCKED');
+  api(p, 'saveOrderRules', { freeLocked: 0 });
+  assert.equal(api(n, 'getOrderRules').emergencyMax, 1, 'fields not sent stay as they were');
   // outside the window + dispatch day after the window = same month
   R = api(p, 'saveOrderRules', Object.assign({}, base, { winStart: 1, winEnd: 1, dispatchDay: 28 }));
   const today = Number(new Date(Date.now() + 3 * 36e5).toISOString().slice(8, 10));
   assert.equal(R.inWindow, today === 1);
   assert.equal(new Date(new Date(R.dispatchAt).getTime() + 3 * 36e5).getUTCDate(), 28);
+});
+
+test('doctor custody + finance charge types: handpiece in a doctor request is issued to the doctor; finance sets consumable/material per doctor; finance edits the catalog', () => {
+  const { api, login, gas } = boot();
+  const n = login('سارة', '1111'), p = login('علي', '3333'), f = login('نواف', '7777');
+  // finance has the items tab: mark one item as material
+  api(f, 'saveCatalogItem', 'Ivoclar Tetric-N A2', { name: 'Ivoclar Tetric-N A2', commercial: 'Tetric N-Ceram', category: 'Composite', price: 120, type: 'ماتيريال' });
+  assert.equal(rows(gas, 'ItemsCatalog').find(r => r.ItemName === 'Ivoclar Tetric-N A2').ItemType, 'ماتيريال');
+  // finance: what is charged to each doctor
+  throwsCode(() => api(p, 'setDoctorCharge', 'د. نورة', 'consumable'), 'ERR_FORBIDDEN');
+  throwsCode(() => api(f, 'setDoctorCharge', 'د. نورة', 'x'), 'ERR_BAD_CHARGE');
+  assert.equal(api(f, 'getDoctorCharges').find(d => d.name === 'د. نورة').charge, 'all');
+  // nurse asks for a handpiece inside the doctor's request (د. نورة has no account → straight to procurement)
+  const id = api(n, 'createRequest', { doctor: 'د. نورة', type: 'شهري', items: [{ name: 'PROPHY PASTE', qty: 2 }, { name: 'Ivoclar Tetric-N A2', qty: 1 }, { name: 'Handpiece Low Speed', qty: 2 }] }).id;
+  api(p, 'bulkUpdateStatus', [id], 'قيد التجهيز');
+  api(p, 'dispatchItems', id, ['PROPHY PASTE', 'Ivoclar Tetric-N A2', 'Handpiece Low Speed']);
+  const mine = rows(gas, 'Assets').filter(r => r.Doctor === 'د. نورة');
+  assert.deepEqual(mine.map(r => [r.Item, r.Clinic, Number(r.Qty), r.RequestID]), [['Handpiece Low Speed', 'عيادة الأسنان 1', 1, id + '#1'], ['Handpiece Low Speed', 'عيادة الأسنان 1', 1, id + '#1']], 'one custody unit per handpiece, on the doctor');
+  // procurement issues a curing light straight to another doctor
+  throwsCode(() => api(p, 'issueAssets', { clinic: 'عيادة الأسنان 1', item: 'Curing Light', qty: 1, doctor: 'د. مجهول' }), 'ERR_BAD_DOCTOR');
+  api(p, 'issueAssets', { clinic: 'عيادة الأسنان 1', item: 'Curing Light', qty: 1, doctor: 'د. خالد' });
+  // custody tab: the clinic's doctors and who holds what
+  const cl = api(p, 'getClinicAssets', { clinic: 'عيادة الأسنان 1' })[0];
+  assert.deepEqual(cl.doctors.map(d => [d.name, d.units, d.value]), [['د. نورة', 2, 3000], ['د. خالد', 1, 800]]);
+  assert.ok(cl.items.find(i => i.item === 'Handpiece Low Speed').assets.every(a => a.doctor === 'د. نورة'));
+  // move a unit to another doctor (or back to the clinic)
+  const hp = cl.items.find(i => i.item === 'Handpiece Low Speed').assets[0];
+  api(p, 'updateAsset', hp.id, { serial: 'LS-900', doctor: 'د. خالد' });
+  api(p, 'updateAsset', hp.id, { doctor: 'د. نورة' });
+  // doctor report: everything charged by default, custody listed once with its value
+  let rep = api(f, 'getDoctorReport', { doctor: 'د. نورة' });
+  assert.equal(rep.summary.total, 240, 'consumable 120 + material 120; the handpiece is not counted as a consumable');
+  assert.deepEqual([rep.summary.custodyUnits, rep.summary.custodyTotal, rep.custody.length], [2, 3000, 2]);
+  // finance: consumables only → past requests recalculated
+  api(f, 'setDoctorCharge', 'د. نورة', 'consumable');
+  rep = api(f, 'getDoctorReport', { doctor: 'د. نورة' });
+  assert.equal(rep.charge, 'consumable');
+  assert.equal(rep.summary.total, 120);
+  assert.ok(rep.rows[0].items.find(i => i.item === 'Ivoclar Tetric-N A2').notCharged, 'material line shown but not charged');
+  assert.equal(rows(gas, 'Doctors').find(r => r.DoctorName === 'د. نورة').ChargeTypes, 'مستهلك');
+  const bill = api(f, 'getStatsReport', {}).billing.find(b => b.name === 'د. نورة');
+  assert.deepEqual([bill.value, bill.charge], [120, 'consumable'], 'billing follows the charge setting');
+  api(f, 'setDoctorCharge', 'د. نورة', 'material');
+  assert.equal(api(f, 'getDoctorReport', { doctor: 'د. نورة' }).summary.total, 120);
+  // cancelling the shipment removes the custody it created
+  api(p, 'revertStep', id, 'أُرسلت بالخطأ');
+  assert.equal(rows(gas, 'Assets').filter(r => r.RequestID === id + '#1').length, 0);
+  assert.equal(rows(gas, 'Assets').filter(r => r.Doctor === 'د. خالد').length, 1, 'other custody untouched');
+});
+
+test('substitute: the replaced line is locked and never comes back next to its substitute (clinic consumables, auto-approved)', () => {
+  const { api, login } = boot();
+  const n = login('سارة', '1111'), p = login('علي', '3333');
+  const id = api(n, 'createRequest', { clinic: 'Sterilization', branch: 'جدة', type: 'شهري', items: [{ name: 'glovs', qty: 3, free: true, type: 'مستهلك' }, { name: 'PROPHY PASTE', qty: 1 }] }).id;
+  api(p, 'bulkUpdateStatus', [id], 'قيد التجهيز');
+  api(p, 'proposeSubstitute', { requestId: id, item: 'glovs', substitute: 'DENTAL FLOSS' });
+  throwsCode(() => api(p, 'updateItemApproval', id, 'glovs', 3), 'ERR_SUB_REPLACED');
+  const items = api(p, 'getRequestItemsFull', id).items;
+  const orig = items.find(i => i.item === 'glovs'), sub = items.find(i => i.item === 'DENTAL FLOSS');
+  assert.deepEqual([orig.replaced, orig.remainingQty, sub.remainingQty], [true, 0, 3], 'only the substitute is left to send');
+  // matching the free name to the same item later does not add a third line
+  api(p, 'reviewFreeItems', [{ name: 'glovs', action: 'match', matchTo: 'DENTAL FLOSS' }]);
+  assert.equal(api(p, 'getRequestItemsFull', id).items.filter(i => i.remainingQty > 0).length, 2, 'DENTAL FLOSS + PROPHY PASTE');
+  const det = api(n, 'getRequestDetail', id);
+  assert.equal(det.items.find(i => i.item === 'glovs').replaced, true);
+});
+
+test('settings in the app: admin edits clinics, labs, lists, keys, survey; finance only the backdate; lab only iTero and turnaround', () => {
+  const { api, login, gas } = boot();
+  const a = login('المدير', '1234'), f = login('نواف', '7777'), p = login('علي', '3333');
+  let st = api(a, 'getSettingsAdmin');
+  assert.ok(st.clinics.length && st.labs.length && st.workTypes.length && st.materials.length && st.questions.length);
+  assert.deepEqual(Object.keys(st.keys).sort(), ['BackdateUntil', 'DriverEmail', 'IteroLab', 'LabTurnaroundDays', 'SurveyEnabled', 'SurveyEveryDays', 'SurveyOpenDays', 'SurveyStart'].sort());
+  // finance: only the backdate key
+  assert.deepEqual(Object.keys(api(f, 'getSettingsAdmin').keys), ['BackdateUntil']);
+  throwsCode(() => api(f, 'saveSettingKeys', { DriverEmail: 'x@y.com' }), 'ERR_FORBIDDEN');
+  api(f, 'saveSettingKeys', { BackdateUntil: '2026-12-31' });
+  assert.equal(api(a, 'getSettingsAdmin').keys.BackdateUntil, '2026-12-31');
+  throwsCode(() => api(p, 'getSettingsAdmin'), 'ERR_FORBIDDEN');
+  // admin keys
+  throwsCode(() => api(a, 'saveSettingKeys', { DriverEmail: 'bad' }), 'ERR_BAD_EMAIL');
+  throwsCode(() => api(a, 'saveSettingKeys', { SurveyEveryDays: 3 }), 'ERR_RULE_RANGE:SurveyEveryDays');
+  st = api(a, 'saveSettingKeys', { DriverEmail: 'driver@clinic.sa', SurveyEveryDays: 30, IteroLab: 'معمل النخبة' });
+  assert.deepEqual([st.keys.DriverEmail, st.keys.SurveyEveryDays, st.keys.IteroLab], ['driver@clinic.sa', '30', 'معمل النخبة']);
+  assert.equal(api(a, 'getLabConfig').iteroLab, 'معمل النخبة');
+  // clinics
+  let cl = api(a, 'saveClinic', null, { name: 'عيادة الأسنان 9', branch: 'جدة', type: 'Dentistry' });
+  assert.ok(cl.some(c => c.name === 'عيادة الأسنان 9' && c.branch === 'جدة'));
+  throwsCode(() => api(a, 'saveClinic', null, { name: 'عيادة الأسنان 9', branch: 'جدة' }), 'ERR_CLINIC_EXISTS');
+  api(a, 'saveClinic', { name: 'عيادة الأسنان 9', branch: 'جدة' }, { name: 'عيادة الأسنان 10', branch: 'الرياض', type: 'Dentistry' });
+  assert.ok(api(a, 'getConfig').clinics.some(c => c.name === 'عيادة الأسنان 10' && c.branch === 'الرياض'), 'nurses see it right away');
+  throwsCode(() => api(a, 'saveClinic', { name: 'عيادة الأسنان 1', branch: 'الرياض' }, { name: 'X', branch: 'الرياض' }), 'ERR_CLINIC_IN_USE');
+  throwsCode(() => api(a, 'deleteClinic', 'عيادة الأسنان 1', 'الرياض'), 'ERR_CLINIC_IN_USE');
+  api(a, 'deleteClinic', 'عيادة الأسنان 10', 'الرياض');
+  assert.ok(!rows(gas, 'Clinics').some(r => r.ClinicName === 'عيادة الأسنان 10'));
+  // labs + lists
+  let labs = api(a, 'saveLab', '', { name: 'معمل الشرق', type: 'خارجي', email: 'east@lab.sa', turnaround: 7 });
+  assert.ok(labs.some(l => l.name === 'معمل الشرق' && l.turnaround === 7));
+  api(a, 'saveLab', 'معمل الشرق', { name: 'معمل الشرق', type: 'خارجي', active: false });
+  assert.ok(!api(a, 'getLabConfig').labs.some(l => l.name === 'معمل الشرق'), 'stopped lab is hidden from new cases');
+  assert.deepEqual(api(a, 'saveLabList', 'materials', ['Zirconia', 'E-max', 'zirconia', '']), ['Zirconia', 'E-max']);
+  assert.deepEqual(api(a, 'getLabConfig').materials, ['Zirconia', 'E-max']);
+  // survey
+  const qs = api(a, 'saveSurveyQuestion', '', { question: 'سؤال جديد', type: 'stars' });
+  const q = qs.find(x => x.question === 'سؤال جديد');
+  assert.ok(q && q.active);
+  assert.equal(api(a, 'saveSurveyQuestion', q.qid, { question: 'سؤال جديد', active: false }).find(x => x.qid === q.qid).active, false);
+  // driver link rotation
+  const before = api(p, 'getBoxes').driverToken;
+  api(a, 'rotateDriverToken');
+  assert.notEqual(api(p, 'getBoxes').driverToken, before);
+  throwsCode(() => api(null, 'driverTasks', { k: before }), 'ERR_BAD_LINK');
+  // doctor billing basis from the doctor editor
+  api(a, 'saveDoctor', 'د. نورة', { name: 'د. نورة', clinics: ['عيادة الأسنان 1'], billing: 'clinic' });
+  assert.equal(rows(gas, 'Doctors').find(r => r.DoctorName === 'د. نورة').Billing, 'عيادة');
+  assert.equal(api(a, 'getDoctorsAdmin').doctors.find(d => d.name === 'د. نورة').billing, 'clinic');
 });

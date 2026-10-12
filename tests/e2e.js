@@ -893,6 +893,19 @@ function log(msg) { console.log('  ✔ ' + msg); }
   expect(await toastHas(page, 'تم حذف العهدة'), 'unit issued by mistake deleted');
   await page.waitForTimeout(300);
   expect(!(await dentalCard.textContent()).includes('WRONG-1') && (await dentalCard.textContent()).includes('LS-102'), 'deleted unit gone; corrected serial restored');
+  // صرف عهدة على طبيب: تظهر أطباء العيادة ولمن صُرفت كل قطعة
+  await page.click('#asClinics [data-act="asIssue"][data-clinic="عيادة الأسنان 1"]');
+  await page.waitForSelector('.modal #isDoc');
+  await page.selectOption('.modal #isItem', 'Curing Light');
+  expect(await page.$eval('.modal #isDoc', s => [...s.options].map(o => o.textContent).join('|')).then(x => x.includes('د. خالد') && x.includes('د. نورة')), 'issue window lists the clinic doctors');
+  await page.selectOption('.modal #isDoc', 'د. خالد');
+  await page.click('.modal #isOk');
+  expect(await toastHas(page, 'تم صرف 1 قطعة'), 'custody issued to a doctor');
+  await page.waitForTimeout(300);
+  const docsStrip = await dentalCard.locator('.as-docs').textContent();
+  expect(docsStrip.includes('أطباء العيادة') && docsStrip.includes('د. خالد') && docsStrip.includes('1 قطعة'), 'custody tab: clinic doctors and what each holds — ' + docsStrip);
+  expect(await dentalCard.locator('.as-unit:has(.as-doc:has-text("د. خالد"))').count() === 1, 'the unit shows who it is issued to');
+  await shot(page, 'assets-doctor-custody');
   await shot(page, 'assets-procurement-clinics', true);
   await logout(page);
   await login(page, 'سارة', '1111');
@@ -1114,7 +1127,18 @@ function log(msg) { console.log('  ✔ ' + msg); }
   await page.click('#fnPrices tr:has-text("Itero Sleeve") [data-act="priceSave"]');
   expect(await toastHas(page, 'حُفظ سعر Itero Sleeve'), 'finance edited a catalog price');
   expect(await page.evaluate(() => { const d = __gas.dump('ItemsCatalog'); const h = d[0]; const r = d.find(x => x[0] === 'Itero Sleeve'); return r[h.indexOf('Price')]; }) === 320, 'price written to the ItemsCatalog sheet');
+  // حسبة الأطباء: المالية تحدد لكل طبيب ما يُحسب عليه
+  await page.waitForSelector('#fnCharges .ch-sel[data-doc="د. نورة"]');
+  await page.selectOption('#fnCharges .ch-sel[data-doc="د. نورة"]', 'consumable');
+  expect(await toastHas(page, 'د. نورة: المستهلك فقط'), 'finance set a doctor to consumables only');
+  expect(await page.evaluate(() => { const d = __gas.dump('Doctors'); const h = d[0]; return d.find(x => x[0] === 'د. نورة')[h.indexOf('ChargeTypes')]; }) === 'مستهلك', 'stored in the Doctors sheet');
+  await page.selectOption('#fnCharges .ch-sel[data-doc="د. نورة"]', 'all');
+  await shot(page, 'finance-doctor-charges');
   await shot(page, 'finance', true);
+  // المالية تضيف وتعدّل الأصناف مثل التموين
+  await page.click('.sidebar [data-view="catalog"]');
+  await page.waitForSelector('#caList tr:has-text("Itero Sleeve")');
+  expect(await page.isVisible('[data-act="caEdit"]'), 'finance has the items tab with add/edit');
   await page.click('.sidebar [data-view="assetsdash"]');
   await page.waitForSelector('#asStats .rp-tile');
   expect((await page.textContent('#asStats')).includes('1,500') && (await page.textContent('#asStats')).includes('Handpiece Low Speed'), 'finance sees custody cost (loss 1,500) by tool');
@@ -1396,6 +1420,30 @@ function log(msg) { console.log('  ✔ ' + msg); }
   expect(!(await page.$(`.req:has-text("${wdId2}") .req-actions [data-act="withdraw"]`)), 'card loses the cancel button once cancelled');
   await logout(page);
 
+  // ---------- Settings in the app (no sheet): admin adds a clinic and sets the driver email; finance sees only the backdate ----------
+  await login(page, 'المدير', '1234');
+  await page.click('.sidebar [data-view="settings"]');
+  await page.waitForSelector('#stk_DriverEmail');
+  await page.fill('#stk_DriverEmail', 'driver@clinic.sa');
+  await page.click('[data-act="stSaveKeys"]');
+  expect(await toastHas(page, 'حُفظ وطُبّق'), 'admin saved the driver email from the app');
+  expect(await page.evaluate(() => __gas.dump('Settings').some(r => r[0] === 'DriverEmail' && r[1] === 'driver@clinic.sa')), 'written to the Settings tab');
+  await page.click('[data-act="stClinic"]:not([data-i])');
+  await page.waitForSelector('.modal #scN');
+  await page.fill('.modal #scN', 'عيادة الأسنان 7'); await page.fill('.modal #scB', 'جدة'); await page.fill('.modal #scT', 'Dentistry');
+  await page.click('.modal #stmOk');
+  expect(await toastHas(page, 'حُفظ وطُبّق'), 'clinic added from the app');
+  await page.waitForTimeout(300);
+  expect((await page.textContent('#stBox')).includes('عيادة الأسنان 7'), 'new clinic listed');
+  expect(await page.isVisible('#stl_materials') && await page.isVisible('[data-act="stQ"]'), 'labs lists and survey questions are editable');
+  await shot(page, 'admin-settings');
+  await logout(page);
+  await login(page, 'نواف', '7777');
+  await page.click('.sidebar [data-view="settings"]');
+  await page.waitForSelector('#stk_BackdateUntil');
+  expect(await page.locator('.st-key').count() === 1 && !(await page.isVisible('[data-act="stClinic"]')), 'finance sees only the past-requests date');
+  await logout(page);
+
   // ---------- Request rules: procurement sets limits → nurse sees the window bar and is stopped with a clear message ----------
   await login(page, 'علي', '3333');
   await page.click('.sidebar [data-view="rules"]');
@@ -1408,6 +1456,7 @@ function log(msg) { console.log('  ✔ ' + msg); }
   await page.click('#rlSave');
   expect(!(await page.isHidden('#rlErr')), 'rules: emergency hours below 3 refused');
   await page.fill('#rl_emergencyHours', '6'); await page.fill('#rl_emergencyMaxItems', '1'); await page.fill('#rl_emergencyMax', '9');
+  await page.selectOption('#rl_freeLocked', '1');
   await page.click('#rlSave');
   expect(await toastHas(page, 'حُفظت القواعد'), 'rules saved by procurement');
   expect((await page.textContent('#rlBox .rule-bar')).includes('داخل نافذة الطلب الشهري'), 'rules page previews what nurses see');
@@ -1421,6 +1470,10 @@ function log(msg) { console.log('  ✔ ' + msg); }
   await page.click('[data-seg-name="reqKind"][data-v="doctor"]');
   await page.waitForSelector('#fDoctor option[value="د. خالد"]', { state: 'attached' });
   await page.click('[data-seg-name="reqType"][data-v="طارئ"]');
+  await page.fill('#itemSearch', 'صنف غير موجود أبداً');
+  await page.waitForTimeout(250);
+  expect(!(await page.isVisible('.combo-free')), 'free items locked: nurse gets no «add a free item» option');
+  await page.keyboard.press('Escape');
   for (const q of ['floss', 'prophy']) { await page.fill('#itemSearch', q); await page.waitForSelector('.combo-opt'); await page.keyboard.press('Enter'); await page.keyboard.press('Escape'); }
   await page.click('#submitBtn');
   const em = await page.textContent('#submitErr');
@@ -1433,7 +1486,7 @@ function log(msg) { console.log('  ✔ ' + msg); }
   await page.waitForSelector('.rule-slot .rule-bar');
   expect(await page.isVisible('.rule-slot .rule-bar') && (await page.textContent('.rule-slot .rule-bar')).includes('نافذة الطلب الشهري'), 'doctor sees the monthly window bar');
   await logout(page);
-  await page.evaluate(async () => { const tok = (await __api(null, 'login', ['علي', '3333'])).token; await __api(tok, 'saveOrderRules', [{ winStart: 15, winEnd: 20, dispatchDay: 1, monthlyMax: 0, emergencyMax: 0, emergencyHours: 48, emergencyMaxItems: 0 }]); });
+  await page.evaluate(async () => { const tok = (await __api(null, 'login', ['علي', '3333'])).token; await __api(tok, 'saveOrderRules', [{ winStart: 15, winEnd: 20, dispatchDay: 1, monthlyMax: 0, emergencyMax: 0, emergencyHours: 48, emergencyMaxItems: 0, freeLocked: 0 }]); });
 
   // ---------- GitHub Pages mode: fetch → real doPost (Node vm), batching + retry ----------
   {
