@@ -230,10 +230,13 @@ function log(msg) { console.log('  ✔ ' + msg); }
   expect((await page.inputValue('.item-line:nth-child(1) input')) === '3', 'qty stepper increments');
   // الكمية صفر: خطأ واضح ويُمنع الإرسال
   // القائمة قد تُعاد رسمها بعد إضافة البكج: نعيد كتابة الصفر حتى يثبت
-  for (let k = 0; k < 4; k++) {
+  // إضافة البكج قد ترسم القائمة متأخراً فترجع الكمية: نعيد الصفر حتى يبقى ثانية كاملة مع رسالته
+  const zeroHolds = () => page.evaluate(() => { const l = document.querySelector('.item-line:nth-child(1)'); return !!l && l.querySelector('input').value === '0' && !!l.querySelector('.qty-err:not(.hidden)'); });
+  for (let k = 0; k < 6; k++) {
     await page.fill('.item-line:nth-child(1) input', '0');
     await page.dispatchEvent('.item-line:nth-child(1) input', 'input');
-    if (await page.waitForSelector('.item-line:nth-child(1) .qty-err:not(.hidden)', { timeout: 1500 }).then(() => true, () => false)) break;
+    await page.waitForTimeout(1000);
+    if (await zeroHolds()) break;
   }
   // القائمة قد تُرسم من جديد لحظة الفحص: ننتظر الرسالة بدل فحصها مرة واحدة
   const zeroErr = await page.waitForFunction(() => { const e = document.querySelector('.item-line:nth-child(1) .qty-err'); return !!e && !e.classList.contains('hidden') && e.offsetParent !== null && e.textContent.includes('أقل كمية 1'); }, null, { timeout: 5000 }).then(() => true, () => false);
