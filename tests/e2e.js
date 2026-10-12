@@ -1233,7 +1233,10 @@ function log(msg) { console.log('  ✔ ' + msg); }
   await page.waitForSelector('.modal .fi-dec');
   expect(await page.locator('.modal .fi-dec').count() === 2, 'approving the selection opens one row per item');
   await page.fill('.modal .fi-dec:has-text("salk") .fi-price', '15');
-  await page.selectOption('.modal .fi-dec:has-text("gloves big") .fi-match', 'قفازات طبية M');
+  // البحث في الكتالوج: جزء من الاسم لا يكفي، والاسم الكامل من النتائج يربط الصنف
+  await page.fill('.modal .fi-dec:has-text("gloves big") .fi-match', 'قفازات');
+  expect(await page.locator('#fiCat option[value="قفازات طبية M"]').count() === 1 && !(await page.isVisible('.modal .fi-dec:has-text("gloves big") .fi-match-hint .alias-of')), 'catalog search box: a partial name asks to pick from the results');
+  await page.fill('.modal .fi-dec:has-text("gloves big") .fi-match', 'قفازات طبية M');
   expect(await page.isVisible('.modal .fi-dec:has-text("gloves big") .fi-match-hint .alias-of'), 'matching previews the nurse name next to the procurement name');
   await shot(page, 'proc-free-approve');
   await page.click('.modal #fiOk');

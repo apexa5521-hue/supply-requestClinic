@@ -152,7 +152,7 @@ async function flow(h) {
   await scene('freedec', 'free', async () => {
     const g = '.modal .fi-dec:has-text("Nitrile gloves M")';
     await point(g + ' .fi-match');
-    await h.select(g + ' .fi-match', 'Gloves M'); await wait(500);
+    await type(g + ' .fi-match', 'Gloves M'); await wait(500);
     await highlight(g + ' .fi-match-hint', 1600);
     await highlight('.modal .fi-dec:has-text("Saliva ejectors")', 1100);
     // الحقل المالي مخفي في فيديو التموين: يُعبّأ بدون عرضه
