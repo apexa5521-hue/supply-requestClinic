@@ -2587,3 +2587,47 @@ test('plan B: a save on the sheet (GitHub link) stamps _SYNC so the database mir
   assert.equal(row[0], 'sheet_written_at');
   assert.ok(Date.parse(row[1]) > Date.parse('2026-01-01'), 'save time recorded');
 });
+
+test('catalog aliases: procurement gives one item several names; nurses order by any of them and the request uses the procurement name', () => {
+  const { api, login } = boot();
+  const n = login('سارة', '1111'), p = login('علي', '3333');
+  const r = api(p, 'saveCatalogItem', 'قفازات طبية M', { name: 'قفازات طبية M', category: 'Protection', price: 25, type: 'مستهلك', aliases: ['Gloves medium', 'gloves M blue', 'Gloves medium', ''] });
+  assert.deepEqual(r.aliases, { added: 2, removed: 0 }, 'duplicates and blanks ignored');
+  let c = api(n, 'getConfig').catalog.find(x => x.name === 'قفازات طبية M');
+  assert.deepEqual(c.aliases.slice().sort(), ['Gloves medium', 'gloves M blue']);
+  assert.ok(!api(n, 'getConfig').catalog.some(x => x.name === 'Gloves medium'), 'aliases are not separate items');
+  // any name the nurse knows → the request line carries the procurement name
+  const id = api(n, 'createRequest', { clinic: 'عيادة الأسنان 1', doctor: 'د. نورة', type: 'شهري', items: [{ name: 'gloves m blue', qty: 2 }] }).id;
+  assert.ok(JSON.stringify(api(p, 'getRequestItemsFull', id)).includes('قفازات طبية M'));
+  // names already used elsewhere are refused
+  throwsCode(() => api(p, 'saveCatalogItem', 'DENTAL FLOSS', { name: 'DENTAL FLOSS', category: 'Hygiene', price: 12.5, aliases: ['PROPHY PASTE'] }), 'ERR_ALIAS_TAKEN:PROPHY PASTE');
+  throwsCode(() => api(p, 'saveCatalogItem', 'DENTAL FLOSS', { name: 'DENTAL FLOSS', category: 'Hygiene', price: 12.5, aliases: ['gloves medium'] }), 'ERR_ALIAS_TAKEN:gloves medium');
+  // a free item still waiting for review is linked from its own tab
+  api(n, 'createRequest', { clinic: 'عيادة الأسنان 1', doctor: 'د. نورة', type: 'شهري', items: [{ name: 'Floss tape', qty: 1, free: true, type: 'مستهلك' }] });
+  throwsCode(() => api(p, 'saveCatalogItem', 'DENTAL FLOSS', { name: 'DENTAL FLOSS', category: 'Hygiene', price: 12.5, aliases: ['Floss tape'] }), 'ERR_ALIAS_IS_FREE:Floss tape');
+  // a rejected free name can become an alias
+  api(p, 'reviewFreeItems', [{ name: 'Floss tape', action: 'reject', reason: 'موجود مسبقاً' }]);
+  assert.deepEqual(api(p, 'saveCatalogItem', 'DENTAL FLOSS', { name: 'DENTAL FLOSS', category: 'Hygiene', price: 12.5, aliases: ['Floss tape'] }).aliases, { added: 1, removed: 0 });
+  // remove one name; renaming the item keeps its names
+  assert.deepEqual(api(p, 'saveCatalogItem', 'قفازات طبية M', { name: 'قفازات طبية M', category: 'Protection', price: 25, aliases: ['Gloves medium'] }).aliases, { added: 0, removed: 1 });
+  api(p, 'saveCatalogItem', 'قفازات طبية M', { name: 'Medical gloves M', category: 'Protection', price: 25 });
+  c = api(n, 'getConfig').catalog.find(x => x.name === 'Medical gloves M');
+  assert.deepEqual(c.aliases, ['Gloves medium']);
+  assert.deepEqual(api(p, 'getCatalogAdmin').items.find(x => x.name === 'Medical gloves M').aliases, ['Gloves medium']);
+});
+
+test('print data: free items not approved by procurement are flagged; alias lines carry the procurement name', () => {
+  const { api, login } = boot();
+  const n = login('سارة', '1111'), p = login('علي', '3333');
+  const id = api(n, 'createRequest', { clinic: 'عيادة الأسنان 1', doctor: 'د. نورة', type: 'شهري', items: [
+    { name: 'PROPHY PASTE', qty: 2 }, { name: 'Saliva tips', qty: 3, free: true, type: 'مستهلك' }, { name: 'Wrong thing', qty: 1, free: true, type: 'مستهلك' }] }).id;
+  let d = api(p, 'getRequestDetail', id);
+  const st = () => Object.fromEntries(api(p, 'getRequestDetail', id).items.map(i => [i.item, i.freeState || 'ok']));
+  assert.deepEqual(st(), { 'PROPHY PASTE': 'ok', 'Saliva tips': 'pending', 'Wrong thing': 'pending' });
+  api(p, 'reviewFreeItems', [{ name: 'Saliva tips', action: 'approve', price: 4 }, { name: 'Wrong thing', action: 'reject', reason: 'غير لازم' }]);
+  assert.deepEqual(st(), { 'PROPHY PASTE': 'ok', 'Saliva tips': 'ok', 'Wrong thing': 'rejected' });
+  // a line saved under a name that later became an alias prints under the procurement name
+  api(p, 'saveCatalogItem', 'DENTAL FLOSS', { name: 'DENTAL FLOSS', category: 'Hygiene', price: 12.5, aliases: ['Saliva tips old'] });
+  d = api(p, 'getRequestDetail', id);
+  assert.equal(d.items.find(i => i.item === 'PROPHY PASTE').official, undefined);
+});

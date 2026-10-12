@@ -3656,9 +3656,14 @@ function getRequestDetail_(user, requestId) {
   itemNotes_(requestId).forEach(function (n) { (noteMap[n.item] = noteMap[n.item] || []).push(n); });
   const st = shipState_(req, itemsOf_(requestId));
   req.shipments = st.ships;
+  const names = itemNameStates_();
   req.items = st.items.map(function (it) {
     it.notes = noteMap[it.item] || [];
     it.note = it.notes.map(function (n) { return n.note; }).join(' · ');
+    // للطباعة: الصنف الحر غير المعتمد لا يُطبع، والاسم البديل يُطبع باسم التموين
+    const k = it.item.toLowerCase();
+    if (names.free[k]) it.freeState = names.free[k];
+    if (names.alias[k]) it.official = names.alias[k];
     return it;
   });
   req.comments = comments_(requestId);
@@ -3666,6 +3671,19 @@ function getRequestDetail_(user, requestId) {
   req.reversals = read_('Reversals').rows.filter(function (r) { return str_(r.RequestID) === req.id; })
     .map(function (r) { return { time: r.Timestamp, user: str_(r.User), scope: str_(r.Scope), from: str_(r.From), to: str_(r.To), reason: str_(r.Reason) }; });
   return req;
+}
+
+/** أسماء الكتالوج غير الرسمية: { free: اسم → pending|rejected, alias: اسم بديل → اسم التموين } */
+function itemNameStates_() {
+  if (MEMO_.nameStates) return MEMO_.nameStates;
+  const out = { free: {}, alias: {} };
+  read_('ItemsCatalog').rows.forEach(function (r) {
+    const n = str_(r.ItemName).toLowerCase(), st = str_(r.FreeStatus);
+    if (!n) return;
+    if (str_(r.AliasOf)) { if (st !== FREE_ST.NO) out.alias[n] = str_(r.AliasOf); return; }
+    if (str_(r.Category) === FREE_CATEGORY_ && st !== FREE_ST.OK) out.free[n] = st === FREE_ST.NO ? 'rejected' : 'pending';
+  });
+  return (MEMO_.nameStates = out);
 }
 
 /** زمن كل مرحلة: بالساعات للطارئ، بالأيام للشهري */
@@ -4629,7 +4647,7 @@ function catalogFields_(it) {
 function saveCatalogItem_(user, orig, it) {
   orig = str_(orig);
   const f = catalogFields_(it);
-  let renamed = 0;
+  let renamed = 0, aliasOut = null;
   withLock_(function () {
     resetMemo_();
     const t = read_('ItemsCatalog');
@@ -4638,6 +4656,7 @@ function saveCatalogItem_(user, orig, it) {
     if (clash) throw new Error('ERR_ITEM_EXISTS');
     if (!orig) {
       append_('ItemsCatalog', f.obj);
+      aliasOut = syncAliases_(user, f.name, it && it.aliases);
       logAction_('', 'إضافة صنف للكتالوج: ' + f.name + ' (' + f.obj.Price + ')', user.name);
       return;
     }
@@ -4657,10 +4676,59 @@ function saveCatalogItem_(user, orig, it) {
         if (ups.length) { setMany_(rt, ups); if (ref[0] !== 'ItemsCatalog') renamed += ups.length; }
       });
     }
+    aliasOut = syncAliases_(user, f.name, it && it.aliases);
     logAction_('', 'تعديل صنف: ' + old + (old !== f.name ? ' ← ' + f.name : '') + ' · ' + [f.obj.Category, f.obj.Department, f.obj.ItemType, f.obj.Price].filter(String).join(' · '), user.name);
     resetMemo_();
   });
-  return { ok: true, name: f.name, renamed: renamed };
+  return { ok: true, name: f.name, renamed: renamed, aliases: aliasOut };
+}
+
+const ALIAS_MAX_ = 30;
+/**
+ * الأسماء البديلة لصنف (كل ممرضة تسميه باسم، والطلب يُسجَّل باسم التموين).
+ * aliases غير مرسلة = بلا تغيير. اسم صنف رسمي أو اسم بديل لصنف آخر لا يُقبل، والصنف الحر الذي ينتظر المراجعة يُربط من تبويبه.
+ * الاسم الحر المرفوض سابقاً يصير اسماً بديلاً لهذا الصنف.
+ */
+function syncAliases_(user, target, aliases) {
+  if (!Array.isArray(aliases)) return null;
+  const tk = target.toLowerCase(), want = [], seen = {};
+  aliases.forEach(function (a) {
+    a = clean_(a, 120);
+    const k = a.toLowerCase();
+    if (!a || k === tk || seen[k]) return;
+    seen[k] = true; want.push(a);
+  });
+  if (want.length > ALIAS_MAX_) throw new Error('ERR_TOO_MANY_ALIASES');
+  const t = freshTable_('ItemsCatalog');
+  const byName = {};
+  t.rows.forEach(function (r) { if (str_(r.ItemName)) (byName[str_(r.ItemName).toLowerCase()] = byName[str_(r.ItemName).toLowerCase()] || []).push(r); });
+  const mine = t.rows.filter(function (r) { return str_(r.AliasOf).toLowerCase() === tk; });
+  const convert = [];
+  want.forEach(function (a) {
+    const hits = (byName[a.toLowerCase()] || []).filter(function (r) { return str_(r.AliasOf).toLowerCase() !== tk; });
+    hits.forEach(function (r) {
+      const isFree = str_(r.Category) === FREE_CATEGORY_ && !str_(r.AliasOf);
+      if (isFree && str_(r.FreeStatus) === FREE_ST.NO) { convert.push(r); return; }
+      if (isFree) throw new Error('ERR_ALIAS_IS_FREE:' + a);
+      throw new Error('ERR_ALIAS_TAKEN:' + a);
+    });
+  });
+  if (convert.length) setMany_(t, convert.map(function (r) { return { row: r, obj: { AliasOf: target, Category: '', FreeStatus: FREE_ST.OK, FreeNote: 'اسم بديل لـ ' + target + ' — ' + user.name } }; }));
+  // المحذوف من القائمة: من الأسفل للأعلى حتى لا تتغير أرقام الصفوف أثناء الحذف
+  const removed = mine.filter(function (r) { return !seen[str_(r.ItemName).toLowerCase()]; });
+  removed.sort(function (a, b) { return b._row - a._row; }).forEach(function (r) { sheet_('ItemsCatalog').deleteRow(r._row); });
+  if (removed.length) markDirty_('ItemsCatalog');
+  const have = {};
+  mine.concat(convert).forEach(function (r) { have[str_(r.ItemName).toLowerCase()] = true; });
+  const added = want.filter(function (a) { return !have[a.toLowerCase()]; });
+  added.forEach(function (a) {
+    append_('ItemsCatalog', { ItemName: a, AliasOf: target, FreeStatus: FREE_ST.OK, FreeBy: user.name, FreeAt: new Date(), FreeNote: 'اسم بديل أضافه ' + user.name });
+  });
+  if (added.length || removed.length || convert.length) {
+    logAction_('', 'أسماء بديلة لـ ' + target + ': ' + (added.concat(convert.map(function (r) { return str_(r.ItemName); })).length ? '+' + added.concat(convert.map(function (r) { return str_(r.ItemName); })).join('، ') : '') +
+      (removed.length ? ' −' + removed.map(function (r) { return str_(r.ItemName); }).join('، ') : ''), user.name);
+  }
+  return { added: added.length + convert.length, removed: removed.length };
 }
 
 /** حذف صنف: يُمنع إن كان في طلب مفتوح لم يُرسل أو عهدة قائمة؛ أسماؤه البديلة تُحذف معه */

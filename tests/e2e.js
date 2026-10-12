@@ -235,7 +235,9 @@ function log(msg) { console.log('  ✔ ' + msg); }
     await page.dispatchEvent('.item-line:nth-child(1) input', 'input');
     if (await page.waitForSelector('.item-line:nth-child(1) .qty-err:not(.hidden)', { timeout: 1500 }).then(() => true, () => false)) break;
   }
-  expect(await page.isVisible('.item-line:nth-child(1) .qty-err') && (await page.textContent('.item-line:nth-child(1) .qty-err')).includes('أقل كمية 1'), 'zero quantity shows "minimum is 1"');
+  // القائمة قد تُرسم من جديد لحظة الفحص: ننتظر الرسالة بدل فحصها مرة واحدة
+  const zeroErr = await page.waitForFunction(() => { const e = document.querySelector('.item-line:nth-child(1) .qty-err'); return !!e && !e.classList.contains('hidden') && e.offsetParent !== null && e.textContent.includes('أقل كمية 1'); }, null, { timeout: 5000 }).then(() => true, () => false);
+  expect(zeroErr, 'zero quantity shows "minimum is 1"');
   await page.click('#submitBtn');
   expect((await page.textContent('#submitErr')).includes('لا يمكن طلب صفر'), 'submit is blocked while a quantity is zero');
   await shot(page, 'nurse-qty-zero');
@@ -1280,6 +1282,25 @@ function log(msg) { console.log('  ✔ ' + msg); }
   await page.click('#caList tr:has-text("Cotton Rolls") [data-act="caDel"]');
   await page.click('.modal [data-yes]');
   expect(await toastHas(page, 'حُذف'), 'item deleted from the catalog');
+  // أسماء بديلة: كل ممرضة تسمي الصنف باسم، والكتالوج يجمعها تحت اسم التموين
+  await page.fill('#caQ', 'DENTAL FLOSS');
+  await page.click('#caList tbody tr:has-text("DENTAL FLOSS") [data-act="caEdit"]');
+  await page.waitForSelector('.modal #caAl');
+  await page.fill('.modal #caAl', 'Floss thread');
+  await page.press('.modal #caAl', 'Enter');
+  await page.fill('.modal #caAl', 'Dental tape');
+  await page.click('.modal #caAlAdd');
+  expect(await page.locator('.modal .ca-al').count() === 2, 'two other names added in the item window');
+  await shot(page, 'proc-catalog-aliases');
+  await page.click('.modal #caOk');
+  await page.waitForSelector('#caList tbody tr:has-text("DENTAL FLOSS") .alias-nm');
+  expect((await page.textContent('#caList tbody tr:has-text("DENTAL FLOSS")')).includes('Dental tape'), 'catalog row lists the other names');
+  // ورقة الطباعة: باسم التموين فقط، والصنف الحر غير المعتمد لا يُطبع
+  const sheet = await page.evaluate(() => requestPrintHtml({ id: 'REQ-T', status: 'قيد التجهيز', type: 'شهري', items: [
+    { item: 'Floss thread', official: 'DENTAL FLOSS', requestedQty: 2, approvedQty: 2 },
+    { item: 'Saliva tips', freeState: 'pending', requestedQty: 3 }, { item: 'PROPHY PASTE', requestedQty: 1 }] }));
+  expect(sheet.includes('DENTAL FLOSS') && !sheet.includes('>Floss thread<') && sheet.includes('PROPHY PASTE'), 'print sheet uses the procurement name');
+  expect(/لم تُطبع 1 /.test(sheet) && !/<td><div style="font-weight:600">Saliva tips/.test(sheet), 'unapproved free item is left off the sheet, with a note');
   await page.fill('#caQ', '');
   expect(await page.locator('.sidebar [data-view="docadmin"]').count() === 0, 'procurement has no doctors tab (admin only)');
   await logout(page);
