@@ -114,12 +114,12 @@ const DEFAULT_ROLES = [
  * notices: إرسال التنبيهات · monitor: متابعة التموين والمواعيد · finance: شاشة المالية
  * prices_edit: تعديل أسعار الكتالوج · users: المستخدمون والأدوار
  */
-const PERMS = ['overview', 'reports', 'complaints', 'complaints_close', 'notices', 'monitor', 'finance', 'prices_edit', 'lab_view', 'assets', 'users', 'doctors_live', 'surveys', 'doctor_prices', 'boxes'];
+const PERMS = ['overview', 'reports', 'complaints', 'complaints_close', 'notices', 'monitor', 'finance', 'prices_edit', 'lab_view', 'assets', 'users', 'doctors_live', 'surveys', 'doctor_prices', 'boxes', 'order_rules'];
 const DEFAULT_PERMS = {
   admin: PERMS,
-  executive: ['overview', 'reports', 'complaints', 'complaints_close', 'notices', 'monitor', 'lab_view', 'assets', 'doctors_live', 'surveys', 'doctor_prices', 'boxes'],
-  quality: ['overview', 'reports', 'complaints', 'complaints_close', 'notices', 'monitor', 'lab_view', 'assets', 'doctors_live', 'surveys', 'doctor_prices'],
-  finance: ['finance', 'prices_edit', 'reports', 'monitor', 'assets', 'doctor_prices'],
+  executive: ['overview', 'reports', 'complaints', 'complaints_close', 'notices', 'monitor', 'lab_view', 'assets', 'doctors_live', 'surveys', 'doctor_prices', 'boxes', 'order_rules'],
+  quality: ['overview', 'reports', 'complaints', 'complaints_close', 'notices', 'monitor', 'lab_view', 'assets', 'doctors_live', 'surveys', 'doctor_prices', 'order_rules'],
+  finance: ['finance', 'prices_edit', 'reports', 'monitor', 'assets', 'doctor_prices', 'order_rules'],
   dashboard: ['overview', 'reports', 'complaints', 'notices'],
   // مدير الفرع: مشاهدة فرعه + تقاريره ومؤشراته + التنبيه والشكاوى (بدون اعتماد أو إرسال)
   branch: ['overview', 'reports', 'complaints', 'monitor', 'lab_view', 'assets', 'boxes']
@@ -600,9 +600,13 @@ function runBatch_(user, calls) {
 }
 
 const ALL = '*';
+/* «قواعد الطلبات»: التموين والمالية والتنفيذية والجودة (والأدمن) — بالشاشة نفسها حتى لو عُدّلت صلاحيات الدور، أو بصلاحية order_rules لأي دور إداري */
+const RULES_SCREENS_ = ['procurement', 'finance', 'executive', 'quality', 'admin'];
 const MGMT = MGMT_SCREENS;
 const API_ = {
   getConfig:                 { screens: ALL, fn: getConfig_ },
+  getOrderRules:             { screens: ALL, fn: getOrderRules_ },
+  saveOrderRules:            { screens: RULES_SCREENS_, perm: 'order_rules', fn: saveOrderRules_ },
   changePassword:            { screens: ALL, fn: changePassword_ },
   getAlerts:                 { screens: ALL, fn: getAlerts_ },
   getNotices:                { screens: ALL, fn: getNotices_ },
@@ -1835,6 +1839,7 @@ function getConfig_(user) {
     roles: (user.perms || []).indexOf('users') !== -1 ? getRoles_() : [],
     hasAdmin: (user.perms || []).indexOf('users') !== -1 ? hasAdmin_() : true,
     backdateUntil: user.screen === 'nurse' ? backdateUntil_() : '',
+    orderRules: getOrderRules_(user),
     serverTime: new Date()
   };
 }
@@ -2028,7 +2033,13 @@ function queryRequests_(filters) {
     r.lastShipAt = st.ships.length ? st.ships.reduce(function (m, g) { return toMs_(g.sentAt) > toMs_(m) ? g.sentAt : m; }, '') : '';
     r.pendingShipments = st.pending;
     // شحنة وصل بوكسها الفرع ولم تُستلم بعد → «وصل الفرع»
-    r.atBranch = st.ships.some(function (g) { return !g.received && g.delivered; });
+    const waiting = st.ships.filter(function (g) { return !g.received && g.delivered; });
+    r.atBranch = waiting.length > 0;
+    // مكان البوكس وصورته (رابط Drive فقط، لا تُحفظ الصورة في النظام): الممرضة تعرف وين تستلم، والطبيب يشوف وين وصل
+    if (r.atBranch) {
+      const dl = waiting[waiting.length - 1].delivered;
+      r.boxAt = { to: dl.to, photo: dl.photo, at: dl.at, box: dl.box };
+    }
     r.needsReview = !!reviewers[r.doctor];
     r.cleared = !r.needsReview || r.status === ST.APPROVED || !!r.approvedAt;
     r.awaitingDoctor = r.needsReview && !r.cleared && AWAITING_DOCTOR.indexOf(r.status) !== -1;
@@ -2048,6 +2059,103 @@ function queryRequests_(filters) {
  *  مواعيد الطلبات: الشهري يُرفع 15–20 ويُستلم قبل نهاية يوم 1 من الشهر التالي؛ الطارئ: الهدف ساعتان والحد الأقصى 48 ساعة
  * ===================================================================== */
 
+/* ---------------------------------------------------------------------
+ *  قواعد الطلبات — تُعدَّل من تبويب «قواعد الطلبات» (التموين / المالية / التنفيذية / الجودة) وتُطبَّق فوراً.
+ *  تُحفظ في تبويب Settings. الحد 0 = بلا حد. عدد الطلبات لكل من يرفع (حسابه) في الشهر بتوقيت الرياض،
+ *  ولا يُحسب الطلب الملغي أو المرفوض ولا الطلبات السابقة بأثر رجعي.
+ * --------------------------------------------------------------------- */
+const ORDER_RULES_ = [
+  // [المفتاح في الواجهة, المفتاح في Settings, الافتراضي, الأدنى, الأعلى, الوصف في الشيت]
+  ['winStart', 'MonthlyWindowStart', MONTHLY_WINDOW[0], 1, 31, 'بداية نافذة الطلب الشهري (يوم من الشهر)'],
+  ['winEnd', 'MonthlyWindowEnd', MONTHLY_WINDOW[1], 1, 31, 'نهاية نافذة الطلب الشهري (يوم من الشهر)'],
+  ['dispatchDay', 'MonthlyDispatchDay', 1, 1, 31, 'يوم صرف الطلب الشهري — بعد نهاية النافذة = نفس الشهر، وإلا الشهر التالي'],
+  ['monthlyMax', 'MonthlyMaxPerMonth', 0, 0, 99, 'عدد الطلبات الشهرية المسموحة لكل من يطلب في الشهر (0 = بلا حد)'],
+  ['emergencyMax', 'EmergencyMaxPerMonth', 0, 0, 99, 'عدد الطلبات الطارئة المسموحة لكل من يطلب في الشهر (0 = بلا حد)'],
+  ['emergencyHours', 'EmergencyDueHours', EMERGENCY_DUE_HOURS, 3, 48, 'مهلة الطلب الطارئ بالساعات (من 3 إلى 48)'],
+  ['emergencyMaxItems', 'EmergencyMaxItems', 0, 0, 200, 'أقصى عدد أصناف مختلفة (مستهلك أو ماتيريال) في الطلب الطارئ (0 = بلا حد)']
+];
+function orderRules_() {
+  if (MEMO_.orderRules) return MEMO_.orderRules;
+  const o = {};
+  ORDER_RULES_.forEach(function (d) {
+    const n = Math.floor(num_(getSetting_(d[1], d[2])));
+    o[d[0]] = n >= d[3] && n <= d[4] ? n : d[2];
+  });
+  if (o.winEnd < o.winStart) { o.winStart = MONTHLY_WINDOW[0]; o.winEnd = MONTHLY_WINDOW[1]; }
+  return (MEMO_.orderRules = o);
+}
+/** نهاية يوم الصرف للطلب الشهري المرفوع في subMs: يوم الصرف بعد نهاية النافذة = نفس الشهر، وإلا الشهر التالي */
+function monthlyDue_(subMs, R) {
+  const ymd = riyadh_(subMs);
+  let y = Number(ymd.slice(0, 4)), m = Number(ymd.slice(5, 7));
+  const step = function () { m++; if (m > 12) { m = 1; y++; } };
+  const at = function () {
+    const d = Math.min(R.dispatchDay, new Date(Date.UTC(y, m, 0)).getUTCDate());
+    return new Date(y + '-' + ('0' + m).slice(-2) + '-' + ('0' + d).slice(-2) + 'T00:00:00+03:00').getTime() + 864e5 - 1;
+  };
+  if (R.dispatchDay <= R.winEnd) step();
+  let due = at();
+  if (due < subMs) { step(); due = at(); }
+  return due;
+}
+/** طلبات هذا الشهر لمن يرفع (حسب النوع) */
+function orderUsage_(name) {
+  const month = riyadh_(Date.now()).slice(0, 7), out = { monthly: 0, emergency: 0 };
+  read_('Requests').rows.forEach(function (r) {
+    if (str_(r.Nurse) !== name || isOff_(str_(r.Status)) || isBackdated_(r)) return;
+    if (monthOf_(r.SubmittedAt || r.Date) !== month) return;
+    if (str_(r.Type) === 'طارئ') out.emergency++; else out.monthly++;
+  });
+  return out;
+}
+/** القواعد + حالة النافذة الآن + المستخدَم والمتبقي لمن يرفع الطلبات (الممرضة / المعمل) */
+function getOrderRules_(user) {
+  const R = orderRules_(), now = Date.now();
+  const day = Number(riyadh_(now).slice(8, 10));
+  const out = Object.assign({}, R, {
+    today: day, inWindow: day >= R.winStart && day <= R.winEnd,
+    dispatchAt: new Date(monthlyDue_(now, R) - 864e5 + 1),
+    canEdit: !!user && allowed_(API_.saveOrderRules, user)
+  });
+  if (user && (user.screen === 'nurse' || user.screen === 'lab')) {
+    const u = orderUsage_(user.name);
+    out.used = u;
+    out.left = { monthly: R.monthlyMax ? Math.max(0, R.monthlyMax - u.monthly) : null, emergency: R.emergencyMax ? Math.max(0, R.emergencyMax - u.emergency) : null };
+  }
+  return out;
+}
+function saveOrderRules_(user, v) {
+  v = v || {};
+  const vals = {};
+  ORDER_RULES_.forEach(function (d) {
+    const n = Number(v[d[0]]);
+    if (!(Math.floor(n) === n && n >= d[3] && n <= d[4])) throw new Error('ERR_RULE_RANGE:' + d[0]);
+    vals[d[0]] = n;
+  });
+  if (vals.winEnd < vals.winStart) throw new Error('ERR_RULE_WINDOW');
+  withLock_(function () {
+    const t = freshTable_('Settings');
+    const changes = [];
+    ORDER_RULES_.forEach(function (d) {
+      const row = t.rows.filter(function (r) { return str_(r.Key) === d[1]; })[0];
+      if (!row) { append_('Settings', { Key: d[1], Value: vals[d[0]], Notes: d[5] }); changes.push(d[1] + '=' + vals[d[0]]); }
+      else if (str_(row.Value) !== String(vals[d[0]])) { setCells_(t, row, { Value: vals[d[0]] }); changes.push(d[1] + '=' + vals[d[0]]); }
+    });
+    if (changes.length) logAction_('', 'تعديل قواعد الطلبات: ' + changes.join('، '), user.name);
+  });
+  resetMemo_();
+  return getOrderRules_(user);
+}
+/** فحص قواعد الطلب قبل الحفظ: عدد الطارئ / الشهري في الشهر، وعدد أصناف الطارئ */
+function checkOrderRules_(user, type, itemCount) {
+  const R = orderRules_(), u = orderUsage_(user.name);
+  const emLeft = R.emergencyMax ? Math.max(0, R.emergencyMax - u.emergency) : '';
+  if (type === 'طارئ') {
+    if (R.emergencyMaxItems && itemCount > R.emergencyMaxItems) throw new Error('ERR_EMERGENCY_ITEMS:max=' + R.emergencyMaxItems + ';n=' + itemCount + ';left=' + emLeft);
+    if (R.emergencyMax && u.emergency >= R.emergencyMax) throw new Error('ERR_EMERGENCY_LIMIT:max=' + R.emergencyMax);
+  } else if (R.monthlyMax && u.monthly >= R.monthlyMax) throw new Error('ERR_MONTHLY_LIMIT:max=' + R.monthlyMax);
+}
+
 /** بداية يوم 1 من الشهر التالي لـ 'yyyy-MM' بتوقيت الرياض */
 function nextMonthStart_(ym) {
   const y = Number(ym.slice(0, 4)), m = Number(ym.slice(5, 7));
@@ -2062,18 +2170,19 @@ function deadline_(r, nowMs) {
   if (!sub || r.backdated) return { dueAt: '', overdue: false, atRisk: false, lateSubmit: false };
   // الرفع بعد يوم 20 مسموح عادي، لكنه يُعلَّم «رُفع متأخراً» (قبل 15 = مبكر، لا مشكلة)
   let due, lateSubmit = false;
-  if (r.type === 'طارئ') due = sub + EMERGENCY_DUE_HOURS * 36e5;
+  const R = orderRules_();
+  if (r.type === 'طارئ') due = sub + R.emergencyHours * 36e5;
   else {
     const ymd = riyadh_(sub);
     const day = Number(ymd.slice(8, 10));
-    lateSubmit = day > MONTHLY_WINDOW[1];
-    due = nextMonthStart_(ymd.slice(0, 7)).getTime() + 864e5 - 1; // نهاية يوم 1
+    lateSubmit = day > R.winEnd;
+    due = monthlyDue_(sub, R);
   }
   const done = r.status === ST.RECEIVED || isOff_(r.status);
   const recv = toMs_(r.receivedAt);
   const overdue = !done && now > due;
   // قريب من الموعد: لم يُرسل منه شيء بعد والمتبقي أقل من 5 أيام (أو نصف مهلة الطارئ)
-  const window = r.type === 'طارئ' ? EMERGENCY_DUE_HOURS * 36e5 / 2 : AT_RISK_DAYS * 864e5;
+  const window = r.type === 'طارئ' ? R.emergencyHours * 36e5 / 2 : AT_RISK_DAYS * 864e5;
   const atRisk = !done && !overdue && due - now < window && !(r.sentQty > 0) && !toMs_(r.sentAt);
   return { dueAt: new Date(due), overdue: overdue, atRisk: atRisk, lateSubmit: lateSubmit,
     lateReceipt: r.status === ST.RECEIVED && recv > due };
@@ -2114,6 +2223,7 @@ function getMonitor_(user, opts) {
   function hrs(a, b) { const x = toMs_(a), y = toMs_(b); return x && y && y >= x ? (y - x) / H : null; }
   function avg(a) { return a.length ? round1_(a.reduce(function (x, y) { return x + y; }, 0) / a.length) : null; }
   const inMonth = all.filter(function (r) { return !r.backdated && monthOf_(r.submittedAt || r.date) === month; });
+  const RULES = orderRules_();
   const toPrep = [], toSend = [], toRecv = [], emergencyHrs = [];
   let received = 0, onTime = 0, lateSubmits = 0, monthly = 0, emergency = 0;
   inMonth.forEach(function (r) {
@@ -2134,14 +2244,14 @@ function getMonitor_(user, opts) {
     avgClearToPrepHrs: avg(toPrep), avgPrepToSendHrs: avg(toSend), avgSendToReceiveHrs: avg(toRecv), avgEmergencyHrs: avg(emergencyHrs),
     // زمن الطارئ (من الرفع إلى الإرسال): نسبة ما أُرسل خلال ساعتين، ونسبة ما أُرسل ضمن الحد الأقصى 48 ساعة
     emergencySent: emergencyHrs.length,
-    emergencyFastRate: emergencyHrs.length ? Math.round(emergencyHrs.filter(function (h) { return h <= EMERGENCY_FAST_HOURS; }).length / emergencyHrs.length * 100) : null,
-    emergencyOnTimeRate: emergencyHrs.length ? Math.round(emergencyHrs.filter(function (h) { return h <= EMERGENCY_DUE_HOURS; }).length / emergencyHrs.length * 100) : null
+    emergencyFastRate: emergencyHrs.length ? Math.round(emergencyHrs.filter(function (h) { return h <= Math.min(EMERGENCY_FAST_HOURS, RULES.emergencyHours); }).length / emergencyHrs.length * 100) : null,
+    emergencyOnTimeRate: emergencyHrs.length ? Math.round(emergencyHrs.filter(function (h) { return h <= RULES.emergencyHours; }).length / emergencyHrs.length * 100) : null
   };
 
   // دورة الطلب الشهري حسب الطبيب: هل رُفع طلبه الشهري لهذا الشهر؟ ومتى (في الفترة أو متأخراً)؟
   const cycleMonth = Utilities.formatDate(new Date(now), TZ, 'yyyy-MM');
   const today = Number(Utilities.formatDate(new Date(now), TZ, 'dd'));
-  const passed = today > MONTHLY_WINDOW[1];
+  const passed = today > RULES.winEnd;
   const byDoc = {};
   all.forEach(function (r) {
     if (r.type !== 'طارئ' && r.doctor && monthOf_(r.submittedAt || r.date) === cycleMonth) (byDoc[r.doctor] = byDoc[r.doctor] || []).push(r);
@@ -2159,10 +2269,10 @@ function getMonitor_(user, opts) {
   });
   return {
     now: new Date(now), late: late, atRisk: atRisk, kpis: kpis,
-    cycle: { month: cycleMonth, window: MONTHLY_WINDOW, today: today, open: today >= MONTHLY_WINDOW[0] && today <= MONTHLY_WINDOW[1],
-      due: nextMonthStart_(cycleMonth), doctors: cycle, missing: cycle.filter(function (c) { return !c.count; }).length,
+    cycle: { month: cycleMonth, window: [RULES.winStart, RULES.winEnd], today: today, open: today >= RULES.winStart && today <= RULES.winEnd,
+      due: new Date(monthlyDue_(now, RULES) - 864e5 + 1), doctors: cycle, missing: cycle.filter(function (c) { return !c.count; }).length,
       lateSubmits: cycle.filter(function (c) { return c.state === 'late'; }).length, passed: passed },
-    rules: { window: MONTHLY_WINDOW, emergencyHours: EMERGENCY_DUE_HOURS, emergencyFastHours: EMERGENCY_FAST_HOURS, atRiskDays: AT_RISK_DAYS }
+    rules: { window: [RULES.winStart, RULES.winEnd], emergencyHours: RULES.emergencyHours, emergencyFastHours: Math.min(EMERGENCY_FAST_HOURS, RULES.emergencyHours), atRiskDays: AT_RISK_DAYS, dispatchDay: RULES.dispatchDay }
   };
 }
 
@@ -2505,6 +2615,8 @@ function createRequest_(user, payload) {
   });
   if (items.length > 200) throw new Error('ERR_TOO_MANY_ITEMS');
   if (str_(payload.backdate) && !forLab) return createBackdated_(user, payload, { clinic: clinic, branch: branch, doctor: doctor, type: type, dept: dept, items: items });
+  checkOrderRules_(user, type, items.length);
+  const rules = getOrderRules_(user); // المتبقي بعد هذا الطلب يرجع للواجهة (تحديث فوري للتنبيه)
 
   // منع الإرسال المزدوج لنفس الطلب خلال دقيقتين
   const dupKey = requestDupKey_(user.name, clinic, branch, doctor, type, items);
@@ -2555,7 +2667,9 @@ function createRequest_(user, payload) {
     notifyProcurement_(dept, (type === 'طارئ' ? '🚨 طلب طارئ - ' : 'طلب مستلزمات جديد - ') + id,
       (forLab ? 'تم رفع طلب مستهلكات المعمل (لا يحتاج اعتماداً — يُسلَّم للمعمل مباشرة بلا بوكس).' : clinicOnly ? 'تم رفع طلب مستهلكات عيادة (بدون طبيب — لا يحتاج اعتماداً).' : 'تم رفع طلب جديد (الطبيب ليس له حساب — لا يحتاج اعتماداً في النظام).') + details);
   }
-  return { id: id, duplicate: false };
+  const k = type === 'طارئ' ? 'emergency' : 'monthly';
+  if (rules.used) { rules.used[k]++; if (rules.left[k] !== null) rules.left[k] = Math.max(0, rules.left[k] - 1); }
+  return { id: id, duplicate: false, rules: rules };
 }
 
 /** طلب سابق بأثر رجعي: يُسجَّل مستلَماً بتاريخه (بلا اعتماد ولا إشعارات) ويُعلَّم Backdated */
@@ -3656,9 +3770,14 @@ function getRequestDetail_(user, requestId) {
   itemNotes_(requestId).forEach(function (n) { (noteMap[n.item] = noteMap[n.item] || []).push(n); });
   const st = shipState_(req, itemsOf_(requestId));
   req.shipments = st.ships;
+  const names = itemNameStates_();
   req.items = st.items.map(function (it) {
     it.notes = noteMap[it.item] || [];
     it.note = it.notes.map(function (n) { return n.note; }).join(' · ');
+    // للطباعة: الصنف الحر غير المعتمد لا يُطبع، والاسم البديل يُطبع باسم التموين
+    const k = it.item.toLowerCase();
+    if (names.free[k]) it.freeState = names.free[k];
+    if (names.alias[k]) it.official = names.alias[k];
     return it;
   });
   req.comments = comments_(requestId);
@@ -3666,6 +3785,19 @@ function getRequestDetail_(user, requestId) {
   req.reversals = read_('Reversals').rows.filter(function (r) { return str_(r.RequestID) === req.id; })
     .map(function (r) { return { time: r.Timestamp, user: str_(r.User), scope: str_(r.Scope), from: str_(r.From), to: str_(r.To), reason: str_(r.Reason) }; });
   return req;
+}
+
+/** أسماء الكتالوج غير الرسمية: { free: اسم → pending|rejected, alias: اسم بديل → اسم التموين } */
+function itemNameStates_() {
+  if (MEMO_.nameStates) return MEMO_.nameStates;
+  const out = { free: {}, alias: {} };
+  read_('ItemsCatalog').rows.forEach(function (r) {
+    const n = str_(r.ItemName).toLowerCase(), st = str_(r.FreeStatus);
+    if (!n) return;
+    if (str_(r.AliasOf)) { if (st !== FREE_ST.NO) out.alias[n] = str_(r.AliasOf); return; }
+    if (str_(r.Category) === FREE_CATEGORY_ && st !== FREE_ST.OK) out.free[n] = st === FREE_ST.NO ? 'rejected' : 'pending';
+  });
+  return (MEMO_.nameStates = out);
 }
 
 /** زمن كل مرحلة: بالساعات للطارئ، بالأيام للشهري */
@@ -4629,7 +4761,7 @@ function catalogFields_(it) {
 function saveCatalogItem_(user, orig, it) {
   orig = str_(orig);
   const f = catalogFields_(it);
-  let renamed = 0;
+  let renamed = 0, aliasOut = null;
   withLock_(function () {
     resetMemo_();
     const t = read_('ItemsCatalog');
@@ -4638,6 +4770,7 @@ function saveCatalogItem_(user, orig, it) {
     if (clash) throw new Error('ERR_ITEM_EXISTS');
     if (!orig) {
       append_('ItemsCatalog', f.obj);
+      aliasOut = syncAliases_(user, f.name, it && it.aliases);
       logAction_('', 'إضافة صنف للكتالوج: ' + f.name + ' (' + f.obj.Price + ')', user.name);
       return;
     }
@@ -4657,10 +4790,59 @@ function saveCatalogItem_(user, orig, it) {
         if (ups.length) { setMany_(rt, ups); if (ref[0] !== 'ItemsCatalog') renamed += ups.length; }
       });
     }
+    aliasOut = syncAliases_(user, f.name, it && it.aliases);
     logAction_('', 'تعديل صنف: ' + old + (old !== f.name ? ' ← ' + f.name : '') + ' · ' + [f.obj.Category, f.obj.Department, f.obj.ItemType, f.obj.Price].filter(String).join(' · '), user.name);
     resetMemo_();
   });
-  return { ok: true, name: f.name, renamed: renamed };
+  return { ok: true, name: f.name, renamed: renamed, aliases: aliasOut };
+}
+
+const ALIAS_MAX_ = 30;
+/**
+ * الأسماء البديلة لصنف (كل ممرضة تسميه باسم، والطلب يُسجَّل باسم التموين).
+ * aliases غير مرسلة = بلا تغيير. اسم صنف رسمي أو اسم بديل لصنف آخر لا يُقبل، والصنف الحر الذي ينتظر المراجعة يُربط من تبويبه.
+ * الاسم الحر المرفوض سابقاً يصير اسماً بديلاً لهذا الصنف.
+ */
+function syncAliases_(user, target, aliases) {
+  if (!Array.isArray(aliases)) return null;
+  const tk = target.toLowerCase(), want = [], seen = {};
+  aliases.forEach(function (a) {
+    a = clean_(a, 120);
+    const k = a.toLowerCase();
+    if (!a || k === tk || seen[k]) return;
+    seen[k] = true; want.push(a);
+  });
+  if (want.length > ALIAS_MAX_) throw new Error('ERR_TOO_MANY_ALIASES');
+  const t = freshTable_('ItemsCatalog');
+  const byName = {};
+  t.rows.forEach(function (r) { if (str_(r.ItemName)) (byName[str_(r.ItemName).toLowerCase()] = byName[str_(r.ItemName).toLowerCase()] || []).push(r); });
+  const mine = t.rows.filter(function (r) { return str_(r.AliasOf).toLowerCase() === tk; });
+  const convert = [];
+  want.forEach(function (a) {
+    const hits = (byName[a.toLowerCase()] || []).filter(function (r) { return str_(r.AliasOf).toLowerCase() !== tk; });
+    hits.forEach(function (r) {
+      const isFree = str_(r.Category) === FREE_CATEGORY_ && !str_(r.AliasOf);
+      if (isFree && str_(r.FreeStatus) === FREE_ST.NO) { convert.push(r); return; }
+      if (isFree) throw new Error('ERR_ALIAS_IS_FREE:' + a);
+      throw new Error('ERR_ALIAS_TAKEN:' + a);
+    });
+  });
+  if (convert.length) setMany_(t, convert.map(function (r) { return { row: r, obj: { AliasOf: target, Category: '', FreeStatus: FREE_ST.OK, FreeNote: 'اسم بديل لـ ' + target + ' — ' + user.name } }; }));
+  // المحذوف من القائمة: من الأسفل للأعلى حتى لا تتغير أرقام الصفوف أثناء الحذف
+  const removed = mine.filter(function (r) { return !seen[str_(r.ItemName).toLowerCase()]; });
+  removed.sort(function (a, b) { return b._row - a._row; }).forEach(function (r) { sheet_('ItemsCatalog').deleteRow(r._row); });
+  if (removed.length) markDirty_('ItemsCatalog');
+  const have = {};
+  mine.concat(convert).forEach(function (r) { have[str_(r.ItemName).toLowerCase()] = true; });
+  const added = want.filter(function (a) { return !have[a.toLowerCase()]; });
+  added.forEach(function (a) {
+    append_('ItemsCatalog', { ItemName: a, AliasOf: target, FreeStatus: FREE_ST.OK, FreeBy: user.name, FreeAt: new Date(), FreeNote: 'اسم بديل أضافه ' + user.name });
+  });
+  if (added.length || removed.length || convert.length) {
+    logAction_('', 'أسماء بديلة لـ ' + target + ': ' + (added.concat(convert.map(function (r) { return str_(r.ItemName); })).length ? '+' + added.concat(convert.map(function (r) { return str_(r.ItemName); })).join('، ') : '') +
+      (removed.length ? ' −' + removed.map(function (r) { return str_(r.ItemName); }).join('، ') : ''), user.name);
+  }
+  return { added: added.length + convert.length, removed: removed.length };
 }
 
 /** حذف صنف: يُمنع إن كان في طلب مفتوح لم يُرسل أو عهدة قائمة؛ أسماؤه البديلة تُحذف معه */

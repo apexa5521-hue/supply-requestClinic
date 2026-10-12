@@ -2,16 +2,18 @@
 const { makeTutorial } = require('./engine');
 
 const scenes = {
-  intro: { ar: "هذا الفيديو لمدير النظام: المستخدمون، والأدوار والصلاحيات، والنسخ الاحتياطي، وتجهيز النظام." },
+  intro: { ar: "هذا الفيديو لمدير النظام: المستخدمون، والأطباء، والأدوار والصلاحيات، والنسخ الاحتياطي، وتجهيز النظام." },
   list: { ar: "كل الحسابات: الدور والفرع والقسم. وتنبيه بالأطباء الذين بلا حساب، لأن طلباتهم تتخطى اعتماد الطبيب." },
   nurse: { ar: "اكتب الاسم والرقم السري، واختر الدور «ممرضة»، ثم عياداتها." },
   fields: { ar: "الطبيب له الطبيب المرتبط، والتموين له قسم (أسنان أو جلدية)، ومدير الفرع له فرع. اضغط «حفظ» ويعمل الحساب فورًا." },
+  doctors: { ar: "تبويب «الأطباء» لك أنت فقط، والتموين لا يراه: أضف الطبيب، واكتب تخصصه وتخصصه الدقيق، وعلّم عياداته. وبدون أي عيادة يظهر الطبيب في كل العيادات." },
+  doclogin: { ar: "في «حساب الدخول» اكتب اسم مستخدم ورقمًا سريًا، فيُنشأ له حساب طبيب ويدخل فورًا. أو اكتب اسم حساب طبيب موجود ليرتبط به. وتغيير اسم الطبيب ينتقل لطلباته وحسابه تلقائيًا." },
   roles: { ar: "لكل دور إداري اضغط «تعديل» وعلّم الصلاحيات: التقارير، المتابعة، البلاغات، الاستبيان." },
   backup: { ar: "نسخة كاملة من الشيت كل ليلة تلقائيًا، واضغط الزر قبل أي تعديل كبير." },
   setup: { ar: "يعمل بعد كل تحديث ويعرض نتيجة كل خطوة، والخطوة الفاشلة تُعاد بضغطة. شكرًا لك." }
 };
 const steps = {
-  login: { en: 'Sign in', ar: 'تسجيل الدخول' }, users: { en: 'Users', ar: 'المستخدمون' }, roles: { en: 'Roles & permissions', ar: 'الأدوار والصلاحيات' },
+  login: { en: 'Sign in', ar: 'تسجيل الدخول' }, users: { en: 'Users', ar: 'المستخدمون' }, doctors: { en: 'Doctors', ar: 'الأطباء' }, roles: { en: 'Roles & permissions', ar: 'الأدوار والصلاحيات' },
   backup: { en: 'Backups', ar: 'النسخ الاحتياطية' }, setup: { en: 'System setup', ar: 'تجهيز النظام' }
 };
 
@@ -41,6 +43,29 @@ async function flow(h) {
     await h.select('#uRole', 'Nurse'); await wait(300);
     await click('#uClinics .chip >> nth=2');
     await click('#uSave'); await wait(1400);
+  });
+  await scene('doctors', 'doctors', async () => {
+    // القائمة الجانبية طويلة للأدمن: تتمرر حتى زر «الأطباء»
+    await page.locator('.sidebar [data-view="docadmin"]').first().scrollIntoViewIfNeeded();
+    await h.nav('docadmin');
+    await page.waitForSelector('#daList .da-row'); await wait(500);
+    await highlight('#daList .da-row >> nth=0', 1300);
+    await click('.card-head [data-act="daEdit"]');
+    await page.waitForSelector('.modal #daN'); await wait(400);
+    await type('.modal #daN', 'Dr. Nasser');
+    await type('.modal #daS', 'Dentistry');
+    await type('.modal #daSub', 'Endodontics');
+    await click('.modal .da-cl[value="Dental Clinic 2"]'); await wait(400);
+  });
+  await scene('doclogin', 'doctors', async () => {
+    await type('.modal #daL', 'Dr.Nasser');
+    await type('.modal #daPw', '2468');
+    await highlight('.modal #daL', 900);
+    await click('.modal #daOk'); await wait(1200);
+    await page.waitForSelector('#daList .da-row:has-text("Dr. Nasser")');
+    await page.locator('#daList .da-row:has-text("Dr. Nasser")').scrollIntoViewIfNeeded();
+    await highlight('#daList .da-row:has-text("Dr. Nasser")', 1800);
+    await page.evaluate(() => go('users')); await page.waitForSelector('#rTable'); await wait(600);
   });
   await scene('roles', 'roles', async () => {
     await page.$eval('#rTable', el => el.scrollIntoView({ block: 'center', behavior: 'smooth' })); await wait(800);

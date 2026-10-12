@@ -2,7 +2,7 @@
 const { makeTutorial } = require('./engine');
 
 const scenes = {
-  intro: { ar: 'هذا الفيديو للتموين: تجهيز الطلبات، وإرسالها على شحنات، وتصحيح الخطأ، والبوكسات، وأدوات العهدة.' },
+  intro: { ar: 'هذا الفيديو للتموين: تجهيز الطلبات، وإرسالها على شحنات، وتصحيح الخطأ، والبوكسات، والأصناف الحرة، والكتالوج، وأدوات العهدة.' },
   login: { ar: 'سجّل الدخول باسمك ورقمك السري. حسابك يعرض طلبات قسمك فقط: أسنان أو جلدية.' },
   list: { ar: 'كل بطاقة ملوّنة بلون مرحلتها، والأزرار بالأعلى تفلتر حسب المرحلة: لدى الطبيب، معتمد، جديد، قيد التجهيز، مرسل جزئيًا، وصل الفرع.' },
   filters: { ar: 'اختر طبيبًا لتظهر طلباته فقط، أو فلتر بالفرع أو العيادة أو الشهر، أو ابحث.' },
@@ -15,6 +15,10 @@ const scenes = {
   cancel: { ar: 'لإلغاء طلبات حدّدها واضغط «إلغاء الطلب» واكتب السبب، ويصل الممرضة إيميل. ولاحظ: الممرضة نفسها تقدر تعدّل أو تلغي طلبها ما دام «جديد» ولم تبدأ فيه.' },
   boxes: { ar: 'صفحة «البوكسات» تعرض مكان كل بوكس: جاهز للنقل، أو في الفرع، أو فارغ. اطبع ستيكر QR لكل بوكس وثبّته عليه، فيرتبط البوكس بطبيبه دائمًا. وأرسل رابط «الشحنات» للسواق مرة واحدة.' },
   move: { ar: 'تحتاج البوكس؟ اضغط «طلب نقل» واختر المكان، فيظهر في «الشحنات» عند السواق.' },
+  free: { ar: 'تبويب «الأصناف الحرة»: كل صنف كتبته ممرضة من خارج الكتالوج يصلك هنا، ومعه اسمها والطلبات التي فيها. حدّد الأصناف واضغط «اعتماد المحدد».' },
+  freedec: { ar: 'لكل صنف: إن كان موجودًا عندك باسم آخر، اختره من القائمة فيرتبط به، وتشوف الممرضة اسمها بجانب اسم التموين بلونين، وطلباتها المفتوحة تتحول للاسم الصحيح. وإلا اتركه «صنف جديد» فيدخل الكتالوج. وما لا يلزم اضغط «رفض» واكتب السبب.' },
+  catalog: { ar: 'تبويب «الأصناف» فيه الكتالوج كاملًا: أضف صنفًا جديدًا، واختر تصنيفه من القائمة أو اكتب تصنيفًا جديدًا، وحدّد القسم والنوع: مستهلك أو ماتيريال.' },
+  catedit: { ar: 'للأدوات علّم «عهدة»، وإن كان لها رقم تسلسلي علّمه أيضًا. واضغط «تعديل» لتغيير أي صنف، وتغيير الاسم ينتقل للطلبات المفتوحة والعهدة تلقائيًا. والحذف يُمنع ما دام الصنف في طلب مفتوح.' },
   std: { ar: 'العهدة لأدوات العيادات مثل الهاندبيس: حدّد المعيار لكل عيادة.' },
   issue: { ar: 'عند وصول طلب أداة من الممرضة لعيادة معيّنة، مثل عيادة 2: قبل إرسال الهاندبيس افتح صفحة «العهدة»، واضغط «صرف عهدة» تحت العيادة التي طلبتها، واكتب الرقم التسلسلي لكل قطعة (Enter للقطعة التالية)، ثم اضغط «صرف» وأرسلها مع السواق.' },
   edit: { ar: 'صرفت بالغلط؟ اضغط على الرقم التسلسلي: تقدر تصحّح الرقم أو الكمية، أو تنقلها لعيادة ثانية، أو تحذفها. كل تعديل يُسجَّل، والأداة التي عليها بلاغ مفتوح لا تُحذف.' },
@@ -23,7 +27,7 @@ const scenes = {
 };
 const steps = {
   login: { ar: 'تسجيل الدخول' }, req: { ar: 'الطلبات' }, ship: { ar: 'الشحنات' },
-  undo: { ar: 'التصحيح' }, boxes: { ar: 'البوكسات' }, custody: { ar: 'العهدة' }, comp: { ar: 'البلاغات' }
+  undo: { ar: 'التصحيح' }, boxes: { ar: 'البوكسات' }, free: { ar: 'الأصناف الحرة' }, catalog: { ar: 'الأصناف' }, custody: { ar: 'العهدة' }, comp: { ar: 'البلاغات' }
 };
 
 async function flow(h) {
@@ -126,6 +130,54 @@ async function flow(h) {
     await click('#bxList [data-act="bxMove"]');
     await page.waitForSelector('#bmTo'); await wait(500);
     await click('#bmOk'); await wait(1200);
+  });
+  // أصناف حرة من الممرضات: واحد موجود باسم آخر، وواحد جديد، وواحد غير لازم
+  await h.api('createRequest', [{ clinic: 'Dental Clinic 1', doctor: 'Dr. Khalid', type: 'شهري', items: [
+    { name: 'Nitrile gloves M', qty: 4, free: true, type: 'مستهلك' }, { name: 'Saliva ejectors', qty: 6, free: true, type: 'مستهلك' },
+    { name: 'Gloves medium', qty: 2, free: true, type: 'مستهلك' }] }], ['Sara', '1111']);
+  // فيديو بلا أسعار: خانة السعر في نوافذ الاعتماد والأصناف لا تظهر أصلاً (تُعبّأ في الخلفية)
+  await page.addStyleTag({ content: '.fi-price-f, .modal .field:has(#caP) { display: none !important; }' });
+  await scene('free', 'free', async () => {
+    await h.nav('freeitems');
+    await page.waitForSelector('#fiList .fi-row'); await wait(500);
+    await highlight('#fiList .fi-row >> nth=0', 1300);
+    await click('#fiList .fi-row:has-text("Gloves medium") [data-act="fiReject"]');
+    await page.waitForSelector('.modal #fiReason'); await wait(500);
+    await highlight('.modal #fiReason', 1000);
+    await click('.modal #fiRejOk'); await wait(1200);
+    await click('#fiAll'); await wait(400);
+    await click('#fiApproveBtn');
+    await page.waitForSelector('.modal .fi-dec'); await wait(600);
+  });
+  await scene('freedec', 'free', async () => {
+    const g = '.modal .fi-dec:has-text("Nitrile gloves M")';
+    await point(g + ' .fi-match');
+    await type(g + ' .fi-match', 'Gloves M'); await wait(500);
+    await highlight(g + ' .fi-match-hint', 1600);
+    await highlight('.modal .fi-dec:has-text("Saliva ejectors")', 1100);
+    // الحقل المالي مخفي في فيديو التموين: يُعبّأ بدون عرضه
+    await page.evaluate(() => { const i = document.querySelector('.modal .fi-dec:not(:has(.fi-match-hint:not(.hidden))) .fi-price'); if (i) i.value = '9'; });
+    await click('.modal #fiOk'); await wait(1400);
+  });
+  await scene('catalog', 'catalog', async () => {
+    await h.nav('catalog');
+    await page.waitForSelector('#caList table'); await wait(500);
+    await highlight('#caCat', 900);
+    await click('.card-head [data-act="caEdit"]');
+    await page.waitForSelector('.modal #caN'); await wait(400);
+    await type('.modal #caN', 'Dental bib');
+    await type('.modal #caC', 'Disposables');
+    await page.evaluate(() => { const i = document.querySelector('.modal #caP'); if (i) i.value = '1'; });
+    await highlight('.modal #caD', 800); await highlight('.modal #caT', 800);
+    await click('.modal #caOk'); await wait(1300);
+  });
+  await scene('catedit', 'catalog', async () => {
+    await type('#caQ', 'handpiece'); await wait(700);
+    await click('#caList tbody tr >> nth=0 >> [data-act="caEdit"]');
+    await page.waitForSelector('.modal #caA'); await wait(500);
+    await highlight('.modal #caA', 900); await highlight('.modal #caS', 900);
+    await page.keyboard.press('Escape'); await wait(400);
+    await type('#caQ', '');
   });
   await scene('std', 'custody', async () => {
     await h.nav('assets');
