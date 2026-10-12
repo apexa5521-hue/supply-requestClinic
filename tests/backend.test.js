@@ -2678,3 +2678,51 @@ test('order rules: procurement/management set limits that apply at once; nurse s
   assert.equal(R.inWindow, today === 1);
   assert.equal(new Date(new Date(R.dispatchAt).getTime() + 3 * 36e5).getUTCDate(), 28);
 });
+
+test('doctor custody + finance charge types: handpiece in a doctor request is issued to the doctor; finance sets consumable/material per doctor; finance edits the catalog', () => {
+  const { api, login, gas } = boot();
+  const n = login('سارة', '1111'), p = login('علي', '3333'), f = login('نواف', '7777');
+  // finance has the items tab: mark one item as material
+  api(f, 'saveCatalogItem', 'Ivoclar Tetric-N A2', { name: 'Ivoclar Tetric-N A2', commercial: 'Tetric N-Ceram', category: 'Composite', price: 120, type: 'ماتيريال' });
+  assert.equal(rows(gas, 'ItemsCatalog').find(r => r.ItemName === 'Ivoclar Tetric-N A2').ItemType, 'ماتيريال');
+  // finance: what is charged to each doctor
+  throwsCode(() => api(p, 'setDoctorCharge', 'د. نورة', 'consumable'), 'ERR_FORBIDDEN');
+  throwsCode(() => api(f, 'setDoctorCharge', 'د. نورة', 'x'), 'ERR_BAD_CHARGE');
+  assert.equal(api(f, 'getDoctorCharges').find(d => d.name === 'د. نورة').charge, 'all');
+  // nurse asks for a handpiece inside the doctor's request (د. نورة has no account → straight to procurement)
+  const id = api(n, 'createRequest', { doctor: 'د. نورة', type: 'شهري', items: [{ name: 'PROPHY PASTE', qty: 2 }, { name: 'Ivoclar Tetric-N A2', qty: 1 }, { name: 'Handpiece Low Speed', qty: 2 }] }).id;
+  api(p, 'bulkUpdateStatus', [id], 'قيد التجهيز');
+  api(p, 'dispatchItems', id, ['PROPHY PASTE', 'Ivoclar Tetric-N A2', 'Handpiece Low Speed']);
+  const mine = rows(gas, 'Assets').filter(r => r.Doctor === 'د. نورة');
+  assert.deepEqual(mine.map(r => [r.Item, r.Clinic, Number(r.Qty), r.RequestID]), [['Handpiece Low Speed', 'عيادة الأسنان 1', 1, id + '#1'], ['Handpiece Low Speed', 'عيادة الأسنان 1', 1, id + '#1']], 'one custody unit per handpiece, on the doctor');
+  // procurement issues a curing light straight to another doctor
+  throwsCode(() => api(p, 'issueAssets', { clinic: 'عيادة الأسنان 1', item: 'Curing Light', qty: 1, doctor: 'د. مجهول' }), 'ERR_BAD_DOCTOR');
+  api(p, 'issueAssets', { clinic: 'عيادة الأسنان 1', item: 'Curing Light', qty: 1, doctor: 'د. خالد' });
+  // custody tab: the clinic's doctors and who holds what
+  const cl = api(p, 'getClinicAssets', { clinic: 'عيادة الأسنان 1' })[0];
+  assert.deepEqual(cl.doctors.map(d => [d.name, d.units, d.value]), [['د. نورة', 2, 3000], ['د. خالد', 1, 800]]);
+  assert.ok(cl.items.find(i => i.item === 'Handpiece Low Speed').assets.every(a => a.doctor === 'د. نورة'));
+  // move a unit to another doctor (or back to the clinic)
+  const hp = cl.items.find(i => i.item === 'Handpiece Low Speed').assets[0];
+  api(p, 'updateAsset', hp.id, { serial: 'LS-900', doctor: 'د. خالد' });
+  api(p, 'updateAsset', hp.id, { doctor: 'د. نورة' });
+  // doctor report: everything charged by default, custody listed once with its value
+  let rep = api(f, 'getDoctorReport', { doctor: 'د. نورة' });
+  assert.equal(rep.summary.total, 240, 'consumable 120 + material 120; the handpiece is not counted as a consumable');
+  assert.deepEqual([rep.summary.custodyUnits, rep.summary.custodyTotal, rep.custody.length], [2, 3000, 2]);
+  // finance: consumables only → past requests recalculated
+  api(f, 'setDoctorCharge', 'د. نورة', 'consumable');
+  rep = api(f, 'getDoctorReport', { doctor: 'د. نورة' });
+  assert.equal(rep.charge, 'consumable');
+  assert.equal(rep.summary.total, 120);
+  assert.ok(rep.rows[0].items.find(i => i.item === 'Ivoclar Tetric-N A2').notCharged, 'material line shown but not charged');
+  assert.equal(rows(gas, 'Doctors').find(r => r.DoctorName === 'د. نورة').ChargeTypes, 'مستهلك');
+  const bill = api(f, 'getStatsReport', {}).billing.find(b => b.name === 'د. نورة');
+  assert.deepEqual([bill.value, bill.charge], [120, 'consumable'], 'billing follows the charge setting');
+  api(f, 'setDoctorCharge', 'د. نورة', 'material');
+  assert.equal(api(f, 'getDoctorReport', { doctor: 'د. نورة' }).summary.total, 120);
+  // cancelling the shipment removes the custody it created
+  api(p, 'revertStep', id, 'أُرسلت بالخطأ');
+  assert.equal(rows(gas, 'Assets').filter(r => r.RequestID === id + '#1').length, 0);
+  assert.equal(rows(gas, 'Assets').filter(r => r.Doctor === 'د. خالد').length, 1, 'other custody untouched');
+});

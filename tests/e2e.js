@@ -893,6 +893,19 @@ function log(msg) { console.log('  ✔ ' + msg); }
   expect(await toastHas(page, 'تم حذف العهدة'), 'unit issued by mistake deleted');
   await page.waitForTimeout(300);
   expect(!(await dentalCard.textContent()).includes('WRONG-1') && (await dentalCard.textContent()).includes('LS-102'), 'deleted unit gone; corrected serial restored');
+  // صرف عهدة على طبيب: تظهر أطباء العيادة ولمن صُرفت كل قطعة
+  await page.click('#asClinics [data-act="asIssue"][data-clinic="عيادة الأسنان 1"]');
+  await page.waitForSelector('.modal #isDoc');
+  await page.selectOption('.modal #isItem', 'Curing Light');
+  expect(await page.$eval('.modal #isDoc', s => [...s.options].map(o => o.textContent).join('|')).then(x => x.includes('د. خالد') && x.includes('د. نورة')), 'issue window lists the clinic doctors');
+  await page.selectOption('.modal #isDoc', 'د. خالد');
+  await page.click('.modal #isOk');
+  expect(await toastHas(page, 'تم صرف 1 قطعة'), 'custody issued to a doctor');
+  await page.waitForTimeout(300);
+  const docsStrip = await dentalCard.locator('.as-docs').textContent();
+  expect(docsStrip.includes('أطباء العيادة') && docsStrip.includes('د. خالد') && docsStrip.includes('1 قطعة'), 'custody tab: clinic doctors and what each holds — ' + docsStrip);
+  expect(await dentalCard.locator('.as-unit:has(.as-doc:has-text("د. خالد"))').count() === 1, 'the unit shows who it is issued to');
+  await shot(page, 'assets-doctor-custody');
   await shot(page, 'assets-procurement-clinics', true);
   await logout(page);
   await login(page, 'سارة', '1111');
@@ -1114,7 +1127,18 @@ function log(msg) { console.log('  ✔ ' + msg); }
   await page.click('#fnPrices tr:has-text("Itero Sleeve") [data-act="priceSave"]');
   expect(await toastHas(page, 'حُفظ سعر Itero Sleeve'), 'finance edited a catalog price');
   expect(await page.evaluate(() => { const d = __gas.dump('ItemsCatalog'); const h = d[0]; const r = d.find(x => x[0] === 'Itero Sleeve'); return r[h.indexOf('Price')]; }) === 320, 'price written to the ItemsCatalog sheet');
+  // حسبة الأطباء: المالية تحدد لكل طبيب ما يُحسب عليه
+  await page.waitForSelector('#fnCharges .ch-sel[data-doc="د. نورة"]');
+  await page.selectOption('#fnCharges .ch-sel[data-doc="د. نورة"]', 'consumable');
+  expect(await toastHas(page, 'د. نورة: المستهلك فقط'), 'finance set a doctor to consumables only');
+  expect(await page.evaluate(() => { const d = __gas.dump('Doctors'); const h = d[0]; return d.find(x => x[0] === 'د. نورة')[h.indexOf('ChargeTypes')]; }) === 'مستهلك', 'stored in the Doctors sheet');
+  await page.selectOption('#fnCharges .ch-sel[data-doc="د. نورة"]', 'all');
+  await shot(page, 'finance-doctor-charges');
   await shot(page, 'finance', true);
+  // المالية تضيف وتعدّل الأصناف مثل التموين
+  await page.click('.sidebar [data-view="catalog"]');
+  await page.waitForSelector('#caList tr:has-text("Itero Sleeve")');
+  expect(await page.isVisible('[data-act="caEdit"]'), 'finance has the items tab with add/edit');
   await page.click('.sidebar [data-view="assetsdash"]');
   await page.waitForSelector('#asStats .rp-tile');
   expect((await page.textContent('#asStats')).includes('1,500') && (await page.textContent('#asStats')).includes('Handpiece Low Speed'), 'finance sees custody cost (loss 1,500) by tool');
