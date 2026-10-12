@@ -1425,7 +1425,7 @@ test('roles split: legacy quality/executive/finance migrate; executive keeps ful
   throwsCode(() => api(e, 'getUsers'), 'ERR_FORBIDDEN'); // بعد وجود الأدمن: صلاحيات التنفيذي الافتراضية فقط (فوراً)
   assert.ok(api(e, 'getExecutiveStats'));
   const a = login('admin', '9999');
-  assert.equal(api(a, 'getConfig').user.perms.length, 15);
+  assert.equal(api(a, 'getConfig').user.perms.length, 16);
   const f = login('نواف', '7777');
   assert.ok(api(f, 'getFinance', {}).summary);
   throwsCode(() => api(f, 'getComplaints'), 'ERR_FORBIDDEN');
@@ -1567,7 +1567,7 @@ test('management roles (finance…) are added automatically when missing, so the
   api(a, 'createUser', { name: 'المالية', password: '2468', role: 'مالية', email: 'finance@example.com' });
   const f = api(null, 'login', 'المالية', '2468');
   assert.equal(f.user.screen, 'finance');
-  assert.deepEqual(f.user.perms.slice().sort(), ['assets', 'doctor_prices', 'finance', 'monitor', 'prices_edit', 'reports'].sort());
+  assert.deepEqual(f.user.perms.slice().sort(), ['assets', 'doctor_prices', 'finance', 'monitor', 'order_rules', 'prices_edit', 'reports'].sort());
   login('المدير', '1234');
   assert.equal(rows(gas, 'Roles').filter(r => r.RoleName === 'مالية').length, 1, 'added once only');
 });
@@ -2635,4 +2635,46 @@ test('print data: free items not approved by procurement are flagged; alias line
   api(p, 'saveCatalogItem', 'DENTAL FLOSS', { name: 'DENTAL FLOSS', category: 'Hygiene', price: 12.5, aliases: ['Saliva tips old'] });
   d = api(p, 'getRequestDetail', id);
   assert.equal(d.items.find(i => i.item === 'PROPHY PASTE').official, undefined);
+});
+
+test('order rules: procurement/management set limits that apply at once; nurse sees window + what is left', () => {
+  const { api, login, gas } = boot();
+  const n = login('سارة', '1111'), r2 = login('ريم', '2222'), p = login('علي', '3333'), q = login('منى', '5555');
+  // defaults keep today's behaviour (no limits)
+  let R = api(n, 'getOrderRules');
+  assert.deepEqual([R.winStart, R.winEnd, R.dispatchDay, R.emergencyHours, R.emergencyMax, R.monthlyMax, R.emergencyMaxItems, R.canEdit], [15, 20, 1, 48, 0, 0, 0, false]);
+  assert.deepEqual(R.left, { monthly: null, emergency: null });
+  const base = { winStart: 1, winEnd: 31, dispatchDay: 1, monthlyMax: 1, emergencyMax: 1, emergencyHours: 3, emergencyMaxItems: 2 };
+  throwsCode(() => api(n, 'saveOrderRules', base), 'ERR_FORBIDDEN');
+  throwsCode(() => api(p, 'saveOrderRules', Object.assign({}, base, { emergencyHours: 2 })), 'ERR_RULE_RANGE:emergencyHours');
+  throwsCode(() => api(p, 'saveOrderRules', Object.assign({}, base, { emergencyHours: 49 })), 'ERR_RULE_RANGE:emergencyHours');
+  throwsCode(() => api(p, 'saveOrderRules', Object.assign({}, base, { winStart: 20, winEnd: 10 })), 'ERR_RULE_WINDOW');
+  assert.equal(api(q, 'getOrderRules').canEdit, true, 'quality can edit');
+  R = api(p, 'saveOrderRules', base);
+  assert.equal(R.emergencyHours, 3);
+  assert.ok(rows(gas, 'Settings').some(r => r.Key === 'EmergencyMaxPerMonth' && Number(r.Value) === 1), 'stored in Settings');
+  // nurse: inside the window, one of each left
+  R = api(n, 'getOrderRules');
+  assert.deepEqual([R.inWindow, R.left.emergency, R.left.monthly], [true, 1, 1]);
+  const em = items => ({ doctor: 'د. خالد', type: 'طارئ', items: items });
+  throwsCode(() => api(n, 'createRequest', em([{ name: 'PROPHY PASTE', qty: 1 }, { name: 'DENTAL FLOSS', qty: 1 }, { name: 'MICRO BRUSH FINE', qty: 1 }])), 'ERR_EMERGENCY_ITEMS');
+  const ok = api(n, 'createRequest', em([{ name: 'PROPHY PASTE', qty: 5 }, { name: 'DENTAL FLOSS', qty: 9 }]));
+  assert.equal(ok.rules.left.emergency, 0, 'submit returns what is left');
+  throwsCode(() => api(n, 'createRequest', em([{ name: 'PROPHY PASTE', qty: 1 }])), 'ERR_EMERGENCY_LIMIT');
+  // the emergency deadline follows the new hours
+  const mine = api(n, 'getMyRequests').find(r => r.id === ok.id);
+  assert.equal(Math.round((new Date(mine.dueAt) - new Date(mine.submittedAt)) / 36e5), 3);
+  // monthly limit
+  api(n, 'createRequest', { doctor: 'د. خالد', type: 'شهري', items: [{ name: 'PROPHY PASTE', qty: 1 }] });
+  throwsCode(() => api(n, 'createRequest', { doctor: 'د. خالد', type: 'شهري', items: [{ name: 'DENTAL FLOSS', qty: 1 }] }), 'ERR_MONTHLY_LIMIT');
+  // per person: another nurse still has hers
+  assert.equal(api(r2, 'getOrderRules').left.emergency, 1);
+  // a withdrawn/cancelled request gives the slot back
+  api(p, 'cancelRequests', [ok.id], 'تجربة');
+  assert.equal(api(n, 'getOrderRules').left.emergency, 1);
+  // outside the window + dispatch day after the window = same month
+  R = api(p, 'saveOrderRules', Object.assign({}, base, { winStart: 1, winEnd: 1, dispatchDay: 28 }));
+  const today = Number(new Date(Date.now() + 3 * 36e5).toISOString().slice(8, 10));
+  assert.equal(R.inWindow, today === 1);
+  assert.equal(new Date(new Date(R.dispatchAt).getTime() + 3 * 36e5).getUTCDate(), 28);
 });

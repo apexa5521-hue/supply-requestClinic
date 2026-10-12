@@ -1396,6 +1396,45 @@ function log(msg) { console.log('  ✔ ' + msg); }
   expect(!(await page.$(`.req:has-text("${wdId2}") .req-actions [data-act="withdraw"]`)), 'card loses the cancel button once cancelled');
   await logout(page);
 
+  // ---------- Request rules: procurement sets limits → nurse sees the window bar and is stopped with a clear message ----------
+  await login(page, 'علي', '3333');
+  await page.click('.sidebar [data-view="rules"]');
+  await page.waitForSelector('#rl_emergencyMaxItems');
+  await page.fill('#rl_winStart', '25'); await page.fill('#rl_winEnd', '20');
+  await page.click('#rlSave');
+  expect((await page.textContent('#rlErr')).includes('نهاية النافذة'), 'rules: window end before start is refused');
+  await page.fill('#rl_winStart', '1'); await page.fill('#rl_winEnd', '31');
+  await page.fill('#rl_emergencyHours', '2');
+  await page.click('#rlSave');
+  expect(!(await page.isHidden('#rlErr')), 'rules: emergency hours below 3 refused');
+  await page.fill('#rl_emergencyHours', '6'); await page.fill('#rl_emergencyMaxItems', '1'); await page.fill('#rl_emergencyMax', '9');
+  await page.click('#rlSave');
+  expect(await toastHas(page, 'حُفظت القواعد'), 'rules saved by procurement');
+  expect((await page.textContent('#rlBox .rule-bar')).includes('داخل نافذة الطلب الشهري'), 'rules page previews what nurses see');
+  await shot(page, 'order-rules');
+  await logout(page);
+  await login(page, 'سارة', '1111');
+  await page.click('.sidebar [data-view="new"]');
+  await page.waitForSelector('.rule-slot .rule-bar.in');
+  const bar = await page.textContent('.rule-slot .rule-bar');
+  expect(bar.includes('أنت داخل نافذة الطلب الشهري') && bar.includes('الطارئ المتبقي لك هذا الشهر') && bar.includes('6 ساعة') && bar.includes('1 أصناف'), 'nurse sees window, emergency left and limits — ' + bar);
+  await page.click('[data-seg-name="reqKind"][data-v="doctor"]');
+  await page.waitForSelector('#fDoctor option[value="د. خالد"]', { state: 'attached' });
+  await page.click('[data-seg-name="reqType"][data-v="طارئ"]');
+  for (const q of ['floss', 'prophy']) { await page.fill('#itemSearch', q); await page.waitForSelector('.combo-opt'); await page.keyboard.press('Enter'); await page.keyboard.press('Escape'); }
+  await page.click('#submitBtn');
+  const em = await page.textContent('#submitErr');
+  expect(em.includes('عدد المستهلكات للطلب الطارئ') && em.includes('التموين') && em.includes('المتبقي لك من الطلبات الطارئة'), 'too many items for an emergency: clear message + emergencies left — ' + em);
+  await shot(page, 'emergency-items-limit');
+  await page.evaluate(() => { nurseDraft().items = []; saveDraft(); });
+  await logout(page);
+  await login(page, 'د. خالد', 'dr-khaled-7');
+  await page.click('.sidebar [data-view="reviews"]');
+  await page.waitForSelector('.rule-slot .rule-bar');
+  expect(await page.isVisible('.rule-slot .rule-bar') && (await page.textContent('.rule-slot .rule-bar')).includes('نافذة الطلب الشهري'), 'doctor sees the monthly window bar');
+  await logout(page);
+  await page.evaluate(async () => { const tok = (await __api(null, 'login', ['علي', '3333'])).token; await __api(tok, 'saveOrderRules', [{ winStart: 15, winEnd: 20, dispatchDay: 1, monthlyMax: 0, emergencyMax: 0, emergencyHours: 48, emergencyMaxItems: 0 }]); });
+
   // ---------- GitHub Pages mode: fetch → real doPost (Node vm), batching + retry ----------
   {
     const vm = require('vm');
