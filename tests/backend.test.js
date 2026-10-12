@@ -1908,6 +1908,10 @@ test('boxes: dispatch loads the doctor box → driver scan delivers with photo �
   // الممرضة: الطلب «وصل الفرع» + تنبيه + تعليق
   const mine = api(reem, 'getMyRequests').find(r => r.id === id);
   assert.equal(mine.atBranch, true);
+  // مكان البوكس + رابط الصورة (رابط Drive خارجي — لا تُحفظ الصورة داخل الطلب)
+  assert.deepEqual([mine.boxAt.to, mine.boxAt.box], ['جدة', 'BOX-001']);
+  assert.ok(/^https?:\/\//.test(mine.boxAt.photo) && !/^data:/.test(mine.boxAt.photo), 'photo is an external link, not inline data');
+  assert.equal(api(p, 'getRequests', {}).find(r => r.id === id).boxAt.to, 'جدة', 'same list builder feeds the doctor screen');
   assert.ok(api(reem, 'getAlerts').some(a => a.code === 'alert_box_arrived'));
   const det = api(reem, 'getRequestDetail', id);
   assert.deepEqual([det.shipments[0].delivered.to, det.shipments[0].delivered.by], ['جدة', 'أبو فهد']);
@@ -1919,6 +1923,7 @@ test('boxes: dispatch loads the doctor box → driver scan delivers with photo �
   bx = api(p, 'getBoxes');
   assert.deepEqual([bx.boxes[0].status, bx.boxes[0].location, bx.boxes[0].loads.length], ['فارغ', 'جدة', 0]);
   assert.equal(api(reem, 'getMyRequests').find(r => r.id === id).atBranch, false);
+  assert.equal(api(reem, 'getMyRequests').find(r => r.id === id).boxAt, undefined, 'no box line after receipt');
   // التموين يطلب إرجاعه ← مهمة للسواق ← تسليم للتموين بدون شحنة
   api(p, 'requestBoxMove', 'BOX-001', 'التموين');
   assert.deepEqual(api(null, 'driverTasks', { k: bx.driverToken }).map(x => [x.id, x.status, x.location, x.destination]), [['BOX-001', 'مطلوب نقله', 'جدة', 'التموين']]);

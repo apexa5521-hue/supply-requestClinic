@@ -561,6 +561,9 @@ function log(msg) { console.log('  ✔ ' + msg); }
   expect(await page.textContent(`.req:has-text("${newId}") [data-act="receive"] .count-pill`) === '2', 'receive button shows 2 shipments waiting');
   expect(await page.isVisible(`.req:has-text("${newId}") .tag.arrived`), 'request card shows «وصل الفرع» after the driver delivery');
   expect((await page.getAttribute(`.req:has-text("${newId}")`, 'style') || '').includes('--t-cyan'), 'arrived request card is colored as a whole');
+  expect((await page.textContent(`.req:has-text("${newId}") .box-at`)).includes('البوكس في: ' + bx.destination), 'nurse card says where the box is');
+  expect(await page.getAttribute(`.req:has-text("${newId}") .box-at a`, 'target') === '_blank' && /^https?:/.test(await page.getAttribute(`.req:has-text("${newId}") .box-at a`, 'href')), 'box photo opens as an external link');
+  expect(await page.locator(`.req:has-text("${newId}") .box-at img`).count() === 0, 'photo is not loaded inside the system');
   await page.click('#mineChips [data-g="arrived"]');
   expect(await page.isVisible(`.req:has-text("${newId}")`), 'nurse filters «وصل الفرع» requests');
   await page.click('#mineChips [data-g="all"]');
@@ -576,6 +579,7 @@ function log(msg) { console.log('  ✔ ' + msg); }
   await page.click(`.req:has-text("${newId}") [data-act="receive"]`);
   await page.waitForSelector('.rq');
   expect(await page.locator('#rShip .chip').count() === 2, 'nurse picks which shipment arrived');
+  expect((await page.textContent('#rShip .box-at')).includes(bx.destination) && await page.isVisible('#rShip .box-at a[target="_blank"]'), 'receive window shows where to pick up the box + photo link');
   expect(await page.locator('.rcv-note:not(.last)').count() === 1 && await page.locator('.rq').count() === 2, 'first shipment: only its items, marked as partial receipt');
   expect((await page.textContent('#rShip tbody')).includes('MICRO BRUSH FINE') && await page.inputValue('#rShip .rq[data-i="0"], #rShip .rq >> nth=0') !== '', 'shipment lists its own quantities');
   await page.fill('.rq >> nth=0', '1');

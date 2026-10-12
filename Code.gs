@@ -2028,7 +2028,13 @@ function queryRequests_(filters) {
     r.lastShipAt = st.ships.length ? st.ships.reduce(function (m, g) { return toMs_(g.sentAt) > toMs_(m) ? g.sentAt : m; }, '') : '';
     r.pendingShipments = st.pending;
     // شحنة وصل بوكسها الفرع ولم تُستلم بعد → «وصل الفرع»
-    r.atBranch = st.ships.some(function (g) { return !g.received && g.delivered; });
+    const waiting = st.ships.filter(function (g) { return !g.received && g.delivered; });
+    r.atBranch = waiting.length > 0;
+    // مكان البوكس وصورته (رابط Drive فقط، لا تُحفظ الصورة في النظام): الممرضة تعرف وين تستلم، والطبيب يشوف وين وصل
+    if (r.atBranch) {
+      const dl = waiting[waiting.length - 1].delivered;
+      r.boxAt = { to: dl.to, photo: dl.photo, at: dl.at, box: dl.box };
+    }
     r.needsReview = !!reviewers[r.doctor];
     r.cleared = !r.needsReview || r.status === ST.APPROVED || !!r.approvedAt;
     r.awaitingDoctor = r.needsReview && !r.cleared && AWAITING_DOCTOR.indexOf(r.status) !== -1;
