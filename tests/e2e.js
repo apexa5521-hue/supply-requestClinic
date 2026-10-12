@@ -230,12 +230,17 @@ function log(msg) { console.log('  ✔ ' + msg); }
   expect((await page.inputValue('.item-line:nth-child(1) input')) === '3', 'qty stepper increments');
   // الكمية صفر: خطأ واضح ويُمنع الإرسال
   // القائمة قد تُعاد رسمها بعد إضافة البكج: نعيد كتابة الصفر حتى يثبت
-  for (let k = 0; k < 4; k++) {
+  // إضافة البكج قد ترسم القائمة متأخراً فترجع الكمية: نعيد الصفر حتى يبقى ثانية كاملة مع رسالته
+  const zeroHolds = () => page.evaluate(() => { const l = document.querySelector('.item-line:nth-child(1)'); return !!l && l.querySelector('input').value === '0' && !!l.querySelector('.qty-err:not(.hidden)'); });
+  for (let k = 0; k < 6; k++) {
     await page.fill('.item-line:nth-child(1) input', '0');
     await page.dispatchEvent('.item-line:nth-child(1) input', 'input');
-    if (await page.waitForSelector('.item-line:nth-child(1) .qty-err:not(.hidden)', { timeout: 1500 }).then(() => true, () => false)) break;
+    await page.waitForTimeout(1000);
+    if (await zeroHolds()) break;
   }
-  expect(await page.isVisible('.item-line:nth-child(1) .qty-err') && (await page.textContent('.item-line:nth-child(1) .qty-err')).includes('أقل كمية 1'), 'zero quantity shows "minimum is 1"');
+  // القائمة قد تُرسم من جديد لحظة الفحص: ننتظر الرسالة بدل فحصها مرة واحدة
+  const zeroErr = await page.waitForFunction(() => { const e = document.querySelector('.item-line:nth-child(1) .qty-err'); return !!e && !e.classList.contains('hidden') && e.offsetParent !== null && e.textContent.includes('أقل كمية 1'); }, null, { timeout: 5000 }).then(() => true, () => false);
+  expect(zeroErr, 'zero quantity shows "minimum is 1"');
   await page.click('#submitBtn');
   expect((await page.textContent('#submitErr')).includes('لا يمكن طلب صفر'), 'submit is blocked while a quantity is zero');
   await shot(page, 'nurse-qty-zero');
@@ -556,6 +561,9 @@ function log(msg) { console.log('  ✔ ' + msg); }
   expect(await page.textContent(`.req:has-text("${newId}") [data-act="receive"] .count-pill`) === '2', 'receive button shows 2 shipments waiting');
   expect(await page.isVisible(`.req:has-text("${newId}") .tag.arrived`), 'request card shows «وصل الفرع» after the driver delivery');
   expect((await page.getAttribute(`.req:has-text("${newId}")`, 'style') || '').includes('--t-cyan'), 'arrived request card is colored as a whole');
+  expect((await page.textContent(`.req:has-text("${newId}") .box-at`)).includes('البوكس في: ' + bx.destination), 'nurse card says where the box is');
+  expect(await page.getAttribute(`.req:has-text("${newId}") .box-at a`, 'target') === '_blank' && /^https?:/.test(await page.getAttribute(`.req:has-text("${newId}") .box-at a`, 'href')), 'box photo opens as an external link');
+  expect(await page.locator(`.req:has-text("${newId}") .box-at img`).count() === 0, 'photo is not loaded inside the system');
   await page.click('#mineChips [data-g="arrived"]');
   expect(await page.isVisible(`.req:has-text("${newId}")`), 'nurse filters «وصل الفرع» requests');
   await page.click('#mineChips [data-g="all"]');
@@ -571,6 +579,7 @@ function log(msg) { console.log('  ✔ ' + msg); }
   await page.click(`.req:has-text("${newId}") [data-act="receive"]`);
   await page.waitForSelector('.rq');
   expect(await page.locator('#rShip .chip').count() === 2, 'nurse picks which shipment arrived');
+  expect((await page.textContent('#rShip .box-at')).includes(bx.destination) && await page.isVisible('#rShip .box-at a[target="_blank"]'), 'receive window shows where to pick up the box + photo link');
   expect(await page.locator('.rcv-note:not(.last)').count() === 1 && await page.locator('.rq').count() === 2, 'first shipment: only its items, marked as partial receipt');
   expect((await page.textContent('#rShip tbody')).includes('MICRO BRUSH FINE') && await page.inputValue('#rShip .rq[data-i="0"], #rShip .rq >> nth=0') !== '', 'shipment lists its own quantities');
   await page.fill('.rq >> nth=0', '1');
@@ -1231,7 +1240,10 @@ function log(msg) { console.log('  ✔ ' + msg); }
   await page.waitForSelector('.modal .fi-dec');
   expect(await page.locator('.modal .fi-dec').count() === 2, 'approving the selection opens one row per item');
   await page.fill('.modal .fi-dec:has-text("salk") .fi-price', '15');
-  await page.selectOption('.modal .fi-dec:has-text("gloves big") .fi-match', 'قفازات طبية M');
+  // البحث في الكتالوج: جزء من الاسم لا يكفي، والاسم الكامل من النتائج يربط الصنف
+  await page.fill('.modal .fi-dec:has-text("gloves big") .fi-match', 'قفازات');
+  expect(await page.locator('#fiCat option[value="قفازات طبية M"]').count() === 1 && !(await page.isVisible('.modal .fi-dec:has-text("gloves big") .fi-match-hint .alias-of')), 'catalog search box: a partial name asks to pick from the results');
+  await page.fill('.modal .fi-dec:has-text("gloves big") .fi-match', 'قفازات طبية M');
   expect(await page.isVisible('.modal .fi-dec:has-text("gloves big") .fi-match-hint .alias-of'), 'matching previews the nurse name next to the procurement name');
   await shot(page, 'proc-free-approve');
   await page.click('.modal #fiOk');
@@ -1280,6 +1292,25 @@ function log(msg) { console.log('  ✔ ' + msg); }
   await page.click('#caList tr:has-text("Cotton Rolls") [data-act="caDel"]');
   await page.click('.modal [data-yes]');
   expect(await toastHas(page, 'حُذف'), 'item deleted from the catalog');
+  // أسماء بديلة: كل ممرضة تسمي الصنف باسم، والكتالوج يجمعها تحت اسم التموين
+  await page.fill('#caQ', 'DENTAL FLOSS');
+  await page.click('#caList tbody tr:has-text("DENTAL FLOSS") [data-act="caEdit"]');
+  await page.waitForSelector('.modal #caAl');
+  await page.fill('.modal #caAl', 'Floss thread');
+  await page.press('.modal #caAl', 'Enter');
+  await page.fill('.modal #caAl', 'Dental tape');
+  await page.click('.modal #caAlAdd');
+  expect(await page.locator('.modal .ca-al').count() === 2, 'two other names added in the item window');
+  await shot(page, 'proc-catalog-aliases');
+  await page.click('.modal #caOk');
+  await page.waitForSelector('#caList tbody tr:has-text("DENTAL FLOSS") .alias-nm');
+  expect((await page.textContent('#caList tbody tr:has-text("DENTAL FLOSS")')).includes('Dental tape'), 'catalog row lists the other names');
+  // ورقة الطباعة: باسم التموين فقط، والصنف الحر غير المعتمد لا يُطبع
+  const sheet = await page.evaluate(() => requestPrintHtml({ id: 'REQ-T', status: 'قيد التجهيز', type: 'شهري', items: [
+    { item: 'Floss thread', official: 'DENTAL FLOSS', requestedQty: 2, approvedQty: 2 },
+    { item: 'Saliva tips', freeState: 'pending', requestedQty: 3 }, { item: 'PROPHY PASTE', requestedQty: 1 }] }));
+  expect(sheet.includes('DENTAL FLOSS') && !sheet.includes('>Floss thread<') && sheet.includes('PROPHY PASTE'), 'print sheet uses the procurement name');
+  expect(/لم تُطبع 1 /.test(sheet) && !/<td><div style="font-weight:600">Saliva tips/.test(sheet), 'unapproved free item is left off the sheet, with a note');
   await page.fill('#caQ', '');
   expect(await page.locator('.sidebar [data-view="docadmin"]').count() === 0, 'procurement has no doctors tab (admin only)');
   await logout(page);
@@ -1364,6 +1395,45 @@ function log(msg) { console.log('  ✔ ' + msg); }
   await page.waitForTimeout(400);
   expect(!(await page.$(`.req:has-text("${wdId2}") .req-actions [data-act="withdraw"]`)), 'card loses the cancel button once cancelled');
   await logout(page);
+
+  // ---------- Request rules: procurement sets limits → nurse sees the window bar and is stopped with a clear message ----------
+  await login(page, 'علي', '3333');
+  await page.click('.sidebar [data-view="rules"]');
+  await page.waitForSelector('#rl_emergencyMaxItems');
+  await page.fill('#rl_winStart', '25'); await page.fill('#rl_winEnd', '20');
+  await page.click('#rlSave');
+  expect((await page.textContent('#rlErr')).includes('نهاية النافذة'), 'rules: window end before start is refused');
+  await page.fill('#rl_winStart', '1'); await page.fill('#rl_winEnd', '31');
+  await page.fill('#rl_emergencyHours', '2');
+  await page.click('#rlSave');
+  expect(!(await page.isHidden('#rlErr')), 'rules: emergency hours below 3 refused');
+  await page.fill('#rl_emergencyHours', '6'); await page.fill('#rl_emergencyMaxItems', '1'); await page.fill('#rl_emergencyMax', '9');
+  await page.click('#rlSave');
+  expect(await toastHas(page, 'حُفظت القواعد'), 'rules saved by procurement');
+  expect((await page.textContent('#rlBox .rule-bar')).includes('داخل نافذة الطلب الشهري'), 'rules page previews what nurses see');
+  await shot(page, 'order-rules');
+  await logout(page);
+  await login(page, 'سارة', '1111');
+  await page.click('.sidebar [data-view="new"]');
+  await page.waitForSelector('.rule-slot .rule-bar.in');
+  const bar = await page.textContent('.rule-slot .rule-bar');
+  expect(bar.includes('أنت داخل نافذة الطلب الشهري') && bar.includes('الطارئ المتبقي لك هذا الشهر') && bar.includes('6 ساعة') && bar.includes('1 أصناف'), 'nurse sees window, emergency left and limits — ' + bar);
+  await page.click('[data-seg-name="reqKind"][data-v="doctor"]');
+  await page.waitForSelector('#fDoctor option[value="د. خالد"]', { state: 'attached' });
+  await page.click('[data-seg-name="reqType"][data-v="طارئ"]');
+  for (const q of ['floss', 'prophy']) { await page.fill('#itemSearch', q); await page.waitForSelector('.combo-opt'); await page.keyboard.press('Enter'); await page.keyboard.press('Escape'); }
+  await page.click('#submitBtn');
+  const em = await page.textContent('#submitErr');
+  expect(em.includes('عدد المستهلكات للطلب الطارئ') && em.includes('التموين') && em.includes('المتبقي لك من الطلبات الطارئة'), 'too many items for an emergency: clear message + emergencies left — ' + em);
+  await shot(page, 'emergency-items-limit');
+  await page.evaluate(() => { nurseDraft().items = []; saveDraft(); });
+  await logout(page);
+  await login(page, 'د. خالد', 'dr-khaled-7');
+  await page.click('.sidebar [data-view="reviews"]');
+  await page.waitForSelector('.rule-slot .rule-bar');
+  expect(await page.isVisible('.rule-slot .rule-bar') && (await page.textContent('.rule-slot .rule-bar')).includes('نافذة الطلب الشهري'), 'doctor sees the monthly window bar');
+  await logout(page);
+  await page.evaluate(async () => { const tok = (await __api(null, 'login', ['علي', '3333'])).token; await __api(tok, 'saveOrderRules', [{ winStart: 15, winEnd: 20, dispatchDay: 1, monthlyMax: 0, emergencyMax: 0, emergencyHours: 48, emergencyMaxItems: 0 }]); });
 
   // ---------- GitHub Pages mode: fetch → real doPost (Node vm), batching + retry ----------
   {

@@ -1425,7 +1425,7 @@ test('roles split: legacy quality/executive/finance migrate; executive keeps ful
   throwsCode(() => api(e, 'getUsers'), 'ERR_FORBIDDEN'); // بعد وجود الأدمن: صلاحيات التنفيذي الافتراضية فقط (فوراً)
   assert.ok(api(e, 'getExecutiveStats'));
   const a = login('admin', '9999');
-  assert.equal(api(a, 'getConfig').user.perms.length, 15);
+  assert.equal(api(a, 'getConfig').user.perms.length, 16);
   const f = login('نواف', '7777');
   assert.ok(api(f, 'getFinance', {}).summary);
   throwsCode(() => api(f, 'getComplaints'), 'ERR_FORBIDDEN');
@@ -1567,7 +1567,7 @@ test('management roles (finance…) are added automatically when missing, so the
   api(a, 'createUser', { name: 'المالية', password: '2468', role: 'مالية', email: 'finance@example.com' });
   const f = api(null, 'login', 'المالية', '2468');
   assert.equal(f.user.screen, 'finance');
-  assert.deepEqual(f.user.perms.slice().sort(), ['assets', 'doctor_prices', 'finance', 'monitor', 'prices_edit', 'reports'].sort());
+  assert.deepEqual(f.user.perms.slice().sort(), ['assets', 'doctor_prices', 'finance', 'monitor', 'order_rules', 'prices_edit', 'reports'].sort());
   login('المدير', '1234');
   assert.equal(rows(gas, 'Roles').filter(r => r.RoleName === 'مالية').length, 1, 'added once only');
 });
@@ -1908,6 +1908,10 @@ test('boxes: dispatch loads the doctor box → driver scan delivers with photo �
   // الممرضة: الطلب «وصل الفرع» + تنبيه + تعليق
   const mine = api(reem, 'getMyRequests').find(r => r.id === id);
   assert.equal(mine.atBranch, true);
+  // مكان البوكس + رابط الصورة (رابط Drive خارجي — لا تُحفظ الصورة داخل الطلب)
+  assert.deepEqual([mine.boxAt.to, mine.boxAt.box], ['جدة', 'BOX-001']);
+  assert.ok(/^https?:\/\//.test(mine.boxAt.photo) && !/^data:/.test(mine.boxAt.photo), 'photo is an external link, not inline data');
+  assert.equal(api(p, 'getRequests', {}).find(r => r.id === id).boxAt.to, 'جدة', 'same list builder feeds the doctor screen');
   assert.ok(api(reem, 'getAlerts').some(a => a.code === 'alert_box_arrived'));
   const det = api(reem, 'getRequestDetail', id);
   assert.deepEqual([det.shipments[0].delivered.to, det.shipments[0].delivered.by], ['جدة', 'أبو فهد']);
@@ -1919,6 +1923,7 @@ test('boxes: dispatch loads the doctor box → driver scan delivers with photo �
   bx = api(p, 'getBoxes');
   assert.deepEqual([bx.boxes[0].status, bx.boxes[0].location, bx.boxes[0].loads.length], ['فارغ', 'جدة', 0]);
   assert.equal(api(reem, 'getMyRequests').find(r => r.id === id).atBranch, false);
+  assert.equal(api(reem, 'getMyRequests').find(r => r.id === id).boxAt, undefined, 'no box line after receipt');
   // التموين يطلب إرجاعه ← مهمة للسواق ← تسليم للتموين بدون شحنة
   api(p, 'requestBoxMove', 'BOX-001', 'التموين');
   assert.deepEqual(api(null, 'driverTasks', { k: bx.driverToken }).map(x => [x.id, x.status, x.location, x.destination]), [['BOX-001', 'مطلوب نقله', 'جدة', 'التموين']]);
@@ -2586,4 +2591,90 @@ test('plan B: a save on the sheet (GitHub link) stamps _SYNC so the database mir
   const row = gas.dump('_SYNC')[2];
   assert.equal(row[0], 'sheet_written_at');
   assert.ok(Date.parse(row[1]) > Date.parse('2026-01-01'), 'save time recorded');
+});
+
+test('catalog aliases: procurement gives one item several names; nurses order by any of them and the request uses the procurement name', () => {
+  const { api, login } = boot();
+  const n = login('سارة', '1111'), p = login('علي', '3333');
+  const r = api(p, 'saveCatalogItem', 'قفازات طبية M', { name: 'قفازات طبية M', category: 'Protection', price: 25, type: 'مستهلك', aliases: ['Gloves medium', 'gloves M blue', 'Gloves medium', ''] });
+  assert.deepEqual(r.aliases, { added: 2, removed: 0 }, 'duplicates and blanks ignored');
+  let c = api(n, 'getConfig').catalog.find(x => x.name === 'قفازات طبية M');
+  assert.deepEqual(c.aliases.slice().sort(), ['Gloves medium', 'gloves M blue']);
+  assert.ok(!api(n, 'getConfig').catalog.some(x => x.name === 'Gloves medium'), 'aliases are not separate items');
+  // any name the nurse knows → the request line carries the procurement name
+  const id = api(n, 'createRequest', { clinic: 'عيادة الأسنان 1', doctor: 'د. نورة', type: 'شهري', items: [{ name: 'gloves m blue', qty: 2 }] }).id;
+  assert.ok(JSON.stringify(api(p, 'getRequestItemsFull', id)).includes('قفازات طبية M'));
+  // names already used elsewhere are refused
+  throwsCode(() => api(p, 'saveCatalogItem', 'DENTAL FLOSS', { name: 'DENTAL FLOSS', category: 'Hygiene', price: 12.5, aliases: ['PROPHY PASTE'] }), 'ERR_ALIAS_TAKEN:PROPHY PASTE');
+  throwsCode(() => api(p, 'saveCatalogItem', 'DENTAL FLOSS', { name: 'DENTAL FLOSS', category: 'Hygiene', price: 12.5, aliases: ['gloves medium'] }), 'ERR_ALIAS_TAKEN:gloves medium');
+  // a free item still waiting for review is linked from its own tab
+  api(n, 'createRequest', { clinic: 'عيادة الأسنان 1', doctor: 'د. نورة', type: 'شهري', items: [{ name: 'Floss tape', qty: 1, free: true, type: 'مستهلك' }] });
+  throwsCode(() => api(p, 'saveCatalogItem', 'DENTAL FLOSS', { name: 'DENTAL FLOSS', category: 'Hygiene', price: 12.5, aliases: ['Floss tape'] }), 'ERR_ALIAS_IS_FREE:Floss tape');
+  // a rejected free name can become an alias
+  api(p, 'reviewFreeItems', [{ name: 'Floss tape', action: 'reject', reason: 'موجود مسبقاً' }]);
+  assert.deepEqual(api(p, 'saveCatalogItem', 'DENTAL FLOSS', { name: 'DENTAL FLOSS', category: 'Hygiene', price: 12.5, aliases: ['Floss tape'] }).aliases, { added: 1, removed: 0 });
+  // remove one name; renaming the item keeps its names
+  assert.deepEqual(api(p, 'saveCatalogItem', 'قفازات طبية M', { name: 'قفازات طبية M', category: 'Protection', price: 25, aliases: ['Gloves medium'] }).aliases, { added: 0, removed: 1 });
+  api(p, 'saveCatalogItem', 'قفازات طبية M', { name: 'Medical gloves M', category: 'Protection', price: 25 });
+  c = api(n, 'getConfig').catalog.find(x => x.name === 'Medical gloves M');
+  assert.deepEqual(c.aliases, ['Gloves medium']);
+  assert.deepEqual(api(p, 'getCatalogAdmin').items.find(x => x.name === 'Medical gloves M').aliases, ['Gloves medium']);
+});
+
+test('print data: free items not approved by procurement are flagged; alias lines carry the procurement name', () => {
+  const { api, login } = boot();
+  const n = login('سارة', '1111'), p = login('علي', '3333');
+  const id = api(n, 'createRequest', { clinic: 'عيادة الأسنان 1', doctor: 'د. نورة', type: 'شهري', items: [
+    { name: 'PROPHY PASTE', qty: 2 }, { name: 'Saliva tips', qty: 3, free: true, type: 'مستهلك' }, { name: 'Wrong thing', qty: 1, free: true, type: 'مستهلك' }] }).id;
+  let d = api(p, 'getRequestDetail', id);
+  const st = () => Object.fromEntries(api(p, 'getRequestDetail', id).items.map(i => [i.item, i.freeState || 'ok']));
+  assert.deepEqual(st(), { 'PROPHY PASTE': 'ok', 'Saliva tips': 'pending', 'Wrong thing': 'pending' });
+  api(p, 'reviewFreeItems', [{ name: 'Saliva tips', action: 'approve', price: 4 }, { name: 'Wrong thing', action: 'reject', reason: 'غير لازم' }]);
+  assert.deepEqual(st(), { 'PROPHY PASTE': 'ok', 'Saliva tips': 'ok', 'Wrong thing': 'rejected' });
+  // a line saved under a name that later became an alias prints under the procurement name
+  api(p, 'saveCatalogItem', 'DENTAL FLOSS', { name: 'DENTAL FLOSS', category: 'Hygiene', price: 12.5, aliases: ['Saliva tips old'] });
+  d = api(p, 'getRequestDetail', id);
+  assert.equal(d.items.find(i => i.item === 'PROPHY PASTE').official, undefined);
+});
+
+test('order rules: procurement/management set limits that apply at once; nurse sees window + what is left', () => {
+  const { api, login, gas } = boot();
+  const n = login('سارة', '1111'), r2 = login('ريم', '2222'), p = login('علي', '3333'), q = login('منى', '5555');
+  // defaults keep today's behaviour (no limits)
+  let R = api(n, 'getOrderRules');
+  assert.deepEqual([R.winStart, R.winEnd, R.dispatchDay, R.emergencyHours, R.emergencyMax, R.monthlyMax, R.emergencyMaxItems, R.canEdit], [15, 20, 1, 48, 0, 0, 0, false]);
+  assert.deepEqual(R.left, { monthly: null, emergency: null });
+  const base = { winStart: 1, winEnd: 31, dispatchDay: 1, monthlyMax: 1, emergencyMax: 1, emergencyHours: 3, emergencyMaxItems: 2 };
+  throwsCode(() => api(n, 'saveOrderRules', base), 'ERR_FORBIDDEN');
+  throwsCode(() => api(p, 'saveOrderRules', Object.assign({}, base, { emergencyHours: 2 })), 'ERR_RULE_RANGE:emergencyHours');
+  throwsCode(() => api(p, 'saveOrderRules', Object.assign({}, base, { emergencyHours: 49 })), 'ERR_RULE_RANGE:emergencyHours');
+  throwsCode(() => api(p, 'saveOrderRules', Object.assign({}, base, { winStart: 20, winEnd: 10 })), 'ERR_RULE_WINDOW');
+  assert.equal(api(q, 'getOrderRules').canEdit, true, 'quality can edit');
+  R = api(p, 'saveOrderRules', base);
+  assert.equal(R.emergencyHours, 3);
+  assert.ok(rows(gas, 'Settings').some(r => r.Key === 'EmergencyMaxPerMonth' && Number(r.Value) === 1), 'stored in Settings');
+  // nurse: inside the window, one of each left
+  R = api(n, 'getOrderRules');
+  assert.deepEqual([R.inWindow, R.left.emergency, R.left.monthly], [true, 1, 1]);
+  const em = items => ({ doctor: 'د. خالد', type: 'طارئ', items: items });
+  throwsCode(() => api(n, 'createRequest', em([{ name: 'PROPHY PASTE', qty: 1 }, { name: 'DENTAL FLOSS', qty: 1 }, { name: 'MICRO BRUSH FINE', qty: 1 }])), 'ERR_EMERGENCY_ITEMS');
+  const ok = api(n, 'createRequest', em([{ name: 'PROPHY PASTE', qty: 5 }, { name: 'DENTAL FLOSS', qty: 9 }]));
+  assert.equal(ok.rules.left.emergency, 0, 'submit returns what is left');
+  throwsCode(() => api(n, 'createRequest', em([{ name: 'PROPHY PASTE', qty: 1 }])), 'ERR_EMERGENCY_LIMIT');
+  // the emergency deadline follows the new hours
+  const mine = api(n, 'getMyRequests').find(r => r.id === ok.id);
+  assert.equal(Math.round((new Date(mine.dueAt) - new Date(mine.submittedAt)) / 36e5), 3);
+  // monthly limit
+  api(n, 'createRequest', { doctor: 'د. خالد', type: 'شهري', items: [{ name: 'PROPHY PASTE', qty: 1 }] });
+  throwsCode(() => api(n, 'createRequest', { doctor: 'د. خالد', type: 'شهري', items: [{ name: 'DENTAL FLOSS', qty: 1 }] }), 'ERR_MONTHLY_LIMIT');
+  // per person: another nurse still has hers
+  assert.equal(api(r2, 'getOrderRules').left.emergency, 1);
+  // a withdrawn/cancelled request gives the slot back
+  api(p, 'cancelRequests', [ok.id], 'تجربة');
+  assert.equal(api(n, 'getOrderRules').left.emergency, 1);
+  // outside the window + dispatch day after the window = same month
+  R = api(p, 'saveOrderRules', Object.assign({}, base, { winStart: 1, winEnd: 1, dispatchDay: 28 }));
+  const today = Number(new Date(Date.now() + 3 * 36e5).toISOString().slice(8, 10));
+  assert.equal(R.inWindow, today === 1);
+  assert.equal(new Date(new Date(R.dispatchAt).getTime() + 3 * 36e5).getUTCDate(), 28);
 });
