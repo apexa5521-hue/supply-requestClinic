@@ -707,6 +707,14 @@ const API_ = {
   addBox:                    { screens: ['procurement'], fn: addBox_ },
   backfillBoxes:             { screens: ['procurement'], fn: backfillBoxes_ },
   getFinance:                { screens: [], perm: 'finance', fn: getFinance_ },
+  getSettingsAdmin:          { screens: ['lab', 'finance'], perm: 'users', fn: getSettingsAdmin_ },
+  saveSettingKeys:           { screens: ['lab', 'finance'], perm: 'users', fn: saveSettingKeys_ },
+  saveClinic:                { screens: [], perm: 'users', fn: saveClinic_ },
+  deleteClinic:              { screens: [], perm: 'users', fn: deleteClinic_ },
+  saveLab:                   { screens: [], perm: 'users', fn: saveLab_ },
+  saveLabList:               { screens: [], perm: 'users', fn: saveLabList_ },
+  saveSurveyQuestion:        { screens: [], perm: 'users', fn: saveSurveyQuestion_ },
+  rotateDriverToken:         { screens: [], perm: 'users', fn: rotateDriverToken_ },
   getDoctorCharges:          { screens: [], perm: 'finance', fn: getDoctorCharges_ },
   setDoctorCharge:           { screens: [], perm: 'finance', fn: setDoctorCharge_ },
   getPriceList:              { screens: [], perm: 'prices_edit', fn: getPriceList_ },
@@ -2090,7 +2098,8 @@ const ORDER_RULES_ = [
   ['monthlyMax', 'MonthlyMaxPerMonth', 0, 0, 99, 'عدد الطلبات الشهرية المسموحة لكل من يطلب في الشهر (0 = بلا حد)'],
   ['emergencyMax', 'EmergencyMaxPerMonth', 0, 0, 99, 'عدد الطلبات الطارئة المسموحة لكل من يطلب في الشهر (0 = بلا حد)'],
   ['emergencyHours', 'EmergencyDueHours', EMERGENCY_DUE_HOURS, 3, 48, 'مهلة الطلب الطارئ بالساعات (من 3 إلى 48)'],
-  ['emergencyMaxItems', 'EmergencyMaxItems', 0, 0, 200, 'أقصى عدد أصناف مختلفة (مستهلك أو ماتيريال) في الطلب الطارئ (0 = بلا حد)']
+  ['emergencyMaxItems', 'EmergencyMaxItems', 0, 0, 200, 'أقصى عدد أصناف مختلفة (مستهلك أو ماتيريال) في الطلب الطارئ (0 = بلا حد)'],
+  ['freeLocked', 'FreeItemsLocked', 0, 0, 1, 'إقفال إدخال صنف حر (مستهلك أو ماتيريال) للتمريض: 1 = مقفل · 0 = مسموح']
 ];
 function orderRules_() {
   if (MEMO_.orderRules) return MEMO_.orderRules;
@@ -2145,8 +2154,9 @@ function getOrderRules_(user) {
 function saveOrderRules_(user, v) {
   v = v || {};
   const vals = {};
+  const cur = orderRules_();
   ORDER_RULES_.forEach(function (d) {
-    const n = Number(v[d[0]]);
+    const n = v[d[0]] === undefined ? cur[d[0]] : Number(v[d[0]]); // حقل لم يُرسل يبقى كما هو
     if (!(Math.floor(n) === n && n >= d[3] && n <= d[4])) throw new Error('ERR_RULE_RANGE:' + d[0]);
     vals[d[0]] = n;
   });
@@ -2613,6 +2623,7 @@ function createRequest_(user, payload) {
   const freeNew = items.filter(function (it) { return it.free && !maps.catalog[it.name.toLowerCase()]; });
   if (freeNew.length) {
     if (forLab || user.screen !== 'nurse') throw new Error('ERR_FREE_ITEM_FORBIDDEN');
+    if (orderRules_().freeLocked) throw new Error('ERR_FREE_ITEMS_LOCKED'); // أقفله التموين/الإدارة من «قواعد الطلبات»
     if (freeNew.length > FREE_ITEMS_MAX_) throw new Error('ERR_FREE_ITEMS_MAX');
     freeNew.forEach(function (it) {
       if (it.name.length < 2) throw new Error('ERR_FREE_ITEM_NAME');
@@ -2784,9 +2795,12 @@ function shipState_(req, rows) {
   si.forEach(function (r) { maxBatch = Math.max(maxBatch, Number(r.Batch) || 0); });
   let extra = 0;
   const groups = {};
+  // صنف حلّ محله بديل معتمد: لا يُرسل منه أكثر مما أُرسل فعلاً (حتى لو تغيّرت كميته المعتمدة لاحقاً) — لا يتكرر مع بديله
+  const replaced = {};
+  rows.forEach(function (r) { if (str_(r.SubstituteOf) && str_(r.SubStatus) === SUB_ST.OK) replaced[str_(r.SubstituteOf)] = true; });
   const items = rows.map(function (r) {
     const it = mapItem_(r, b);
-    const target = targetQty_(r);
+    let target = targetQty_(r);
     const parts = [];
     const mine = byItem[it.item] || [];
     if (mine.length) {
@@ -2799,6 +2813,10 @@ function shipState_(req, rows) {
       if (n) parts.push({ batch: n, qty: target, at: at, receivedQty: r.ReceivedQty, legacy: true });
     }
     parts.sort(function (x, y) { return x.batch - y.batch; });
+    if (replaced[it.item] && !str_(r.SubstituteOf)) {
+      target = Math.min(target, parts.reduce(function (a, p) { return a + (p.legacy ? 0 : p.qty); }, 0));
+      it.replaced = true;
+    }
     let sent = 0;
     parts.forEach(function (p) {
       sent += p.qty;
@@ -3118,6 +3136,8 @@ function updateItemApproval_(user, requestId, itemName, approvedQty) {
   const t = read_('RequestItems');
   const row = t.rows.filter(function (r) { return str_(r.RequestID) === str_(requestId) && str_(r.ItemName) === str_(itemName); })[0];
   if (!row) throw new Error('ERR_NOT_FOUND');
+  // الصنف الذي حلّ محله بديل معتمد مقفل: تعديل كميته يعيده للإرسال فيتكرر مع البديل
+  if (t.rows.some(function (r) { return str_(r.RequestID) === str_(requestId) && str_(r.SubstituteOf) === str_(itemName) && str_(r.SubStatus) === SUB_ST.OK; })) throw new Error('ERR_SUB_REPLACED');
   setCells_(t, row, { ApprovedQty: qty });
   logAction_(requestId, 'تعديل الكمية المعتمدة: ' + itemName + ' = ' + qty, user.name);
   return true;
@@ -4936,7 +4956,8 @@ function getDoctorsAdmin_(user) {
   const specs = {}, subs = {};
   const docs = read_('Doctors').rows.filter(function (r) { return str_(r.DoctorName); }).map(function (r) {
     const d = { name: str_(r.DoctorName), specialty: str_(r.Specialty || r.Type || r['التخصص']), subspecialty: str_(r.Subspecialty),
-      clinics: str_(r.Clinic).split(/[,،]/).map(str_).filter(String), nurse: str_(r.NurseName), login: doctorLogin_(str_(r.DoctorName)) || str_(r.LoginName) };
+      clinics: str_(r.Clinic).split(/[,،]/).map(str_).filter(String), nurse: str_(r.NurseName), login: doctorLogin_(str_(r.DoctorName)) || str_(r.LoginName),
+      billing: /عياد|clinic/i.test(str_(r.Billing || r['طريقة الحسبة'])) ? 'clinic' : 'box' };
     if (d.specialty) specs[d.specialty] = true;
     if (d.subspecialty) subs[d.subspecialty] = true;
     return d;
@@ -4982,6 +5003,8 @@ function saveDoctor_(user, orig, d) {
     if (login && !acct && !password) throw new Error('ERR_PASSWORD_REQUIRED');
     const obj = { DoctorName: name, Specialty: clean_(d.specialty, 60), Subspecialty: clean_(d.subspecialty, 80), Clinic: clinics.join(', '),
       NurseName: clean_(d.nurse, 80), LoginName: login };
+    // طريقة الحسبة: «عيادة» = كل مستهلكات عيادته الأولى عليه · «بوكس» = ما يُطلب باسمه فقط
+    if (d.billing === 'clinic' || d.billing === 'box') obj.Billing = d.billing === 'clinic' ? 'عيادة' : 'بوكس';
     if (!orig) append_('Doctors', obj);
     else {
       const row = t.rows.filter(function (r) { return str_(r.DoctorName) === orig; })[0];
@@ -5817,6 +5840,200 @@ function setDoctorCharge_(user, doctor, charge) {
   });
   resetMemo_();
   return getDoctorCharges_(user).filter(function (d) { return d.name === doctor; })[0];
+}
+
+/* =====================================================================
+ *  إعدادات النظام (بدل تعديل الشيت): العيادات والفروع، المعامل وقوائمها، مفاتيح Settings، أسئلة الاستبيان
+ *  الأدمن يرى كل شيء · المالية: آخر موعد للطلبات القديمة · المعمل: معمل الآيتيرو وأيام التنفيذ
+ *  كل تعديل يُسجَّل في Log باسم من عدّله
+ * ===================================================================== */
+const SETTING_KEYS_ = {
+  DriverEmail:       { roles: ['admin'], kind: 'email', note: 'إيميل السواق — يصله تنبيه البوكسات الجاهزة للنقل' },
+  BackdateUntil:     { roles: ['admin', 'finance'], kind: 'date', note: 'آخر يوم لإدخال الطلبات السابقة بأثر رجعي (YYYY-MM-DD) — off يقفلها' },
+  IteroLab:          { roles: ['admin', 'lab'], kind: 'lab', note: 'معمل سكانات iTero' },
+  LabTurnaroundDays: { roles: ['admin', 'lab'], kind: 'int', min: 1, max: 120, note: 'أيام تنفيذ المعمل الافتراضية' },
+  SurveyEnabled:     { roles: ['admin'], kind: 'yesno', note: 'استبيان الأطباء مفعّل' },
+  SurveyEveryDays:   { roles: ['admin'], kind: 'int', min: 7, max: 365, note: 'الاستبيان كل كم يوم' },
+  SurveyOpenDays:    { roles: ['admin'], kind: 'int', min: 1, max: 60, note: 'كم يوم يبقى الاستبيان مفتوحاً' },
+  SurveyStart:       { roles: ['admin'], kind: 'date', note: SURVEY_START_NOTE_ }
+};
+function settingsRole_(user) { return (user.perms || []).indexOf('users') !== -1 ? 'admin' : user.screen; }
+function settingValue_(key) {
+  let v = getSetting_(key, '');
+  if (v instanceof Date) v = riyadh_(v.getTime()).slice(0, 10);
+  return str_(v).replace(/^'/, '');
+}
+function getSettingsAdmin_(user) {
+  const role = settingsRole_(user);
+  const keys = {};
+  Object.keys(SETTING_KEYS_).forEach(function (k) { if (SETTING_KEYS_[k].roles.indexOf(role) !== -1) keys[k] = settingValue_(k); });
+  const out = { role: role, keys: keys, defaults: { LabTurnaroundDays: LAB_TURNAROUND_DEFAULT, SurveyEveryDays: 50, SurveyOpenDays: 10, BackdateUntil: BACKDATE_UNTIL_DEFAULT_ } };
+  if ('IteroLab' in keys) out.labNames = getLabs_().map(function (l) { return l.name; });
+  if (role !== 'admin') return out;
+  out.clinics = read_('Clinics').rows.filter(function (r) { return str_(r.ClinicName); })
+    .map(function (r) { return { name: str_(r.ClinicName), branch: str_(r.Branch), type: str_(r.Type) }; });
+  out.labs = read_('Labs').rows.filter(function (r) { return str_(r.LabName); }).map(function (r) {
+    const d = Math.floor(num_(r.TurnaroundDays));
+    return { name: str_(r.LabName), type: /خارج|external/i.test(str_(r.Type)) ? 'خارجي' : 'داخلي', email: str_(r.Email), phone: str_(r.Phone),
+      active: str_(r.Active) === '' || isYes_(r.Active), turnaround: d >= 1 && d <= 120 ? d : '' };
+  });
+  out.workTypes = getLabWorkTypes_();
+  out.materials = getLabMaterials_();
+  out.questions = read_('SurveyQuestions').rows.filter(function (r) { return str_(r.QID); }).map(function (r) {
+    return { qid: str_(r.QID), question: str_(r.Question), questionEn: str_(r.QuestionEn), type: str_(r.Type) || 'stars', section: str_(r.Section),
+      required: !/^(لا|no|0|false)$/i.test(str_(r.Required)), active: !/^(لا|no|0|false)$/i.test(str_(r.Active)), order: Number(r.Order) || 0 };
+  }).sort(function (a, b) { return a.order - b.order; });
+  out.driverLink = !!settingValue_('DriverToken');
+  return out;
+}
+function saveSettingKeys_(user, vals) {
+  vals = vals || {};
+  const role = settingsRole_(user);
+  const clean = {};
+  Object.keys(vals).forEach(function (k) {
+    const def = SETTING_KEYS_[k];
+    if (!def || def.roles.indexOf(role) === -1) throw new Error('ERR_FORBIDDEN');
+    let v = str_(vals[k]);
+    if (def.kind === 'email' && v && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v)) throw new Error('ERR_BAD_EMAIL');
+    if (def.kind === 'date' && v && v !== 'off' && !/^\d{4}-\d{2}-\d{2}$/.test(v)) throw new Error('ERR_BAD_DATE:' + k);
+    if (def.kind === 'int' && v !== '') { const n = Number(v); if (!(Math.floor(n) === n && n >= def.min && n <= def.max)) throw new Error('ERR_RULE_RANGE:' + k); }
+    if (def.kind === 'yesno') v = /^(لا|no|false|0)$/i.test(v) ? 'لا' : 'نعم';
+    if (def.kind === 'lab' && v && !getLabs_().some(function (l) { return l.name === v; })) throw new Error('ERR_BAD_LAB');
+    clean[k] = def.kind === 'date' && v && v !== 'off' ? "'" + v : v;
+  });
+  withLock_(function () {
+    const t = freshTable_('Settings');
+    const changes = [];
+    Object.keys(clean).forEach(function (k) {
+      const row = t.rows.filter(function (r) { return str_(r.Key) === k; })[0];
+      if (row) { if (settingValue_(k) !== str_(clean[k]).replace(/^'/, '')) { setCells_(t, row, { Value: clean[k] }); changes.push(k); } }
+      else if (clean[k] !== '') { append_('Settings', { Key: k, Value: clean[k], Notes: SETTING_KEYS_[k].note }); changes.push(k); }
+    });
+    if (changes.length) logAction_('', 'تعديل الإعدادات: ' + changes.map(function (k) { return k + '=' + str_(clean[k]).replace(/^'/, ''); }).join('، '), user.name);
+  });
+  resetMemo_();
+  return getSettingsAdmin_(user);
+}
+/** هل العيادة مستخدمة (طلبات/أطباء/مستخدمون/عهدة)؟ — لا تُحذف ولا يتغير اسمها */
+function clinicInUse_(name) {
+  if (requestRows_().some(function (r) { return str_(r.Clinic) === name; })) return true;
+  if (read_('Assets').rows.some(function (r) { return str_(r.Clinic) === name; })) return true;
+  const inList = function (v) { return str_(v).split(/[,،]/).map(function (x) { return x.trim(); }).indexOf(name) !== -1; };
+  return read_('Doctors').rows.some(function (r) { return inList(r.Clinic); }) || read_('Users').rows.some(function (r) { return inList(r.Clinic); });
+}
+/** إضافة/تعديل عيادة. orig = { name, branch } للتعديل */
+function saveClinic_(user, orig, c) {
+  c = c || {}; orig = orig || null;
+  const name = clean_(c.name, 120), branch = clean_(c.branch, 60), type = clean_(c.type, 60);
+  if (!name || !branch) throw new Error('ERR_REQUIRED');
+  withLock_(function () {
+    const t = freshTable_('Clinics');
+    const same = function (r, n, b) { return str_(r.ClinicName) === n && str_(r.Branch) === b; };
+    if (t.rows.some(function (r) { return same(r, name, branch) && !(orig && same(r, orig.name, orig.branch)); })) throw new Error('ERR_CLINIC_EXISTS');
+    if (!orig) { append_('Clinics', { ClinicName: name, Branch: branch, Type: type }); logAction_('', 'إضافة عيادة: ' + name + ' — ' + branch, user.name); return; }
+    const row = t.rows.filter(function (r) { return same(r, orig.name, orig.branch); })[0];
+    if (!row) throw new Error('ERR_NOT_FOUND');
+    if (name !== orig.name && clinicInUse_(orig.name)) throw new Error('ERR_CLINIC_IN_USE');
+    setCells_(t, row, { ClinicName: name, Branch: branch, Type: type });
+    logAction_('', 'تعديل عيادة: ' + orig.name + ' — ' + orig.branch + ' ← ' + name + ' — ' + branch + (type ? ' (' + type + ')' : ''), user.name);
+  });
+  resetMemo_();
+  return getSettingsAdmin_(user).clinics;
+}
+function deleteClinic_(user, name, branch) {
+  name = str_(name); branch = str_(branch);
+  withLock_(function () {
+    const t = freshTable_('Clinics');
+    const row = t.rows.filter(function (r) { return str_(r.ClinicName) === name && str_(r.Branch) === branch; })[0];
+    if (!row) throw new Error('ERR_NOT_FOUND');
+    // نفس الاسم في فرع آخر يبقى؛ آخر نسخة من عيادة مستخدمة لا تُحذف
+    const others = t.rows.filter(function (r) { return str_(r.ClinicName) === name && r !== row; }).length;
+    if (!others && clinicInUse_(name)) throw new Error('ERR_CLINIC_IN_USE');
+    deleteRow_(t, row);
+    logAction_('', 'حذف عيادة: ' + name + ' — ' + branch, user.name);
+  });
+  resetMemo_();
+  return getSettingsAdmin_(user).clinics;
+}
+/** إضافة/تعديل معمل. الإيقاف بدل الحذف (Active = لا) حتى تبقى الحالات القديمة صحيحة */
+function saveLab_(user, orig, l) {
+  l = l || {}; orig = str_(orig);
+  const name = clean_(l.name, 80);
+  if (!name) throw new Error('ERR_REQUIRED');
+  const email = str_(l.email);
+  if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) throw new Error('ERR_BAD_EMAIL');
+  const days = l.turnaround === '' || l.turnaround === null || l.turnaround === undefined ? '' : Number(l.turnaround);
+  if (days !== '' && !(Math.floor(days) === days && days >= 1 && days <= 120)) throw new Error('ERR_RULE_RANGE:turnaround');
+  const obj = { LabName: name, Type: l.type === 'خارجي' ? 'خارجي' : 'داخلي', Email: email, Phone: clean_(l.phone, 30), Active: l.active === false ? 'لا' : 'نعم', TurnaroundDays: days };
+  withLock_(function () {
+    const t = tableWithCols_('Labs');
+    if (t.rows.some(function (r) { return str_(r.LabName) === name && str_(r.LabName) !== orig; })) throw new Error('ERR_LAB_EXISTS');
+    if (!orig) { append_('Labs', obj); logAction_('', 'إضافة معمل: ' + name, user.name); return; }
+    const row = t.rows.filter(function (r) { return str_(r.LabName) === orig; })[0];
+    if (!row) throw new Error('ERR_NOT_FOUND');
+    if (name !== orig && read_('LabItems').rows.some(function (r) { return str_(r.Lab) === orig; })) throw new Error('ERR_LAB_IN_USE');
+    setCells_(t, row, obj);
+    logAction_('', 'تعديل معمل: ' + orig + (name !== orig ? ' ← ' + name : '') + ' · ' + obj.Type + ' · نشط: ' + obj.Active, user.name);
+  });
+  resetMemo_();
+  return getSettingsAdmin_(user).labs;
+}
+/** قائمة أنواع الأعمال أو المواد كاملة (تحل محل القائمة الحالية) */
+function saveLabList_(user, kind, values) {
+  const sheet = kind === 'workTypes' ? 'LabWorkTypes' : kind === 'materials' ? 'LabMaterials' : '';
+  if (!sheet) throw new Error('ERR_BAD_LIST');
+  const col = sheet === 'LabWorkTypes' ? 'WorkType' : 'Material';
+  const seen = {};
+  const list = (values || []).map(function (v) { return clean_(v, 80); }).filter(function (v) { const k = v.toLowerCase(); if (!v || seen[k]) return false; seen[k] = true; return true; });
+  if (!list.length) throw new Error('ERR_REQUIRED');
+  withLock_(function () {
+    const t = freshTable_(sheet);
+    t.rows.slice().sort(function (a, b) { return b._row - a._row; }).forEach(function (r) { sheet_(sheet).deleteRow(r._row); });
+    markDirty_(sheet);
+    appendMany_(sheet, list.map(function (v) { const o = {}; o[col] = v; return o; }));
+    logAction_('', 'تعديل قائمة ' + (sheet === 'LabWorkTypes' ? 'أنواع الأعمال' : 'المواد') + ': ' + list.join('، '), user.name);
+  });
+  resetMemo_();
+  return kind === 'workTypes' ? getLabWorkTypes_() : getLabMaterials_();
+}
+/** سؤال استبيان: تعديل أو إضافة (qid فارغ = جديد). التعديل يطبَّق من الدورة التالية */
+function saveSurveyQuestion_(user, qid, q) {
+  q = q || {}; qid = str_(qid);
+  const text = clean_(q.question, 300);
+  if (!text) throw new Error('ERR_REQUIRED');
+  const type = ['stars', 'nps', 'text'].indexOf(str_(q.type)) !== -1 ? str_(q.type) : 'stars';
+  const obj = { Question: text, QuestionEn: clean_(q.questionEn, 300), Type: type, Section: clean_(q.section, 60),
+    Required: q.required === false ? 'لا' : 'نعم', Active: q.active === false ? 'لا' : 'نعم' };
+  withLock_(function () {
+    const t = freshTable_('SurveyQuestions');
+    if (!qid) {
+      let n = 0;
+      t.rows.forEach(function (r) { const m = /^Q(\d+)$/.exec(str_(r.QID)); if (m) n = Math.max(n, Number(m[1])); });
+      const order = t.rows.reduce(function (a, r) { return Math.max(a, Number(r.Order) || 0); }, 0) + 1;
+      append_('SurveyQuestions', Object.assign({ QID: 'Q' + (n + 1), Order: order }, obj));
+      logAction_('', 'سؤال استبيان جديد: ' + text, user.name);
+      return;
+    }
+    const row = t.rows.filter(function (r) { return str_(r.QID) === qid; })[0];
+    if (!row) throw new Error('ERR_NOT_FOUND');
+    setCells_(t, row, obj);
+    logAction_('', 'تعديل سؤال الاستبيان ' + qid + ': ' + text + (obj.Active === 'لا' ? ' (موقوف)' : ''), user.name);
+  });
+  resetMemo_();
+  return getSettingsAdmin_(user).questions;
+}
+/** رابط «الشحنات» للسواق: رمز جديد يُبطل الرابط القديم فوراً */
+function rotateDriverToken_(user) {
+  withLock_(function () {
+    const t = freshTable_('Settings');
+    const row = t.rows.filter(function (r) { return str_(r.Key) === 'DriverToken'; })[0];
+    const tk = newToken_();
+    if (row) setCells_(t, row, { Value: tk });
+    else append_('Settings', { Key: 'DriverToken', Value: tk, Notes: 'رمز رابط الشحنات (السواق) — غيّره لإبطال الرابط القديم' });
+    logAction_('', 'تغيير رابط السواق (الرابط القديم لم يعد يعمل)', user.name);
+  });
+  resetMemo_();
+  return { ok: true };
 }
 
 /** المعيار: عدد الأداة المطلوب دائماً في العيادة (التموين/الأدمن) */
