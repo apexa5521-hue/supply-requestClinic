@@ -32,7 +32,7 @@ const SCHEMA = {
                  'SubmittedAt', 'SentAt', 'ReceivedAt', 'ReceiverName', 'SignatureURL',
                  'PrepAt', 'VendorWaitAt', 'VendorReceivedAt', 'ReviewAt', 'ReviewedAt',
                  'RejectionReason', 'ReceiptURL', 'Branch', 'ApprovedAt', 'ClientKey', 'Department', 'Backdated',
-                 'CancelReason', 'CancelledAt', 'CancelledBy'],
+                 'CancelReason', 'CancelledAt', 'CancelledBy', 'Approver'], // Approver: «مدير الفرع» لطلبات الهاوس كيبر (فارغ = الطبيب)
   // ItemStatus: حالة الصنف داخل الطلبية (قيد التجهيز / بانتظار المندوب / استلم المندوب) قبل إرساله
   RequestItems: ['RequestID', 'ItemName', 'RequestedQty', 'ApprovedQty', 'ReceivedQty', 'DispatchedAt', 'DispatchBatch', 'ItemStatus', 'ItemStatusAt', 'ItemStatusBy',
                  'SubstituteOf', 'SubStatus', 'SubNote', 'SubBy', 'SubAt'], // البديل: سطر جديد يشير لاسم الصنف الأصلي
@@ -103,12 +103,12 @@ const DISPATCHABLE = [ST.APPROVED, ST.PREP, ST.VENDOR_WAIT, ST.VENDOR_RECV];
 const SUB_ST = { PENDING: 'بانتظار الطبيب', OK: 'معتمد', NO: 'مرفوض' };
 
 const REQUEST_TYPES = ['شهري', 'طارئ'];
-const SCREENS = ['nurse', 'procurement', 'doctor', 'lab', 'quality', 'executive', 'finance', 'dashboard', 'branch', 'admin'];
+const SCREENS = ['nurse', 'procurement', 'doctor', 'lab', 'quality', 'executive', 'finance', 'dashboard', 'branch', 'admin', 'housekeeper'];
 /** شاشات الإدارة: ما يظهر فيها تحدده صلاحيات الدور (Permissions في تبويب Roles) */
 const MGMT_SCREENS = ['quality', 'executive', 'finance', 'dashboard', 'branch', 'admin'];
 const DEFAULT_ROLES = [
   ['ممرضة', 'nurse'], ['تموين', 'procurement'], ['طبيب', 'doctor'],
-  ['جودة', 'quality'], ['جوده', 'quality'], ['مالية', 'finance'], ['تنفيذي', 'executive'], ['أدمن', 'admin'], ['المعمل', 'lab'], ['مدير فرع', 'branch']
+  ['جودة', 'quality'], ['جوده', 'quality'], ['مالية', 'finance'], ['تنفيذي', 'executive'], ['أدمن', 'admin'], ['المعمل', 'lab'], ['مدير فرع', 'branch'], ['هاوس كيبر', 'housekeeper']
 ];
 /**
  * الصلاحيات القابلة للتحديد لكل دور إداري. الأدمن له كل شيء دائماً.
@@ -635,9 +635,9 @@ const API_ = {
   getReversals:              { screens: ['procurement'], perm: 'monitor', fn: getReversals_ },
   bulkUpdateStatus:          { screens: ['procurement'], fn: bulkUpdateStatus_ },
   cancelRequests:            { screens: ['procurement'], fn: cancelRequests_ },
-  getDoctorRequests:         { screens: ['doctor'], fn: getDoctorRequests_ },
+  getDoctorRequests:         { screens: ['doctor', 'branch'], fn: getDoctorRequests_ },
   getRequestItemsWithCatalog:{ screens: ['doctor', 'procurement'].concat(MGMT), fn: getRequestItemsWithCatalog_ },
-  doctorReview:              { screens: ['doctor'], fn: doctorReview_ },
+  doctorReview:              { screens: ['doctor', 'branch'], fn: doctorReview_ },
   getRequestItems:           { screens: ALL, fn: getRequestItemsApi_ },
   getRequestDetail:          { screens: ALL, fn: getRequestDetail_ },
   getComments:               { screens: ALL, fn: getCommentsApi_ },
@@ -1143,6 +1143,15 @@ function verifyPassword_(stored, pw) {
   return stored !== '' && latinDigits_(stored).trim() === latinDigits_(pw).trim(); // كلمات سر قديمة نصية
 }
 
+/**
+ * الهاوس كيبر: نفس شاشات الممرضة وآليتها (طلب جديد / طلباتي / الاستلام)، وطلباتها تظهر في حسابها فقط،
+ * لكن الذي يعتمد طلبها مدير فرعها بدل الطبيب.
+ */
+function asHousekeeper_(user) {
+  if (user.screen !== 'housekeeper') return user;
+  user.screen = 'nurse'; user.hk = true;
+  return user;
+}
 function roleScreen_(roleName) {
   roleName = str_(roleName);
   const r = getRoles_().filter(function (x) { return x.name === roleName; })[0];
@@ -1204,12 +1213,13 @@ function login_(name, password, preload) {
     name: str_(row.Name), role: str_(row.Role), clinic: str_(row.Clinic),
     email: str_(row.Email), screen: screen
   };
+  asHousekeeper_(user);
   const token = Utilities.getUuid() + Utilities.getUuid().replace(/-/g, '');
   cache.put('s:' + token, JSON.stringify(Object.assign({ _at: Date.now() }, user)), SESSION_TTL);
   user.perms = permsOf_(user);
   applyScope_(user);
   const out = { success: true, token: token, user: user, config: getConfig_(user) };
-  const calls = preload && typeof preload === 'object' ? preload[screen] : null;
+  const calls = preload && typeof preload === 'object' ? preload[user.screen] : null;
   if (Array.isArray(calls) && calls.length && calls.length <= BATCH_MAX) out.preload = runBatch_(user, calls);
   return out;
 }
@@ -1228,6 +1238,7 @@ function session_(token) {
   const sc = roleScreen_(user.role);
   if (!sc) throw new Error('ERR_SESSION');
   user.screen = sc;
+  asHousekeeper_(user);
   user.perms = permsOf_(user);
   applyScope_(user);
   // تمديد الجلسة مع النشاط — مرة كل 20 دقيقة تكفي (توفّر رحلة كاش في كل طلب)
@@ -1791,7 +1802,7 @@ function permsOf_(user) {
 function ensureMgmtRoles_() {
   const have = {};
   read_('Roles').rows.forEach(function (r) { if (str_(r.RoleName)) have[str_(r.RoleName)] = str_(r.Screen); });
-  const missing = [['جودة', 'quality'], ['مالية', 'finance'], ['تنفيذي', 'executive'], ['أدمن', 'admin'], ['المعمل', 'lab'], ['مدير فرع', 'branch']].filter(function (d) {
+  const missing = [['جودة', 'quality'], ['مالية', 'finance'], ['تنفيذي', 'executive'], ['أدمن', 'admin'], ['المعمل', 'lab'], ['مدير فرع', 'branch'], ['هاوس كيبر', 'housekeeper']].filter(function (d) {
     // لا نضيف «جودة» إن كان «جوده» موجوداً، ولا أي دور شاشته موجودة مسبقاً باسم آخر
     if (have[d[0]] !== undefined || (d[0] === 'جودة' && have['جوده'] !== undefined) || (d[0] === 'مالية' && have['ماليه'] !== undefined)) return false;
     return !Object.keys(have).some(function (n) { return have[n] === d[1]; });
@@ -2008,7 +2019,7 @@ function mapRequest_(r) {
   return {
     id: str_(r.RequestID), date: r.Date, clinic: str_(r.Clinic), branch: str_(r.Branch) || clinicBranch_(r.Clinic), doctor: str_(r.Doctor),
     department: normDept_(r.Department) || clinicDept_(r.Clinic),
-    nurse: str_(r.Nurse), type: str_(r.Type), status: str_(r.Status) || ST.NEW,
+    nurse: str_(r.Nurse), type: str_(r.Type), status: str_(r.Status) || ST.NEW, approver: str_(r.Approver) === BRANCH_APPROVER_ ? 'branch' : '',
     submittedAt: r.SubmittedAt, prepAt: r.PrepAt, vendorWaitAt: r.VendorWaitAt,
     vendorReceivedAt: r.VendorReceivedAt, reviewAt: r.ReviewAt, reviewedAt: r.ReviewedAt,
     sentAt: r.SentAt, receivedAt: r.ReceivedAt, receiver: str_(r.ReceiverName), approvedAt: r.ApprovedAt,
@@ -2066,7 +2077,7 @@ function queryRequests_(filters) {
       const dl = waiting[waiting.length - 1].delivered;
       r.boxAt = { to: dl.to, photo: dl.photo, at: dl.at, box: dl.box };
     }
-    r.needsReview = !!reviewers[r.doctor];
+    r.needsReview = r.approver === 'branch' ? branchManagers_(r.branch).length > 0 : !!reviewers[r.doctor];
     r.cleared = !r.needsReview || r.status === ST.APPROVED || !!r.approvedAt;
     r.awaitingDoctor = r.needsReview && !r.cleared && AWAITING_DOCTOR.indexOf(r.status) !== -1;
     if (r.awaitingDoctor && r.status === ST.NEW) r.status = ST.REVIEW; // طلب قديم «جديد» = لدى الطبيب
@@ -2554,7 +2565,11 @@ function getRequestsApi_(user, filters) {
   return dept ? list.filter(function (r) { return deptMatch_(dept, r.department); }) : list;
 }
 function getMyRequests_(user, opts) { return queryRequests_(withArchive_({ nurse: user.name }, opts)); }
-function getDoctorRequests_(user, opts) { return queryRequests_(withArchive_({ doctorUser: user }, opts)); }
+function getDoctorRequests_(user, opts) {
+  // مدير الفرع: طلبات الهاوس كيبر التي يعتمدها هو (في فرعه)
+  if (user.screen === 'branch') return queryRequests_(withArchive_({}, opts)).filter(function (r) { return r.approver === 'branch' && branchManagers_(r.branch).indexOf(user.name) !== -1; });
+  return queryRequests_(withArchive_({ doctorUser: user }, opts));
+}
 
 
 function requestDupKey_(nurse, clinic, branch, doctor, type, items) {
@@ -2572,6 +2587,7 @@ function createRequest_(user, payload) {
   const clinicOnly = !doctor;
   let clinic = forLab ? LAB_SUPPLY_ : str_(payload.clinic);
   if (clinicOnly && !clinic) throw new Error('ERR_REQUIRED');
+  if (user.hk && !clinicOnly) throw new Error('ERR_FORBIDDEN'); // الهاوس كيبر تطلب لمكان (عيادة/منطقة) لا لطبيب
   if (REQUEST_TYPES.indexOf(type) === -1) throw new Error('ERR_BAD_TYPE');
   const mine = userClinics_(user);
   if (clinic && !forLab) {
@@ -2579,7 +2595,7 @@ function createRequest_(user, payload) {
     if (!clinicOnly && mine.length && mine.indexOf(clinic) === -1) throw new Error('ERR_FORBIDDEN');
     const cRows = getClinics_().filter(function (c) { return c.name === clinic; });
     if (!cRows.length) throw new Error('ERR_BAD_CLINIC');
-    if (clinicOnly && !cRows.some(clinicConsumablesOk_)) throw new Error('ERR_CLINIC_SHARED_ONLY');
+    if (clinicOnly && !user.hk && !cRows.some(clinicConsumablesOk_)) throw new Error('ERR_CLINIC_SHARED_ONLY');
   }
   if (!clinicOnly) {
     // الطبيب غير مرتبط بعيادة ثابتة: يُقبل أي طبيب في القائمة، والعيادة المختارة هي مكان الاستهلاك
@@ -2652,7 +2668,8 @@ function createRequest_(user, payload) {
   const cache = CacheService.getScriptCache();
 
   // الطبيب الذي له حساب يراجع الطلب أولاً؛ غير ذلك يذهب للتموين مباشرة
-  const needsReview = !clinicOnly && doctorHasAccount_(doctor);
+  const branchApproval = !!user.hk && !forLab;
+  const needsReview = branchApproval ? branchManagers_(branch).length > 0 : !clinicOnly && doctorHasAccount_(doctor);
   // مفتاح المسودة من الجهاز: إعادة إرسال نفس المسودة بعد انقطاع الاتصال لا تنشئ طلباً مكرراً أبداً
   const clientKey = /^[A-Za-z0-9-]{8,64}$/.test(str_(payload.clientKey)) ? str_(payload.clientKey) : '';
   // بدون قفل الكتابة العام: رقم الطلب يُحجز بقفل قصير (أجزاء من الثانية)، والكتابة إلحاق ذري (appendRow)
@@ -2675,7 +2692,8 @@ function createRequest_(user, payload) {
     const now = new Date();
     append_('Requests', {
       RequestID: id, Date: now, Clinic: clinic, Branch: branch, Doctor: doctor, Nurse: user.name,
-      Type: type, Status: needsReview ? ST.REVIEW : ST.NEW, SubmittedAt: now, ReviewAt: needsReview ? now : '', ClientKey: clientKey, Department: dept
+      Type: type, Status: needsReview ? ST.REVIEW : ST.NEW, SubmittedAt: now, ReviewAt: needsReview ? now : '', ClientKey: clientKey, Department: dept,
+      Approver: branchApproval ? BRANCH_APPROVER_ : ''
     });
     items.forEach(function (it) { append_('RequestItems', { RequestID: id, ItemName: it.name, RequestedQty: it.qty }); });
   } catch (e) {
@@ -2687,7 +2705,12 @@ function createRequest_(user, payload) {
 
   const details = '\nرقم الطلب: ' + id + (dept ? '\nالقسم: ' + dept : '') + '\nالفرع: ' + (branch || '—') + '\nالعيادة: ' + (clinic || '—') + '\nالطبيب: ' + (doctor || 'مستهلكات عيادة') +
     '\nالممرضة: ' + user.name + '\nنوع الطلب: ' + type + '\nعدد الأصناف: ' + items.length;
-  if (needsReview) {
+  if (needsReview && branchApproval) {
+    branchManagers_(branch).forEach(function (m) {
+      notifyUser_(m, (type === 'طارئ' ? '🚨 طلب طارئ بانتظار اعتمادك - ' : 'طلب بانتظار اعتمادك - ') + id,
+        'رفعت ' + user.name + ' طلباً لفرعك بانتظار اعتمادك من داخل النظام.' + details);
+    });
+  } else if (needsReview) {
     notifyUser_(doctorAccounts_()[doctor], (type === 'طارئ' ? '🚨 طلب طارئ بانتظار مراجعتك - ' : 'طلب جديد بانتظار مراجعتك - ') + id,
       'رُفع طلب جديد لعيادتك بانتظار مراجعتك واعتمادك من داخل النظام.' + details);
     // الطارئ: التموين يعلم مبكراً (للاستعداد) رغم انتظار الاعتماد
@@ -3130,7 +3153,7 @@ function updateItemApproval_(user, requestId, itemName, approvedQty) {
   const req = mapRequest_(findRequest_(requestId).row);
   if (EDITABLE_APPROVAL.indexOf(req.status) === -1) throw new Error('ERR_LOCKED');
   // كميات الطلب الذي يراجعه الطبيب يحددها الطبيب فقط (والنقص يُعالَج بالإرسال الجزئي)
-  if (doctorHasAccount_(req.doctor)) throw new Error('ERR_DOCTOR_QTY');
+  if (hasApprover_(findRequest_(requestId).row)) throw new Error('ERR_DOCTOR_QTY');
   const qty = Math.floor(Number(approvedQty));
   if (!(qty >= 0 && qty <= 100000)) throw new Error('ERR_BAD_QTY');
   const t = read_('RequestItems');
@@ -3201,10 +3224,30 @@ function isMyDoctor_(user, doctorName) { return doctorAccounts_()[str_(doctorNam
 /** هل للطبيب حساب يستطيع المراجعة به؟ (إن لم يوجد، يُسمح بالإرسال بدون مراجعة) */
 function doctorHasAccount_(doctorName) { return !!doctorAccounts_()[str_(doctorName)]; }
 
-/** هل الطلب مسموح له بالتجهيز/الإرسال؟ (اعتمده الطبيب، أو لا يوجد حساب للطبيب) */
+/* من يعتمد الطلب: الطبيب صاحب الحساب، أو مدير الفرع لطلبات الهاوس كيبر (Approver) */
+const BRANCH_APPROVER_ = 'مدير الفرع';
+/** مدراء الفرع (حساباتهم): مدير بفرع محدد، أو بلا فرع = كل الفروع */
+function branchManagers_(branch) {
+  if (!MEMO_.bm) {
+    MEMO_.bm = read_('Users').rows.filter(function (u) { return str_(u.Name) && roleScreen_(u.Role) === 'branch'; })
+      .map(function (u) { return { name: str_(u.Name), branch: str_(u.Branch) }; });
+  }
+  return MEMO_.bm.filter(function (m) { return !m.branch || m.branch === str_(branch); }).map(function (m) { return m.name; });
+}
+function isBranchApproval_(row) { return str_(row.Approver) === BRANCH_APPROVER_; }
+/** هل للطلب من يعتمده في النظام؟ (وإلا يذهب للتموين مباشرة) */
+function hasApprover_(row) {
+  return isBranchApproval_(row) ? branchManagers_(str_(row.Branch)).length > 0 : doctorHasAccount_(str_(row.Doctor));
+}
+/** هل هذا المستخدم هو من يعتمد هذا الطلب؟ */
+function canReview_(user, row) {
+  if (isBranchApproval_(row)) return user.screen === 'branch' && branchManagers_(str_(row.Branch)).indexOf(user.name) !== -1;
+  return isMyDoctor_(user, str_(row.Doctor));
+}
+/** هل الطلب مسموح له بالتجهيز/الإرسال؟ (اعتمده من يعتمده، أو لا يوجد من يعتمده) */
 function cleared_(row) {
   const st = str_(row.Status);
-  return !doctorHasAccount_(str_(row.Doctor)) || st === ST.APPROVED || !!row.ApprovedAt;
+  return !hasApprover_(row) || st === ST.APPROVED || !!row.ApprovedAt;
 }
 
 /**
@@ -3213,7 +3256,7 @@ function cleared_(row) {
  */
 const AWAITING_DOCTOR = [ST.REVIEW, ST.NEW, ST.PREP, ST.VENDOR_WAIT, ST.VENDOR_RECV];
 function awaitingDoctor_(row) {
-  return AWAITING_DOCTOR.indexOf(str_(row.Status) || ST.NEW) !== -1 && doctorHasAccount_(str_(row.Doctor)) && !cleared_(row);
+  return AWAITING_DOCTOR.indexOf(str_(row.Status) || ST.NEW) !== -1 && hasApprover_(row) && !cleared_(row);
 }
 
 /** سبب منع الانتقال (أو '' إن كان مسموحاً) */
@@ -3222,7 +3265,7 @@ function transitionError_(row, newStatus) {
   const tr = TRANSITIONS[newStatus];
   if (!tr || tr.from.indexOf(cur) === -1) return 'ERR_BAD_TRANSITION';
   if (newStatus === ST.REVIEW) {
-    if (!doctorHasAccount_(str_(row.Doctor))) return 'ERR_NO_DOCTOR_ACCOUNT';
+    if (!hasApprover_(row)) return 'ERR_NO_DOCTOR_ACCOUNT';
     if ([ST.PREP, ST.VENDOR_WAIT, ST.VENDOR_RECV].indexOf(cur) !== -1 && cleared_(row)) return 'ERR_BAD_TRANSITION';
   }
   if ((newStatus === ST.PREP || newStatus === ST.SENT) && !cleared_(row)) return 'ERR_NEEDS_APPROVAL';
@@ -3532,7 +3575,7 @@ function doctorReview_(user, requestId, decision, reason, itemNotes, qtys) {
     resetMemo_();
     const f = findRequest_(requestId);
     req = mapRequest_(f.row);
-    if (!isMyDoctor_(user, req.doctor)) throw new Error('ERR_FORBIDDEN');
+    if (!canReview_(user, f.row)) throw new Error('ERR_FORBIDDEN');
     if (req.status !== ST.REVIEW && !awaitingDoctor_(f.row)) throw new Error('ERR_BAD_TRANSITION');
     const status = decision === 'اعتمد' ? ST.APPROVED : ST.REJECTED;
     const now = new Date();
@@ -3551,11 +3594,12 @@ function doctorReview_(user, requestId, decision, reason, itemNotes, qtys) {
       });
       if (ups.length && ups.every(function (u) { return u.obj.ApprovedQty === 0; })) throw new Error('ERR_ALL_ZERO');
       setMany_(ri, ups);
-      if (changes.length) logAction_(requestId, 'الطبيب عدّل الكميات: ' + changes.join('، '), user.name);
+      if (changes.length) logAction_(requestId, (req.approver === 'branch' ? 'مدير الفرع' : 'الطبيب') + ' عدّل الكميات: ' + changes.join('، '), user.name);
     }
     setCells_(f.t, f.row, { Status: status, ReviewedAt: now, ApprovedAt: decision === 'اعتمد' ? now : '', RejectionReason: decision === 'رفض' ? reason : '' });
     req.status = status;
-    logAction_(requestId, (decision === 'اعتمد' ? 'اعتماد الطبيب' : 'رفض الطبيب: ' + reason), user.name);
+    const who = req.approver === 'branch' ? 'مدير الفرع' : 'الطبيب';
+    logAction_(requestId, (decision === 'اعتمد' ? 'اعتماد ' + who : 'رفض ' + who + ': ' + reason), user.name);
   });
   (itemNotes || []).forEach(function (n) {
     if (n && str_(n.note)) addItemNote_(user, requestId, n.item, n.note);
@@ -3564,11 +3608,12 @@ function doctorReview_(user, requestId, decision, reason, itemNotes, qtys) {
   const where = ' (عيادة ' + req.clinic + (req.branch ? ' · فرع ' + req.branch : '') + ')';
   if (decision === 'اعتمد') {
     notifyProcurement_(req.department, (req.type === 'طارئ' ? '🚨 طلب طارئ معتمد - ' : 'طلب معتمد جاهز للتجهيز - ') + requestId,
-      'اعتمد الطبيب ' + user.name + ' الطلب ' + requestId + where + ' وهو جاهز للتجهيز.' + (reason ? '\nملاحظة الطبيب: ' + reason : ''));
+      'اعتمد ' + (req.approver === 'branch' ? 'مدير الفرع' : 'الطبيب') + ' ' + user.name + ' الطلب ' + requestId + where + ' وهو جاهز للتجهيز.' + (reason ? '\nملاحظة: ' + reason : ''));
   } else {
-    notifyUser_(req.nurse, 'رفض الطبيب للطلب - ' + requestId,
-      'رفض الطبيب ' + user.name + ' الطلب ' + requestId + where + '.\nالسبب: ' + reason +
-      '\nيمكنك مراجعة الطلب وإعادة إرساله للطبيب من شاشة «طلباتي».');
+    const who = req.approver === 'branch' ? 'مدير الفرع' : 'الطبيب';
+    notifyUser_(req.nurse, 'رفض ' + who + ' للطلب - ' + requestId,
+      'رفض ' + who + ' ' + user.name + ' الطلب ' + requestId + where + '.\nالسبب: ' + reason +
+      '\nيمكنك مراجعة الطلب وإعادة إرساله من شاشة «طلباتي».');
   }
   return true;
 }
@@ -3588,8 +3633,8 @@ function resubmitRequest_(user, requestId, note) {
     logAction_(requestId, 'إعادة إرسال للطبيب بعد الرفض', user.name);
   });
   if (note) addComment_(user, requestId, note);
-  notifyUser_(doctorAccounts_()[req.doctor] || req.doctor, 'طلب مُعاد لمراجعتك - ' + requestId,
-    'أعادت الممرضة ' + user.name + ' إرسال الطلب ' + requestId + ' (عيادة ' + req.clinic + ') لمراجعتك بعد الرفض.' + (note ? '\nملاحظتها: ' + note : ''));
+  (req.approver === 'branch' ? branchManagers_(req.branch) : [doctorAccounts_()[req.doctor] || req.doctor]).forEach(function (to) { notifyUser_(to, 'طلب مُعاد لمراجعتك - ' + requestId,
+    'أعادت الممرضة ' + user.name + ' إرسال الطلب ' + requestId + ' (عيادة ' + req.clinic + ') لمراجعتك بعد الرفض.' + (note ? '\nملاحظتها: ' + note : '')); });
   return true;
 }
 

@@ -1433,6 +1433,40 @@ function log(msg) { console.log('  ✔ ' + msg); }
   expect(!(await page.$(`.req:has-text("${wdId2}") .req-actions [data-act="withdraw"]`)), 'card loses the cancel button once cancelled');
   await logout(page);
 
+  // ---------- Housekeeper: nurse-like request for a place, only in her account, approved by the branch manager ----------
+  await page.evaluate(async () => { const tk = (await __api(null, 'login', ['المدير', '1234'])).token; await __api(tk, 'createUser', [{ name: 'هيفاء HK', password: '3030', role: 'هاوس كيبر', clinic: '' }]); });
+  await login(page, 'هيفاء HK', '3030');
+  const hkNav = await page.$$eval('.sidebar .nav-item', els => els.map(e => e.dataset.view));
+  expect(hkNav.join(',') === 'new,mine', 'housekeeper sees only New request and My requests: ' + hkNav.join(','));
+  await page.click('.sidebar [data-view="new"]'); await page.waitForSelector('#fKind');
+  expect(await page.isHidden('[data-seg-name="reqKind"]') && (await page.textContent('#fKind')).includes('مدير الفرع'), 'no doctor option — the request is for a place, approved by the branch manager');
+  await page.waitForSelector('#fClinic');
+  await page.selectOption('#fClinic', await page.$eval('#fClinic', el => [...el.options].find(o => /عيادة الأسنان 2/.test(o.textContent)).value));
+  await page.fill('#itemSearch', 'floss'); await page.waitForSelector('.combo-opt'); await page.keyboard.press('Enter'); await page.keyboard.press('Escape');
+  await page.click('#submitBtn');
+  const hkToast = await (await page.waitForSelector('.toast:last-child')).textContent();
+  const hkId = (/REQ-[\d-]+/.exec(hkToast) || [''])[0];
+  await page.click('.sidebar [data-view="mine"]');
+  await page.waitForSelector(`.req:has-text("${hkId}")`);
+  expect((await page.textContent(`.req:has-text("${hkId}") .badge`)).includes('بانتظار مدير الفرع'), 'her card says it waits for the branch manager');
+  await shot(page, 'housekeeper-mine');
+  await logout(page);
+  await login(page, 'مدير جدة', '4545');
+  await page.click('.sidebar [data-view="reviews"]');
+  await page.waitForSelector(`#docList [data-id="${hkId}"]`);
+  await page.click(`#docList [data-id="${hkId}"]`);
+  await page.waitForSelector('#rvApprove');
+  await page.click('#rvApprove');
+  await page.waitForTimeout(800);
+  expect(await page.evaluate(id => { const d = __gas.dump('Requests'); const h = d[0]; return d.find(r => r[0] === id)[h.indexOf('Status')]; }, hkId) === 'معتمد من الطبيب', 'branch manager approved the housekeeping request');
+  await shot(page, 'branch-approvals');
+  await logout(page);
+  await login(page, 'سارة', '1111');
+  await page.click('.sidebar [data-view="mine"]');
+  await page.waitForTimeout(600);
+  expect(!(await page.isVisible(`.req:has-text("${hkId}")`)), 'other nurses do not see the housekeeper request');
+  await logout(page);
+
   // ---------- Settings in the app (no sheet): admin adds a clinic and sets the driver email; finance sees only the backdate ----------
   await login(page, 'المدير', '1234');
   await page.click('.sidebar [data-view="settings"]');
