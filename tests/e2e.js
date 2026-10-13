@@ -1434,17 +1434,19 @@ function log(msg) { console.log('  ✔ ' + msg); }
   await logout(page);
 
   // ---------- Housekeeper: nurse-like request for a place, only in her account, approved by the branch manager ----------
-  await page.evaluate(async () => { const tk = (await __api(null, 'login', ['المدير', '1234'])).token; await __api(tk, 'createUser', [{ name: 'هيفاء HK', password: '3030', role: 'هاوس كيبر', clinic: '' }]); });
+  await page.evaluate(async () => { const tk = (await __api(null, 'login', ['المدير', '1234'])).token; await __api(tk, 'createUser', [{ name: 'هيفاء HK', password: '3030', role: 'هاوس كيبر', clinic: '', branch: 'جدة' }]); });
   await login(page, 'هيفاء HK', '3030');
   const hkNav = await page.$$eval('.sidebar .nav-item', els => els.map(e => e.dataset.view));
   expect(hkNav.join(',') === 'new,mine', 'housekeeper sees only New request and My requests: ' + hkNav.join(','));
   await page.click('.sidebar [data-view="new"]'); await page.waitForSelector('#fKind');
   expect(await page.isHidden('[data-seg-name="reqKind"]') && (await page.textContent('#fKind')).includes('مدير الفرع'), 'no doctor option — the request is for a place, approved by the branch manager');
-  await page.waitForSelector('#fClinic');
-  await page.selectOption('#fClinic', await page.$eval('#fClinic', el => [...el.options].find(o => /عيادة الأسنان 2/.test(o.textContent)).value));
+  expect(!(await page.$('#fClinic')) && await page.isDisabled('#fBranch') && await page.inputValue('#fBranch') === 'جدة' && !(await page.$('#fBackdate')),
+    'housekeeper form: her branch fixed (no clinic, no past requests)');
+  await shot(page, 'housekeeper-new');
   await page.fill('#itemSearch', 'floss'); await page.waitForSelector('.combo-opt'); await page.keyboard.press('Enter'); await page.keyboard.press('Escape');
   await page.click('#submitBtn');
-  const hkToast = await (await page.waitForSelector('.toast:last-child')).textContent();
+  // رقم الطلب من رسالة «تم إرسال الطلب» تحديداً (قد تبقى رسائل سابقة على الشاشة)
+  const hkToast = await page.waitForFunction(() => [...document.querySelectorAll('.toast')].map(x => x.textContent).find(x => /تم إرسال الطلب/.test(x)) || null).then(h => h.jsonValue());
   const hkId = (/REQ-[\d-]+/.exec(hkToast) || [''])[0];
   await page.click('.sidebar [data-view="mine"]');
   await page.evaluate(() => loadMine(true)); // القائمة قد تُرسم قبل وصول الطلب الجديد
