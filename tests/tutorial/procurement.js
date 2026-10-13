@@ -11,6 +11,7 @@ const scenes = {
   sub: { ar: 'إذا لم يتوفر صنف اعتمده الطبيب، اضغط «إضافة مستهلك بديل» تحت الصنف، واختر البديل من الكتالوج. يرجع البديل للطبيب ليوافق عليه، ولا يُرسل قبل موافقته.' },
   ship: { ar: 'حدّد الأصناف واكتب كمية هذه الشحنة، ويمكنك إرسال جزء الآن والباقي لاحقًا.' },
   boxpick: { ar: 'اسم الطبيب والفرع معبّآن من الطلب، ويظهر هل تُحمَّل في بوكس موجود أو جديد. اضغط «تحميل في البوكس وإرسال».' },
+  shipprint: { ar: 'كل شحنة قابلة للضغط: افتح تفاصيل الطلب واضغط على الشحنة، فتظهر أصنافها فقط مع تاريخها، واضغط «طباعة» لسند هذه الشحنة وحدها.' },
   undo: { ar: 'أرسلت بالخطأ؟ اضغط «تراجع عن آخر خطوة» واكتب السبب. كل تراجع يُسجَّل لفريق الجودة.' },
   cancel: { ar: 'لإلغاء طلبات حدّدها واضغط «إلغاء الطلب» واكتب السبب، ويصل الممرضة إيميل. ولاحظ: الممرضة نفسها تقدر تعدّل أو تلغي طلبها ما دام «جديد» ولم تبدأ فيه.' },
   boxes: { ar: 'صفحة «البوكسات» تعرض مكان كل بوكس: جاهز للنقل، أو في الفرع، أو فارغ. اطبع ستيكر QR لكل بوكس وثبّته عليه، فيرتبط البوكس بطبيبه دائمًا. وأرسل رابط «الشحنات» للسواق مرة واحدة.' },
@@ -23,11 +24,13 @@ const scenes = {
   issue: { ar: 'عند وصول طلب أداة من الممرضة لعيادة معيّنة، مثل عيادة 2: قبل إرسال الهاندبيس افتح صفحة «العهدة»، واضغط «صرف عهدة» تحت العيادة التي طلبتها، واكتب الرقم التسلسلي لكل قطعة (Enter للقطعة التالية)، ثم اضغط «صرف» وأرسلها مع السواق.' },
   edit: { ar: 'صرفت بالغلط؟ اضغط على الرقم التسلسلي: تقدر تصحّح الرقم أو الكمية، أو تنقلها لعيادة ثانية، أو تحذفها. كل تعديل يُسجَّل، والأداة التي عليها بلاغ مفتوح لا تُحذف.' },
   tickets: { ar: 'استلم الأداة بصورة حالتها، ثم قرّر: قابلة للتصليح، أو تالفة، أو مفقودة، واصرف بديلها.' },
+  doccustody: { ar: 'وعند الصرف اختر الطبيب الذي تُصرف عليه العهدة، فتظهر في تقريره وفي «عهدة الأطباء» أعلى بطاقة العيادة.' },
+  rules: { ar: '«قواعد الطلبات»: نافذة الطلب الشهري، ويوم الصرف، وحدود الطارئ، وقفل الأصناف الحرة. تعديلها يطبَّق فورًا ويظهر للممرضات والأطباء بشريط أعلى الصفحة.' },
   complaints: { ar: 'المشاكل المرفوعة على الطلبات: اقرأها ورد في تعليقات الطلب. شكرًا لك، وجهّز المعتمد بسرعة.' }
 };
 const steps = {
   login: { ar: 'تسجيل الدخول' }, req: { ar: 'الطلبات' }, ship: { ar: 'الشحنات' },
-  undo: { ar: 'التصحيح' }, boxes: { ar: 'البوكسات' }, free: { ar: 'الأصناف الحرة' }, catalog: { ar: 'الأصناف' }, custody: { ar: 'العهدة' }, comp: { ar: 'البلاغات' }
+  undo: { ar: 'التصحيح' }, rules: { ar: 'قواعد الطلبات' }, boxes: { ar: 'البوكسات' }, free: { ar: 'الأصناف الحرة' }, catalog: { ar: 'الأصناف' }, custody: { ar: 'العهدة' }, comp: { ar: 'البلاغات' }
 };
 
 async function flow(h) {
@@ -96,6 +99,16 @@ async function flow(h) {
     await page.waitForSelector('.modal .bxp-hint .i').catch(() => {}); await highlight('.modal .bxp-hint', 1200);
     await click('.modal #bxpOk'); await wait(1200);
     await page.waitForSelector(row + ' .ship-left').catch(() => {});
+  });
+  await scene('shipprint', 'ship', async () => {
+    await page.evaluate(id => openDetail(id), ID);
+    await page.waitForSelector('.modal .ship-open'); await wait(600);
+    await page.locator('.modal .ship-open >> nth=0').scrollIntoViewIfNeeded();
+    await click('.modal .ship-open >> nth=0');
+    await page.waitForSelector('.modal #spPrint'); await wait(700);
+    await highlight('.modal:has(#spPrint) table', 1500);
+    await click('.modal #spPrint'); await wait(900);
+    await page.keyboard.press('Escape'); await wait(300); await page.keyboard.press('Escape'); await wait(500);
   });
   await scene('undo', 'undo', async () => {
     await click(row + ' [data-act="revertStep"]');
@@ -194,11 +207,17 @@ async function flow(h) {
     await click('#asClinics [data-act="asIssue"][data-clinic="Dental Clinic 2"]');
     await page.waitForSelector('.modal #isItem'); await wait(400);
     await page.selectOption('.modal #isItem', 'Handpiece Low Speed'); await wait(400);
+    if (await page.$('.modal #isDoc')) { await h.select('.modal #isDoc', 'Dr. Saad'); }
     await type('.modal #isSer .input >> nth=0', 'NSK-2004');
     await page.press('.modal #isSer .input >> nth=0', 'Enter'); await wait(300);
     await page.keyboard.type('NSK-2005', { delay: 60 }); await wait(400);
     await highlight('.modal #isSerN', 900);
     await click('.modal #isOk'); await wait(1300);
+  });
+  await scene('doccustody', 'custody', async () => {
+    const card = '#asClinics section:has-text("Dental Clinic 2")';
+    await page.locator(card).first().scrollIntoViewIfNeeded().catch(() => {});
+    if (await page.$(card + ' .as-docs')) await highlight(card + ' .as-docs', 2600); else await highlight(card, 2600);
   });
   await scene('edit', 'custody', async () => {
     const card = '#asClinics section:has-text("Dental Clinic 2")';
@@ -227,6 +246,12 @@ async function flow(h) {
       await h.scroll(5000, '.modal-body'); await wait(1200);
       await page.keyboard.press('Escape');
     }
+  });
+  await scene('rules', 'rules', async () => {
+    await h.nav('rules');
+    await page.waitForSelector('#rlBox .rl-in'); await wait(500);
+    await highlight('#rlBox .grid-2', 2200);
+    await page.$eval('#rlBox .rule-bar', el => el.scrollIntoView({ block: 'center', behavior: 'smooth' })).catch(() => {}); await wait(1500);
   });
   await scene('complaints', 'comp', async () => {
     await h.nav('complaints');

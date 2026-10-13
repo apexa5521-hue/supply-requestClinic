@@ -67,7 +67,7 @@ function seedScript(cfg) {
     `(function () {
     const gas = GasMock.createGas();
     const D = 864e5, Hr = 36e5, now = Date.now();
-    gas.seed('Roles', ['RoleName', 'Screen'], [['Nurse', 'nurse'], ['Procurement', 'procurement'], ['Doctor', 'doctor'], ['Lab', 'lab'], ['Quality', 'quality'], ['Executive', 'executive'], ['Finance', 'finance'], ['Branch manager', 'branch'], ['Admin', 'admin']]);
+    gas.seed('Roles', ['RoleName', 'Screen'], [['Nurse', 'nurse'], ['Procurement', 'procurement'], ['Doctor', 'doctor'], ['Lab', 'lab'], ['Quality', 'quality'], ['Executive', 'executive'], ['Finance', 'finance'], ['Branch manager', 'branch'], ['Admin', 'admin'], ['Housekeeper', 'housekeeper'], ['Sterilization officer', 'housekeeper']]);
     gas.seed('Users', ['Name', 'Password', 'Role', 'Clinic', 'Email', 'PasswordChangedAt', 'DoctorName', 'Department', 'Branch', 'PriceView'], [
       ['Sara', '1111', 'Nurse', 'Dental Clinic 1', 'sara@example.com', '', '', '', ''],
       ['Mona', '1212', 'Nurse', 'Dental Clinic 2', 'mona@example.com', '', '', '', ''],
@@ -83,7 +83,9 @@ function seedScript(cfg) {
       ['Faisal', '6666', 'Executive', '', 'faisal@example.com', '', '', '', ''],
       ['Nawaf', '7777', 'Branch manager', '', 'nawaf@example.com', '', '', '', 'Buraydah'],
       ['Hessa', '2222', 'Finance', '', 'hessa@example.com', '', '', '', ''],
-      ['Admin', '9999', 'Admin', '', '', '', '', '', '']
+      ['Admin', '9999', 'Admin', '', '', '', '', '', ''],
+      ['Reem', '1414', 'Housekeeper', '', 'reem@example.com', '', '', '', 'Buraydah'],
+      ['Fahad', '1515', 'Sterilization officer', '', 'fahad@example.com', '', '', '', 'Unayzah']
     ]);
     // الاستبيان مفتوح في العرض (في النظام الحقيقي أول دورة بعد 50 يوماً من التحديث)
     gas.seed('Settings', ['Key', 'Value', 'Notes'], [['SurveyStart', new Date(now - 3 * D).toISOString().slice(0, 10), '']]);
