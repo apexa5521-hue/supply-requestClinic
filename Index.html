@@ -1054,6 +1054,12 @@ button.ship-open:hover { background: color-mix(in srgb, var(--t-indigo) 18%, tra
   .wf-branch { grid-column: 1 / -1 !important; }
   .rp-docbar > * { flex: 1 1 140px; }
 }
+@media (max-width: 640px) {
+  /* بطاقة الطلب على الجوال: التفاصيل بعرض البطاقة كاملاً، والحالة وأزرارها في سطر تحتها */
+  .req-main { flex-wrap: wrap; row-gap: 10px; }
+  .req-main > .grow { flex: 1 1 100%; min-width: 0; }
+  .req-main > .req-side { flex: 1 1 100%; flex-direction: row; flex-wrap: wrap; align-items: center; justify-content: flex-start; }
+}
 @media (max-width: 520px) {
   .req-side .progress { display: none; }
   .segmented { width: 100%; }

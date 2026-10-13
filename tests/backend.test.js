@@ -184,7 +184,7 @@ test('config: nurse sees every clinic (own clinics flagged) and no prices; clini
   const proc = api(login('علي', '3333'), 'getConfig');
   assert.equal(proc.catalog.find(c => c.name === 'PROPHY PASTE').price, 60);
   assert.equal(proc.roles.length, 0, 'roles only for admin');
-  assert.equal(api(login('المدير', '1234'), 'getConfig').roles.length, 9);
+  assert.equal(api(login('المدير', '1234'), 'getConfig').roles.length, 10);
 });
 
 test('createRequest: validation', () => {
@@ -1331,7 +1331,7 @@ test('setupSheets is idempotent and seeds defaults on an empty spreadsheet', () 
   ctx.setupSheets();
   ctx.setupSheets();
   assert.equal(gas.dump('Users').length, 2);
-  assert.equal(gas.dump('Roles').length, 11);
+  assert.equal(gas.dump('Roles').length, 12);
   assert.equal(gas.dump('ItemsCatalog').length, 18);
   const r = ctx.api(null, 'login', ['المدير', '1234']);
   assert.equal(r.user.screen, 'admin');
@@ -1411,7 +1411,7 @@ test('roles split: legacy quality/executive/finance migrate; executive keeps ful
   });
   const q = login('منى', '5555');
   assert.deepEqual(rows(gas, 'Roles').map(r => [r.RoleName, r.Screen]).sort(), [
-    ['أدمن', 'admin'], ['ممرضة', 'nurse'], ['تموين', 'procurement'], ['جودة', 'quality'], ['تنفيذي', 'executive'], ['مالية', 'finance'], ['المعمل', 'lab'], ['مدير فرع', 'branch']].sort());
+    ['أدمن', 'admin'], ['ممرضة', 'nurse'], ['تموين', 'procurement'], ['جودة', 'quality'], ['تنفيذي', 'executive'], ['مالية', 'finance'], ['المعمل', 'lab'], ['مدير فرع', 'branch'], ['هاوس كيبر', 'housekeeper']].sort());
   const qc = api(q, 'getConfig');
   assert.equal(qc.user.screen, 'quality');
   assert.ok(qc.user.perms.includes('monitor') && !qc.user.perms.includes('users') && !qc.user.perms.includes('finance'));
@@ -1563,7 +1563,7 @@ test('management roles (finance…) are added automatically when missing, so the
   });
   const a = login('المدير', '1234');
   const roles = api(a, 'getConfig').roles.map(r => r.name + ':' + r.screen).sort();
-  assert.deepEqual(roles, ['أدمن:admin', 'تموين:procurement', 'تنفيذي:executive', 'جودة:quality', 'طبيب:doctor', 'مالية:finance', 'ممرضة:nurse', 'المعمل:lab', 'مدير فرع:branch'].sort());
+  assert.deepEqual(roles, ['أدمن:admin', 'تموين:procurement', 'تنفيذي:executive', 'جودة:quality', 'طبيب:doctor', 'مالية:finance', 'ممرضة:nurse', 'المعمل:lab', 'مدير فرع:branch', 'هاوس كيبر:housekeeper'].sort());
   api(a, 'createUser', { name: 'المالية', password: '2468', role: 'مالية', email: 'finance@example.com' });
   const f = api(null, 'login', 'المالية', '2468');
   assert.equal(f.user.screen, 'finance');
@@ -2799,4 +2799,48 @@ test('settings in the app: admin edits clinics, labs, lists, keys, survey; finan
   api(a, 'saveDoctor', 'د. نورة', { name: 'د. نورة', clinics: ['عيادة الأسنان 1'], billing: 'clinic' });
   assert.equal(rows(gas, 'Doctors').find(r => r.DoctorName === 'د. نورة').Billing, 'عيادة');
   assert.equal(api(a, 'getDoctorsAdmin').doctors.find(d => d.name === 'د. نورة').billing, 'clinic');
+});
+
+test('housekeeper: nurse-like requests seen only by her, approved by her branch manager (not a doctor), then the normal cycle', () => {
+  const { api, login, gas } = boot();
+  const a = login('المدير', '1234'), p = login('علي', '3333'), n = login('سارة', '1111');
+  api(a, 'createUser', { name: 'مدير جدة', password: '9090', role: 'مدير فرع', branch: 'جدة' });
+  api(a, 'createUser', { name: 'مدير الرياض', password: '9191', role: 'مدير فرع', branch: 'الرياض' });
+  api(a, 'createUser', { name: 'هند', password: '3030', role: 'هاوس كيبر', clinic: '' });
+  const hk = login('هند', '3030'), mj = login('مدير جدة', '9090'), mr = login('مدير الرياض', '9191');
+  const cfg = api(hk, 'getConfig');
+  assert.deepEqual([cfg.user.screen, cfg.user.hk], ['nurse', true], 'works on the nurse screens');
+  // asks for a place (clinic/area), not for a doctor; any clinic of the branch is allowed
+  throwsCode(() => api(hk, 'createRequest', { doctor: 'د. خالد', type: 'شهري', items: [{ name: 'DENTAL FLOSS', qty: 1 }] }), 'ERR_FORBIDDEN');
+  const id = api(hk, 'createRequest', { clinic: 'عيادة الأسنان 2', branch: 'جدة', type: 'شهري', items: [{ name: 'DENTAL FLOSS', qty: 4 }] }).id;
+  let r = rows(gas, 'Requests').find(x => x.RequestID === id);
+  assert.deepEqual([r.Status, r.Approver], ['مراجعة الطبيب', 'مدير الفرع']);
+  // only in her account
+  assert.ok(api(hk, 'getMyRequests').some(x => x.id === id));
+  assert.ok(!api(n, 'getMyRequests').some(x => x.id === id), 'other nurses do not see it');
+  throwsCode(() => api(n, 'getRequestDetail', id), 'ERR_FORBIDDEN');
+  // procurement can't prepare it before the branch manager approves
+  api(p, 'bulkUpdateStatus', [id], 'قيد التجهيز');
+  assert.equal(rows(gas, 'Requests').find(x => x.RequestID === id).Status, 'مراجعة الطبيب', 'stays with the branch manager');
+  throwsCode(() => api(p, 'dispatchItems', id, ['DENTAL FLOSS']), 'ERR_NEEDS_APPROVAL');
+  // only the manager of that branch sees and approves it
+  assert.ok(!api(mr, 'getDoctorRequests').some(x => x.id === id), 'another branch manager does not see it');
+  throwsCode(() => api(mr, 'doctorReview', id, 'اعتمد', '', []), 'ERR_NOT_FOUND'); // خارج نطاق فرعه أصلاً
+  const mine = api(mj, 'getDoctorRequests').find(x => x.id === id);
+  assert.ok(mine && mine.awaitingDoctor, 'waiting for the branch manager');
+  // reject → she resubmits → approve with a changed qty
+  api(mj, 'doctorReview', id, 'رفض', 'كمية كبيرة', []);
+  api(hk, 'resubmitRequest', id, 'خففتها');
+  api(mj, 'doctorReview', id, 'اعتمد', '', [], [{ item: 'DENTAL FLOSS', qty: 2 }]);
+  r = rows(gas, 'Requests').find(x => x.RequestID === id);
+  assert.equal(r.Status, 'معتمد من الطبيب'); // نفس قيمة الحالة؛ الواجهة تعرضها «اعتمده مدير الفرع»
+  // the normal cycle continues: procurement sends, she receives
+  api(p, 'bulkUpdateStatus', [id], 'قيد التجهيز');
+  assert.equal(api(p, 'dispatchItems', id, ['DENTAL FLOSS']).units, 2);
+  api(hk, 'receiveShipment', id, 1, [{ name: 'DENTAL FLOSS', qty: 2 }], 'هند', '', '', '');
+  assert.equal(rows(gas, 'Requests').find(x => x.RequestID === id).Status, 'تم الاستلام');
+  // no branch manager for the branch → straight to procurement (like a doctor without an account)
+  api(a, 'deleteUser', 'مدير جدة');
+  const id2 = api(login('هند', '3030'), 'createRequest', { clinic: 'عيادة الأسنان 2', branch: 'جدة', type: 'شهري', items: [{ name: 'PROPHY PASTE', qty: 1 }] }).id;
+  assert.equal(rows(gas, 'Requests').find(x => x.RequestID === id2).Status, 'جديد');
 });
