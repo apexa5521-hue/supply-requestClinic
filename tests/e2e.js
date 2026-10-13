@@ -622,6 +622,19 @@ function log(msg) { console.log('  ✔ ' + msg); }
   await shot(page, 'request-detail-print', true);
   await page.emulateMedia({ media: 'screen' });
   await page.waitForTimeout(1600);
+  // كل شحنة قابلة للضغط: تفاصيلها وطباعة أصنافها فقط (لتسجيل الاستهلاك)
+  const ship2Items = await page.evaluate(id => SHIP_CTX[id].ships.find(g => g.batch === 2).items.length, newId);
+  await page.click('.modal .ship-open[data-b="2"]');
+  await page.waitForSelector('.modal #spPrint');
+  expect(await page.locator('.modal:has(#spPrint) tbody tr').count() === ship2Items, 'shipment 2 opens with only its own items (' + ship2Items + ')');
+  await page.click('.modal #spPrint');
+  await page.emulateMedia({ media: 'print' });
+  expect((await page.textContent('#printArea')).includes('سند الشحنة #2') && await page.locator('#printArea .rep-table tbody tr').count() === ship2Items, 'shipment print has only that shipment items');
+  await shot(page, 'shipment-print', true);
+  await page.emulateMedia({ media: 'screen' });
+  await page.waitForTimeout(1600);
+  await page.keyboard.press('Escape');
+  await page.waitForTimeout(300);
   await page.keyboard.press('Escape');
   const lbl = await page.evaluate(() => { const old = S.clinics; S.clinics = [{ name: 'Sterilization', branch: 'بريدة' }, { name: 'Sterilization', branch: 'عنيزة' }, { name: 'A', branch: 'بريدة' }];
     const r = [clinicLabel(S.clinics[0]), clinicLabel(S.clinics[1]), clinicLabel(S.clinics[2]), clinicNames().join('|'), clinicBranch('Sterilization', 'عنيزة')]; S.clinics = old; return r; });
