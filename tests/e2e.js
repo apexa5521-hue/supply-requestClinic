@@ -1147,6 +1147,13 @@ function log(msg) { console.log('  ✔ ' + msg); }
   expect(await page.evaluate(() => { const d = __gas.dump('Doctors'); const h = d[0]; return d.find(x => x[0] === 'د. نورة')[h.indexOf('ChargeTypes')]; }) === 'مستهلك', 'stored in the Doctors sheet');
   await page.selectOption('#fnCharges .ch-sel[data-doc="د. نورة"]', 'all');
   await shot(page, 'finance-doctor-charges');
+  // صرف كل طبيب حسب الفرع + الإجمالي، مع تصدير
+  await page.waitForSelector('#fnDocBranch .db-table');
+  expect(await page.locator('#fnDocBranch thead .db-grp').count() >= 2, 'doctor spend has a column group per branch plus the total');
+  const [dl] = await Promise.all([page.waitForEvent('download'), page.click('[data-act="fnDbCsv"]')]);
+  expect(/doctor-spend-by-branch/.test(dl.suggestedFilename()), 'doctor spend by branch exported: ' + dl.suggestedFilename());
+  await page.locator('#fnDocBranch').scrollIntoViewIfNeeded();
+  await shot(page, 'finance-doctor-branches');
   await shot(page, 'finance', true);
   // المالية تضيف وتعدّل الأصناف مثل التموين
   await page.click('.sidebar [data-view="catalog"]');

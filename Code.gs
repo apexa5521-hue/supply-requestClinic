@@ -2492,7 +2492,7 @@ function getFinance_(user, opts) {
     summary: { requests: rep.summary.requests - rep.summary.rejected, requested: round2_(requested), approved: rep.summary.value,
       dispatched: round2_(dispatched), received: round2_(received), reviewSaving: round2_(Math.max(0, requested - rep.summary.value)),
       avgValue: rep.summary.avgValue, emergency: rep.summary.emergency },
-    byType: byType, branches: rep.branches, clinics: rep.clinics, doctors: rep.doctors, billing: rep.billing, topItems: rep.topItems,
+    byType: byType, branches: rep.branches, clinics: rep.clinics, doctors: rep.doctors, billing: rep.billing, docBranches: rep.docBranches, topItems: rep.topItems,
     badPrices: rep.badPrices, trend: trend
   };
 }
@@ -4263,6 +4263,7 @@ function getStatsReport_(user, opts) {
   function avg(a) { return a.length ? round1_(a.reduce(function (x, y) { return x + y; }, 0) / a.length) : null; }
   const sum = bucket(), byDoc = {}, byBranch = {}, byClinic = {}, items = {}, statuses = {};
   const bill = billingIndex_(), byBill = {};
+  const byDocBranch = {}; // صرف كل طبيب في كل فرع (مستهلك / ماتيريال) — ما يُحسب عليه فقط
   let partial = 0;
   const docCharge = {};
   allDoctors_().forEach(function (d) { docCharge[d.name] = d.charge; });
@@ -4274,6 +4275,12 @@ function getStatsReport_(user, opts) {
         const q = targetQty_(it), n = str_(it.ItemName), k = n.toLowerCase(), v = round2_(q * (cat[k] || 0));
         value += v; qty += q;
         if (!who || charged_(docCharge[who], ctype[k])) billValue += v; // حسبة الطبيب: ما لا يُحسب عليه لا يدخل حسابه
+        if (who && v && charged_(docCharge[who], ctype[k])) {
+          const db = byDocBranch[who] || (byDocBranch[who] = {});
+          const cell = db[r.branch || '—'] || (db[r.branch || '—'] = { consumable: 0, material: 0 });
+          const tk = ctype[k] === ITEM_TYPES_[1] ? 'material' : 'consumable';
+          cell[tk] = round2_(cell[tk] + v);
+        }
         items[k] = items[k] || { item: n, qty: 0, value: 0, requests: 0 };
         items[k].qty += q; items[k].value = round2_(items[k].value + v); items[k].requests++;
       });
@@ -4316,8 +4323,28 @@ function getStatsReport_(user, opts) {
     summary: Object.assign(out('', sum), { partial: partial }),
     doctors: list(byDoc), branches: list(byBranch), clinics: list(byClinic), statuses: statuses, badPrices: badPrices,
     billing: Object.keys(byBill).map(function (k) { return byBill[k]; }).sort(function (a, b) { return (a.name ? 0 : 1) - (b.name ? 0 : 1) || b.value - a.value; }),
+    docBranches: NO_PRICES_ ? { branches: [], rows: [] } : docBranches_(byDocBranch, docCharge), // مبالغ فقط: لا تظهر لمن لا يرى الأسعار
     topItems: Object.keys(items).map(function (k) { return items[k]; }).sort(function (a, b) { return (NO_PRICES_ ? 0 : b.value - a.value) || b.qty - a.qty; }).slice(0, 12)
   };
+}
+
+/** جدول المالية: صرف كل طبيب في كل فرع منفصلاً + إجماليه في كل الفروع */
+function docBranches_(m, docCharge) {
+  const branches = [];
+  Object.keys(m).forEach(function (d) { Object.keys(m[d]).forEach(function (b) { if (branches.indexOf(b) === -1) branches.push(b); }); });
+  branches.sort();
+  const rows = Object.keys(m).map(function (d) {
+    const row = { name: d, charge: docCharge[d] || 'all', cells: {}, consumable: 0, material: 0, total: 0 };
+    branches.forEach(function (b) {
+      const c = m[d][b];
+      if (!c) return;
+      row.cells[b] = { consumable: c.consumable, material: c.material, total: round2_(c.consumable + c.material) };
+      row.consumable = round2_(row.consumable + c.consumable); row.material = round2_(row.material + c.material);
+    });
+    row.total = round2_(row.consumable + row.material);
+    return row;
+  }).sort(function (a, b) { return b.total - a.total || (a.name < b.name ? -1 : 1); });
+  return { branches: branches, rows: rows };
 }
 
 /* =====================================================================
