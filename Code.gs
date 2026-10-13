@@ -108,7 +108,9 @@ const SCREENS = ['nurse', 'procurement', 'doctor', 'lab', 'quality', 'executive'
 const MGMT_SCREENS = ['quality', 'executive', 'finance', 'dashboard', 'branch', 'admin'];
 const DEFAULT_ROLES = [
   ['ممرضة', 'nurse'], ['تموين', 'procurement'], ['طبيب', 'doctor'],
-  ['جودة', 'quality'], ['جوده', 'quality'], ['مالية', 'finance'], ['تنفيذي', 'executive'], ['أدمن', 'admin'], ['المعمل', 'lab'], ['مدير فرع', 'branch'], ['هاوس كيبر', 'housekeeper']
+  ['جودة', 'quality'], ['جوده', 'quality'], ['مالية', 'finance'], ['تنفيذي', 'executive'], ['أدمن', 'admin'], ['المعمل', 'lab'], ['مدير فرع', 'branch'], ['هاوس كيبر', 'housekeeper'],
+  // نفس آلية الهاوس كيبر (طلب لفرعه بموافقة مدير الفرع): مسؤول التعقيم ومسؤول الأشعة
+  ['مسؤول التعقيم', 'housekeeper'], ['مسؤول الأشعة', 'housekeeper']
 ];
 /**
  * الصلاحيات القابلة للتحديد لكل دور إداري. الأدمن له كل شيء دائماً.
@@ -1150,8 +1152,11 @@ function verifyPassword_(stored, pw) {
 function asHousekeeper_(user) {
   if (user.screen !== 'housekeeper') return user;
   user.screen = 'nurse'; user.hk = true;
+  user.hkBranch = userBranch_(user); // فرعها المحدد من الأدمن: طلباتها لهذا الفرع فقط ويعتمدها مديره
   return user;
 }
+/* طلب الهاوس كيبر لفرع كامل (لا لعيادة): يُسجَّل بهذا الاسم مكان العيادة */
+const HK_PLACE_ = 'هاوس كيبر';
 function roleScreen_(roleName) {
   roleName = str_(roleName);
   const r = getRoles_().filter(function (x) { return x.name === roleName; })[0];
@@ -1802,9 +1807,10 @@ function permsOf_(user) {
 function ensureMgmtRoles_() {
   const have = {};
   read_('Roles').rows.forEach(function (r) { if (str_(r.RoleName)) have[str_(r.RoleName)] = str_(r.Screen); });
-  const missing = [['جودة', 'quality'], ['مالية', 'finance'], ['تنفيذي', 'executive'], ['أدمن', 'admin'], ['المعمل', 'lab'], ['مدير فرع', 'branch'], ['هاوس كيبر', 'housekeeper']].filter(function (d) {
+  const missing = [['جودة', 'quality'], ['مالية', 'finance'], ['تنفيذي', 'executive'], ['أدمن', 'admin'], ['المعمل', 'lab'], ['مدير فرع', 'branch'], ['هاوس كيبر', 'housekeeper'], ['مسؤول التعقيم', 'housekeeper'], ['مسؤول الأشعة', 'housekeeper']].filter(function (d) {
     // لا نضيف «جودة» إن كان «جوده» موجوداً، ولا أي دور شاشته موجودة مسبقاً باسم آخر
     if (have[d[0]] !== undefined || (d[0] === 'جودة' && have['جوده'] !== undefined) || (d[0] === 'مالية' && have['ماليه'] !== undefined)) return false;
+    if (d[1] === 'housekeeper') return true; // أدوار الفرع (هاوس كيبر / التعقيم / الأشعة) تُضاف كلٌّ باسمه
     return !Object.keys(have).some(function (n) { return have[n] === d[1]; });
   });
   if (!missing.length) return;
@@ -1862,7 +1868,7 @@ function getConfig_(user) {
     catalog: getCatalog_(user.screen !== 'nurse'),
     roles: (user.perms || []).indexOf('users') !== -1 ? getRoles_() : [],
     hasAdmin: (user.perms || []).indexOf('users') !== -1 ? hasAdmin_() : true,
-    backdateUntil: user.screen === 'nurse' ? backdateUntil_() : '',
+    backdateUntil: user.screen === 'nurse' && !user.hk ? backdateUntil_() : '', // الهاوس كيبر: بلا طلبات بأثر رجعي
     orderRules: getOrderRules_(user),
     serverTime: new Date()
   };
@@ -2580,6 +2586,12 @@ function requestDupKey_(nurse, clinic, branch, doctor, type, items) {
 function createRequest_(user, payload) {
   payload = payload || {};
   const forLab = user.screen === 'lab';
+  if (user.hk) {
+    // الهاوس كيبر: تطلب لفرع (فرعها المحدد، أو تختار الفرع إن لم يُحدَّد لها) — بلا عيادة ولا طبيب ولا أثر رجعي
+    if (str_(payload.doctor) || str_(payload.backdate)) throw new Error('ERR_FORBIDDEN');
+    // الطلب يُسجَّل باسم الدور (هاوس كيبر / مسؤول التعقيم / مسؤول الأشعة) مكان العيادة — يظهر كذلك في التقارير
+    payload = Object.assign({}, payload, { clinic: str_(user.role) || HK_PLACE_, branch: user.hkBranch || str_(payload.branch) });
+  }
   const doctor = forLab ? '' : str_(payload.doctor);
   const type = str_(payload.type);
   // الطلب الاعتيادي مبني على طبيب (والعيادة اختيارية وتُستنتج منه)؛
@@ -2587,15 +2599,14 @@ function createRequest_(user, payload) {
   const clinicOnly = !doctor;
   let clinic = forLab ? LAB_SUPPLY_ : str_(payload.clinic);
   if (clinicOnly && !clinic) throw new Error('ERR_REQUIRED');
-  if (user.hk && !clinicOnly) throw new Error('ERR_FORBIDDEN'); // الهاوس كيبر تطلب لمكان (عيادة/منطقة) لا لطبيب
   if (REQUEST_TYPES.indexOf(type) === -1) throw new Error('ERR_BAD_TYPE');
   const mine = userClinics_(user);
-  if (clinic && !forLab) {
+  if (clinic && !forLab && !user.hk) {
     // مستهلكات العيادة للمناطق المشتركة (التعقيم / غرفة الفرز / أجهزة الجلدية) وعيادات الأسنان في أي فرع؛ طلب الطبيب يبقى ضمن عيادات الممرضة
     if (!clinicOnly && mine.length && mine.indexOf(clinic) === -1) throw new Error('ERR_FORBIDDEN');
     const cRows = getClinics_().filter(function (c) { return c.name === clinic; });
     if (!cRows.length) throw new Error('ERR_BAD_CLINIC');
-    if (clinicOnly && !user.hk && !cRows.some(clinicConsumablesOk_)) throw new Error('ERR_CLINIC_SHARED_ONLY');
+    if (clinicOnly && !cRows.some(clinicConsumablesOk_)) throw new Error('ERR_CLINIC_SHARED_ONLY');
   }
   if (!clinicOnly) {
     // الطبيب غير مرتبط بعيادة ثابتة: يُقبل أي طبيب في القائمة، والعيادة المختارة هي مكان الاستهلاك
@@ -2605,7 +2616,7 @@ function createRequest_(user, payload) {
   // الفرع الذي ستُرسل له الطلبية: يختاره المستخدم، والافتراضي فرع العيادة
   const branches = getBranches_();
   const branch = forLab ? (str_(payload.branch) || userBranch_(user) || branches[0] || '')
-    : str_(payload.branch) || (clinic ? clinicBranch_(clinic) : '');
+    : user.hk ? str_(payload.branch) : str_(payload.branch) || (clinic ? clinicBranch_(clinic) : '');
   if (branches.length && branches.indexOf(branch) === -1) throw new Error(branch ? 'ERR_BAD_BRANCH' : 'ERR_BRANCH_REQUIRED');
 
   // دمج الأصناف المكررة + التحقق من الكميات
