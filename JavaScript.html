@@ -1006,6 +1006,9 @@ ACT.moreRows = el => moreRows(el.dataset.k);
 document.addEventListener('click', e => {
   const el = e.target.closest('[data-act]');
   if (!el || el.disabled) return;
+  // رابط داخل بطاقة قابلة للضغط (مثل «صورة مكان البوكس») يفتح الرابط نفسه، لا البطاقة
+  const link = e.target.closest('a[href]');
+  if (link && link !== el && el.contains(link)) return;
   const fn = ACT[el.dataset.act];
   if (fn) { e.preventDefault(); fn(el, e); }
 });
@@ -4212,7 +4215,7 @@ function renderDoc(animate, keepKpis) {
   setList(box, pageOf('doc', list).map((r, i) => stagger(
     '<article class="req' + (r.type === 'طارئ' ? ' urgent' : '') + '"' + reqTone(r) + '><div class="req-main clickable" data-act="review" data-id="' + esc(r.id) + '">' +
       '<div class="grow"><div class="row-wrap"><span class="req-id">' + esc(r.id) + '</span>' + typeTag(r.type) + bdTag(r) + branchTag(r.branch) + arrivedTag(r) + '</div>' +
-        '<div class="req-sub"><span>' + icon('building') + esc(r.clinic) + '</span><span>' + icon('user') + esc(r.nurse) + '</span>' + stageStamp(r) + '<span>' + icon('package') + esc(t('items_count', { n: r.itemCount || 0 })) + '</span></div></div>' + boxAtHtml(r.boxAt) + '</div>' +
+        '<div class="req-sub"><span>' + icon('building') + esc(r.clinic) + '</span><span>' + icon('user') + esc(r.nurse) + '</span>' + stageStamp(r) + '<span>' + icon('package') + esc(t('items_count', { n: r.itemCount || 0 })) + '</span></div>' + boxAtHtml(r.boxAt) + '</div>' +
       '<div class="req-side">' + badge(r.status, r) + (r.status === ST.REVIEW ? '<span class="btn btn-primary btn-sm">' + esc(t('review_title')) + icon('chevr', 'i-sm flip') + '</span>' : '') + '</div>' +
     '</div></article>', i)).join('') + moreBtn('doc', list.length) + archiveBtn('doc', S.doc.archive), animate);
 }

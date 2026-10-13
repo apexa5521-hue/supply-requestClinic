@@ -1447,6 +1447,7 @@ function log(msg) { console.log('  ✔ ' + msg); }
   const hkToast = await (await page.waitForSelector('.toast:last-child')).textContent();
   const hkId = (/REQ-[\d-]+/.exec(hkToast) || [''])[0];
   await page.click('.sidebar [data-view="mine"]');
+  await page.evaluate(() => loadMine(true)); // القائمة قد تُرسم قبل وصول الطلب الجديد
   await page.waitForSelector(`.req:has-text("${hkId}")`);
   expect((await page.textContent(`.req:has-text("${hkId}") .badge`)).includes('بانتظار مدير الفرع'), 'her card says it waits for the branch manager');
   await shot(page, 'housekeeper-mine');
@@ -1722,6 +1723,17 @@ function log(msg) { console.log('  ✔ ' + msg); }
   await m.click('#procList .req-main >> nth=0').catch(() => {});
   if (await m.$('.modal .stepper')) { await mCheck(m, 'procurement detail'); await m.keyboard.press('Escape'); }
   await mRole('د. خالد', '4444', ['reviews']);
+  // بطاقة الطبيب على الجوال: شريط «البوكس في» تحت تفاصيل الطلب بعرض البطاقة (لا يضغط النص في عمود ضيق)
+  const boxCard = await m.evaluate(() => {
+    if (!S.doc.list.length) return null;
+    S.doc.group = 'all'; S.doc.list[0].boxAt = { to: 'جدة', photo: 'https://example.com/p.jpg', at: new Date().toISOString() }; renderDoc(false);
+    const b = document.querySelector('#docList .box-at'); if (!b) return null;
+    const card = b.closest('.req'), id = card.querySelector('.req-id');
+    return { inGrow: !!b.closest('.grow'), ratio: b.getBoundingClientRect().width / card.getBoundingClientRect().width, idH: id.getBoundingClientRect().height };
+  });
+  expect(boxCard && boxCard.inGrow && boxCard.ratio > 0.8 && boxCard.idH < 30, 'phone: box location sits under the request details, full width — ' + JSON.stringify(boxCard));
+  await shot(m, 'mobile-doctor-box-at', true);
+  await mCheck(m, 'doctor / box location');
   await mRole('منى', '5555', ['overview', 'monitor', 'reports', 'complaints', 'notices', 'workflow']);
   expect(await m.evaluate(() => ['executive', 'quality', 'admin'].indexOf(S.user.screen) !== -1) === (await m.locator('.wf-rolecard').count() > 0), '«who does what» block shows only for executive, quality and admin');
   await mRole('نواف', '7777', ['finance']);
