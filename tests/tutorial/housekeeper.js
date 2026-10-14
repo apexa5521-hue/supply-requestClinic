@@ -2,18 +2,18 @@
 const { makeTutorial } = require('./engine');
 
 const scenes = {
-  intro: { ar: 'هذا الفيديو للهاوس كيبر، ومسؤول التعقيم، ومسؤول الأشعة. ترفع طلبات فرعك من حسابك، ويعتمدها مدير الفرع بدل الطبيب.' },
-  login: { ar: 'ادخل باسمك ورقمك السري. حسابك فيه صفحتان فقط: «طلب جديد» و«طلباتي»، وطلباتك لا تظهر لأحد من الممرضات.' },
-  form: { ar: 'فرعك محدد مسبقًا من الإدارة ولا يتغير، ولا تختار عيادة ولا طبيبًا، لأن الطلب للفرع كله. ولا يوجد تسجيل طلبات بتاريخ سابق.' },
-  type: { ar: 'اختر نوع الطلب: «شهري» للطلب المعتاد، أو «طارئ» للحاجة العاجلة فقط، مع الالتزام بقواعد الطلبات الظاهرة أعلى الصفحة.' },
-  items: { ar: 'اكتب اسم الصنف واختره، ثم حدد الكمية بالزائد والناقص. أضف كل ما تحتاجه في طلب واحد.' },
-  submit: { ar: 'راجع الملخص ثم اضغط «إرسال الطلب». يصل الطلب لمدير فرعك مباشرة بإشعار.' },
-  mine: { ar: 'في «طلباتي» تتابع كل طلب. البطاقة تقول «بانتظار مدير الفرع» حتى يعتمده.' },
-  approve: { ar: 'الآن من حساب مدير الفرع: صفحة «الاعتمادات» فيها طلبات فرعه. يفتح الطلب، ويعدّل الكمية إن لزم، ثم يضغط «اعتماد»، فيذهب الطلب للتموين للتجهيز.' },
-  reject: { ar: 'وإن لم يكن الطلب مناسبًا، يكتب مدير الفرع السبب ويضغط «رفض».' },
-  resubmit: { ar: 'يصلك الرفض مع السبب في بطاقة الطلب. صحّح ما يلزم، ثم اضغط «إعادة الإرسال لمدير الفرع» واكتب ملاحظتك.' },
-  receive: { ar: 'بعد أن يجهز التموين الطلب ويصل للفرع، يظهر زر «استلام». راجع الكميات، ووقّع، ثم أكّد الاستلام.' },
-  done: { ar: 'وهذه نفس الخطوات لمسؤول التعقيم ومسؤول الأشعة، كل في فرعه. شكرًا لك.' }
+  intro: { en: "This video is for the housekeeper, the sterilization officer, and the radiology officer. You place your branch's requests from your account, and the branch manager approves them instead of a doctor.", ar: 'هذا الفيديو للهاوس كيبر، ومسؤول التعقيم، ومسؤول الأشعة. ترفع طلبات فرعك من حسابك، ويعتمدها مدير الفرع بدل الطبيب.' },
+  login: { en: "Sign in with your name and password. Your account has only two pages: New request and My requests, and your requests are not shown to any nurse.", ar: 'ادخل باسمك ورقمك السري. حسابك فيه صفحتان فقط: «طلب جديد» و«طلباتي»، وطلباتك لا تظهر لأحد من الممرضات.' },
+  form: { en: "Your branch is set in advance by the admin and cannot be changed. You don't choose a clinic or a doctor, because the request is for the whole branch. And past-dated requests are not allowed.", ar: 'فرعك محدد مسبقًا من الإدارة ولا يتغير، ولا تختار عيادة ولا طبيبًا، لأن الطلب للفرع كله. ولا يوجد تسجيل طلبات بتاريخ سابق.' },
+  type: { en: "Choose the request type: Monthly for the usual order, or Emergency for urgent needs only, following the request rules shown at the top of the page.", ar: 'اختر نوع الطلب: «شهري» للطلب المعتاد، أو «طارئ» للحاجة العاجلة فقط، مع الالتزام بقواعد الطلبات الظاهرة أعلى الصفحة.' },
+  items: { en: "Type the item name and pick it, then set the quantity with plus and minus. Add everything you need in one request.", ar: 'اكتب اسم الصنف واختره، ثم حدد الكمية بالزائد والناقص. أضف كل ما تحتاجه في طلب واحد.' },
+  submit: { en: "Check the summary, then tap Submit request. The request goes straight to your branch manager with a notification.", ar: 'راجع الملخص ثم اضغط «إرسال الطلب». يصل الطلب لمدير فرعك مباشرة بإشعار.' },
+  mine: { en: "In My requests you follow every request. The card says Waiting for the branch manager until it is approved.", ar: 'في «طلباتي» تتابع كل طلب. البطاقة تقول «بانتظار مدير الفرع» حتى يعتمده.' },
+  approve: { en: "Now from the branch manager's account: the Approvals page lists his branch requests. He opens the request, adjusts the quantity if needed, then taps Approve, and the request goes to procurement to be prepared.", ar: 'الآن من حساب مدير الفرع: صفحة «الاعتمادات» فيها طلبات فرعه. يفتح الطلب، ويعدّل الكمية إن لزم، ثم يضغط «اعتماد»، فيذهب الطلب للتموين للتجهيز.' },
+  reject: { en: "If the request is not suitable, the branch manager writes the reason and taps Reject.", ar: 'وإن لم يكن الطلب مناسبًا، يكتب مدير الفرع السبب ويضغط «رفض».' },
+  resubmit: { en: "You receive the rejection with its reason on the request card. Fix what is needed, then tap Resubmit to branch manager and write your note.", ar: 'يصلك الرفض مع السبب في بطاقة الطلب. صحّح ما يلزم، ثم اضغط «إعادة الإرسال لمدير الفرع» واكتب ملاحظتك.' },
+  receive: { en: "Once procurement prepares the request and it reaches the branch, a Receive button appears. Check the quantities, sign, then confirm receipt.", ar: 'بعد أن يجهز التموين الطلب ويصل للفرع، يظهر زر «استلام». راجع الكميات، ووقّع، ثم أكّد الاستلام.' },
+  done: { en: "These are the same steps for the sterilization officer and the radiology officer, each in their own branch. Thank you!", ar: 'وهذه نفس الخطوات لمسؤول التعقيم ومسؤول الأشعة، كل في فرعه. شكرًا لك.' }
 };
 const steps = {
   login: { ar: 'الدخول' }, form: { ar: '١ · طلب جديد' }, follow: { ar: '٢ · المتابعة' },
@@ -110,5 +110,5 @@ async function flow(h) {
   });
 }
 
-if (require.main === module) makeTutorial({ id: 'housekeeper', voiceLang: 'ar', langs: ['ar'], noMoney: true, scenes, steps, flow }).catch(e => { console.error('TUTORIAL FAILED', e); process.exit(1); });
+if (require.main === module) makeTutorial({ id: 'housekeeper', voiceLang: 'en', langs: ['ar'], noMoney: true, scenes, steps, flow }).catch(e => { console.error('TUTORIAL FAILED', e); process.exit(1); });
 module.exports = { scenes, steps, flow };

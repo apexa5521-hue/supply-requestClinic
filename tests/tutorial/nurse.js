@@ -3,10 +3,10 @@ const { makeTutorial } = require('./engine');
 
 const scenes = {
   intro: {
-    en: 'Welcome to Masar. This video shows nurses everything they need, step by step.',
-    ar: 'مرحبًا بك في نظام مسار. هذا الفيديو يشرح للممرضة كل ما تحتاجه، خطوة بخطوة.',
-    ur: 'مسار میں خوش آمدید۔ یہ ویڈیو نرسوں کو ہر ضروری کام قدم بہ قدم دکھاتی ہے۔',
-    id: 'Selamat datang di Masar. Video ini menunjukkan semua yang perawat butuhkan, langkah demi langkah.'
+    en: 'Welcome to MasarX. This video shows nurses everything they need, step by step.',
+    ar: 'مرحبًا بك في MasarX. هذا الفيديو يشرح للممرضة كل ما تحتاجه، خطوة بخطوة.',
+    ur: 'MasarX میں خوش آمدید۔ یہ ویڈیو نرسوں کو ہر ضروری کام قدم بہ قدم دکھاتی ہے۔',
+    id: 'Selamat datang di MasarX. Video ini menunjukkan semua yang perawat butuhkan, langkah demi langkah.'
   },
   login: {
     en: 'Open the system link, write your name and your password, then tap Sign in.',
