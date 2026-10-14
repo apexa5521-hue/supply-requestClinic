@@ -12,9 +12,11 @@ const scenes = {
   notices: { ar: "لإرسال تعميم اختر الجهة: التموين أو التمريض أو الأطباء أو الجميع، واكتب الرسالة واضغط «إرسال»." },
   live: { ar: "«الأطباء — مباشر»: طلبات كل طبيب المفتوحة حسب المرحلة، وتتحدث كل دقيقة." },
   survey: { ar: "«استبيان الأطباء»: نسبة الإجابة، ومتوسط النجوم، ومؤشر التوصية، والملاحظات. وذكّر من لم يجب." },
+  rules: { ar: "«قواعد الطلبات»: نافذة الطلب الشهري من يوم إلى يوم، ويوم الصرف، وأقصى عدد للطلبات الشهرية والطارئة، ومهلة الطارئ، وأقصى أصناف الطارئ، وقفل الأصناف الحرة. يطبَّق فورًا." },
   prices: { ar: "«أسعار الأطباء»: افتراضيًا لا يرى الأطباء الأسعار، ومن هنا تمنحها أو تحجبها. شكرًا لك، وراجع المتأخر كل صباح." }
 };
 const steps = {
+  rules: { ar: 'قواعد الطلبات' },
   live: { en: 'Doctors — live', ar: 'الأطباء — مباشر' }, survey: { en: 'Doctor survey', ar: 'استبيان الأطباء' }, prices: { en: 'Doctor prices', ar: 'أسعار الأطباء' },
   login: { en: 'Sign in', ar: 'تسجيل الدخول' }, mon: { en: 'Follow-up', ar: 'المتابعة' }, undo: { en: 'Undo log', ar: 'سجل التراجعات' },
   comp: { en: 'Complaints', ar: 'البلاغات' }, rep: { en: 'Reports', ar: 'التقارير' }, not: { en: 'Notices', ar: 'التعاميم' }
@@ -86,6 +88,14 @@ async function flow(h) {
     await highlight('#svBody .rp-tiles', 1600);
     if (await page.$('#svBody [data-act="svRemind"]')) { await point('#svBody [data-act="svRemind"] >> nth=0'); await highlight('#svBody [data-act="svRemind"] >> nth=0', 900); }
     await h.scroll(700); await wait(1500);
+  });
+  await scene('rules', 'rules', async () => {
+    await page.locator('.sidebar [data-view="rules"]').first().scrollIntoViewIfNeeded();
+    await h.nav('rules');
+    await page.waitForSelector('#rlBox .rl-in'); await wait(500);
+    await highlight('#rlBox .grid-2 section >> nth=0', 2200);
+    await highlight('#rlBox .grid-2 section >> nth=1', 2200);
+    await page.$eval('#rlBox .rule-bar', el => el.scrollIntoView({ block: 'center', behavior: 'smooth' })).catch(() => {}); await wait(1500);
   });
   await scene('prices', 'prices', async () => {
     await h.nav('docprices');

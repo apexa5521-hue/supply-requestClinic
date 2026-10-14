@@ -13,6 +13,8 @@ const scenes = {
   nurseedit: { ar: 'إذا ألغت الممرضة طلبًا قبل مراجعتك يختفي من مراجعاتك ويصلك إيميل، فلا حاجة لأي إجراء. وإذا عدّلت الأصناف تراها محدّثة والتعديل مكتوب في التعليقات.' },
   sub: { ar: 'إذا لم يتوفر صنف اعتمدته، يقترح التموين بديلًا، ويظهر لك هنا: المطلوب مشطوب، وبجانبه البديل وكميته وملاحظة التموين. اضغط «موافقة على البديل» أو «رفض».' },
   report: { ar: 'اضغط «تقرير الطلبات» لترى ما طلبته لشهر أو تراكميًا، واطبعه أو احفظه PDF.' },
+  custody: { ar: 'وفي آخر التقرير «العهدة المصروفة على الطبيب»: الأدوات المسجلة باسمك برقمها التسلسلي وتاريخ صرفها.' },
+  rules: { ar: 'والشريط أعلى صفحتك يعرض قواعد الطلبات: نافذة الطلب الشهري، ويوم الصرف، وحدود الطلبات الطارئة.' },
   lab: { ar: 'تابع أعمال المرضى: أين وصلت كل إرسالية، ومتى موعدها.' },
   password: { ar: 'لتغيير رقمك السري اضغط أيقونة القفل. شكرًا لك، وراجع الطلبات بسرعة حتى تصل مستلزماتك في وقتها.' }
 };
@@ -28,6 +30,7 @@ const steps = {
 async function flow(h) {
   const { page, scene, click, type, point, highlight, wait } = h;
   // د. سعد بلا صلاحية أسعار: طلبان بانتظار المراجعة (اعتماد ورفض)
+  await h.api('issueAssets', [{ clinic: 'Dental Clinic 2', item: 'Curing Light', qty: 1, doctor: 'Dr. Saad' }], ['Ali', '3333']);
   const r1 = (await h.api('createRequest', [{ branch: 'Unayzah', doctor: 'Dr. Saad', type: 'شهري', items: [{ name: 'PROPHY PASTE', qty: 6 }, { name: 'Composite A2', qty: 3 }] }], ['Mona', '1212'])).id;
   const r2 = (await h.api('createRequest', [{ branch: 'Unayzah', doctor: 'Dr. Saad', type: 'طارئ', items: [{ name: 'Etchant Blue Tip', qty: 10 }] }], ['Mona', '1212'])).id;
   const r3 = (await h.api('createRequest', [{ branch: 'Unayzah', doctor: 'Dr. Saad', type: 'شهري', items: [{ name: 'MICRO BRUSH FINE', qty: 8 }, { name: 'Cotton rolls', qty: 5 }] }], ['Mona', '1212'])).id;
@@ -99,7 +102,15 @@ async function flow(h) {
     await h.scroll(400, '.modal-body');
     await highlight('.rep-grand', 1500);
     await point('#repPrint');
-    await page.keyboard.press('Escape');
+  });
+  await scene('custody', 'report', async () => {
+    const cs = '.rep-req:has-text("العهدة المصروفة على الطبيب")';
+    if (await page.$(cs)) { await page.locator(cs).scrollIntoViewIfNeeded(); await highlight(cs, 3200); } else await wait(1500);
+    await page.keyboard.press('Escape'); await wait(400);
+  });
+  await scene('rules', 'review', async () => {
+    await h.scroll(0);
+    if (await page.$('.rule-bar')) { await point('.rule-bar'); await highlight('.rule-bar', 3000); } else await wait(1500);
   });
   await scene('lab', 'lab', async () => {
     await h.nav('labdoc');
