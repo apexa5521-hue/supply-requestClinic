@@ -43,7 +43,7 @@ async function flow(h) {
   await h.api('doctorReview', [subId, 'اعتمد', '', []], ['Dr. Saad', '4545']);
   const dentalId = (await h.api('createRequest', [{ clinic: 'Dental Clinic 1', type: 'شهري', items: [{ name: 'Cotton rolls', qty: 6 }, { name: 'Gloves M', qty: 4 }] }], ['Sara', '1111'])).id;
   await scene('intro', '', async () => { await wait(500); });
-  await scene('login', 'login', async () => { await h.login('Ali', '3333'); await highlight('#userRole', 1500); });
+  await scene('login', 'login', async () => { await h.login('Ali', '3333'); await page.evaluate(() => { S.user.noPrices = true; }); await highlight('#userRole', 1500); });
   await scene('list', 'req', async () => {
     await page.waitForSelector('#procList .req');
     await highlight('#procList .req >> nth=0', 1300);
