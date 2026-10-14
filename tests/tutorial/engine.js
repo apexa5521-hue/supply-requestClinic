@@ -226,7 +226,9 @@ async function makeTutorial(cfg) {
   const VL = cfg.voiceLang || 'en';
   Object.keys(cfg.scenes).forEach(k => {
     const tx = cfg.scenes[k][VL]; if (!tx) throw new Error('no ' + VL + ' narration for scene ' + k);
-    voice[k] = Object.assign({ text: tx }, tts(VL === 'ar' ? arMasculine(tx) : tx, VL));
+    // مقطع ElevenLabs جاهز للمشهد (tutorials/.work/eleven/<id>/<scene>.mp3) يتقدم على التوليد الآلي
+    const el = path.join(CACHE, 'eleven', cfg.id, k + '.mp3');
+    voice[k] = Object.assign({ text: tx }, fs.existsSync(el) ? { file: el, dur: durationOf(el) } : tts(VL === 'ar' ? arMasculine(tx) : tx, VL));
   });
   console.log('[' + cfg.id + '] voice-over:', Object.keys(voice).length, 'clips,', Math.round(Object.values(voice).reduce((a, v) => a + v.dur, 0)), 's');
 
