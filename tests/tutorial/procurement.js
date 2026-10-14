@@ -221,8 +221,9 @@ async function flow(h) {
   });
   await scene('edit', 'custody', async () => {
     const card = '#asClinics section:has-text("Dental Clinic 2")';
-    await page.waitForSelector(card + ' button.as-unit:has-text("NSK-2005")');
-    await click(card + ' button.as-unit:has-text("NSK-2005")');
+    const unit = await page.waitForSelector('#asClinics button.as-unit:has-text("NSK-2005")', { timeout: 8000 }).then(() => '#asClinics button.as-unit:has-text("NSK-2005")')
+      .catch(() => card + ' button.as-unit');
+    await click(unit);
     await page.waitForSelector('.modal #aeSer'); await wait(400);
     await type('.modal #aeSer', 'NSK-2006');
     await highlight('.modal #aeClinic', 1000);

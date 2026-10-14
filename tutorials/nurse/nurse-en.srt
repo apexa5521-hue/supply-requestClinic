@@ -1,135 +1,155 @@
 1
-00:00:00,967 --> 00:00:06,507
+00:00:00,846 --> 00:00:06,386
 Welcome to Masar. This video shows nurses everything they need, step by step.
 
 2
-00:00:06,957 --> 00:00:11,517
+00:00:06,837 --> 00:00:11,397
 Open the system link, write your name and your password, then tap Sign in.
 
 3
-00:00:12,540 --> 00:00:17,598
+00:00:12,158 --> 00:00:17,216
 At the top there are three choices. Doctor request needs the doctor's approval.
 
 4
-00:00:17,598 --> 00:00:24,640
+00:00:17,216 --> 00:00:24,258
 Clinic consumables needs no doctor approval and goes straight to procurement. Send to lab is for patient work.
 
 5
-00:00:25,092 --> 00:00:30,472
+00:00:24,709 --> 00:00:30,089
 In a Doctor request, choose the clinic first, then the doctor, then the branch.
 
 6
-00:00:30,930 --> 00:00:36,979
+00:00:30,540 --> 00:00:36,589
 Choose the type. Monthly is the normal order, from the 15th to the 20th of the month.
 
 7
-00:00:36,979 --> 00:00:39,470
+00:00:36,589 --> 00:00:39,080
 Emergency is only for urgent needs.
 
 8
-00:00:39,920 --> 00:00:44,629
-Write the item name and tap it, then set the quantity with plus and minus.
+00:00:39,530 --> 00:00:42,645
+The bar at the top shows the request rules:
 
 9
-00:00:44,629 --> 00:00:48,510
-Add every consumable you need, so they all come in one order.
+00:00:42,645 --> 00:00:49,527
+the monthly window, the dispatch day, and how many emergency requests you have left this month.
 
 10
-00:00:51,045 --> 00:00:52,937
-Cannot find an item in the list?
+00:00:49,527 --> 00:00:55,540
+If an emergency request has too many items, the system tells you how many are left.
 
 11
-00:00:52,937 --> 00:00:58,140
-Type its name in the search box, then choose to add it as a consumable or as a material.
+00:00:55,991 --> 00:01:00,700
+Write the item name and tap it, then set the quantity with plus and minus.
 
 12
-00:00:58,140 --> 00:01:03,875
-It joins your request with a free-item tag, and procurement reviews it and completes its details.
+00:01:00,700 --> 00:01:04,581
+Add every consumable you need, so they all come in one order.
 
 13
-00:01:03,875 --> 00:01:06,595
-You can add up to five free items per request.
+00:01:06,453 --> 00:01:08,345
+Cannot find an item in the list?
 
 14
-00:01:07,045 --> 00:01:12,625
-When procurement links a free item to an existing one, you will find it next time by the name you know.
+00:01:08,345 --> 00:01:13,548
+Type its name in the search box, then choose to add it as a consumable or as a material.
 
 15
-00:01:12,625 --> 00:01:16,634
-Your name appears in purple, and the procurement name next to it in green.
+00:01:13,548 --> 00:01:19,283
+It joins your request with a free-item tag, and procurement reviews it and completes its details.
 
 16
-00:01:16,634 --> 00:01:19,885
-Pick it, and the request goes out with the procurement name.
+00:01:19,283 --> 00:01:22,003
+You can add up to five free items per request.
 
 17
-00:01:20,335 --> 00:01:27,155
-Check the summary, then tap Submit request. Your draft is saved by itself, so you never lose your work.
+00:01:22,454 --> 00:01:28,034
+When procurement links a free item to an existing one, you will find it next time by the name you know.
 
 18
-00:01:27,614 --> 00:01:34,422
-Clinic consumables is for Sterilization, the Triage room and the derma device rooms, and now for every
+00:01:28,034 --> 00:01:32,043
+Your name appears in purple, and the procurement name next to it in green.
 
 19
-00:01:34,422 --> 00:01:38,894
-dental clinic too. Choose the place, add the items, and tap Submit.
+00:01:32,043 --> 00:01:35,294
+Pick it, and the request goes out with the procurement name.
 
 20
-00:01:39,344 --> 00:01:46,024
-In My requests you can see the difference. The doctor request shows Doctor review, so it waits for the doctor.
+00:01:35,745 --> 00:01:42,565
+Check the summary, then tap Submit request. Your draft is saved by itself, so you never lose your work.
 
 21
-00:01:46,024 --> 00:01:49,424
-Clinic consumables shows New, so it reached procurement.
+00:01:43,022 --> 00:01:49,830
+Clinic consumables is for Sterilization, the Triage room and the derma device rooms, and now for every
 
 22
-00:01:49,875 --> 00:01:57,075
-Made a mistake in a quantity? Tap Edit items, change the number, or tap the bin to remove the item, then Save.
+00:01:49,830 --> 00:01:54,302
+dental clinic too. Choose the place, add the items, and tap Submit.
 
 23
-00:01:57,527 --> 00:02:02,795
-Raised a request by mistake? Tap Cancel request, and write the reason if you like.
+00:01:54,752 --> 00:02:01,432
+In My requests you can see the difference. The doctor request shows Doctor review, so it waits for the doctor.
 
 24
-00:02:02,795 --> 00:02:09,027
-You can edit or cancel while the request is in Doctor review or New. After that, ask procurement.
+00:02:01,432 --> 00:02:04,832
+Clinic consumables shows New, so it reached procurement.
 
 25
-00:02:09,477 --> 00:02:16,367
-Details shows every step and its time, the items and the comments. You can also write a comment as a reminder.
+00:02:05,282 --> 00:02:12,482
+Made a mistake in a quantity? Tap Edit items, change the number, or tap the bin to remove the item, then Save.
 
 26
-00:02:20,288 --> 00:02:26,598
-When the driver delivers the box to your branch, you get an alert, and the card turns to Arrived at branch.
+00:02:12,932 --> 00:02:18,200
+Raised a request by mistake? Tap Cancel request, and write the reason if you like.
 
 27
-00:02:30,249 --> 00:02:37,259
-Tap Receive and sign. Check every quantity and fix anything missing, then sign and tap Confirm receipt.
+00:02:18,200 --> 00:02:24,432
+You can edit or cancel while the request is in Doctor review or New. After that, ask procurement.
 
 28
-00:02:39,987 --> 00:02:45,856
-If procurement cancels a request, the card shows Cancelled with the reason, and you get an email.
+00:02:24,882 --> 00:02:31,772
+Details shows every step and its time, the items and the comments. You can also write a comment as a reminder.
 
 29
-00:02:45,856 --> 00:02:48,337
-Raise a new request if you still need it.
+00:02:35,135 --> 00:02:41,445
+When the driver delivers the box to your branch, you get an alert, and the card turns to Arrived at branch.
 
 30
-00:02:48,846 --> 00:02:53,102
-For the lab, choose the doctor and write the patient's file number.
+00:02:44,577 --> 00:02:51,107
+When the driver delivers, the card shows where the box was left and a link to its photo.
 
 31
-00:02:53,102 --> 00:03:00,026
-For each work, choose the lab and the type, write your notes, and add a photo. The due date is set by itself.
+00:02:51,107 --> 00:02:53,407
+Tap the link to open the photo.
 
 32
-00:03:04,542 --> 00:03:11,362
-For an iTero scan, write the scan date, the iTero case number and the file number, then choose the lab.
+00:02:53,858 --> 00:03:00,868
+Tap Receive and sign. Check every quantity and fix anything missing, then sign and tap Confirm receipt.
 
 33
-00:03:18,500 --> 00:03:22,270
-When the work comes back to your clinic, tap Confirm receipt.
+00:03:01,600 --> 00:03:07,469
+If procurement cancels a request, the card shows Cancelled with the reason, and you get an email.
 
 34
-00:03:26,690 --> 00:03:32,330
+00:03:07,469 --> 00:03:09,950
+Raise a new request if you still need it.
+
+35
+00:03:10,401 --> 00:03:14,657
+For the lab, choose the doctor and write the patient's file number.
+
+36
+00:03:14,657 --> 00:03:21,581
+For each work, choose the lab and the type, write your notes, and add a photo. The due date is set by itself.
+
+37
+00:03:25,747 --> 00:03:32,567
+For an iTero scan, write the scan date, the iTero case number and the file number, then choose the lab.
+
+38
+00:03:38,956 --> 00:03:42,726
+When the work comes back to your clinic, tap Confirm receipt.
+
+39
+00:03:46,563 --> 00:03:52,203
 That's all. For any problem, use the Report button on the request. Thank you!

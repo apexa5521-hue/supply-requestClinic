@@ -33,7 +33,7 @@ async function flow(h) {
   await scene('nurse', 'users', async () => {
     await click('[data-act="userNew"]');
     await page.waitForSelector('#uName'); await wait(400);
-    await type('#uName', 'Reem'); await type('#uPass', '2468');
+    await type('#uName', 'Ghada'); await type('#uPass', '2468');
     await h.select('#uRole', 'Nurse'); await wait(500);
     await click('#uClinics .chip >> nth=2'); await wait(400);
     await highlight('#uClinics', 1200);
