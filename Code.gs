@@ -412,7 +412,7 @@ function setupSheets() {
 
 function doGet() {
   return HtmlService.createTemplateFromFile('Index').evaluate()
-    .setTitle('مسار') // add the client company name after a dash here when requested
+    .setTitle('MasarX · مسار اكس') // add the client company name after a dash here when requested
     .addMetaTag('viewport', 'width=device-width, initial-scale=1, viewport-fit=cover')
     .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
 }
