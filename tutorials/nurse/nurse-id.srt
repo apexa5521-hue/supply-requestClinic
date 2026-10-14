@@ -1,167 +1,167 @@
 1
-00:00:00,846 --> 00:00:06,386
-Selamat datang di Masar. Video ini menunjukkan semua yang perawat butuhkan, langkah demi langkah.
+00:00:00,794 --> 00:00:06,854
+Selamat datang di MasarX. Video ini menunjukkan semua yang perawat butuhkan, langkah demi langkah.
 
 2
-00:00:06,837 --> 00:00:11,397
+00:00:07,305 --> 00:00:12,185
 Buka tautan sistem, tulis nama dan kata sandi Anda, lalu ketuk Sign in.
 
 3
-00:00:12,158 --> 00:00:16,801
+00:00:12,636 --> 00:00:17,206
 Di atas ada tiga pilihan. Doctor request perlu persetujuan dokter.
 
 4
-00:00:16,801 --> 00:00:24,258
+00:00:17,206 --> 00:00:24,546
 Clinic consumables tanpa persetujuan dokter dan langsung ke pengadaan. Send to lab untuk pekerjaan pasien.
 
 5
-00:00:24,709 --> 00:00:30,089
+00:00:24,996 --> 00:00:30,116
 Pada Doctor request, pilih klinik dulu, lalu dokter, lalu cabangnya.
 
 6
-00:00:30,540 --> 00:00:36,162
+00:00:30,646 --> 00:00:36,663
 Pilih jenisnya. Monthly untuk pesanan biasa, tanggal 15 sampai 20 setiap bulan.
 
 7
-00:00:36,162 --> 00:00:39,080
+00:00:36,663 --> 00:00:39,786
 Emergency hanya untuk kebutuhan mendesak.
 
 8
-00:00:39,530 --> 00:00:43,106
+00:00:40,236 --> 00:00:43,316
 Bilah di atas menampilkan aturan permintaan:
 
 9
-00:00:43,106 --> 00:00:48,957
+00:00:43,316 --> 00:00:48,356
 jendela bulanan, hari pengiriman, dan sisa permintaan darurat bulan ini.
 
 10
-00:00:48,957 --> 00:00:55,540
+00:00:48,356 --> 00:00:54,026
 Jika barang dalam permintaan darurat terlalu banyak, sistem memberi tahu sisanya.
 
 11
-00:00:55,991 --> 00:00:59,859
+00:00:54,477 --> 00:00:58,769
 Tulis nama barang dan ketuk, lalu atur jumlah dengan plus dan minus.
 
 12
-00:00:59,859 --> 00:01:04,581
+00:00:58,769 --> 00:01:04,007
 Tambahkan semua barang yang Anda perlukan, agar semuanya datang dalam satu pesanan.
 
 13
-00:01:06,453 --> 00:01:07,765
+00:01:05,111 --> 00:01:06,605
 Barang tidak ada di daftar?
 
 14
-00:01:07,765 --> 00:01:12,819
+00:01:06,605 --> 00:01:12,361
 Ketik namanya di kotak pencarian, lalu pilih tambahkan sebagai barang habis pakai atau sebagai material.
 
 15
-00:01:12,819 --> 00:01:17,824
+00:01:12,361 --> 00:01:18,061
 Barang itu masuk ke permintaan Anda dengan tanda barang bebas, dan bagian pengadaan yang meninjau serta
 
 16
-00:01:17,824 --> 00:01:22,003
+00:01:18,061 --> 00:01:22,821
 melengkapi datanya. Anda bisa menambah hingga lima barang bebas dalam satu permintaan.
 
 17
-00:01:22,454 --> 00:01:27,483
+00:01:23,272 --> 00:01:28,602
 Saat bagian pengadaan menautkan barang bebas ke barang yang sudah ada, lain kali Anda bisa menemukannya
 
 18
-00:01:27,483 --> 00:01:32,511
+00:01:28,602 --> 00:01:33,932
 dengan nama yang Anda kenal. Nama Anda tampil ungu, dan nama dari pengadaan di sebelahnya tampil hijau.
 
 19
-00:01:32,511 --> 00:01:35,294
+00:01:33,932 --> 00:01:36,882
 Pilih, dan permintaan dikirim dengan nama dari pengadaan.
 
 20
-00:01:35,745 --> 00:01:42,565
+00:01:37,333 --> 00:01:43,423
 Periksa ringkasan, lalu ketuk Submit request. Draf tersimpan otomatis, jadi pekerjaan Anda tidak hilang.
 
 21
-00:01:43,022 --> 00:01:49,699
+00:01:43,879 --> 00:01:50,515
 Clinic consumables untuk Sterilisasi, ruang Triase, dan ruang perangkat derma, dan sekarang untuk semua
 
 22
-00:01:49,699 --> 00:01:54,302
+00:01:50,515 --> 00:01:55,089
 klinik gigi juga. Pilih tempatnya, tambahkan barang, lalu ketuk Submit.
 
 23
-00:01:54,752 --> 00:02:00,773
+00:01:55,540 --> 00:02:01,639
 Di My requests terlihat bedanya. Doctor request berstatus Doctor review, menunggu dokter.
 
 24
-00:02:00,773 --> 00:02:04,832
+00:02:01,639 --> 00:02:05,750
 Clinic consumables berstatus New, sudah sampai di pengadaan.
 
 25
-00:02:05,282 --> 00:02:12,482
+00:02:06,200 --> 00:02:13,280
 Salah jumlah? Ketuk Edit items, ubah angkanya, atau ketuk tempat sampah untuk menghapus barang, lalu Save.
 
 26
-00:02:12,932 --> 00:02:18,058
+00:02:13,730 --> 00:02:19,052
 Salah mengirim permintaan? Ketuk Cancel request, dan tulis alasannya jika mau.
 
 27
-00:02:18,058 --> 00:02:24,432
+00:02:19,052 --> 00:02:25,670
 Ubah dan batal bisa selama permintaan di Doctor review atau New. Setelah itu, minta ke pengadaan.
 
 28
-00:02:24,882 --> 00:02:28,853
+00:02:26,121 --> 00:02:30,789
 Details menampilkan setiap tahap dan waktunya, barang, dan komentar.
 
 29
-00:02:28,853 --> 00:02:31,772
+00:02:30,789 --> 00:02:34,221
 Anda juga bisa menulis komentar sebagai pengingat.
 
 30
-00:02:35,135 --> 00:02:40,482
+00:02:36,575 --> 00:02:41,973
 Saat sopir mengantar kotak ke cabang Anda, Anda mendapat pemberitahuan, dan kartunya berubah menjadi
 
 31
-00:02:40,482 --> 00:02:41,445
+00:02:41,973 --> 00:02:42,945
 Arrived at branch.
 
 32
-00:02:44,577 --> 00:02:53,407
+00:02:46,300 --> 00:02:53,540
 Saat sopir mengantar, kartu menampilkan lokasi kotak dan tautan fotonya. Ketuk tautan untuk membuka foto.
 
 33
-00:02:53,858 --> 00:02:55,260
+00:02:53,991 --> 00:02:55,553
 Ketuk Receive and sign.
 
 34
-00:02:55,260 --> 00:03:00,868
+00:02:55,553 --> 00:03:01,801
 Periksa setiap jumlah dan perbaiki yang kurang, lalu tanda tangan dan ketuk Confirm receipt.
 
 35
-00:03:01,600 --> 00:03:07,767
+00:03:02,257 --> 00:03:08,468
 Jika pengadaan membatalkan permintaan, kartunya menunjukkan Cancelled beserta alasannya, dan Anda mendapat email.
 
 36
-00:03:07,767 --> 00:03:09,950
+00:03:08,468 --> 00:03:10,667
 Ajukan permintaan baru jika masih perlu.
 
 37
-00:03:10,401 --> 00:03:13,911
+00:03:11,117 --> 00:03:14,658
 Untuk lab, pilih dokter dan tulis nomor berkas pasien.
 
 38
-00:03:13,911 --> 00:03:19,241
+00:03:14,658 --> 00:03:20,036
 Untuk setiap pekerjaan, pilih lab dan jenisnya, tulis catatan, dan tambahkan foto.
 
 39
-00:03:19,241 --> 00:03:21,581
+00:03:20,036 --> 00:03:22,397
 Tanggal jatuh tempo terisi otomatis.
 
 40
-00:03:25,747 --> 00:03:32,567
+00:03:26,498 --> 00:03:32,948
 Untuk scan iTero, tulis tanggal scan, nomor kasus iTero, dan nomor berkas, lalu pilih labnya.
 
 41
-00:03:38,956 --> 00:03:42,726
+00:03:39,746 --> 00:03:42,956
 Saat pekerjaan kembali ke klinik Anda, ketuk Confirm receipt.
 
 42
-00:03:46,563 --> 00:03:52,203
+00:03:47,373 --> 00:03:53,093
 Itu saja. Untuk masalah apa pun, gunakan tombol Report pada permintaan. Terima kasih!
