@@ -1,5 +1,5 @@
 /**
- * SupplyFlow — نظام طلبات المستلزمات
+ * MasarX · مسار اكس — نظام طلبات المستلزمات
  *
  * كل استدعاءات الواجهة تمر عبر دالة واحدة `api(token, fn, args)` (أو doPost عند
  * الاستضافة الخارجية). الدوال الداخلية تنتهي بـ "_" حتى لا يمكن استدعاؤها
@@ -4098,9 +4098,10 @@ function getAlerts_(user) {
  *  الإشعارات البريدية (لا تُفشل العملية الأصلية إذا تعذّر الإرسال)
  * ===================================================================== */
 
+const BRAND_ = 'MasarX · مسار اكس'; // اسم المُرسل في الإيميلات
 function sendMail_(to, subject, body) {
   if (!to) return;
-  try { MailApp.sendEmail(to, subject, body); } catch (e) { console.error('Mail failed', e); }
+  try { MailApp.sendEmail(to, subject, body, { name: BRAND_ }); } catch (e) { console.error('Mail failed', e); }
 }
 
 function notifyRole_(screen, subject, body) {
