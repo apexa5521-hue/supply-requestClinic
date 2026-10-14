@@ -2099,6 +2099,33 @@ test('doctor billing: fixed (clinic) doctors carry their whole clinic, box docto
   assert.ok(!b['د. فهد'], 'his request in another fixed clinic goes to that clinic');
 });
 
+test('finance: each doctor\'s spend per branch separately (consumable / material) and the total across branches', () => {
+  const { api, login } = boot(g => {
+    g.seed('Doctors', ['DoctorName', 'Clinic', 'NurseName', 'Subspecialty', 'Billing'], [
+      ['د. نورة', 'عيادة الأسنان 1، عيادة الأسنان 2', 'سارة', '', 'بوكس'],
+      ['د. خالد', 'عيادة الأسنان 1', 'سارة', 'تقويم', 'بوكس']
+    ]);
+  });
+  const n = login('سارة', '1111'), f = login('نواف', '7777');
+  api(f, 'saveCatalogItem', 'Ivoclar Tetric-N A2', { name: 'Ivoclar Tetric-N A2', commercial: 'Tetric N-Ceram', category: 'Composite', price: 120, type: 'ماتيريال' });
+  api(n, 'createRequest', { clinic: 'عيادة الأسنان 1', doctor: 'د. نورة', type: 'شهري', items: [{ name: 'PROPHY PASTE', qty: 2 }, { name: 'Ivoclar Tetric-N A2', qty: 1 }] });
+  api(login('ريم', '2222'), 'createRequest', { clinic: 'عيادة الأسنان 2', doctor: 'د. نورة', type: 'شهري', items: [{ name: 'PROPHY PASTE', qty: 1 }] });
+  api(n, 'createRequest', { clinic: 'عيادة الأسنان 1', doctor: 'د. خالد', type: 'شهري', items: [{ name: 'PROPHY PASTE', qty: 1 }] });
+  let db = api(f, 'getFinance', {}).docBranches;
+  assert.deepEqual(db.branches, ['الرياض', 'جدة']);
+  const nora = db.rows.find(r => r.name === 'د. نورة');
+  assert.deepEqual(nora.cells['الرياض'], { consumable: 120, material: 120, total: 240 });
+  assert.deepEqual(nora.cells['جدة'], { consumable: 60, material: 0, total: 60 });
+  assert.deepEqual([nora.consumable, nora.material, nora.total], [180, 120, 300], 'total across both branches');
+  assert.ok(!db.rows.find(r => r.name === 'د. خالد').cells['جدة'], 'no spend in a branch he never ordered in');
+  // charge setting: consumables only → materials drop out of the doctor's columns
+  api(f, 'setDoctorCharge', 'د. نورة', 'consumable');
+  db = api(f, 'getFinance', {}).docBranches;
+  assert.deepEqual(db.rows.find(r => r.name === 'د. نورة').cells['الرياض'], { consumable: 120, material: 0, total: 120 });
+  // branch filter
+  assert.deepEqual(api(f, 'getFinance', { branch: 'جدة' }).docBranches.branches, ['جدة']);
+});
+
 test('doctors live: open requests per doctor by stage, for quality/executive only', () => {
   const { api, login } = boot();
   const n = login('سارة', '1111');

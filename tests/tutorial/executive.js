@@ -9,9 +9,11 @@ const scenes = {
   lab: { ar: "«مؤشرات المعمل»: زمن الإنجاز، والالتزام بالموعد، والإعادات، وتكلفة المعامل الخارجية." },
   custody: { ar: "«العهدة»: الأدوات التالفة والمفقودة، وتكلفة الإصلاح، وأي عيادة أقل من معيارها." },
   workflow: { ar: "«سير العمل»: رحلة الطلب كاملة من الممرضة حتى الاستلام، ومن المسؤول في كل خطوة." },
+  rules: { ar: "«قواعد الطلبات»: نافذة الطلب الشهري من يوم إلى يوم، ويوم الصرف، وأقصى عدد للطلبات الشهرية والطارئة، ومهلة الطارئ، وأقصى أصناف الطارئ، وقفل الأصناف الحرة. يطبَّق فورًا." },
   live: { ar: "طلبات كل طبيب المفتوحة مباشرة، ونتائج استبيان الرضا. كل ما تراه مباشر من النظام. شكرًا لك." }
 };
 const steps = {
+  rules: { ar: 'قواعد الطلبات' },
   live: { en: 'Doctors — live', ar: 'الأطباء — مباشر' }, survey: { en: 'Doctor survey', ar: 'استبيان الأطباء' }, prices: { en: 'Doctor prices', ar: 'أسعار الأطباء' },
   login: { en: 'Sign in', ar: 'تسجيل الدخول' }, ov: { en: 'Overview', ar: 'نظرة عامة' }, rep: { en: 'Reports', ar: 'التقارير' },
   lab: { en: 'Lab', ar: 'المعمل' }, cus: { en: 'Custody', ar: 'العهدة' }, wf: { en: 'Workflow', ar: 'سير العمل' }
@@ -61,6 +63,14 @@ async function flow(h) {
   await scene('workflow', 'wf', async () => {
     await h.nav('workflow'); await wait(1200);
     await h.scroll(500); await wait(1500);
+  });
+  await scene('rules', 'rules', async () => {
+    await page.locator('.sidebar [data-view="rules"]').first().scrollIntoViewIfNeeded();
+    await h.nav('rules');
+    await page.waitForSelector('#rlBox .rl-in'); await wait(500);
+    await highlight('#rlBox .grid-2 section >> nth=0', 2200);
+    await highlight('#rlBox .grid-2 section >> nth=1', 2200);
+    await page.$eval('#rlBox .rule-bar', el => el.scrollIntoView({ block: 'center', behavior: 'smooth' })).catch(() => {}); await wait(1500);
   });
   await scene('live', 'live', async () => {
     await h.nav('doctorslive');

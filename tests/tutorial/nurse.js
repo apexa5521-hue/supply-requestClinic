@@ -3,10 +3,10 @@ const { makeTutorial } = require('./engine');
 
 const scenes = {
   intro: {
-    en: 'Welcome to Masar. This video shows nurses everything they need, step by step.',
-    ar: 'مرحبًا بك في نظام مسار. هذا الفيديو يشرح للممرضة كل ما تحتاجه، خطوة بخطوة.',
-    ur: 'مسار میں خوش آمدید۔ یہ ویڈیو نرسوں کو ہر ضروری کام قدم بہ قدم دکھاتی ہے۔',
-    id: 'Selamat datang di Masar. Video ini menunjukkan semua yang perawat butuhkan, langkah demi langkah.'
+    en: 'Welcome to MasarX. This video shows nurses everything they need, step by step.',
+    ar: 'مرحبًا بك في MasarX. هذا الفيديو يشرح للممرضة كل ما تحتاجه، خطوة بخطوة.',
+    ur: 'MasarX میں خوش آمدید۔ یہ ویڈیو نرسوں کو ہر ضروری کام قدم بہ قدم دکھاتی ہے۔',
+    id: 'Selamat datang di MasarX. Video ini menunjukkan semua yang perawat butuhkan, langkah demi langkah.'
   },
   login: {
     en: 'Open the system link, write your name and your password, then tap Sign in.',
@@ -31,6 +31,12 @@ const scenes = {
     ar: 'اختاري النوع: «شهري» للطلب المعتاد من 15 إلى 20 في الشهر، و«طارئ» للحاجة العاجلة فقط.',
     ur: 'قسم منتخب کریں۔ ماہانہ معمول کا آرڈر ہے، مہینے کی 15 سے 20 تاریخ تک۔ ایمرجنسی صرف فوری ضرورت کے لیے ہے۔',
     id: 'Pilih jenisnya. Monthly untuk pesanan biasa, tanggal 15 sampai 20 setiap bulan. Emergency hanya untuk kebutuhan mendesak.'
+  },
+  rules: {
+    en: 'The bar at the top shows the request rules: the monthly window, the dispatch day, and how many emergency requests you have left this month. If an emergency request has too many items, the system tells you how many are left.',
+    ar: 'الشريط بالأعلى يعرض قواعد الطلبات: نافذة الطلب الشهري، ويوم الصرف، وكم طلبًا طارئًا بقي لك هذا الشهر. وإذا زادت أصناف الطلب الطارئ عن الحد، يخبرك النظام كم بقي لك.',
+    ur: 'اوپر کی پٹی درخواست کے اصول دکھاتی ہے: ماہانہ وقت، ترسیل کا دن، اور اس مہینے کتنی ایمرجنسی درخواستیں باقی ہیں۔ اگر ایمرجنسی درخواست میں آئٹم زیادہ ہوں تو سسٹم بتاتا ہے کتنے باقی ہیں۔',
+    id: 'Bilah di atas menampilkan aturan permintaan: jendela bulanan, hari pengiriman, dan sisa permintaan darurat bulan ini. Jika barang dalam permintaan darurat terlalu banyak, sistem memberi tahu sisanya.'
   },
   items: {
     en: 'Write the item name and tap it, then set the quantity with plus and minus. Add every consumable you need, so they all come in one order.',
@@ -91,6 +97,12 @@ const scenes = {
     ar: 'عندما يسلّم السواق البوكس لفرعك يصلك تنبيه، وتتلوّن البطاقة بحالة «وصل الفرع».',
     ur: 'جب ڈرائیور باکس آپ کی برانچ پہنچاتا ہے تو آپ کو اطلاع ملتی ہے، اور کارڈ پر وصل الفرع یعنی برانچ پہنچ گیا لکھا آتا ہے۔',
     id: 'Saat sopir mengantar kotak ke cabang Anda, Anda mendapat pemberitahuan, dan kartunya berubah menjadi Arrived at branch.'
+  },
+  boxat: {
+    en: 'When the driver delivers, the card shows where the box was left and a link to its photo. Tap the link to open the photo.',
+    ar: 'عند تسليم السائق، تظهر في البطاقة مكان البوكس ورابط صورته. اضغطي الرابط لتفتح الصورة.',
+    ur: 'جب ڈرائیور ڈیلیور کرتا ہے تو کارڈ میں باکس کی جگہ اور اس کی تصویر کا لنک نظر آتا ہے۔ تصویر کھولنے کے لیے لنک دبائیں۔',
+    id: 'Saat sopir mengantar, kartu menampilkan lokasi kotak dan tautan fotonya. Ketuk tautan untuk membuka foto.'
   },
   receive: {
     en: 'Tap Receive and sign. Check every quantity and fix anything missing, then sign and tap Confirm receipt.',
@@ -164,6 +176,9 @@ async function flow(h) {
     await highlight('#fBranch', 1300);
   });
   await scene('type', 'doc', async () => { await click('[data-seg-name="reqType"][data-v="شهري"]'); await wait(400); await point('[data-seg-name="reqType"][data-v="طارئ"]'); });
+  await scene('rules', 'doc', async () => {
+    if (await page.$('.rule-bar')) { await point('.rule-bar'); await highlight('.rule-bar', 4200); } else await wait(1500);
+  });
   await scene('items', 'doc', async () => {
     await addItem('prophy'); await addItem('floss'); await page.keyboard.press('Escape');
     await click('.item-line:nth-child(1) [data-d="1"]'); await click('.item-line:nth-child(1) [data-d="1"]'); await click('.item-line:nth-child(2) [data-d="1"]');
@@ -242,6 +257,10 @@ async function flow(h) {
     await highlight(`.req:has-text("${reqId}") .tag.arrived`, 1400);
     await click('#mineChips [data-g="arrived"]'); await wait(1100);
     await click('#mineChips [data-g="all"]'); await page.waitForSelector(`.req:has-text("${reqId}") [data-act="receive"]`);
+  });
+  await scene('boxat', 'receive', async () => {
+    const ba = `.req:has-text("${reqId}") .box-at`;
+    if (await page.$(ba)) { await page.locator(ba).scrollIntoViewIfNeeded(); await point(ba); await highlight(ba, 3000); } else await wait(1500);
   });
   await scene('receive', 'receive', async () => {
     await click(`.req:has-text("${reqId}") [data-act="receive"]`);
