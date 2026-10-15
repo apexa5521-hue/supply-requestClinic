@@ -1389,6 +1389,19 @@ function log(msg) { console.log('  ✔ ' + msg); }
   await page.click('#caList tr:has-text("Cotton Rolls") [data-act="caDel"]');
   await page.click('.modal [data-yes]');
   expect(await toastHas(page, 'حُذف'), 'item deleted from the catalog');
+  // تحديد عدة أصناف وحذفها دفعة واحدة + تصنيف «أدوات»
+  for (const nm of ['Tweezers', 'Mirror']) await page.evaluate(n => call('saveCatalogItem', '', { name: n, category: 'Instruments', price: 5, type: 'أدوات' }), nm);
+  await page.evaluate(() => loadCatalogAdmin(true));
+  await page.fill('#caQ', '');
+  await page.selectOption('#caCat', 'Instruments');
+  await page.waitForSelector('#caList tbody tr:has-text("Tweezers")');
+  expect((await page.textContent('#caList tbody tr:has-text("Tweezers")')).includes('أدوات'), 'catalog shows the new «أدوات» type');
+  await page.check('#caAll');
+  expect((await page.textContent('#caDelSel')).includes('(2)'), 'select all ticks the visible items (2)');
+  await page.click('#caDelSel');
+  await page.click('.modal [data-yes]');
+  expect(await toastHas(page, 'حُذف 2 صنف'), 'two items deleted in one go');
+  await page.selectOption('#caCat', '');
   // أسماء بديلة: كل ممرضة تسمي الصنف باسم، والكتالوج يجمعها تحت اسم التموين
   await page.fill('#caQ', 'DENTAL FLOSS');
   await page.click('#caList tbody tr:has-text("DENTAL FLOSS") [data-act="caEdit"]');

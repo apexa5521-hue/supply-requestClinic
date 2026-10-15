@@ -2131,14 +2131,14 @@ test('finance: each doctor\'s spend per branch separately (consumable / material
   let db = api(f, 'getFinance', {}).docBranches;
   assert.deepEqual(db.branches, ['الرياض', 'جدة']);
   const nora = db.rows.find(r => r.name === 'د. نورة');
-  assert.deepEqual(nora.cells['الرياض'], { consumable: 120, material: 120, total: 240 });
-  assert.deepEqual(nora.cells['جدة'], { consumable: 60, material: 0, total: 60 });
+  assert.deepEqual(nora.cells['الرياض'], { consumable: 120, material: 120, tools: 0, total: 240 });
+  assert.deepEqual(nora.cells['جدة'], { consumable: 60, material: 0, tools: 0, total: 60 });
   assert.deepEqual([nora.consumable, nora.material, nora.total], [180, 120, 300], 'total across both branches');
   assert.ok(!db.rows.find(r => r.name === 'د. خالد').cells['جدة'], 'no spend in a branch he never ordered in');
   // charge setting: consumables only → materials drop out of the doctor's columns
   api(f, 'setDoctorCharge', 'د. نورة', 'consumable');
   db = api(f, 'getFinance', {}).docBranches;
-  assert.deepEqual(db.rows.find(r => r.name === 'د. نورة').cells['الرياض'], { consumable: 120, material: 0, total: 120 });
+  assert.deepEqual(db.rows.find(r => r.name === 'د. نورة').cells['الرياض'], { consumable: 120, material: 0, tools: 0, total: 120 });
   // branch filter
   assert.deepEqual(api(f, 'getFinance', { branch: 'جدة' }).docBranches.branches, ['جدة']);
 });
@@ -2584,6 +2584,17 @@ test('catalog admin: procurement adds, edits (rename follows open requests), cat
   // عهدة مصروفة: لا تُحذف
   api(p, 'issueAssets', { clinic: 'عيادة الأسنان 1', item: 'Curing Light', qty: 1 });
   throwsCode(() => api(p, 'deleteCatalogItem', 'Curing Light'), 'ERR_ITEM_IN_CUSTODY');
+  // تصنيف «أدوات» + حذف عدة أصناف دفعة واحدة (المستخدم في عهدة يبقى مع سببه)
+  assert.ok(api(p, 'getCatalogAdmin').types.includes('أدوات'));
+  api(p, 'saveCatalogItem', '', { name: 'Tweezers', category: 'Instruments', price: 15, type: 'أدوات' });
+  api(p, 'saveCatalogItem', '', { name: 'Mirror', category: 'Instruments', price: 8, type: 'أدوات' });
+  assert.equal(api(n, 'getConfig').catalog.find(c => c.name === 'Tweezers').type, 'أدوات');
+  const del = api(p, 'deleteCatalogItems', ['Tweezers', 'Mirror', 'Curing Light']);
+  assert.deepEqual(del.deleted, ['Tweezers', 'Mirror']);
+  assert.deepEqual(del.failed.map(f => f.name), ['Curing Light']);
+  assert.ok(/ERR_ITEM_IN_CUSTODY/.test(del.failed[0].error));
+  assert.ok(!dump().some(r => r.ItemName === 'Tweezers' || r.ItemName === 'Mirror'));
+  throwsCode(() => api(n, 'deleteCatalogItems', ['PROPHY PASTE']), 'ERR_FORBIDDEN');
 });
 
 test('doctors admin (admin only): add a doctor with a new login, edit specialty/clinics, rename, link an existing account, delete', () => {

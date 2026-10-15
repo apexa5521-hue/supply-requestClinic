@@ -195,7 +195,7 @@ function runSetupSteps_(force) {
   return out;
 }
 
-const ITEM_TYPES_ = ['مستهلك', 'ماتيريال'];
+const ITEM_TYPES_ = ['مستهلك', 'ماتيريال', 'أدوات']; // الأدوات تُحسب على الطبيب فقط إن كانت حسبته «الكل»
 /** صنف تكتبه الممرضة بحرية (غير موجود في القائمة): يُضاف للكتالوج ويعلّم بهذه الفئة ليميّزه التموين */
 const FREE_CATEGORY_ = 'حر — من الممرضة';
 /* مراجعة الأصناف الحرة لدى التموين: اعتماد بسعر، أو مطابقة لصنف موجود (يصبح اسماً بديلاً له)، أو رفض */
@@ -729,6 +729,7 @@ const API_ = {
   getCatalogAdmin:           { screens: ['procurement', 'finance'], perm: 'users', fn: getCatalogAdmin_ },
   saveCatalogItem:           { screens: ['procurement', 'finance'], perm: 'users', fn: saveCatalogItem_ },
   deleteCatalogItem:         { screens: ['procurement', 'finance'], perm: 'users', fn: deleteCatalogItem_ },
+  deleteCatalogItems:        { screens: ['procurement', 'finance'], perm: 'users', fn: deleteCatalogItems_ },
   getDoctorsAdmin:           { screens: [], perm: 'users', fn: getDoctorsAdmin_ },
   saveDoctor:                { screens: [], perm: 'users', fn: saveDoctor_ },
   deleteDoctor:              { screens: [], perm: 'users', fn: deleteDoctor_ },
@@ -1777,7 +1778,8 @@ function getCatalog_(withPrice) {
     return true;
   }).map(function (r) {
     const o = { name: str_(r.ItemName), commercial: str_(r.CommercialName), category: str_(r.Category) };
-    if (str_(r.ItemType) === ITEM_TYPES_[1]) o.type = ITEM_TYPES_[1];
+    const ty = str_(r.ItemType);
+    if (ty !== ITEM_TYPES_[0] && ITEM_TYPES_.indexOf(ty) !== -1) o.type = ty;
     const al = aliases[o.name.toLowerCase()]; if (al) o.aliases = al;
     if (str_(r.Category) === FREE_CATEGORY_ && str_(r.FreeStatus) !== FREE_ST.OK) o.freePending = true;
     if (isAssetOwnership_(r.Ownership)) { o.asset = true; o.serialized = isYes_(r.Serialized); }
@@ -4437,8 +4439,8 @@ function getStatsReport_(user, opts) {
         if (!who || charged_(docCharge[who], ctype[k])) billValue += v; // حسبة الطبيب: ما لا يُحسب عليه لا يدخل حسابه
         if (who && v && charged_(docCharge[who], ctype[k])) {
           const db = byDocBranch[who] || (byDocBranch[who] = {});
-          const cell = db[r.branch || '—'] || (db[r.branch || '—'] = { consumable: 0, material: 0 });
-          const tk = ctype[k] === ITEM_TYPES_[1] ? 'material' : 'consumable';
+          const cell = db[r.branch || '—'] || (db[r.branch || '—'] = { consumable: 0, material: 0, tools: 0 });
+          const tk = ctype[k] === ITEM_TYPES_[1] ? 'material' : ctype[k] === ITEM_TYPES_[2] ? 'tools' : 'consumable';
           cell[tk] = round2_(cell[tk] + v);
         }
         items[k] = items[k] || { item: n, qty: 0, value: 0, requests: 0 };
@@ -4494,14 +4496,15 @@ function docBranches_(m, docCharge) {
   Object.keys(m).forEach(function (d) { Object.keys(m[d]).forEach(function (b) { if (branches.indexOf(b) === -1) branches.push(b); }); });
   branches.sort();
   const rows = Object.keys(m).map(function (d) {
-    const row = { name: d, charge: docCharge[d] || 'all', cells: {}, consumable: 0, material: 0, total: 0 };
+    const row = { name: d, charge: docCharge[d] || 'all', cells: {}, consumable: 0, material: 0, tools: 0, total: 0 };
     branches.forEach(function (b) {
       const c = m[d][b];
       if (!c) return;
-      row.cells[b] = { consumable: c.consumable, material: c.material, total: round2_(c.consumable + c.material) };
-      row.consumable = round2_(row.consumable + c.consumable); row.material = round2_(row.material + c.material);
+      const tl = c.tools || 0;
+      row.cells[b] = { consumable: c.consumable, material: c.material, tools: tl, total: round2_(c.consumable + c.material + tl) };
+      row.consumable = round2_(row.consumable + c.consumable); row.material = round2_(row.material + c.material); row.tools = round2_(row.tools + tl);
     });
-    row.total = round2_(row.consumable + row.material);
+    row.total = round2_(row.consumable + row.material + row.tools);
     return row;
   }).sort(function (a, b) { return b.total - a.total || (a.name < b.name ? -1 : 1); });
   return { branches: branches, rows: rows };
@@ -5158,6 +5161,17 @@ function syncAliases_(user, target, aliases) {
 }
 
 /** حذف صنف: يُمنع إن كان في طلب مفتوح لم يُرسل أو عهدة قائمة؛ أسماؤه البديلة تُحذف معه */
+/** حذف عدة أصناف دفعة واحدة: كل صنف يُفحص وحده (صنف مستخدم في طلب مفتوح أو عهدة يبقى ويُذكر سببه) */
+function deleteCatalogItems_(user, names) {
+  names = (Array.isArray(names) ? names : []).map(str_).filter(String).slice(0, 500);
+  if (!names.length) throw new Error('ERR_REQUIRED');
+  const deleted = [], failed = [];
+  names.forEach(function (n) {
+    try { deleteCatalogItem_(user, n); deleted.push(n); } catch (e) { failed.push({ name: n, error: String((e && e.message) || e) }); }
+  });
+  return { deleted: deleted, failed: failed };
+}
+
 function deleteCatalogItem_(user, name) {
   name = str_(name);
   if (!name) throw new Error('ERR_REQUIRED');

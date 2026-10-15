@@ -56,6 +56,7 @@ const I18N = {
     confirm_receive: 'تأكيد الاستلام', received_ok: 'تم تأكيد استلام {id}', receiver_required: 'اسم المستلم إلزامي',
     cancel: 'إلغاء', close: 'إغلاق', save: 'حفظ', delete: 'حذف', edit: 'تعديل', send: 'إرسال', confirm: 'تأكيد', back: 'رجوع',
     select_all: 'تحديد الكل', selected: 'محدد', clear_selection: 'إلغاء التحديد',
+    free_type_tools: 'أدوات', db_tools: 'أدوات', ca_del_sel: 'حذف المحدد ({n})', ca_del_many_q: 'حذف {n} صنف من الكتالوج نهائياً؟', ca_del_many_ok: 'حُذف {n} صنف', ca_del_many_fail: 'لم يُحذف {n}: {list}',
     step_arrived: 'وصل الفرع', grp_deliver: 'بانتظار التوصيل', grp_await_receipt: 'وصل · بانتظار الاستلام', grp_signed: 'استُلم بالتوقيع',
     drv_scan_hint: 'للتسليم: امسح الباركود (QR) على البوكس نفسه بكاميرا الجوال', drv_locked: 'تم التسليم', drv_locked_sub: 'هذا البوكس سُلِّم مسبقاً ولا توجد عليه مهمة توصيل الآن', drv_last: 'آخر تسليم: {p} · {t} · {d}', ERR_BOX_DELIVERED: 'تم التسليم مسبقاً — لا توجد مهمة توصيل لهذا البوكس الآن',
     link_will: 'سيرتبط بـ: {n}', link_none: 'لا يوجد طبيب يطابق اسم الحساب — اختر الطبيب من القائمة', link_grp_free: 'أطباء بلا حساب', link_grp_taken: 'مرتبطون بحسابات أخرى', ERR_DOCTOR_LINK: 'حساب الطبيب لازم يرتبط بطبيب — اختر اسمه من «الطبيب المرتبط بالحساب»',
@@ -162,6 +163,7 @@ const I18N = {
     confirm_receive: 'Confirm receipt', received_ok: 'Receipt of {id} confirmed', receiver_required: 'Receiver name is required',
     cancel: 'Cancel', close: 'Close', save: 'Save', delete: 'Delete', edit: 'Edit', send: 'Send', confirm: 'Confirm', back: 'Back',
     select_all: 'Select all', selected: 'selected', clear_selection: 'Clear',
+    free_type_tools: 'Tools', db_tools: 'Tools', ca_del_sel: 'Delete selected ({n})', ca_del_many_q: 'Delete {n} item(s) from the catalog for good?', ca_del_many_ok: '{n} item(s) deleted', ca_del_many_fail: 'Not deleted ({n}): {list}',
     step_arrived: 'At branch', grp_deliver: 'Awaiting delivery', grp_await_receipt: 'Arrived · awaiting receipt', grp_signed: 'Received & signed',
     drv_scan_hint: 'To deliver: scan the QR code on the box itself with your phone camera', drv_locked: 'Delivered', drv_locked_sub: 'This box was already delivered and has no delivery task now', drv_last: 'Last delivery: {p} · {t} · {d}', ERR_BOX_DELIVERED: 'Already delivered — this box has no delivery task now',
     link_will: 'Will link to: {n}', link_none: 'No doctor matches this account name — pick the doctor from the list', link_grp_free: 'Doctors without an account', link_grp_taken: 'Linked to other accounts', ERR_DOCTOR_LINK: 'A doctor account must be linked to a doctor — pick the name in “Linked doctor”',
@@ -3799,7 +3801,7 @@ function renderFreeItems() {
   if (!S.free.length) { box.innerHTML = emptyState('checkc', t('fi_empty'), t('fi_empty_sub')); fiSyncBtn(); return; }
   box.innerHTML = S.free.map(f =>
     '<div class="sub-row fi-row"><input type="checkbox" class="fi-pick" data-name="' + esc(f.name) + '"' + (sel.indexOf(f.name) !== -1 ? ' checked' : '') + ' aria-label="' + esc(f.name) + '">' +
-      '<div class="grow"><div><b class="alias-nm">' + esc(f.name) + '</b> <span class="tag">' + esc(f.type === 'ماتيريال' ? t('free_type_mat') : t('free_type_cons')) + '</span> ' + deptTag(f.dept) + '</div>' +
+      '<div class="grow"><div><b class="alias-nm">' + esc(f.name) + '</b> <span class="tag">' + esc(caTypeLabel(f.type)) + '</span> ' + deptTag(f.dept) + '</div>' +
       '<div class="hint">' + esc(t('fi_by', { n: f.by || '—' })) + (f.at ? ' · ' + esc(relTime(f.at)) : '') + ' · ' + esc(t('fi_used', { r: f.requests.length, q: fmtNum(f.qty, 0) })) + '</div>' +
       (f.requests.length ? '<div class="row-wrap" style="gap:4px;margin-top:4px">' + f.requests.slice(0, 6).map(id => '<button class="btn btn-ghost btn-sm mono" data-act="detail" data-id="' + esc(id) + '" style="min-height:24px;padding:1px 7px">' + esc(id) + '</button>').join('') + '</div>' : '') + '</div>' +
       '<div class="row-wrap"><button class="btn btn-sm btn-tone" style="--tone:var(--t-green)" data-act="fiApprove" data-name="' + esc(f.name) + '">' + icon('edit', 'i-sm') + esc(t('fi_edit')) + '</button>' +
@@ -3877,7 +3879,7 @@ ACT.fiApprove = el => {
 /* =====================================================================
    CATALOG ADMIN (procurement + admin): إضافة الأصناف وتعديلها وحذفها وتصنيفها من الموقع
    ===================================================================== */
-const CA = { data: null, q: '', cat: '' };
+const CA = { data: null, q: '', cat: '', sel: new Set() };
 function refreshCatalog() { call('getConfig').then(c => { if (c && c.catalog) S.catalog = c.catalog; }).catch(() => {}); }
 function loadCatalogAdmin(silent) {
   return call('getCatalogAdmin').then(d => { CA.data = d; renderCatalogAdmin(); }).catch(e => { if (!silent) toast(errMsg(e), 'error'); });
@@ -3888,6 +3890,7 @@ VIEWS.catalog = {
     return '<section class="card"><div class="card-head row-wrap" style="gap:8px">' +
       '<div class="input-icon grow" style="min-width:180px">' + icon('search') + '<input class="input" id="caQ" placeholder="' + esc(t('ca_search')) + '" value="' + esc(CA.q) + '"></div>' +
       '<select class="input" id="caCat" style="max-width:200px"></select>' +
+      '<button class="btn btn-danger-soft btn-sm hidden" id="caDelSel" data-act="caDelSel">' + icon('trash', 'i-sm') + '<span></span></button>' +
       '<button class="btn btn-primary btn-sm" data-act="caEdit">' + icon('plus', 'i-sm') + esc(t('ca_add')) + '</button></div>' +
       '<div id="caList">' + (CA.data ? '' : skeletonList(4)) + '</div></section>';
   },
@@ -3898,18 +3901,23 @@ VIEWS.catalog = {
   },
   refresh() { loadCatalogAdmin(true); }
 };
-const caTypeLabel = ty => t(ty === 'ماتيريال' ? 'free_type_mat' : 'free_type_cons');
+const caTypeLabel = ty => t(ty === 'ماتيريال' ? 'free_type_mat' : ty === 'أدوات' ? 'free_type_tools' : 'free_type_cons');
 function renderCatalogAdmin() {
   const box = $('#caList'), sel = $('#caCat'); if (!box || !CA.data) return;
   const d = CA.data;
   sel.innerHTML = '<option value="">' + esc(t('ca_all_cats', { n: d.items.length })) + '</option>' + d.categories.map(c => '<option value="' + esc(c) + '"' + (c === CA.cat ? ' selected' : '') + '>' + esc(c) + ' (' + d.items.filter(i => i.category === c).length + ')</option>').join('');
   const list = d.items.filter(i => (!CA.cat || i.category === CA.cat) &&
     (!CA.q || [i.name, i.commercial, i.category].concat(i.aliases).join(' ').toLowerCase().indexOf(CA.q) !== -1));
+  // التحديد يبقى للأصناف الموجودة فقط (بعد الحذف أو إعادة التحميل)
+  const names = new Set(d.items.map(i => i.name));
+  CA.sel.forEach(n => { if (!names.has(n)) CA.sel.delete(n); });
+  caSelBtn();
   if (!list.length) { box.innerHTML = emptyState('package', t('no_match')); return; }
-  box.innerHTML = '<div class="table-wrap" style="max-height:620px;overflow:auto"><table class="table"><thead><tr><th>' + esc(t('items')) + '</th><th>' + esc(t('ca_category')) + '</th><th>' + esc(t('ca_type')) + '</th><th class="num">' + esc(t('fn_price')) + '</th><th></th></tr></thead><tbody>' +
+  const allOn = list.every(i => CA.sel.has(i.name));
+  box.innerHTML = '<div class="table-wrap" style="max-height:620px;overflow:auto"><table class="table"><thead><tr><th style="width:36px"><input type="checkbox" class="check" id="caAll" data-change="caSelAll"' + (allOn ? ' checked' : '') + ' aria-label="' + esc(t('select_all')) + '"></th><th>' + esc(t('items')) + '</th><th>' + esc(t('ca_category')) + '</th><th>' + esc(t('ca_type')) + '</th><th class="num">' + esc(t('fn_price')) + '</th><th></th></tr></thead><tbody>' +
     list.map(i => {
       const k = d.items.indexOf(i);
-      return '<tr><td><b>' + esc(i.name) + '</b> ' + deptTag(i.dept) + (i.asset ? ' <span class="tag">' + esc(t(i.serialized ? 'ca_asset_serial' : 'ca_asset')) + '</span>' : '') +
+      return '<tr' + (CA.sel.has(i.name) ? ' class="selected"' : '') + '><td><input type="checkbox" class="check" data-change="caSel" data-i="' + k + '"' + (CA.sel.has(i.name) ? ' checked' : '') + ' aria-label="' + esc(i.name) + '"></td><td><b>' + esc(i.name) + '</b> ' + deptTag(i.dept) + (i.asset ? ' <span class="tag">' + esc(t(i.serialized ? 'ca_asset_serial' : 'ca_asset')) + '</span>' : '') +
           (i.commercial ? '<div class="muted" style="font-size:12px">' + esc(i.commercial) + '</div>' : '') +
           (i.aliases.length ? '<div class="hint">' + i.aliases.map(a => '<span class="alias-nm">' + esc(a) + '</span>').join('، ') + '</div>' : '') + '</td>' +
         '<td>' + (i.category ? '<span class="tag">' + esc(i.category) + '</span>' : '<span class="muted">—</span>') + '</td>' +
@@ -3919,6 +3927,31 @@ function renderCatalogAdmin() {
           '<button class="btn btn-ghost btn-sm" data-act="caDel" data-i="' + k + '" aria-label="' + esc(t('delete')) + '">' + icon('trash', 'i-sm') + '</button></td></tr>';
     }).join('') + '</tbody></table></div>';
 }
+function caSelBtn() {
+  const b = $('#caDelSel'); if (!b) return;
+  b.classList.toggle('hidden', !CA.sel.size);
+  b.querySelector('span').textContent = t('ca_del_sel', { n: CA.sel.size });
+}
+ACT.caSel = el => { const it = CA.data.items[Number(el.dataset.i)]; if (!it) return; if (el.checked) CA.sel.add(it.name); else CA.sel.delete(it.name); el.closest('tr').classList.toggle('selected', el.checked); caSelBtn(); };
+ACT.caSelAll = el => {
+  // تحديد الكل = الأصناف الظاهرة حسب البحث والتصنيف
+  $$('#caList [data-change="caSel"]').forEach(c => { const it = CA.data.items[Number(c.dataset.i)]; c.checked = el.checked; c.closest('tr').classList.toggle('selected', el.checked); if (el.checked) CA.sel.add(it.name); else CA.sel.delete(it.name); });
+  caSelBtn();
+};
+ACT.caDelSel = el => {
+  const names = Array.from(CA.sel); if (!names.length) return;
+  confirmDialog(t('ca_del_many_q', { n: names.length }), { danger: true, ok: t('delete'), icon: 'trash' }).then(ok => {
+    if (!ok) return;
+    busy(el, true);
+    call('deleteCatalogItems', names).then(r => {
+      busy(el, false);
+      r.deleted.forEach(n => CA.sel.delete(n));
+      if (r.deleted.length) toast(t('ca_del_many_ok', { n: r.deleted.length }), 'success');
+      if (r.failed.length) toast(t('ca_del_many_fail', { n: r.failed.length, list: r.failed.map(f => f.name + ' — ' + errMsg(new Error(f.error))).join(' · ') }), 'warning', 9000);
+      loadCatalogAdmin(true); refreshCatalog();
+    }).catch(e => { busy(el, false); toast(errMsg(e), 'error'); });
+  });
+};
 ACT.caEdit = el => {
   const d = CA.data; if (!d) return;
   const it = el.dataset.i !== undefined ? d.items[Number(el.dataset.i)] : null;
@@ -5042,11 +5075,11 @@ function docBranchTable(db) {
   const cell = (r, b) => b === '*' ? r : (r.cells[b] || {});
   const sum = (b, k) => rows.reduce((x, r) => x + (Number(cell(r, b)[k]) || 0), 0);
   return '<div class="table-wrap" style="max-height:520px;overflow:auto"><table class="table rp-table db-table"><thead>' +
-    '<tr><th rowspan="2">' + esc(t('dl_doctor')) + '</th>' + groups.map(b => '<th colspan="3" class="db-grp' + (b === '*' ? ' db-all' : '') + '">' + esc(b === '*' ? t('db_all') : b) + '</th>').join('') + '</tr>' +
-    '<tr>' + groups.map(b => '<th class="num">' + esc(t('db_cons')) + '</th><th class="num">' + esc(t('db_mat')) + '</th><th class="num' + (b === '*' ? ' db-all' : '') + '">' + esc(t('rep_total')) + '</th>').join('') + '</tr></thead><tbody>' +
+    '<tr><th rowspan="2">' + esc(t('dl_doctor')) + '</th>' + groups.map(b => '<th colspan="4" class="db-grp' + (b === '*' ? ' db-all' : '') + '">' + esc(b === '*' ? t('db_all') : b) + '</th>').join('') + '</tr>' +
+    '<tr>' + groups.map(b => '<th class="num">' + esc(t('db_cons')) + '</th><th class="num">' + esc(t('db_mat')) + '</th><th class="num">' + esc(t('db_tools')) + '</th><th class="num' + (b === '*' ? ' db-all' : '') + '">' + esc(t('rep_total')) + '</th>').join('') + '</tr></thead><tbody>' +
     rows.map(r => '<tr><td><b>' + esc(r.name) + '</b>' + (r.charge && r.charge !== 'all' ? ' <span class="tag">' + esc(t('ch_' + r.charge)) + '</span>' : '') + '</td>' +
-      groups.map(b => { const c = cell(r, b); return '<td class="num">' + n(c.consumable) + '</td><td class="num">' + n(c.material) + '</td><td class="num' + (b === '*' ? ' db-all' : '') + '"><b>' + n(c.total) + '</b></td>'; }).join('') + '</tr>').join('') +
-    '</tbody><tfoot><tr><th>' + esc(t('rep_total')) + '</th>' + groups.map(b => '<th class="num">' + fmtNum(sum(b, 'consumable'), 2) + '</th><th class="num">' + fmtNum(sum(b, 'material'), 2) + '</th><th class="num' + (b === '*' ? ' db-all' : '') + '">' + fmtNum(sum(b, 'total'), 2) + '</th>').join('') + '</tr></tfoot></table></div>';
+      groups.map(b => { const c = cell(r, b); return '<td class="num">' + n(c.consumable) + '</td><td class="num">' + n(c.material) + '</td><td class="num">' + n(c.tools) + '</td><td class="num' + (b === '*' ? ' db-all' : '') + '"><b>' + n(c.total) + '</b></td>'; }).join('') + '</tr>').join('') +
+    '</tbody><tfoot><tr><th>' + esc(t('rep_total')) + '</th>' + groups.map(b => '<th class="num">' + fmtNum(sum(b, 'consumable'), 2) + '</th><th class="num">' + fmtNum(sum(b, 'material'), 2) + '</th><th class="num">' + fmtNum(sum(b, 'tools'), 2) + '</th><th class="num' + (b === '*' ? ' db-all' : '') + '">' + fmtNum(sum(b, 'total'), 2) + '</th>').join('') + '</tr></tfoot></table></div>';
 }
 ACT.fnDbQ = debounce(el => { FN.dbQ = el.value.trim(); const b = $('#fnDbBody'); if (b && FN.data) b.innerHTML = docBranchTable(FN.data.docBranches); }, 150);
 ACT.fnDbCsv = () => {
@@ -5054,8 +5087,8 @@ ACT.fnDbCsv = () => {
   const db = d.docBranches, q = v => '"' + String(v === null || v === undefined ? '' : v).replace(/"/g, '""') + '"';
   const groups = db.branches.concat(['*']), gl = b => b === '*' ? t('db_all') : b;
   const lines = [[t('db_title'), periodLabel(FN.range), d.branch || t('all_branches')].map(q).join(','), '',
-    [t('dl_doctor'), t('ch_label')].concat(...groups.map(b => [gl(b) + ' — ' + t('db_cons'), gl(b) + ' — ' + t('db_mat'), gl(b) + ' — ' + t('rep_total')])).map(q).join(',')];
-  db.rows.forEach(r => lines.push([r.name, t('ch_' + (r.charge || 'all'))].concat(...groups.map(b => { const c = b === '*' ? r : (r.cells[b] || {}); return [c.consumable || 0, c.material || 0, c.total || 0]; })).map(q).join(',')));
+    [t('dl_doctor'), t('ch_label')].concat(...groups.map(b => [gl(b) + ' — ' + t('db_cons'), gl(b) + ' — ' + t('db_mat'), gl(b) + ' — ' + t('db_tools'), gl(b) + ' — ' + t('rep_total')])).map(q).join(',')];
+  db.rows.forEach(r => lines.push([r.name, t('ch_' + (r.charge || 'all'))].concat(...groups.map(b => { const c = b === '*' ? r : (r.cells[b] || {}); return [c.consumable || 0, c.material || 0, c.tools || 0, c.total || 0]; })).map(q).join(',')));
   const blob = new Blob(['\ufeff' + lines.join('\r\n')], { type: 'text/csv;charset=utf-8' });
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob); a.download = 'doctor-spend-by-branch-' + (FN.range.from || 'all') + '_' + (FN.range.to || 'all') + '.csv';
