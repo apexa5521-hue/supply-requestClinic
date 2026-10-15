@@ -56,6 +56,7 @@ const I18N = {
     confirm_receive: 'تأكيد الاستلام', received_ok: 'تم تأكيد استلام {id}', receiver_required: 'اسم المستلم إلزامي',
     cancel: 'إلغاء', close: 'إغلاق', save: 'حفظ', delete: 'حذف', edit: 'تعديل', send: 'إرسال', confirm: 'تأكيد', back: 'رجوع',
     select_all: 'تحديد الكل', selected: 'محدد', clear_selection: 'إلغاء التحديد',
+    rej_add: 'رفض الصنف', rej_title: 'رفض صنف من الطلب', rej_note: 'سبب الرفض — يظهر للطبيب والممرضة', rej_note_ph: 'مثال: غير متوفر لدى المورد، موقوف، مكرر في طلب آخر…', rej_go: 'رفض الصنف', rej_done: 'رُفض الصنف وأُبلغ الطبيب والممرضة بالسبب', rej_undo: 'إعادة الصنف', rej_undone: 'أُعيد الصنف للطلب', rej_tag: 'رفضه التموين', rej_hint: 'لن يُرسل هذا الصنف (أو ما تبقى منه). يمكنك إعادته لاحقاً ما دام الطلب لم يُرسل كاملاً.', ERR_ITEM_REJECTED: 'هذا الصنف مرفوض من التموين — أعده أولاً', ERR_ALL_REJECTED: 'لا يمكن رفض كل أصناف الطلب — ألغِ الطلب كاملاً بدلاً من ذلك (مع السبب)',
     xl_export: 'تصدير Excel', xl_title: 'تصدير الأصناف إلى Excel', xl_sub: 'صف لكل صنف — حسب الفلاتر الحالية (الطبيب، العيادة، الفرع، المرحلة، البحث)', xl_from: 'من تاريخ', xl_to: 'إلى تاريخ', xl_count: 'سيُصدَّر {n} طلب', xl_go: 'تصدير', xl_none: 'لا توجد طلبات في هذه المدة بالفلاتر الحالية', xl_done: 'تم تصدير {n} صنف', xl_item: 'اسم الصنف', xl_type: 'نوع الطلب', xl_status: 'حالة الطلب', xl_doctor: 'الطبيب', xl_nurse: 'الممرضة', xl_branch: 'الفرع للتسليم', xl_clinic: 'العيادة', xl_req: 'رقم الطلب', xl_date: 'تاريخ الطلب', xl_req_qty: 'الكمية المطلوبة', xl_ok_qty: 'الكمية المعتمدة', xl_sent_qty: 'الكمية المرسلة', xl_sub_of: 'بديل عن', xl_sheet: 'الأصناف',
     act_prep: 'قيد التجهيز', act_vendor_wait: 'بانتظار المندوب', act_vendor_recv: 'استلم المندوب', act_review: 'إعادة لمراجعة الطبيب', act_send: 'إرسال للفرع',
     bulk_done: 'تم تحديث {n} طلب', bulk_skipped_title: 'بعض الطلبات لم تُحدَّث', bulk_skipped_sub: 'تم تحديث {a} وتخطي {b} للأسباب التالية:',
@@ -158,6 +159,7 @@ const I18N = {
     confirm_receive: 'Confirm receipt', received_ok: 'Receipt of {id} confirmed', receiver_required: 'Receiver name is required',
     cancel: 'Cancel', close: 'Close', save: 'Save', delete: 'Delete', edit: 'Edit', send: 'Send', confirm: 'Confirm', back: 'Back',
     select_all: 'Select all', selected: 'selected', clear_selection: 'Clear',
+    rej_add: 'Reject item', rej_title: 'Reject an item from the request', rej_note: 'Reason — shown to the doctor and the nurse', rej_note_ph: 'e.g. not available from the supplier, discontinued, duplicated…', rej_go: 'Reject item', rej_done: 'Item rejected — doctor and nurse were told why', rej_undo: 'Restore item', rej_undone: 'Item restored to the request', rej_tag: 'Rejected by procurement', rej_hint: 'This item (or what is left of it) will not be sent. You can restore it while the request is not fully sent.', ERR_ITEM_REJECTED: 'This item was rejected by procurement — restore it first', ERR_ALL_REJECTED: 'You cannot reject every item — cancel the whole request instead (with a reason)',
     xl_export: 'Export Excel', xl_title: 'Export items to Excel', xl_sub: 'One row per item — uses the current filters (doctor, clinic, branch, stage, search)', xl_from: 'From', xl_to: 'To', xl_count: '{n} request(s) will be exported', xl_go: 'Export', xl_none: 'No requests in this period with the current filters', xl_done: '{n} item(s) exported', xl_item: 'Item', xl_type: 'Request type', xl_status: 'Request status', xl_doctor: 'Doctor', xl_nurse: 'Nurse', xl_branch: 'Delivery branch', xl_clinic: 'Clinic', xl_req: 'Request #', xl_date: 'Request date', xl_req_qty: 'Requested qty', xl_ok_qty: 'Approved qty', xl_sent_qty: 'Sent qty', xl_sub_of: 'Substitute for', xl_sheet: 'Items',
     act_prep: 'In progress', act_vendor_wait: 'Awaiting vendor', act_vendor_recv: 'Vendor received', act_review: 'Back to doctor review', act_send: 'Dispatch',
     bulk_done: '{n} request(s) updated', bulk_skipped_title: 'Some requests were not updated', bulk_skipped_sub: '{a} updated, {b} skipped:',
@@ -1724,7 +1726,7 @@ function renderDetail(m, d) {
         '<div class="table-wrap"><table class="table"><thead><tr><th>' + esc(t('items')) + '</th><th class="num">' + esc(t('requested')) + '</th><th class="num">' + esc(t('approved')) + '</th><th>' + esc(t('dispatch_status')) + '</th><th class="num">' + esc(t('received')) + '</th></tr></thead><tbody>' +
         d.items.map(it => {
           const short = it.receivedQty !== '' && it.receivedQty !== null && Number(it.receivedQty) < Number(it.approvedQty !== '' ? it.approvedQty : it.requestedQty);
-          return '<tr><td><div style="font-weight:600">' + esc(it.item) + '</div>' + (it.notes && it.notes.length ? '<div class="hint">' + icon('msg', 'i-sm') + ' ' + esc(it.notes.map(n => n.author + ': ' + n.note).join(' · ')) + '</div>' : '') + '</td>' +
+          return '<tr><td><div style="font-weight:600">' + (it.rejected ? '<s class="muted">' + esc(it.item) + '</s>' : esc(it.item)) + '</div>' + rejTag(it) + (it.notes && it.notes.length ? '<div class="hint">' + icon('msg', 'i-sm') + ' ' + esc(it.notes.map(n => n.author + ': ' + n.note).join(' · ')) + '</div>' : '') + '</td>' +
             '<td class="num">' + esc(it.requestedQty) + '</td><td class="num">' + esc(it.approvedQty === '' ? '—' : it.approvedQty) + '</td><td>' + shipBadge(it) + (it.itemStatus && !it.done ? ' ' + badge(it.itemStatus) : '') + '</td>' +
             '<td class="num"' + (short ? ' style="color:var(--t-red);font-weight:700"' : '') + '>' + esc(it.receivedQty === '' ? '—' : it.receivedQty) + '</td></tr>';
         }).join('') + '</tbody></table></div></div>' +
@@ -2897,6 +2899,35 @@ function subTag(it, all) {
   const rep = (all || []).find(x => x.substituteOf === it.item && x.subStatus === SUB_OK);
   return rep ? '<div class="hint sub-tag" style="--tone:var(--t-green)">' + icon('refresh', 'i-sm') + esc(t('sub_replaced', { n: rep.item })) + '</div>' : '';
 }
+/* صنف رفضه التموين: السبب يظهر للطبيب والممرضة والتموين */
+function rejTag(it) {
+  return it.rejected ? '<div class="hint sub-tag rej-tag" style="--tone:var(--t-red)">' + icon('xc', 'i-sm') + '<b>' + esc(t('rej_tag')) + '</b>' +
+    (it.rejectNote ? ' · ' + esc(it.rejectNote) : '') + (it.rejectBy ? ' <span class="muted">— ' + esc(it.rejectBy) + (it.rejectAt ? ' · ' + esc(fmtDateTime(it.rejectAt)) : '') + '</span>' : '') + '</div>' : '';
+}
+ACT.rejItem = el => {
+  const id = el.dataset.id, item = el.dataset.item;
+  const m = openModal({ title: esc(t('rej_title')), sub: esc(id + ' · ' + item), icon: 'x', tone: 'danger', size: 'sm',
+    body: '<div class="field"><label for="rejNote">' + esc(t('rej_note')) + '</label><textarea class="input" id="rejNote" rows="3" maxlength="500" placeholder="' + esc(t('rej_note_ph')) + '"></textarea></div>' +
+      '<div class="hint">' + icon('info', 'i-sm') + ' ' + esc(t('rej_hint')) + '</div>' +
+      '<div class="field-error hidden" id="rejErr">' + icon('alert', 'i-sm') + '<span></span></div>',
+    foot: '<span class="spacer"></span><button class="btn" data-close>' + esc(t('cancel')) + '</button><button class="btn btn-danger" id="rejOk">' + icon('x', 'i-sm') + esc(t('rej_go')) + '</button>' });
+  $('#rejOk', m.el).addEventListener('click', e => {
+    const b = e.currentTarget, err = $('#rejErr', m.el), note = $('#rejNote', m.el).value.trim();
+    err.classList.add('hidden');
+    if (!note) { err.querySelector('span').textContent = t('ERR_REASON_REQUIRED'); err.classList.remove('hidden'); return; }
+    busy(b, true);
+    call('rejectItems', id, [item], note).then(data => {
+      busy(b, false); closeModal(m); toast(t('rej_done'), 'success');
+      S.proc.items[id] = data; loadProc(true);
+    }).catch(er => { busy(b, false); err.querySelector('span').textContent = errMsg(er); err.classList.remove('hidden'); });
+  });
+};
+ACT.rejUndo = el => {
+  busy(el, true);
+  call('rejectItems', el.dataset.id, [el.dataset.item], '', true).then(data => {
+    toast(t('rej_undone'), 'success'); S.proc.items[el.dataset.id] = data; loadProc(true);
+  }).catch(e => { busy(el, false); toast(errMsg(e), 'error'); });
+};
 /* صنف حر داخل الطلب: الربط بصنف موجود مرة واحدة من «الأصناف الحرة» (يصير اسماً بديلاً للأبد) */
 ACT.fiGo = el => { FI_FOCUS = el.dataset.item; go('freeitems'); };
 let FI_FOCUS = '';
@@ -2968,12 +2999,15 @@ function procItemsHtml(r) {
       const iname = esc(it.item);
       return '<tr class="dsp-row ' + state + '">' +
         (canDispatch ? '<td>' + (left > 0 ? '<input type="checkbox" class="check dsp" data-change="dspSel" data-id="' + rid + '" data-item="' + iname + '" aria-label="' + iname + '">' : icon('checkc', 'i-sm dsp-ok')) + '</td>' : '') +
-        '<td><div style="font-weight:600">' + (it.replaced ? '<s class="muted">' + iname + '</s>' : iname) + '</div>' + subTag(it, data.items) +
+        '<td><div style="font-weight:600">' + (it.replaced || it.rejected ? '<s class="muted">' + iname + '</s>' : iname) + '</div>' + subTag(it, data.items) + rejTag(it) +
+          (canItemSt && it.rejected ? '<button type="button" class="link-btn" data-act="rejUndo" data-id="' + rid + '" data-item="' + iname + '">' + icon('refresh', 'i-sm') + esc(t('rej_undo')) + '</button> ' : '') +
+          (canItemSt && left > 0 && !it.replaced && !(it.substituteOf && it.subStatus !== SUB_OK)
+            ? '<button type="button" class="link-btn link-danger" data-act="rejItem" data-id="' + rid + '" data-item="' + iname + '">' + icon('x', 'i-sm') + esc(t('rej_add')) + '</button> ' : '') +
           ((catalogInfo(it.item) || {}).freePending && !it.replaced ? '<button type="button" class="link-btn" data-act="fiGo" data-item="' + iname + '">' + icon('link', 'i-sm') + esc(t('fi_go_match')) + '</button> ' : '') +
           (canDispatch && left > 0 && !it.substituteOf && !data.items.some(x => x.substituteOf === it.item && x.subStatus === SUB_PENDING)
             ? '<button type="button" class="link-btn" data-act="subItem" data-id="' + rid + '" data-item="' + iname + '">' + icon('refresh', 'i-sm') + esc(t('sub_add')) + '</button>' : '') +
         '</td><td class="num">' + esc(it.requestedQty) + '</td>' +
-        '<td class="num">' + (editable && !it.replaced ? '<input class="input" type="number" min="0" inputmode="numeric" value="' + esc(appr) + '" data-change="approveQty" data-id="' + rid + '" data-item="' + iname + '">' : esc(appr)) + '</td>' +
+        '<td class="num">' + (editable && !it.replaced && !it.rejected ? '<input class="input" type="number" min="0" inputmode="numeric" value="' + esc(appr) + '" data-change="approveQty" data-id="' + rid + '" data-item="' + iname + '">' : esc(appr)) + '</td>' +
         '<td>' + (canItemSt && left > 0
           ? '<select class="select item-st" data-change="itemSt" data-id="' + rid + '" data-item="' + iname + '" data-was="' + esc(it.itemStatus || '') + '" aria-label="' + esc(t('item_status')) + '">' +
               '<option value="">' + esc(t('item_st_none')) + '</option>' + ITEM_ST.map(x => '<option value="' + esc(x) + '"' + (x === it.itemStatus ? ' selected' : '') + '>' + esc(statusLabel(x)) + '</option>').join('') + '</select>'
@@ -4347,7 +4381,7 @@ function openReview(id) {
     const rows = items.map((it, i) => {
       const q = qOf(it);
       const line = (Number(it.price) || 0) * q; total += line;
-      return '<tr><td><div style="font-weight:600">' + esc(it.item) + '</div>' + subTag(it, items) + ((it.commercial || it.category) ? '<div class="hint">' + esc([it.commercial, it.category].filter(Boolean).join(' · ')) + '</div>' : '') +
+      return '<tr><td><div style="font-weight:600">' + (it.rejected ? '<s class="muted">' + esc(it.item) + '</s>' : esc(it.item)) + '</div>' + subTag(it, items) + rejTag(it) + ((it.commercial || it.category) ? '<div class="hint">' + esc([it.commercial, it.category].filter(Boolean).join(' · ')) + '</div>' : '') +
         (it.notes && it.notes.length ? '<div class="hint">' + icon('msg', 'i-sm') + ' ' + esc(it.notes.map(n => n.author + ': ' + n.note).join(' · ')) + '</div>' : '') + '</td>' +
         (canReview
           ? '<td class="num"><div class="hint">' + esc(t('requested')) + ': ' + esc(it.requestedQty) + '</div><input class="input rvQty" type="number" min="0" step="1" inputmode="numeric" value="' + q + '" data-i="' + i + '" data-item="' + esc(it.item) + '" data-orig="' + q + '" aria-label="' + esc(t('qty')) + ' — ' + esc(it.item) + '"></td>'

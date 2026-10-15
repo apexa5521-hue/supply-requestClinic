@@ -989,6 +989,33 @@ function log(msg) { console.log('  ✔ ' + msg); }
   expect((await page.textContent('#asFound')).includes('تالفة'), 'serial lookup shows the unit history');
   await logout(page);
 
+  // ---------- التموين يرفض صنفاً بسبب يراه الطبيب والممرضة ----------
+  await login(page, 'سارة', '1111');
+  const rjId = await page.evaluate(() => call('createRequest', { clinic: 'Sterilization', branch: 'الرياض', type: 'شهري', items: [{ name: 'PROPHY PASTE', qty: 2 }, { name: 'DENTAL FLOSS', qty: 4 }] }).then(r => r.id));
+  await logout(page);
+  await login(page, 'علي', '3333');
+  await page.click('.sidebar [data-view="requests"]');
+  await page.waitForSelector('[data-rid="' + rjId + '"] [data-act="procToggle"]');
+  await page.click('[data-rid="' + rjId + '"] .req-actions [data-act="procToggle"]');
+  await page.click('#exp-' + rjId + ' [data-act="rejItem"][data-item="DENTAL FLOSS"]');
+  await page.waitForSelector('.modal #rejOk');
+  await page.click('.modal #rejOk');
+  expect(await page.isVisible('.modal #rejErr:not(.hidden)'), 'rejecting an item needs a reason');
+  await page.fill('.modal #rejNote', 'غير متوفر لدى المورد');
+  await page.click('.modal #rejOk');
+  expect(await toastHas(page, 'رُفض الصنف'), 'procurement rejects one item with a reason');
+  await page.waitForSelector('#exp-' + rjId + ' .rej-tag');
+  expect((await page.textContent('#exp-' + rjId + ' .rej-tag')).includes('غير متوفر لدى المورد') && await page.isVisible('#exp-' + rjId + ' [data-act="rejUndo"]'),
+    'the rejected item shows the reason and can be restored');
+  await shot(page, 'proc-reject-item', true);
+  await logout(page);
+  await login(page, 'سارة', '1111');
+  await page.evaluate(id => openDetail(id), rjId);
+  await page.waitForSelector('.modal .rej-tag');
+  expect((await page.textContent('.modal .rej-tag')).includes('غير متوفر لدى المورد'), 'the nurse sees why procurement rejected the item');
+  await page.keyboard.press('Escape');
+  await logout(page);
+
   // ---------- حالة كل صنف داخل الطلبية + التراجع عن خطوة بالسبب ----------
   await login(page, 'سارة', '1111');
   const stId = await page.evaluate(() => call('createRequest', { clinic: 'Sterilization', branch: 'الرياض', type: 'شهري', items: [{ name: 'PROPHY PASTE', qty: 2 }, { name: 'DENTAL FLOSS', qty: 4 }] }).then(r => r.id));
