@@ -281,6 +281,12 @@ test('full workflow: submit → doctor review → approve → prep → partial d
   let ds = api(p, 'dispatchItems', id, ['PROPHY PASTE']);
   assert.equal(ds.allSent, false);
   assert.equal(api(p, 'getRequestItemsFull', id).dispatchStatus['PROPHY PASTE'], true);
+  // تصدير Excel: أصناف الطلب مع المطلوب والمعتمد والمرسل؛ الممرضة لا تصل للتصدير
+  const xl = api(p, 'exportRequestItems', [id, 'REQ-NOPE'])[id];
+  assert.deepEqual(xl.map(i => i.item).sort(), ['DENTAL FLOSS', 'PROPHY PASTE']);
+  assert.equal(xl.find(i => i.item === 'DENTAL FLOSS').approvedQty, 8);
+  assert.ok(xl.find(i => i.item === 'PROPHY PASTE').sentQty > 0 && xl.find(i => i.item === 'DENTAL FLOSS').sentQty === 0, 'sent quantity per item');
+  throwsCode(() => api(n, 'exportRequestItems', [id]), 'ERR_FORBIDDEN');
   ds = api(p, 'dispatchItems', id, ['DENTAL FLOSS']);
   assert.equal(ds.allSent, true);
   assert.ok(gas.mails.some(m => m.to === 'sara@example.com' && /تم إرسال طلبك/.test(m.subject)));
