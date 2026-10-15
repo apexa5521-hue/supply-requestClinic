@@ -1549,6 +1549,21 @@ function backfillBoxes_(user) {
   return out;
 }
 /** حالة التوصيل لكل شحنة (للطلبات): آخر «تسليم» لفرع لكل طلب#شحنة */
+/**
+ * المرحلة الأخيرة للمتابعة: arrivedAt = أول وصول لبوكس الطلب للفرع (خطوة «وصل الفرع» في التايم لاين)،
+ * awaitingDelivery = شحنة أُرسلت ولم يسلّمها السواق للفرع ولم تُستلم بعد
+ */
+function arrivalOf_(id, ships) {
+  const dl = deliveriesIndex_();
+  let first = '';
+  let waiting = false;
+  ships.forEach(function (g) {
+    const d = dl[id + '#' + Number(g.batch)];
+    if (d && (!first || toMs_(d.at) < toMs_(first))) first = d.at;
+    if (!g.received && !d) waiting = true;
+  });
+  return { arrivedAt: first, awaitingDelivery: waiting };
+}
 function deliveriesIndex_() {
   if (MEMO_.dlv) return MEMO_.dlv;
   const out = {};
@@ -2086,6 +2101,7 @@ function queryRequests_(filters) {
     r.shipmentCount = st.ships.length;
     r.lastShipAt = st.ships.length ? st.ships.reduce(function (m, g) { return toMs_(g.sentAt) > toMs_(m) ? g.sentAt : m; }, '') : '';
     r.pendingShipments = st.pending;
+    Object.assign(r, arrivalOf_(r.id, st.ships));
     // شحنة وصل بوكسها الفرع ولم تُستلم بعد → «وصل الفرع»
     const waiting = st.ships.filter(function (g) { return !g.received && g.delivered; });
     r.atBranch = waiting.length > 0;
@@ -4008,6 +4024,7 @@ function getRequestDetail_(user, requestId) {
   itemNotes_(requestId).forEach(function (n) { (noteMap[n.item] = noteMap[n.item] || []).push(n); });
   const st = shipState_(req, itemsOf_(requestId));
   req.shipments = st.ships;
+  Object.assign(req, arrivalOf_(req.id, st.ships));
   const names = itemNameStates_();
   req.items = st.items.map(function (it) {
     it.notes = noteMap[it.item] || [];

@@ -56,6 +56,7 @@ const I18N = {
     confirm_receive: 'تأكيد الاستلام', received_ok: 'تم تأكيد استلام {id}', receiver_required: 'اسم المستلم إلزامي',
     cancel: 'إلغاء', close: 'إغلاق', save: 'حفظ', delete: 'حذف', edit: 'تعديل', send: 'إرسال', confirm: 'تأكيد', back: 'رجوع',
     select_all: 'تحديد الكل', selected: 'محدد', clear_selection: 'إلغاء التحديد',
+    step_arrived: 'وصل الفرع', grp_deliver: 'بانتظار التوصيل', grp_await_receipt: 'وصل · بانتظار الاستلام', grp_signed: 'استُلم بالتوقيع',
     drv_scan_hint: 'للتسليم: امسح الباركود (QR) على البوكس نفسه بكاميرا الجوال', drv_locked: 'تم التسليم', drv_locked_sub: 'هذا البوكس سُلِّم مسبقاً ولا توجد عليه مهمة توصيل الآن', drv_last: 'آخر تسليم: {p} · {t} · {d}', ERR_BOX_DELIVERED: 'تم التسليم مسبقاً — لا توجد مهمة توصيل لهذا البوكس الآن',
     link_will: 'سيرتبط بـ: {n}', link_none: 'لا يوجد طبيب يطابق اسم الحساب — اختر الطبيب من القائمة', link_grp_free: 'أطباء بلا حساب', link_grp_taken: 'مرتبطون بحسابات أخرى', ERR_DOCTOR_LINK: 'حساب الطبيب لازم يرتبط بطبيب — اختر اسمه من «الطبيب المرتبط بالحساب»',
     rej_add: 'رفض الصنف', rej_title: 'رفض صنف من الطلب', rej_note: 'سبب الرفض — يظهر للطبيب والممرضة', rej_note_ph: 'مثال: غير متوفر لدى المورد، موقوف، مكرر في طلب آخر…', rej_go: 'رفض الصنف', rej_done: 'رُفض الصنف وأُبلغ الطبيب والممرضة بالسبب', rej_undo: 'إعادة الصنف', rej_undone: 'أُعيد الصنف للطلب', rej_tag: 'رفضه التموين', rej_hint: 'لن يُرسل هذا الصنف (أو ما تبقى منه). يمكنك إعادته لاحقاً ما دام الطلب لم يُرسل كاملاً.', ERR_ITEM_REJECTED: 'هذا الصنف مرفوض من التموين — أعده أولاً', ERR_ALL_REJECTED: 'لا يمكن رفض كل أصناف الطلب — ألغِ الطلب كاملاً بدلاً من ذلك (مع السبب)',
@@ -161,6 +162,7 @@ const I18N = {
     confirm_receive: 'Confirm receipt', received_ok: 'Receipt of {id} confirmed', receiver_required: 'Receiver name is required',
     cancel: 'Cancel', close: 'Close', save: 'Save', delete: 'Delete', edit: 'Edit', send: 'Send', confirm: 'Confirm', back: 'Back',
     select_all: 'Select all', selected: 'selected', clear_selection: 'Clear',
+    step_arrived: 'At branch', grp_deliver: 'Awaiting delivery', grp_await_receipt: 'Arrived · awaiting receipt', grp_signed: 'Received & signed',
     drv_scan_hint: 'To deliver: scan the QR code on the box itself with your phone camera', drv_locked: 'Delivered', drv_locked_sub: 'This box was already delivered and has no delivery task now', drv_last: 'Last delivery: {p} · {t} · {d}', ERR_BOX_DELIVERED: 'Already delivered — this box has no delivery task now',
     link_will: 'Will link to: {n}', link_none: 'No doctor matches this account name — pick the doctor from the list', link_grp_free: 'Doctors without an account', link_grp_taken: 'Linked to other accounts', ERR_DOCTOR_LINK: 'A doctor account must be linked to a doctor — pick the name in “Linked doctor”',
     rej_add: 'Reject item', rej_title: 'Reject an item from the request', rej_note: 'Reason — shown to the doctor and the nurse', rej_note_ph: 'e.g. not available from the supplier, discontinued, duplicated…', rej_go: 'Reject item', rej_done: 'Item rejected — doctor and nurse were told why', rej_undo: 'Restore item', rej_undone: 'Item restored to the request', rej_tag: 'Rejected by procurement', rej_hint: 'This item (or what is left of it) will not be sent. You can restore it while the request is not fully sent.', ERR_ITEM_REJECTED: 'This item was rejected by procurement — restore it first', ERR_ALL_REJECTED: 'You cannot reject every item — cancel the whole request instead (with a reason)',
@@ -1643,14 +1645,18 @@ window.addEventListener('resize', debounce(() => { $$('.segmented').forEach(plac
    Request detail (shared by all roles)
    ===================================================================== */
 function stepperHtml(r) {
-  const cur = stMeta(r.status).step;
+  // خطوة «وصل الفرع» بين الإرسال والاستلام: تكتمل لحظة تسليم السواق للبوكس في الفرع
+  let cur = stMeta(r.status).step;
+  // بعد الوصول تكون الخطوة الحالية «الاستلام» (وصل الفرع مكتملة)
+  if (cur >= 5 || (cur === 4 && r.arrivedAt)) cur = 6;
   const rejected = r.status === ST.REJECTED;
   const steps = [
     { k: 'step_submitted', ic: 'clipboard', at: r.submittedAt },
     { k: 'step_review', ic: 'steth', at: r.reviewAt },
     { k: 'step_approved', ic: rejected ? 'x' : 'check', at: rejected ? r.reviewedAt : (r.approvedAt || (r.status === ST.APPROVED ? r.reviewedAt : '')) },
     { k: 'step_prep', ic: 'package', at: r.prepAt },
-    { k: 'step_sent', ic: 'truck', at: r.sentAt },
+    { k: 'step_sent', ic: 'truck', at: r.sentAt || r.lastShipAt },
+    { k: 'step_arrived', ic: 'pin', at: r.arrivedAt },
     { k: 'step_received', ic: 'pen', at: r.receivedAt }
   ];
   return '<div class="stepper">' + steps.map((s, i) => {
@@ -2365,6 +2371,7 @@ const NURSE_GROUPS = [
   { id: 'all', k: 'grp_all' },
   { id: 'active', k: 'grp_active', statuses: [ST.NEW, ST.PREP, ST.VENDOR_WAIT, ST.VENDOR_RECV, ST.REVIEW, ST.APPROVED], tone: 'var(--t-amber)' },
   { id: 'to_receive', k: 'grp_to_receive', test: r => r.pendingShipments > 0, tone: 'var(--t-indigo)' },
+  { id: 'deliver', k: 'grp_deliver', test: r => !!r.awaitingDelivery, tone: 'var(--t-indigo)' },
   { id: 'arrived', k: 'grp_arrived', test: r => !!r.atBranch, tone: ARRIVED_TONE },
   { id: 'received', k: 'st_received', statuses: [ST.RECEIVED], tone: 'var(--t-green)' },
   { id: 'rejected', k: 'st_rejected', statuses: [ST.REJECTED], tone: 'var(--t-red)' },
@@ -2699,8 +2706,10 @@ const PROC_GROUPS = [
   { id: 'prep', k: 'grp_prep', statuses: [ST.PREP, ST.VENDOR_WAIT, ST.VENDOR_RECV], tone: 'var(--t-amber)' },
   { id: 'partial', k: 'grp_partial', test: r => r.sentQty > 0 && r.remainingQty > 0, tone: 'var(--t-orange)' },
   { id: 'sent', k: 'st_sent', statuses: [ST.SENT], tone: 'var(--t-indigo)' },
-  { id: 'arrived', k: 'grp_arrived', test: r => !!r.atBranch, tone: ARRIVED_TONE },
-  { id: 'received', k: 'st_received', statuses: [ST.RECEIVED], tone: 'var(--t-green)' },
+  // المرحلة الأخيرة: أُرسل ← بانتظار السواق ← وصل الفرع بانتظار الممرضة ← استُلم بالتوقيع
+  { id: 'deliver', k: 'grp_deliver', test: r => !!r.awaitingDelivery, tone: 'var(--t-indigo)' },
+  { id: 'arrived', k: 'grp_await_receipt', test: r => !!r.atBranch, tone: ARRIVED_TONE },
+  { id: 'received', k: 'grp_signed', statuses: [ST.RECEIVED], tone: 'var(--t-green)' },
   { id: 'rejected', k: 'st_rejected', statuses: [ST.REJECTED], tone: 'var(--t-red)' },
   { id: 'cancelled', k: 'st_cancelled', statuses: [ST.CANCELLED], tone: 'var(--t-gray)' }
 ];
@@ -4313,6 +4322,8 @@ const DOC_GROUPS = [
   { id: 'review', k: 'pending_review', test: r => !!r.awaitingDoctor, tone: 'var(--t-violet)', ic: 'clock' },
   { id: 'approved', k: 'approved_by_you', statuses: [ST.APPROVED, ST.PREP, ST.VENDOR_WAIT, ST.VENDOR_RECV], tone: 'var(--t-teal)', ic: 'checkc' },
   { id: 'sent', k: 'sent_to_branch', statuses: [ST.SENT], tone: 'var(--t-indigo)', ic: 'truck' },
+  { id: 'deliver', k: 'grp_deliver', test: r => !!r.awaitingDelivery, tone: 'var(--t-indigo)', ic: 'route' },
+  { id: 'arrived', k: 'grp_await_receipt', test: r => !!r.atBranch, tone: ARRIVED_TONE, ic: 'pin' },
   { id: 'received', k: 'received_k', statuses: [ST.RECEIVED], tone: 'var(--t-green)', ic: 'pen' },
   { id: 'rejected', k: 'rejected_k', statuses: [ST.REJECTED], tone: 'var(--t-red)', ic: 'xc' },
   { id: 'all', k: 'grp_all', tone: 'var(--t-gray)', ic: 'layers' }

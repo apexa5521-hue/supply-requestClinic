@@ -1892,6 +1892,8 @@ test('boxes: dispatch loads the doctor box → driver scan delivers with photo �
   assert.deepEqual([box.id, box.owner, box.status, box.location, box.destination, box.loads.map(l => l.request + '#' + l.batch)],
     ['BOX-001', 'د. سعد', 'جاهز للنقل', 'التموين', 'جدة', [id + '#1']], 'doctor box created and loaded, destination = request branch');
   assert.ok(box.k.length >= 24 && bx.driverToken.length >= 24);
+  let lr = api(p, 'getRequests', {}).find(r => r.id === id);
+  assert.deepEqual([lr.awaitingDelivery, lr.atBranch, lr.arrivedAt], [true, false, ''], 'sent, waiting for the driver');
   // مهام السواق برابط سري
   throwsCode(() => api(null, 'driverTasks', { k: 'wrong' }), 'ERR_BAD_LINK');
   assert.deepEqual(api(null, 'driverTasks', { k: bx.driverToken }).map(x => [x.id, x.destination]), [['BOX-001', 'جدة']]);
@@ -1908,6 +1910,9 @@ test('boxes: dispatch loads the doctor box → driver scan delivers with photo �
   throwsCode(() => api(null, 'boxDeliver', Object.assign({}, d, { to: 'التموين' })), 'ERR_SAME_PLACE');
   const res = api(null, 'boxDeliver', d);
   assert.deepEqual([res.box.status, res.box.location], ['وصل الفرع', 'جدة']);
+  lr = api(p, 'getRequests', {}).find(r => r.id === id);
+  assert.deepEqual([lr.awaitingDelivery, lr.atBranch, !!lr.arrivedAt], [false, true, true], 'arrived at the branch, waiting for the nurse');
+  assert.ok(api(reem, 'getRequestDetail', id).arrivedAt, 'timeline gets the «at branch» time');
   assert.equal(api(null, 'boxDeliver', d).duplicate, true, 'double tap is ignored');
   // نفس الباركود بعد التسليم: مقفل «تم التسليم» — لا تسليم ثانٍ لأي مكان حتى يُحمَّل البوكس أو يُطلب نقله
   throwsCode(() => api(null, 'boxDeliver', Object.assign({}, d, { clientKey: 'dlv-000009' })), 'ERR_BOX_DELIVERED');

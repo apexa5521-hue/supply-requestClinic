@@ -585,6 +585,14 @@ function log(msg) { console.log('  ✔ ' + msg); }
   await page.click('#mineChips [data-g="arrived"]');
   expect(await page.isVisible(`.req:has-text("${newId}")`), 'nurse filters «وصل الفرع» requests');
   await page.click('#mineChips [data-g="all"]');
+  // التايم لاين: خطوة «وصل الفرع» مكتملة بوقت تسليم السواق، والاستلام هو الخطوة الحالية
+  await page.evaluate(id => openDetail(id), newId);
+  await page.waitForSelector('.modal .step.done:has-text("وصل الفرع")');
+  expect(!!(await page.$('.modal .step.done:has-text("وصل الفرع") .s-time')) && (await page.textContent('.modal .step.done:has-text("وصل الفرع") .s-time')).trim().length > 2,
+    'timeline shows the «at branch» step with the driver delivery time');
+  await shot(page, 'timeline-arrived', true);
+  await page.keyboard.press('Escape');
+  await page.waitForTimeout(300);
   const sign = async (dx) => {
     const pad = await page.$('#sigPad');
     const bb = await pad.boundingBox();
@@ -630,7 +638,7 @@ function log(msg) { console.log('  ✔ ' + msg); }
   await page.fill('#dComment', 'تم الاستلام، شكراً');
   await page.click('#dSend');
   await page.waitForSelector('.msg.mine');
-  expect(await page.locator('.step.done').count() === 6, 'detail stepper shows all 6 stages done');
+  expect(await page.locator('.step.done').count() === 7, 'detail stepper shows all 7 stages done (incl. at branch)');
   await shot(page, 'request-detail');
   await page.evaluate(() => { window.print = () => {}; });
   await page.click('#dPrint');
