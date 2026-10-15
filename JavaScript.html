@@ -56,6 +56,7 @@ const I18N = {
     confirm_receive: 'تأكيد الاستلام', received_ok: 'تم تأكيد استلام {id}', receiver_required: 'اسم المستلم إلزامي',
     cancel: 'إلغاء', close: 'إغلاق', save: 'حفظ', delete: 'حذف', edit: 'تعديل', send: 'إرسال', confirm: 'تأكيد', back: 'رجوع',
     select_all: 'تحديد الكل', selected: 'محدد', clear_selection: 'إلغاء التحديد',
+    all_types: 'كل الأنواع (شهري / طارئ)',
     dash_status_hint: 'اضغط على أي حالة لعرض طلباتها', dash_status_n: '{n} طلب — اضغط رقم الطلب لفتح تفاصيله',
     link_new: '➕ طبيب جديد — أنشئه واربطه بالحساب', link_new_name: 'اسم الطبيب كما يظهر للممرضات', link_new_clinics: 'عيادات الطبيب (اختياري)', link_new_will: 'سيُضاف الطبيب «{n}» لقائمة الأطباء ويُربط بهذا الحساب',
     free_type_tools: 'أدوات', db_tools: 'أدوات', ca_del_sel: 'حذف المحدد ({n})', ca_del_many_q: 'حذف {n} صنف من الكتالوج نهائياً؟', ca_del_many_ok: 'حُذف {n} صنف', ca_del_many_fail: 'لم يُحذف {n}: {list}',
@@ -165,6 +166,7 @@ const I18N = {
     confirm_receive: 'Confirm receipt', received_ok: 'Receipt of {id} confirmed', receiver_required: 'Receiver name is required',
     cancel: 'Cancel', close: 'Close', save: 'Save', delete: 'Delete', edit: 'Edit', send: 'Send', confirm: 'Confirm', back: 'Back',
     select_all: 'Select all', selected: 'selected', clear_selection: 'Clear',
+    all_types: 'All types (monthly / emergency)',
     dash_status_hint: 'Click any status to list its requests', dash_status_n: '{n} request(s) — click a number to open it',
     link_new: '➕ New doctor — create and link to this account', link_new_name: 'Doctor name as nurses see it', link_new_clinics: 'Doctor clinics (optional)', link_new_will: 'Doctor «{n}» will be added to the doctors list and linked to this account',
     free_type_tools: 'Tools', db_tools: 'Tools', ca_del_sel: 'Delete selected ({n})', ca_del_many_q: 'Delete {n} item(s) from the catalog for good?', ca_del_many_ok: '{n} item(s) deleted', ca_del_many_fail: 'Not deleted ({n}): {list}',
@@ -418,7 +420,7 @@ const S = {
   clinics: [], catalog: [], roles: [],
   view: null, lastSync: null,
   nurse: { draft: null, doctors: [], profile: [], mine: [], group: 'all', q: '', doctor: '' },
-  proc: { list: [], group: 'all', q: '', doctor: '', clinic: '', month: '', sort: 'new', selected: new Set(), expanded: new Set(), items: {} },
+  proc: { list: [], group: 'all', q: '', doctor: '', clinic: '', type: '', month: '', sort: 'new', selected: new Set(), expanded: new Set(), items: {} },
   doc: { list: [], group: 'review' },
   dash: { month: '', stats: null, report: null, trend: null, complaints: [], cFilter: 'open', notices: [] },
   admin: { users: [], q: '' },
@@ -2755,6 +2757,8 @@ VIEWS.requests = {
         '<div class="input-icon">' + icon('search') + '<input class="input" data-input="procQ" value="' + esc(p.q) + '" placeholder="' + esc(t('search_requests')) + '"></div>' +
         (S.branches.length ? '<select class="select" data-change="procBranch" aria-label="' + esc(t('branch')) + '"><option value="">' + esc(t('all_branches')) + '</option>' + S.branches.map(b => '<option' + (b === p.branch ? ' selected' : '') + '>' + esc(b) + '</option>').join('') + '</select>' : '') +
         '<span id="procDocW">' + doctorSelect(p.list, p.doctor, 'procDoctor') + '</span>' +
+        '<select class="select" data-change="procType" aria-label="' + esc(t('type')) + '"><option value="">' + esc(t('all_types')) + '</option>' +
+          [['شهري', 'type_monthly'], ['طارئ', 'type_emergency']].map(o => '<option value="' + o[0] + '"' + (p.type === o[0] ? ' selected' : '') + '>' + esc(t(o[1])) + '</option>').join('') + '</select>' +
         '<select class="select" data-change="procClinic" aria-label="' + esc(t('clinic')) + '"><option value="">' + esc(t('all_clinics')) + '</option>' + clinicNames().map(n => '<option' + (n === p.clinic ? ' selected' : '') + '>' + esc(n) + '</option>').join('') + '</select>' +
         '<input class="input" type="month" data-change="procMonth" value="' + esc(p.month) + '" aria-label="' + esc(t('month')) + '">' +
         '<select class="select" data-change="procSort" aria-label="' + esc(t('sort')) + '">' +
@@ -2770,6 +2774,7 @@ VIEWS.requests = {
 };
 ACT.procQ = debounce(el => { S.proc.q = el.value.trim(); resetPage('proc'); renderProcList(true); }, 150);
 ACT.procDoctor = el => { S.proc.doctor = el.value; resetPage('proc'); renderProcList(true); };
+ACT.procType = el => { S.proc.type = el.value; resetPage('proc'); renderProcList(true); };
 ACT.procClinic = el => { S.proc.clinic = el.value; resetPage('proc'); renderProcList(true); };
 ACT.procBranch = el => { S.proc.branch = el.value; resetPage('proc'); renderProcList(true); };
 ACT.procMonth = el => { S.proc.month = el.value; resetPage('proc'); renderProcList(true); };
@@ -2781,7 +2786,7 @@ function procFiltered(ignoreGroup, range) {
   const g = PROC_GROUPS.find(x => x.id === p.group) || PROC_GROUPS[0];
   const ts = (r, f) => { const d = toDate(r[f]); return d ? d.getTime() : 0; };
   const inPeriod = range ? r => { const d = ymdOf(r.date); return (!range.from || d >= range.from) && (!range.to || d <= range.to); } : r => !p.month || monthKey(r.date) === p.month;
-  return ((range && range.list) || p.list).filter(r => (ignoreGroup || matchGroup(g, r)) && reqSearch(r, p.q) && (!p.doctor || r.doctor === p.doctor) && (!p.branch || r.branch === p.branch) && (!p.clinic || r.clinic === p.clinic) && inPeriod(r))
+  return ((range && range.list) || p.list).filter(r => (ignoreGroup || matchGroup(g, r)) && reqSearch(r, p.q) && (!p.doctor || r.doctor === p.doctor) && (!p.branch || r.branch === p.branch) && (!p.clinic || r.clinic === p.clinic) && (!p.type || (p.type === 'طارئ') === (r.type === 'طارئ')) && inPeriod(r))
     .sort((a, b) => {
       switch (p.sort) {
         case 'old': return ts(a, 'date') - ts(b, 'date');
@@ -6999,7 +7004,11 @@ function bxRender() {
   $('#bxChips').innerHTML = chipsHtml(BX_GROUPS, BX.group, 'bxGroup', groupCounts(BX_GROUPS, all));
   const g = BX_GROUPS.find(x => x.id === BX.group) || BX_GROUPS[3];
   const q = (BX.q || '').toLowerCase();
-  const list = all.filter(b => matchGroup(g, b) && (!q || [b.id, b.owner, b.branch, placeLabel(b.location), b.destination].concat((b.loads || []).map(l => l.request)).join(' ').toLowerCase().indexOf(q) !== -1));
+  // الأحدث أولاً: آخر حركة على البوكس (تحميل، تسليم، طلب نقل…)
+  const lastAt = b => Math.max(toDate(b.updatedAt) ? toDate(b.updatedAt).getTime() : 0, toDate(b.loadedAt) ? toDate(b.loadedAt).getTime() : 0,
+    b.history && b.history[0] && toDate(b.history[0].time) ? toDate(b.history[0].time).getTime() : 0);
+  const list = all.filter(b => matchGroup(g, b) && (!q || [b.id, b.owner, b.branch, placeLabel(b.location), b.destination].concat((b.loads || []).map(l => l.request)).join(' ').toLowerCase().indexOf(q) !== -1))
+    .sort((a, b) => lastAt(b) - lastAt(a));
   $('#bxList').innerHTML = !all.length ? emptyState('truck', t('bx_none'))
     : !list.length ? emptyState('search', t('no_match'))
     : pageOf('bx', list).map(bxCard).join('') + moreBtn('bx', list.length);

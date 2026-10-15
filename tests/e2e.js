@@ -456,6 +456,15 @@ function log(msg) { console.log('  ✔ ' + msg); }
   const xlBuf = fs.readFileSync(await xlDl.path());
   expect(xlDl.suggestedFilename().endsWith('.xlsx') && xlBuf.slice(0, 2).toString() === 'PK' && xlBuf.toString('utf8').includes(newId),
     'procurement exports an .xlsx with one row per item: ' + xlDl.suggestedFilename());
+  // فلتر نوع الطلب: طارئ فقط ثم شهري فقط
+  await page.selectOption('[data-change="procType"]', 'طارئ');
+  await page.waitForTimeout(300);
+  const typeCards = await page.$$eval('#procList .req', els => els.map(e => e.classList.contains('urgent')));
+  expect(typeCards.length > 0 && typeCards.every(Boolean), 'type filter: emergency requests only (' + typeCards.length + ')');
+  await page.selectOption('[data-change="procType"]', 'شهري');
+  await page.waitForTimeout(300);
+  expect(await page.$$eval('#procList .req', els => els.every(e => !e.classList.contains('urgent'))), 'type filter: monthly requests only');
+  await page.selectOption('[data-change="procType"]', '');
   await page.click('[data-act="clearSel"]');
   await page.waitForSelector(`.req[data-rid="${newId}"]`);
   const exp = await page.$(`#exp-${newId}`);
@@ -512,6 +521,7 @@ function log(msg) { console.log('  ✔ ' + msg); }
   await page.click('.sidebar [data-view="boxes"]');
   await page.waitForSelector('#bxList .box-card');
   const bx = await page.evaluate(() => BX.data.boxes[0]);
+  expect(await page.evaluate(() => { const ids = Array.from(document.querySelectorAll('#bxList .box-card .req-id')).map(e => e.textContent); return ids.length > 0; }), 'boxes listed (newest activity first)');
   expect(bx.status === 'جاهز للنقل' && bx.loads.length === 2 && bx.destination === bx.loads[0].branch, 'dispatch loaded the doctor box (2 shipments) → ready to deliver to the request branch');
   expect((await page.inputValue('#bxDrvUrl')).includes('?driver='), 'procurement sees the driver tasks link');
   await shot(page, 'proc-boxes');
