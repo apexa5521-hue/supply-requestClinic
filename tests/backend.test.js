@@ -2928,3 +2928,26 @@ test('procurement rejects one item with a reason the doctor and nurse see; resto
   assert.equal(api(n, 'getMyRequests').find(r => r.id === id).status, 'تم الإرسال');
   throwsCode(() => api(p, 'rejectItems', id, ['DENTAL FLOSS'], '', true), 'ERR_NEEDS_APPROVAL');
 });
+
+test('doctor accounts must link to a doctor; "Dr.MohammedG" links by first name + family initial', () => {
+  const { api, login, gas } = boot();
+  gas.seed('Doctors', ['DoctorName', 'Clinic', 'NurseName', 'Subspecialty'], [
+    ['د. خالد', 'عيادة الأسنان 1', 'سارة', ''],
+    ['Dr. Mohammed Al-Ghamdi', 'عيادة الأسنان 1', 'سارة', ''],
+    ['Dr. Mohammed Al-Harthi', 'عيادة الأسنان 2', 'ريم', ''],
+    ['Dr. Sami Al-Duwaihi', 'عيادة الأسنان 2', 'ريم', '']
+  ]);
+  const a = login('المدير', '1234');
+  assert.deepEqual(api(a, 'previewDoctorLink', 'Dr.MohammedG', ''), ['Dr. Mohammed Al-Ghamdi']);
+  assert.deepEqual(api(a, 'previewDoctorLink', 'Dr.Mohammed', ''), [], 'two Mohammeds: no guess');
+  assert.deepEqual(api(a, 'previewDoctorLink', 'Dr.Sami', ''), ['Dr. Sami Al-Duwaihi']);
+  assert.deepEqual(api(a, 'previewDoctorLink', 'Dr.Mohammed', 'Dr. Mohammed Al-Harthi'), ['Dr. Mohammed Al-Harthi']);
+  throwsCode(() => api(a, 'createUser', { name: 'Dr.Mohammed', password: '1111', role: 'طبيب' }), 'ERR_DOCTOR_LINK');
+  api(a, 'createUser', { name: 'Dr.MohammedG', password: '1111', role: 'طبيب' });
+  assert.deepEqual(api(a, 'getUsers').find(u => u.name === 'Dr.MohammedG').linked, ['Dr. Mohammed Al-Ghamdi']);
+  api(a, 'createUser', { name: 'Dr.Mohammed', password: '1111', role: 'طبيب', doctorName: 'Dr. Mohammed Al-Harthi' });
+  assert.deepEqual(api(a, 'getUsers').find(u => u.name === 'Dr.Mohammed').linked, ['Dr. Mohammed Al-Harthi']);
+  throwsCode(() => api(a, 'updateUser', 'Dr.Mohammed', { role: 'طبيب', doctorName: '' }), 'ERR_DOCTOR_LINK');
+  // غير الأطباء لا يحتاجون ربطاً
+  api(a, 'createUser', { name: 'ممرضة جديدة', password: '1111', role: 'ممرضة', clinic: 'عيادة الأسنان 1' });
+});

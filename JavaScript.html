@@ -56,6 +56,7 @@ const I18N = {
     confirm_receive: 'تأكيد الاستلام', received_ok: 'تم تأكيد استلام {id}', receiver_required: 'اسم المستلم إلزامي',
     cancel: 'إلغاء', close: 'إغلاق', save: 'حفظ', delete: 'حذف', edit: 'تعديل', send: 'إرسال', confirm: 'تأكيد', back: 'رجوع',
     select_all: 'تحديد الكل', selected: 'محدد', clear_selection: 'إلغاء التحديد',
+    link_will: 'سيرتبط بـ: {n}', link_none: 'لا يوجد طبيب يطابق اسم الحساب — اختر الطبيب من القائمة', link_grp_free: 'أطباء بلا حساب', link_grp_taken: 'مرتبطون بحسابات أخرى', ERR_DOCTOR_LINK: 'حساب الطبيب لازم يرتبط بطبيب — اختر اسمه من «الطبيب المرتبط بالحساب»',
     rej_add: 'رفض الصنف', rej_title: 'رفض صنف من الطلب', rej_note: 'سبب الرفض — يظهر للطبيب والممرضة', rej_note_ph: 'مثال: غير متوفر لدى المورد، موقوف، مكرر في طلب آخر…', rej_go: 'رفض الصنف', rej_done: 'رُفض الصنف وأُبلغ الطبيب والممرضة بالسبب', rej_undo: 'إعادة الصنف', rej_undone: 'أُعيد الصنف للطلب', rej_tag: 'رفضه التموين', rej_hint: 'لن يُرسل هذا الصنف (أو ما تبقى منه). يمكنك إعادته لاحقاً ما دام الطلب لم يُرسل كاملاً.', ERR_ITEM_REJECTED: 'هذا الصنف مرفوض من التموين — أعده أولاً', ERR_ALL_REJECTED: 'لا يمكن رفض كل أصناف الطلب — ألغِ الطلب كاملاً بدلاً من ذلك (مع السبب)',
     xl_export: 'تصدير Excel', xl_title: 'تصدير الأصناف إلى Excel', xl_sub: 'صف لكل صنف — حسب الفلاتر الحالية (الطبيب، العيادة، الفرع، المرحلة، البحث)', xl_from: 'من تاريخ', xl_to: 'إلى تاريخ', xl_count: 'سيُصدَّر {n} طلب', xl_go: 'تصدير', xl_none: 'لا توجد طلبات في هذه المدة بالفلاتر الحالية', xl_done: 'تم تصدير {n} صنف', xl_item: 'اسم الصنف', xl_type: 'نوع الطلب', xl_status: 'حالة الطلب', xl_doctor: 'الطبيب', xl_nurse: 'الممرضة', xl_branch: 'الفرع للتسليم', xl_clinic: 'العيادة', xl_req: 'رقم الطلب', xl_date: 'تاريخ الطلب', xl_req_qty: 'الكمية المطلوبة', xl_ok_qty: 'الكمية المعتمدة', xl_sent_qty: 'الكمية المرسلة', xl_sub_of: 'بديل عن', xl_sheet: 'الأصناف',
     act_prep: 'قيد التجهيز', act_vendor_wait: 'بانتظار المندوب', act_vendor_recv: 'استلم المندوب', act_review: 'إعادة لمراجعة الطبيب', act_send: 'إرسال للفرع',
@@ -159,6 +160,7 @@ const I18N = {
     confirm_receive: 'Confirm receipt', received_ok: 'Receipt of {id} confirmed', receiver_required: 'Receiver name is required',
     cancel: 'Cancel', close: 'Close', save: 'Save', delete: 'Delete', edit: 'Edit', send: 'Send', confirm: 'Confirm', back: 'Back',
     select_all: 'Select all', selected: 'selected', clear_selection: 'Clear',
+    link_will: 'Will link to: {n}', link_none: 'No doctor matches this account name — pick the doctor from the list', link_grp_free: 'Doctors without an account', link_grp_taken: 'Linked to other accounts', ERR_DOCTOR_LINK: 'A doctor account must be linked to a doctor — pick the name in “Linked doctor”',
     rej_add: 'Reject item', rej_title: 'Reject an item from the request', rej_note: 'Reason — shown to the doctor and the nurse', rej_note_ph: 'e.g. not available from the supplier, discontinued, duplicated…', rej_go: 'Reject item', rej_done: 'Item rejected — doctor and nurse were told why', rej_undo: 'Restore item', rej_undone: 'Item restored to the request', rej_tag: 'Rejected by procurement', rej_hint: 'This item (or what is left of it) will not be sent. You can restore it while the request is not fully sent.', ERR_ITEM_REJECTED: 'This item was rejected by procurement — restore it first', ERR_ALL_REJECTED: 'You cannot reject every item — cancel the whole request instead (with a reason)',
     xl_export: 'Export Excel', xl_title: 'Export items to Excel', xl_sub: 'One row per item — uses the current filters (doctor, clinic, branch, stage, search)', xl_from: 'From', xl_to: 'To', xl_count: '{n} request(s) will be exported', xl_go: 'Export', xl_none: 'No requests in this period with the current filters', xl_done: '{n} item(s) exported', xl_item: 'Item', xl_type: 'Request type', xl_status: 'Request status', xl_doctor: 'Doctor', xl_nurse: 'Nurse', xl_branch: 'Delivery branch', xl_clinic: 'Clinic', xl_req: 'Request #', xl_date: 'Request date', xl_req_qty: 'Requested qty', xl_ok_qty: 'Approved qty', xl_sent_qty: 'Sent qty', xl_sub_of: 'Substitute for', xl_sheet: 'Items',
     act_prep: 'In progress', act_vendor_wait: 'Awaiting vendor', act_vendor_recv: 'Vendor received', act_review: 'Back to doctor review', act_send: 'Dispatch',
@@ -6333,10 +6335,8 @@ function openUserModal(u) {
       '<div class="field hidden" id="uPvWrap"><label for="uPriceView">' + icon('cart', 'i-sm') + ' ' + esc(t('pv_label')) + ' <span class="hint">· ' + esc(t('pv_hint')) + '</span></label><select class="select" id="uPriceView">' +
         ['', 'all'].map(v => '<option value="' + v + '"' + ((u.priceView === 'all' ? 'all' : '') === v ? ' selected' : '') + '>' + esc(t('pv_' + (v || 'auto'))) + '</option>').join('') + '</select></div>' +
       '<div class="field hidden" id="uDocWrap"><label for="uDoctor">' + esc(t('linked_doctor')) + ' <span class="hint">· ' + esc(t('linked_doctor_hint')) + '</span></label>' +
-        '<select class="select" id="uDoctor"><option value="">' + esc(t('link_auto')) + '</option>' +
-        ((S.admin.docLinks && S.admin.docLinks.names) || []).concat(u.doctorName && !((S.admin.docLinks && S.admin.docLinks.names) || []).includes(u.doctorName) ? [u.doctorName] : [])
-          .map(n => '<option' + (n === u.doctorName ? ' selected' : '') + '>' + esc(n) + '</option>').join('') + '</select>' +
-        (editing && u.linked ? '<div class="hint">' + esc(u.linked.length ? t('linked_now', { n: u.linked.join('، ') }) : t('not_linked')) + '</div>' : '') + '</div>' +
+        '<select class="select" id="uDoctor"><option value="">' + esc(t('link_auto')) + '</option>' + doctorLinkOptions(u) + '</select>' +
+        '<div class="hint" id="uLinkPrev"></div></div>' +
       '<div class="field" id="uClinicWrap"><span class="label">' + esc(t('clinic')) + ' <span class="hint">· ' + esc(t('clinics_hint')) + '</span></span><div class="chips" style="flex-wrap:wrap" id="uClinics">' +
         clinicNames().map(n => '<button type="button" class="chip" data-v="' + esc(n) + '" aria-pressed="' + (clinicsSel.indexOf(n) !== -1) + '">' + esc(n) + '</button>').join('') + '</div></div>' +
       '<div class="field-error hidden" id="uErr">' + icon('alert', 'i-sm') + '<span></span></div>',
@@ -6351,8 +6351,24 @@ function openUserModal(u) {
     $('#uDeptWrap', m.el).classList.toggle('hidden', ['procurement', 'doctor'].indexOf(sc) === -1);
     $('#uBranchWrap', m.el).classList.toggle('hidden', (MGMT_SCREENS.indexOf(sc) === -1 && sc !== 'housekeeper') || sc === 'admin');
   };
+  // معاينة الربط مباشرة: لمن سيرتبط الحساب، أو تنبيه أحمر إن لم يطابق أي طبيب
+  let prevSeq = 0;
+  const linkPrev = () => {
+    const box = $('#uLinkPrev', m.el);
+    if (roleScreenOf($('#uRole', m.el).value) !== 'doctor') { box.innerHTML = ''; return; }
+    const nm = $('#uName', m.el).value.trim(), ex = $('#uDoctor', m.el).value, seq = ++prevSeq;
+    if (!nm && !ex) { box.innerHTML = ''; return; }
+    call('previewDoctorLink', nm, ex).then(list => {
+      if (seq !== prevSeq) return;
+      box.innerHTML = list.length ? '<span style="color:var(--t-green)">' + icon('link', 'i-sm') + ' ' + esc(t('link_will', { n: list.join('، ') })) + '</span>'
+        : '<span style="color:var(--t-red)">' + icon('alert', 'i-sm') + ' ' + esc(t('link_none')) + '</span>';
+    }).catch(() => {});
+  };
   toggleClinic();
-  $('#uRole', m.el).addEventListener('change', toggleClinic);
+  linkPrev();
+  $('#uRole', m.el).addEventListener('change', () => { toggleClinic(); linkPrev(); });
+  $('#uDoctor', m.el).addEventListener('change', linkPrev);
+  $('#uName', m.el).addEventListener('input', debounce(linkPrev, 300));
   $('#uClinics', m.el).addEventListener('click', e => { const b = e.target.closest('.chip'); if (b) b.setAttribute('aria-pressed', String(b.getAttribute('aria-pressed') !== 'true')); });
   const showErr = msg => { const er = $('#uErr', m.el); er.querySelector('span').textContent = msg; er.classList.remove('hidden'); };
   $('#uSave', m.el).addEventListener('click', e => {
@@ -6380,6 +6396,15 @@ function openUserModal(u) {
         .catch(err => { busy(b, false); showErr(errMsg(err)); });
     });
   });
+}
+/* قائمة الأطباء للربط: من بلا حساب أولاً، ثم المرتبطون بحسابات أخرى */
+function doctorLinkOptions(u) {
+  const l = S.admin.docLinks || { names: [], unlinked: [] };
+  const names = l.names.concat(u.doctorName && l.names.indexOf(u.doctorName) === -1 ? [u.doctorName] : []);
+  const opt = n => '<option' + (n === u.doctorName ? ' selected' : '') + '>' + esc(n) + '</option>';
+  const free = names.filter(n => l.unlinked.indexOf(n) !== -1 || n === u.doctorName), taken = names.filter(n => free.indexOf(n) === -1);
+  return (free.length ? '<optgroup label="' + esc(t('link_grp_free')) + '">' + free.map(opt).join('') + '</optgroup>' : '') +
+    (taken.length ? '<optgroup label="' + esc(t('link_grp_taken')) + '">' + taken.map(opt).join('') + '</optgroup>' : '');
 }
 ACT.userNew = () => openUserModal(null);
 ACT.userEdit = el => openUserModal(S.admin.users.find(u => u.name === el.dataset.name));

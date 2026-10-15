@@ -666,6 +666,7 @@ const API_ = {
   runSetupNow:               { screens: [], perm: 'users', fn: runSetupNow_ },
   backupNow:                 { screens: [], perm: 'users', fn: function (user) { return runBackup_(user.name); } },
   getDoctorLinks:            { screens: [], perm: 'users', fn: getDoctorLinks_ },
+  previewDoctorLink:         { screens: [], perm: 'users', fn: previewDoctorLink_ },
   createUser:                { screens: [], perm: 'users', fn: createUser_ },
   updateUser:                { screens: [], perm: 'users', fn: updateUser_ },
   deleteUser:                { screens: [], perm: 'users', fn: deleteUser_ },
@@ -3224,40 +3225,65 @@ function doctorKey_(v) {
  */
 function doctorAccounts_() {
   if (MEMO_.docAcc) return MEMO_.docAcc;
-  const names = {};
-  read_('Doctors').rows.forEach(function (r) { if (str_(r.DoctorName)) names[str_(r.DoctorName)] = true; });
-  requestRows_().forEach(function (r) { if (str_(r.Doctor)) names[str_(r.Doctor)] = true; });
-  const all = Object.keys(names);
+  const all = doctorNameList_();
   const out = {};
   read_('Users').rows.forEach(function (u) {
     if (roleScreen_(u.Role) !== 'doctor' || !str_(u.Name)) return;
     const acc = str_(u.Name);
     out[acc] = acc;
-    const explicit = str_(u.DoctorName);
-    let matches;
-    if (explicit) {
-      matches = all.filter(function (n) { return n === explicit || doctorKey_(n) === doctorKey_(explicit); });
-      if (!matches.length) matches = [explicit];
-    } else {
-      const key = doctorKey_(acc);
-      const compact = function (x) { return x.replace(/\s+/g, '').replace(/^(al)/, ''); };
-      matches = all.filter(function (n) { return doctorKey_(n) === key || compact(doctorKey_(n)) === compact(key); });
-      if (!matches.length && key) {
-        const toks = key.split(' ');
-        const fuzzy = all.filter(function (n) {
-          const nt = doctorKey_(n).split(' ');
-          const joined = nt.join('');
-          // كل مقاطع اسم الحساب موجودة في اسم الطبيب، أو الاسم الملتصق جزء من اسم الطبيب بدون مسافات
-          return toks.every(function (t) { return nt.indexOf(t) !== -1; }) ||
-            (toks.length === 1 && t0len_(toks[0]) && joined.replace(/al/g, '').indexOf(toks[0].replace(/al/g, '')) !== -1);
-        });
-        if (fuzzy.length === 1) matches = fuzzy;
-      }
-    }
-    matches.forEach(function (n) { if (!out[n]) out[n] = acc; });
+    doctorMatches_(acc, str_(u.DoctorName), all).forEach(function (n) { if (!out[n]) out[n] = acc; });
   });
   MEMO_.docAcc = out;
   return out;
+}
+
+/** كل أسماء الأطباء المعروفة: تبويب Doctors + الأسماء في الطلبات */
+function doctorNameList_() {
+  const names = {};
+  read_('Doctors').rows.forEach(function (r) { if (str_(r.DoctorName)) names[str_(r.DoctorName)] = true; });
+  requestRows_().forEach(function (r) { if (str_(r.Doctor)) names[str_(r.Doctor)] = true; });
+  return Object.keys(names);
+}
+
+/**
+ * أسماء الأطباء التي يرتبط بها حساب: الاسم المحدد صراحةً (DoctorName)، وإلا تطابق اسم الحساب.
+ * «Dr.MohammedG» ← «Dr. Mohammed Al-Ghamdi»: حرف واحد في اسم الحساب = أول حرف من اسم العائلة (عند تطابق واحد فقط).
+ */
+function doctorMatches_(acc, explicit, all) {
+  if (explicit) {
+    const m = all.filter(function (n) { return n === explicit || doctorKey_(n) === doctorKey_(explicit); });
+    return m.length ? m : [explicit];
+  }
+  const key = doctorKey_(acc);
+  if (!key) return [];
+  const compact = function (x) { return x.replace(/\s+/g, '').replace(/^(al)/, ''); };
+  const exact = all.filter(function (n) { return doctorKey_(n) === key || compact(doctorKey_(n)) === compact(key); });
+  if (exact.length) return exact;
+  const toks = key.split(' ');
+  const fuzzy = all.filter(function (n) {
+    const nt = doctorKey_(n).split(' ');
+    const joined = nt.join('');
+    const words = nt.filter(function (w) { return w !== 'al' && w !== 'el'; }).map(function (w) { return w.replace(/^al(?=.{3})/, ''); });
+    // كل مقاطع اسم الحساب موجودة في اسم الطبيب (الحرف المفرد = بداية كلمة بعد الاسم الأول)،
+    // أو الاسم الملتصق جزء من اسم الطبيب بدون مسافات
+    return toks.every(function (t, i) {
+      if (t.length === 1 && i > 0) return words.slice(1).some(function (w) { return w.charAt(0) === t; });
+      return nt.indexOf(t) !== -1;
+    }) || (toks.length === 1 && t0len_(toks[0]) && joined.replace(/al/g, '').indexOf(toks[0].replace(/al/g, '')) !== -1);
+  });
+  return fuzzy.length === 1 ? fuzzy : [];
+}
+
+/** معاينة الربط في شاشة المستخدمين قبل الحفظ */
+function previewDoctorLink_(user, name, explicit) {
+  return doctorMatches_(str_(name), str_(explicit), doctorNameList_());
+}
+
+/** حساب الطبيب يجب أن يرتبط باسم طبيب — وإلا لن تصله طلباته (تذهب للتموين مباشرة) */
+function requireDoctorLink_(name, fields) {
+  if (roleScreen_(fields.role) !== 'doctor') return;
+  const all = doctorNameList_();
+  if (all.length && !doctorMatches_(name, fields.doctorName, all).length) throw new Error('ERR_DOCTOR_LINK');
 }
 
 /** هل هذا الطبيب (باسمه في الطلب) هو صاحب الحساب المسجّل؟ */
@@ -4885,6 +4911,7 @@ function createUser_(user, u) {
   const fields = { role: str_(u.role), clinic: clean_(u.clinic, 500), email: str_(u.email), doctorName: clean_(u.doctorName, 120), department: normDept_(u.department), branch: validBranch_(u.branch), priceView: parsePriceView_(u.priceView) };
   validateUserFields_(fields);
   if (getUsers_().some(function (x) { return loginKey_(x.name) === loginKey_(name); })) throw new Error('ERR_USER_EXISTS');
+  requireDoctorLink_(name, fields);
   append_('Users', { Name: name, Password: hashPassword_(latinDigits_(password).trim()), Role: fields.role, Clinic: fields.clinic, Email: fields.email,
     DoctorName: roleScreen_(fields.role) === 'doctor' ? fields.doctorName : '', Department: fields.department, Branch: fields.branch,
     PriceView: PRICE_GATED_.indexOf(roleScreen_(fields.role)) !== -1 && fields.priceView ? PRICE_VIEW_LABEL_[fields.priceView] : '' });
@@ -4906,6 +4933,7 @@ function updateUser_(user, name, u) {
   if (roleScreen_(row.Role) === 'admin' && roleScreen_(fields.role) !== 'admin' && countAdmins_(str_(name)) === 0) {
     throw new Error('ERR_LAST_ADMIN');
   }
+  requireDoctorLink_(str_(name), fields);
   const upd = { Role: fields.role, Clinic: fields.clinic, Email: fields.email, DoctorName: roleScreen_(fields.role) === 'doctor' ? fields.doctorName : '', Department: fields.department, Branch: fields.branch,
     PriceView: PRICE_GATED_.indexOf(roleScreen_(fields.role)) !== -1 && fields.priceView ? PRICE_VIEW_LABEL_[fields.priceView] : '' };
   if (u.password) {
