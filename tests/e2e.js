@@ -1244,6 +1244,19 @@ function log(msg) { console.log('  ✔ ' + msg); }
   await page.click('#uSave');
   const okUser = await toastHas(page, 'تم حفظ المستخدم');
   expect(okUser, 'admin created a user' + (okUser ? '' : ' — ' + (await page.$$eval('.toast, .field-error:not(.hidden)', els => els.map(e => e.innerText).join(' | ')))));
+  // حساب طبيب جديد لا يطابق أي طبيب: «طبيب جديد» يُختار تلقائياً بالاسم المقترح ويُنشأ مربوطاً
+  await page.click('[data-act="userNew"]');
+  await page.fill('#uName', 'Dr.Thunayan');
+  await page.fill('#uPass', '1234');
+  await page.selectOption('#uRole', 'طبيب');
+  await page.waitForFunction(() => document.getElementById('uDoctor').value === '__new__');
+  expect(await page.inputValue('#uNewDocName') === 'Dr. Thunayan' && (await page.textContent('#uLinkPrev')).includes('Dr. Thunayan'), 'unmatched doctor account switches to «new doctor» with a suggested name');
+  await page.click('#uNewDocClinics .chip >> nth=0');
+  await shot(page, 'admin-new-doctor-account');
+  await page.click('#uSave');
+  expect(await toastHas(page, 'تم حفظ المستخدم'), 'doctor account saved with its new doctor');
+  await page.waitForFunction(() => /Dr\. Thunayan/.test(document.getElementById('uTable').textContent));
+  expect(await page.evaluate(() => __gas.dump('Doctors').some(r => r[0] === 'Dr. Thunayan')), 'the doctor was added to the Doctors sheet, linked to the account');
   // مدير فرع: الأدمن يحدد فرعه، وهو يرى فرعه فقط (مشاهدة)
   await page.click('[data-act="userNew"]');
   await page.fill('#uName', 'مدير جدة');
