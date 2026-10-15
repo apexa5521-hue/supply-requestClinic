@@ -625,6 +625,7 @@ const API_ = {
   getShipmentSignatures:     { screens: ['nurse'], fn: getShipmentSignatures_ },
   getRequests:               { screens: ['procurement'].concat(MGMT), fn: getRequestsApi_ },
   getRequestItemsFull:       { screens: ['procurement'].concat(MGMT), fn: getRequestItemsFull_ },
+  exportRequestItems:        { screens: ['procurement'].concat(MGMT), fn: function (u, ids) { return cachedRead_(function () { return exportRequestItems_(u, ids); }); } },
   updateItemApproval:        { screens: ['procurement'], fn: updateItemApproval_ },
   dispatchItems:             { screens: ['procurement'], fn: dispatchItems_ },
   proposeSubstitute:         { screens: ['procurement'], fn: proposeSubstitute_ },
@@ -2968,6 +2969,32 @@ function getRequestItemsFull_(user, requestId) {
   const notes = {};
   itemNotes_(requestId).forEach(function (n) { notes[n.item] = (notes[n.item] || 0) + 1; });
   return { items: st.items, shipments: st.ships, dispatchStatus: dispatchStatus, noteCounts: notes, request: req };
+}
+
+/**
+ * تصدير Excel من صفحة التموين: أصناف الطلبات المحددة (ids من الفلاتر الحالية) بقراءة واحدة للتبويب.
+ * يعيد { requestId: [{ item, requestedQty, approvedQty, sentQty }] } — بيانات الطلب نفسها موجودة عند الواجهة
+ */
+function exportRequestItems_(user, ids) {
+  ids = (Array.isArray(ids) ? ids : []).slice(0, 5000).map(str_);
+  const byReq = itemsByRequest_();
+  const out = {};
+  ids.forEach(function (id) {
+    const rows = byReq[id];
+    if (!rows) return;
+    const si = shipItemsIndex_()[id] || [];
+    const sent = {};
+    si.forEach(function (x) { sent[str_(x.ItemName)] = (sent[str_(x.ItemName)] || 0) + (Number(x.Qty) || 0); });
+    out[id] = rows.map(function (r) {
+      const it = str_(r.ItemName), a = num_(r.ApprovedQty), q = num_(r.RequestedQty);
+      return {
+        item: it, requestedQty: isNaN(q) ? '' : q, approvedQty: isNaN(a) ? '' : a,
+        sentQty: si.length ? (sent[it] || 0) : (r.DispatchedAt ? targetQty_(r) : 0),
+        substituteOf: str_(r.SubstituteOf), subStatus: str_(r.SubStatus)
+      };
+    });
+  });
+  return out;
 }
 
 /**

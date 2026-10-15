@@ -56,6 +56,7 @@ const I18N = {
     confirm_receive: 'تأكيد الاستلام', received_ok: 'تم تأكيد استلام {id}', receiver_required: 'اسم المستلم إلزامي',
     cancel: 'إلغاء', close: 'إغلاق', save: 'حفظ', delete: 'حذف', edit: 'تعديل', send: 'إرسال', confirm: 'تأكيد', back: 'رجوع',
     select_all: 'تحديد الكل', selected: 'محدد', clear_selection: 'إلغاء التحديد',
+    xl_export: 'تصدير Excel', xl_title: 'تصدير الأصناف إلى Excel', xl_sub: 'صف لكل صنف — حسب الفلاتر الحالية (الطبيب، العيادة، الفرع، المرحلة، البحث)', xl_from: 'من تاريخ', xl_to: 'إلى تاريخ', xl_count: 'سيُصدَّر {n} طلب', xl_go: 'تصدير', xl_none: 'لا توجد طلبات في هذه المدة بالفلاتر الحالية', xl_done: 'تم تصدير {n} صنف', xl_item: 'اسم الصنف', xl_type: 'نوع الطلب', xl_status: 'حالة الطلب', xl_doctor: 'الطبيب', xl_nurse: 'الممرضة', xl_branch: 'الفرع للتسليم', xl_clinic: 'العيادة', xl_req: 'رقم الطلب', xl_date: 'تاريخ الطلب', xl_req_qty: 'الكمية المطلوبة', xl_ok_qty: 'الكمية المعتمدة', xl_sent_qty: 'الكمية المرسلة', xl_sub_of: 'بديل عن', xl_sheet: 'الأصناف',
     act_prep: 'قيد التجهيز', act_vendor_wait: 'بانتظار المندوب', act_vendor_recv: 'استلم المندوب', act_review: 'إعادة لمراجعة الطبيب', act_send: 'إرسال للفرع',
     bulk_done: 'تم تحديث {n} طلب', bulk_skipped_title: 'بعض الطلبات لم تُحدَّث', bulk_skipped_sub: 'تم تحديث {a} وتخطي {b} للأسباب التالية:',
     view_items: 'الأصناف والاعتماد', requested: 'المطلوب', approved: 'المعتمد', received: 'المستلم', dispatch_status: 'الإرسال',
@@ -157,6 +158,7 @@ const I18N = {
     confirm_receive: 'Confirm receipt', received_ok: 'Receipt of {id} confirmed', receiver_required: 'Receiver name is required',
     cancel: 'Cancel', close: 'Close', save: 'Save', delete: 'Delete', edit: 'Edit', send: 'Send', confirm: 'Confirm', back: 'Back',
     select_all: 'Select all', selected: 'selected', clear_selection: 'Clear',
+    xl_export: 'Export Excel', xl_title: 'Export items to Excel', xl_sub: 'One row per item — uses the current filters (doctor, clinic, branch, stage, search)', xl_from: 'From', xl_to: 'To', xl_count: '{n} request(s) will be exported', xl_go: 'Export', xl_none: 'No requests in this period with the current filters', xl_done: '{n} item(s) exported', xl_item: 'Item', xl_type: 'Request type', xl_status: 'Request status', xl_doctor: 'Doctor', xl_nurse: 'Nurse', xl_branch: 'Delivery branch', xl_clinic: 'Clinic', xl_req: 'Request #', xl_date: 'Request date', xl_req_qty: 'Requested qty', xl_ok_qty: 'Approved qty', xl_sent_qty: 'Sent qty', xl_sub_of: 'Substitute for', xl_sheet: 'Items',
     act_prep: 'In progress', act_vendor_wait: 'Awaiting vendor', act_vendor_recv: 'Vendor received', act_review: 'Back to doctor review', act_send: 'Dispatch',
     bulk_done: '{n} request(s) updated', bulk_skipped_title: 'Some requests were not updated', bulk_skipped_sub: '{a} updated, {b} skipped:',
     view_items: 'Items & approval', requested: 'Requested', approved: 'Approved', received: 'Received', dispatch_status: 'Dispatch',
@@ -288,6 +290,7 @@ const INTL_OPTS_ = {
   dateTime: { timeZone: 'Asia/Riyadh', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' },
   time: { timeZone: 'Asia/Riyadh', hour: '2-digit', minute: '2-digit' },
   month: { timeZone: 'Asia/Riyadh', year: 'numeric', month: '2-digit' },
+  ymd: { timeZone: 'Asia/Riyadh', year: 'numeric', month: '2-digit', day: '2-digit' },
   day: { timeZone: 'Asia/Riyadh', day: 'numeric' },
   monthLong: { month: 'long', year: 'numeric' },
   monthShortUtc: { month: 'short', timeZone: 'UTC' },
@@ -303,6 +306,8 @@ function monthKey(v) {
   const p = intl('d', 'month', 'en-CA').formatToParts(d);
   return p.find(x => x.type === 'year').value + '-' + p.find(x => x.type === 'month').value;
 }
+/* تاريخ اليوم بتوقيت الرياض «2026-10-15» (للمقارنة بحقول type=date) */
+function ymdOf(v) { const d = toDate(v); return d ? intl('d', 'ymd', 'en-CA').format(d) : ''; }
 function relTime(v) {
   const d = toDate(v); if (!d) return '';
   const diff = (d.getTime() - Date.now()) / 1000;
@@ -2726,7 +2731,7 @@ VIEWS.requests = {
           [['new', 'sort_new'], ['old', 'sort_old'], ['urgent', 'sort_urgent'], ['sent', 'sort_sent'], ['received', 'sort_received']].map(o => '<option value="' + o[0] + '"' + (p.sort === o[0] ? ' selected' : '') + '>' + esc(t(o[1])) + '</option>').join('') +
         '</select></div>' +
         '<div class="hint" style="margin-top:10px">' + icon('info', 'i-sm') + ' ' + esc(t('workflow_hint')) + '</div></div>' +
-      '<div class="between"><label class="row" style="gap:8px;cursor:pointer;font-weight:600;font-size:14px"><input type="checkbox" class="check" id="selAll" data-change="procSelAll">' + esc(t('select_all')) + '</label><span class="muted" id="procCount" style="font-size:13px"></span></div>' +
+      '<div class="between"><label class="row" style="gap:8px;cursor:pointer;font-weight:600;font-size:14px"><input type="checkbox" class="check" id="selAll" data-change="procSelAll">' + esc(t('select_all')) + '</label><span class="row" style="gap:10px"><span class="muted" id="procCount" style="font-size:13px"></span><button class="btn btn-sm" data-act="procExcel">' + icon('file', 'i-sm') + esc(t('xl_export')) + '</button></span></div>' +
       '<div class="list stagger" id="procList">' + (S.loaded.proc ? '' : skeletonList(4)) + '</div>' +
       '<div class="bulkbar" id="bulkbar"></div>';
   },
@@ -2740,11 +2745,13 @@ ACT.procBranch = el => { S.proc.branch = el.value; resetPage('proc'); renderProc
 ACT.procMonth = el => { S.proc.month = el.value; resetPage('proc'); renderProcList(true); };
 ACT.procSort = el => { S.proc.sort = el.value; resetPage('proc'); renderProcList(true); };
 ACT.procGroup = el => { S.proc.group = el.dataset.g; resetPage('proc'); renderProcList(true); };
-function procFiltered(ignoreGroup) {
+/* range = { list, from, to } (تصدير Excel): مدة من/إلى بدل فلتر الشهر، وقائمة بديلة (مع الأرشيف) عند الحاجة */
+function procFiltered(ignoreGroup, range) {
   const p = S.proc;
   const g = PROC_GROUPS.find(x => x.id === p.group) || PROC_GROUPS[0];
   const ts = (r, f) => { const d = toDate(r[f]); return d ? d.getTime() : 0; };
-  return p.list.filter(r => (ignoreGroup || matchGroup(g, r)) && reqSearch(r, p.q) && (!p.doctor || r.doctor === p.doctor) && (!p.branch || r.branch === p.branch) && (!p.clinic || r.clinic === p.clinic) && (!p.month || monthKey(r.date) === p.month))
+  const inPeriod = range ? r => { const d = ymdOf(r.date); return (!range.from || d >= range.from) && (!range.to || d <= range.to); } : r => !p.month || monthKey(r.date) === p.month;
+  return ((range && range.list) || p.list).filter(r => (ignoreGroup || matchGroup(g, r)) && reqSearch(r, p.q) && (!p.doctor || r.doctor === p.doctor) && (!p.branch || r.branch === p.branch) && (!p.clinic || r.clinic === p.clinic) && inPeriod(r))
     .sort((a, b) => {
       switch (p.sort) {
         case 'old': return ts(a, 'date') - ts(b, 'date');
@@ -2754,6 +2761,94 @@ function procFiltered(ignoreGroup) {
         default: return ts(b, 'date') - ts(a, 'date');
       }
     });
+}
+/* تصدير Excel: صف لكل صنف حسب فلاتر التموين الحالية + مدة من/إلى (الأقدم من 60 يوماً يُجلب من الأرشيف) */
+ACT.procExcel = () => {
+  const p = S.proc;
+  const r0 = p.month ? monthRange(p.month) : { from: todayStr().slice(0, 7) + '-01', to: todayStr() };
+  const m = openModal({
+    title: esc(t('xl_title')), sub: esc(t('xl_sub')), icon: 'file', size: 'sm',
+    body: '<div class="form-grid"><div class="field"><label for="xlFrom">' + esc(t('xl_from')) + '</label><input class="input" type="date" id="xlFrom" value="' + r0.from + '"></div>' +
+      '<div class="field"><label for="xlTo">' + esc(t('xl_to')) + '</label><input class="input" type="date" id="xlTo" value="' + r0.to + '"></div></div>' +
+      '<div class="hint" id="xlCount" style="margin-top:10px"></div>',
+    foot: '<span class="spacer"></span><button class="btn" data-close>' + esc(t('cancel')) + '</button>' +
+      '<button class="btn btn-primary" id="xlGo">' + icon('file', 'i-sm') + esc(t('xl_go')) + '</button>'
+  });
+  const rng = () => ({ from: $('#xlFrom', m.el).value, to: $('#xlTo', m.el).value });
+  const needArchive = r => !p.archive && (!r.from || (Date.now() - new Date(r.from).getTime()) > 55 * 864e5);
+  const count = () => {
+    const r = rng();
+    $('#xlCount', m.el).textContent = needArchive(r) ? '' : t('xl_count', { n: procFiltered(false, r).length });
+  };
+  $('#xlFrom', m.el).addEventListener('change', count);
+  $('#xlTo', m.el).addEventListener('change', count);
+  count();
+  $('#xlGo', m.el).addEventListener('click', () => {
+    const b = $('#xlGo', m.el), r = rng();
+    busy(b, true);
+    (needArchive(r) ? call('getRequests', { archive: true }) : Promise.resolve(p.list)).then(all => {
+      const list = procFiltered(false, Object.assign({ list: all || [] }, r));
+      if (!list.length) { busy(b, false); toast(t('xl_none'), 'warning'); return null; }
+      return call('exportRequestItems', list.map(x => x.id)).then(items => {
+        const n = downloadProcXlsx(list, items || {}, r);
+        busy(b, false); closeModal(m); toast(t('xl_done', { n: n }), 'success');
+      });
+    }).catch(e => { busy(b, false); toast(errMsg(e), 'error'); });
+  });
+};
+function downloadProcXlsx(list, items, r) {
+  const head = [t('xl_item'), t('xl_type'), t('xl_status'), t('xl_doctor'), t('xl_nurse'), t('xl_branch'), t('xl_clinic'), t('xl_req'), t('xl_date'), t('xl_req_qty'), t('xl_ok_qty'), t('xl_sent_qty'), t('xl_sub_of')];
+  const rows = [];
+  list.forEach(q => (items[q.id] || []).forEach(it => rows.push([it.item, t(q.type === 'طارئ' ? 'type_emergency' : 'type_monthly'), statusLabel(q.status),
+    docLabel(q), q.nurse || '', q.branch || '', q.clinic || '', q.id, ymdOf(q.date), it.requestedQty, it.approvedQty, it.sentQty, it.substituteOf || ''])));
+  const blob = xlsxBlob(t('xl_sheet'), head, rows, [34, 12, 18, 22, 20, 16, 22, 20, 13, 12, 12, 12, 24]);
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'masarx-items-' + (r.from || 'all') + '_' + (r.to || todayStr()) + '.xlsx';
+  document.body.appendChild(a); a.click();
+  setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 500);
+  return rows.length;
+}
+/* ملف xlsx حقيقي بدون مكتبات: ورقة واحدة (يمين لليسار، رأس عريض مثبّت، فلتر تلقائي) داخل zip غير مضغوط */
+function xlsxBlob(name, head, rows, widths) {
+  const x = v => String(v).replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f]/g, '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  const col = i => (i >= 26 ? String.fromCharCode(64 + Math.floor(i / 26)) : '') + String.fromCharCode(65 + (i % 26));
+  const cell = (v, ref, st) => typeof v === 'number' && isFinite(v) ? '<c r="' + ref + '"' + st + '><v>' + v + '</v></c>'
+    : v === '' || v === null || v === undefined ? '' : '<c r="' + ref + '"' + st + ' t="inlineStr"><is><t xml:space="preserve">' + x(v) + '</t></is></c>';
+  const all = [head].concat(rows);
+  const last = col(head.length - 1) + all.length;
+  const sheet = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">' +
+    '<sheetViews><sheetView workbookViewId="0"' + (S.lang === 'ar' ? ' rightToLeft="1"' : '') + '><pane ySplit="1" topLeftCell="A2" activePane="bottomLeft" state="frozen"/></sheetView></sheetViews>' +
+    '<cols>' + widths.map((w, i) => '<col min="' + (i + 1) + '" max="' + (i + 1) + '" width="' + w + '" customWidth="1"/>').join('') + '</cols><sheetData>' +
+    all.map((row, ri) => '<row r="' + (ri + 1) + '">' + row.map((v, ci) => cell(v, col(ci) + (ri + 1), ri ? '' : ' s="1"')).join('') + '</row>').join('') +
+    '</sheetData><autoFilter ref="A1:' + last + '"/></worksheet>';
+  const files = {
+    '[Content_Types].xml': '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/><Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/><Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/></Types>',
+    '_rels/.rels': '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/></Relationships>',
+    'xl/workbook.xml': '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets><sheet name="' + x(String(name).replace(/[\\\/?*\[\]:]/g, ' ').slice(0, 31)) + '" sheetId="1" r:id="rId1"/></sheets><definedNames><definedName name="_xlnm._FilterDatabase" localSheetId="0" hidden="1">\'' + x(String(name).replace(/[\\\/?*\[\]:']/g, ' ').slice(0, 31)) + '\'!$A$1:$' + col(head.length - 1) + '$' + all.length + '</definedName></definedNames></workbook>',
+    'xl/_rels/workbook.xml.rels': '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/><Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/></Relationships>',
+    'xl/styles.xml': '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><fonts count="2"><font><sz val="11"/><name val="Calibri"/></font><font><b/><sz val="11"/><color rgb="FFFFFFFF"/><name val="Calibri"/></font></fonts><fills count="3"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill><fill><patternFill patternType="solid"><fgColor rgb="FF3D8FC8"/><bgColor indexed="64"/></patternFill></fill></fills><borders count="1"><border><left/><right/><top/><bottom/><diagonal/></border></borders><cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs><cellXfs count="2"><xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/><xf numFmtId="0" fontId="1" fillId="2" borderId="0" xfId="0" applyFont="1" applyFill="1"/></cellXfs><cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles></styleSheet>',
+    'xl/worksheets/sheet1.xml': sheet
+  };
+  return new Blob([zipStore(files)], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+}
+function zipStore(files) {
+  const enc = new TextEncoder(), parts = [], cen = [];
+  const crcT = zipStore.t || (zipStore.t = Array.from({ length: 256 }, (_, n) => { let c = n; for (let k = 0; k < 8; k++) c = c & 1 ? 0xEDB88320 ^ (c >>> 1) : c >>> 1; return c >>> 0; }));
+  const crc = b => { let c = 0xFFFFFFFF; for (let i = 0; i < b.length; i++) c = crcT[(c ^ b[i]) & 0xFF] ^ (c >>> 8); return (c ^ 0xFFFFFFFF) >>> 0; };
+  const hdr = (n, f) => { const b = new DataView(new ArrayBuffer(n)); f(b); return new Uint8Array(b.buffer); };
+  let off = 0;
+  Object.keys(files).forEach(name => {
+    const nm = enc.encode(name), data = enc.encode(files[name]), c = crc(data);
+    const common = (b, o) => { b.setUint16(o, 20, true); b.setUint16(o + 2, 0x0800, true); b.setUint16(o + 4, 0, true); b.setUint16(o + 6, 0, true); b.setUint16(o + 8, 0x21, true);
+      b.setUint32(o + 10, c, true); b.setUint32(o + 14, data.length, true); b.setUint32(o + 18, data.length, true); b.setUint16(o + 22, nm.length, true); };
+    parts.push(hdr(30, b => { b.setUint32(0, 0x04034b50, true); common(b, 4); }), nm, data);
+    cen.push(hdr(46, b => { b.setUint32(0, 0x02014b50, true); b.setUint16(4, 20, true); common(b, 6); b.setUint32(42, off, true); }), nm);
+    off += 30 + nm.length + data.length;
+  });
+  const size = cen.reduce((a, b) => a + b.length, 0);
+  const n = Object.keys(files).length;
+  return new Blob(parts.concat(cen, [hdr(22, b => { b.setUint32(0, 0x06054b50, true); b.setUint16(8, n, true); b.setUint16(10, n, true); b.setUint32(12, size, true); b.setUint32(16, off, true); })]));
 }
 function renderProcList(animate) {
   const box = $('#procList'); if (!box) return;

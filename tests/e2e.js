@@ -449,6 +449,13 @@ function log(msg) { console.log('  ✔ ' + msg); }
   expect(await bulkState() === 'قيد التجهيز:off,بانتظار المندوب:on,استلم المندوب:off,تم الإرسال:on',
     'in progress: vendor wait and dispatch are enabled');
   await shot(page, 'procurement-board');
+  await page.click('[data-act="procExcel"]');
+  await page.waitForSelector('.modal #xlGo');
+  expect(/\d+/.test(await page.textContent('.modal #xlCount')), 'excel export shows how many requests will be exported');
+  const [xlDl] = await Promise.all([page.waitForEvent('download'), page.click('.modal #xlGo')]);
+  const xlBuf = fs.readFileSync(await xlDl.path());
+  expect(xlDl.suggestedFilename().endsWith('.xlsx') && xlBuf.slice(0, 2).toString() === 'PK' && xlBuf.toString('utf8').includes(newId),
+    'procurement exports an .xlsx with one row per item: ' + xlDl.suggestedFilename());
   await page.click('[data-act="clearSel"]');
   await page.waitForSelector(`.req[data-rid="${newId}"]`);
   const exp = await page.$(`#exp-${newId}`);
