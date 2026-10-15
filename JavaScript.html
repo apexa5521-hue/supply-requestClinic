@@ -7045,7 +7045,6 @@ function showDriverBox(id, k, back) {
   drvCall('boxInfo', { box: id, k: k }).then(b => {
     // سُلِّم مسبقاً ولا مهمة عليه الآن: صفحة مقفلة «تم التسليم» بدون أي زر تسليم
     if (!b.pending) {
-      DRV.render = null;
       drvShell('<div class="drv-done drv-locked">' + icon('checkc') + '<h1>' + esc(t('drv_locked')) + '</h1>' +
         '<div class="drv-head"><span class="drv-box mono">' + esc(b.id) + '</span><b>' + esc(b.owner) + '</b>' + branchTag(b.branch) + '</div>' +
         '<div class="hint">' + esc(t('drv_locked_sub')) + '</div>' +
