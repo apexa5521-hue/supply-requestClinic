@@ -56,6 +56,8 @@ const I18N = {
     confirm_receive: 'تأكيد الاستلام', received_ok: 'تم تأكيد استلام {id}', receiver_required: 'اسم المستلم إلزامي',
     cancel: 'إلغاء', close: 'إغلاق', save: 'حفظ', delete: 'حذف', edit: 'تعديل', send: 'إرسال', confirm: 'تأكيد', back: 'رجوع',
     select_all: 'تحديد الكل', selected: 'محدد', clear_selection: 'إلغاء التحديد',
+    all_types: 'كل الأنواع (شهري / طارئ)',
+    dash_status_hint: 'اضغط على أي حالة لعرض طلباتها', dash_status_n: '{n} طلب — اضغط رقم الطلب لفتح تفاصيله',
     link_new: '➕ طبيب جديد — أنشئه واربطه بالحساب', link_new_name: 'اسم الطبيب كما يظهر للممرضات', link_new_clinics: 'عيادات الطبيب (اختياري)', link_new_will: 'سيُضاف الطبيب «{n}» لقائمة الأطباء ويُربط بهذا الحساب',
     free_type_tools: 'أدوات', db_tools: 'أدوات', ca_del_sel: 'حذف المحدد ({n})', ca_del_many_q: 'حذف {n} صنف من الكتالوج نهائياً؟', ca_del_many_ok: 'حُذف {n} صنف', ca_del_many_fail: 'لم يُحذف {n}: {list}',
     step_arrived: 'وصل الفرع', grp_deliver: 'بانتظار التوصيل', grp_await_receipt: 'وصل · بانتظار الاستلام', grp_signed: 'استُلم بالتوقيع',
@@ -164,6 +166,8 @@ const I18N = {
     confirm_receive: 'Confirm receipt', received_ok: 'Receipt of {id} confirmed', receiver_required: 'Receiver name is required',
     cancel: 'Cancel', close: 'Close', save: 'Save', delete: 'Delete', edit: 'Edit', send: 'Send', confirm: 'Confirm', back: 'Back',
     select_all: 'Select all', selected: 'selected', clear_selection: 'Clear',
+    all_types: 'All types (monthly / emergency)',
+    dash_status_hint: 'Click any status to list its requests', dash_status_n: '{n} request(s) — click a number to open it',
     link_new: '➕ New doctor — create and link to this account', link_new_name: 'Doctor name as nurses see it', link_new_clinics: 'Doctor clinics (optional)', link_new_will: 'Doctor «{n}» will be added to the doctors list and linked to this account',
     free_type_tools: 'Tools', db_tools: 'Tools', ca_del_sel: 'Delete selected ({n})', ca_del_many_q: 'Delete {n} item(s) from the catalog for good?', ca_del_many_ok: '{n} item(s) deleted', ca_del_many_fail: 'Not deleted ({n}): {list}',
     step_arrived: 'At branch', grp_deliver: 'Awaiting delivery', grp_await_receipt: 'Arrived · awaiting receipt', grp_signed: 'Received & signed',
@@ -416,7 +420,7 @@ const S = {
   clinics: [], catalog: [], roles: [],
   view: null, lastSync: null,
   nurse: { draft: null, doctors: [], profile: [], mine: [], group: 'all', q: '', doctor: '' },
-  proc: { list: [], group: 'all', q: '', doctor: '', clinic: '', month: '', sort: 'new', selected: new Set(), expanded: new Set(), items: {} },
+  proc: { list: [], group: 'all', q: '', doctor: '', clinic: '', type: '', month: '', sort: 'new', selected: new Set(), expanded: new Set(), items: {} },
   doc: { list: [], group: 'review' },
   dash: { month: '', stats: null, report: null, trend: null, complaints: [], cFilter: 'open', notices: [] },
   admin: { users: [], q: '' },
@@ -1122,7 +1126,11 @@ function resetApp() {
   S.proc.list = []; S.proc.items = {}; S.proc.expanded.clear(); S.proc.selected.clear(); S.proc.archive = false;
   if (typeof AS !== 'undefined') { AS.cfg = null; AS.clinics = []; AS.tickets = []; AS.stats = null; AS.tab = 'tickets'; AS.group = 'new'; }
   S.nurse.mine = []; S.nurse.archive = false; S.nurse.draft = null; S.nurse.lab = null; clearTimeout(AUTO_SEND.timer); AUTO_SEND.tries = 0; AUTO_SEND.sending = false;
-  LAB.mine = []; LAB.doc = []; LAB.board = []; LAB.stats = null; LAB.cfg = null; LAB.loaded = {}; // المسودة محفوظة لكل مستخدم على حدة S.doc.list = []; S.doc.archive = false;
+  LAB.mine = []; LAB.doc = []; LAB.board = []; LAB.stats = null; LAB.cfg = null; LAB.loaded = {}; // المسودة محفوظة لكل مستخدم على حدة
+  S.doc.list = []; S.doc.archive = false;
+  // بيانات شاشات الإدارة والتموين (البوكسات برموز الـ QR، الأسعار، التقارير…) لا تنتقل للمستخدم التالي على نفس الجهاز
+  BX.data = null; CA.data = null; CA.sel.clear(); DA.data = null; SETT.data = null; MON.data = null; DL.data = null; DP.list = null; SV.data = null;
+  FN.data = null; FN.prices = null; RP.stats = null; RP.doc = null; RP.doctors = []; REP.data = null;
   Object.keys(SIGS).forEach(k => delete SIGS[k]); Object.keys(LIMITS).forEach(k => delete LIMITS[k]);
   session.clear(); RC.clear();
   clearPersistedRC();
@@ -1183,6 +1191,8 @@ const NAV = {
 /* شاشات الإدارة (جودة / تنفيذية / مالية / أدمن): القائمة تُبنى من صلاحيات الدور التي يحددها الأدمن */
 const MGMT_SCREENS = ['quality', 'executive', 'finance', 'dashboard', 'branch', 'admin'];
 const PERM_NAV = [
+  // الأدمن: تبويبات التموين التشغيلية أيضاً (لوحة الطلبات والأصناف الحرة)
+  { id: 'requests', icon: 'package', k: 'nav_requests', perm: [], screens: ['admin'] },
   { id: 'overview', icon: 'chart', k: 'nav_overview', perm: ['overview'] },
   { id: 'monitor', icon: 'clock', k: 'nav_monitor', perm: ['monitor'] },
   { id: 'doctorslive', icon: 'steth', k: 'nav_doctors_live', perm: ['doctors_live'] },
@@ -1199,6 +1209,7 @@ const PERM_NAV = [
   { id: 'rules', icon: 'calendar', k: 'nav_rules', perm: ['order_rules'], screens: ['finance', 'executive', 'quality', 'admin'] },
   { id: 'users', icon: 'users', k: 'nav_users', perm: ['users'] },
   { id: 'catalog', icon: 'tag', k: 'nav_catalog', perm: ['users'], screens: ['finance'] },
+  { id: 'freeitems', icon: 'edit', k: 'nav_free_items', perm: [], screens: ['admin'] },
   { id: 'docadmin', icon: 'steth', k: 'nav_doc_admin', perm: ['users'] },
   // الإعدادات (بدل الشيت): الأدمن كل شيء، والمالية آخر موعد للطلبات القديمة فقط
   { id: 'settings', icon: 'layers', k: 'nav_settings', perm: ['users'], screens: ['finance'] },
@@ -2746,6 +2757,8 @@ VIEWS.requests = {
         '<div class="input-icon">' + icon('search') + '<input class="input" data-input="procQ" value="' + esc(p.q) + '" placeholder="' + esc(t('search_requests')) + '"></div>' +
         (S.branches.length ? '<select class="select" data-change="procBranch" aria-label="' + esc(t('branch')) + '"><option value="">' + esc(t('all_branches')) + '</option>' + S.branches.map(b => '<option' + (b === p.branch ? ' selected' : '') + '>' + esc(b) + '</option>').join('') + '</select>' : '') +
         '<span id="procDocW">' + doctorSelect(p.list, p.doctor, 'procDoctor') + '</span>' +
+        '<select class="select" data-change="procType" aria-label="' + esc(t('type')) + '"><option value="">' + esc(t('all_types')) + '</option>' +
+          [['شهري', 'type_monthly'], ['طارئ', 'type_emergency']].map(o => '<option value="' + o[0] + '"' + (p.type === o[0] ? ' selected' : '') + '>' + esc(t(o[1])) + '</option>').join('') + '</select>' +
         '<select class="select" data-change="procClinic" aria-label="' + esc(t('clinic')) + '"><option value="">' + esc(t('all_clinics')) + '</option>' + clinicNames().map(n => '<option' + (n === p.clinic ? ' selected' : '') + '>' + esc(n) + '</option>').join('') + '</select>' +
         '<input class="input" type="month" data-change="procMonth" value="' + esc(p.month) + '" aria-label="' + esc(t('month')) + '">' +
         '<select class="select" data-change="procSort" aria-label="' + esc(t('sort')) + '">' +
@@ -2761,6 +2774,7 @@ VIEWS.requests = {
 };
 ACT.procQ = debounce(el => { S.proc.q = el.value.trim(); resetPage('proc'); renderProcList(true); }, 150);
 ACT.procDoctor = el => { S.proc.doctor = el.value; resetPage('proc'); renderProcList(true); };
+ACT.procType = el => { S.proc.type = el.value; resetPage('proc'); renderProcList(true); };
 ACT.procClinic = el => { S.proc.clinic = el.value; resetPage('proc'); renderProcList(true); };
 ACT.procBranch = el => { S.proc.branch = el.value; resetPage('proc'); renderProcList(true); };
 ACT.procMonth = el => { S.proc.month = el.value; resetPage('proc'); renderProcList(true); };
@@ -2772,7 +2786,7 @@ function procFiltered(ignoreGroup, range) {
   const g = PROC_GROUPS.find(x => x.id === p.group) || PROC_GROUPS[0];
   const ts = (r, f) => { const d = toDate(r[f]); return d ? d.getTime() : 0; };
   const inPeriod = range ? r => { const d = ymdOf(r.date); return (!range.from || d >= range.from) && (!range.to || d <= range.to); } : r => !p.month || monthKey(r.date) === p.month;
-  return ((range && range.list) || p.list).filter(r => (ignoreGroup || matchGroup(g, r)) && reqSearch(r, p.q) && (!p.doctor || r.doctor === p.doctor) && (!p.branch || r.branch === p.branch) && (!p.clinic || r.clinic === p.clinic) && inPeriod(r))
+  return ((range && range.list) || p.list).filter(r => (ignoreGroup || matchGroup(g, r)) && reqSearch(r, p.q) && (!p.doctor || r.doctor === p.doctor) && (!p.branch || r.branch === p.branch) && (!p.clinic || r.clinic === p.clinic) && (!p.type || (p.type === 'طارئ') === (r.type === 'طارئ')) && inPeriod(r))
     .sort((a, b) => {
       switch (p.sort) {
         case 'old': return ts(a, 'date') - ts(b, 'date');
@@ -4542,6 +4556,21 @@ VIEWS.overview = {
 };
 ACT.dashMonth = el => { S.dash.month = el.value; go('overview', true); };
 ACT.dashAll = () => { S.dash.month = ''; go('overview', true); };
+/* الضغط على حالة في «توزيع الحالات»: كل طلبات هذه الحالة (لنفس الشهر المختار) — والضغط على الطلب يفتح تفاصيله */
+ACT.dashStatus = el => {
+  const st = el.dataset.st, month = S.dash.month;
+  const m = openModal({ title: esc(statusLabel(st)), sub: esc(month ? monthLabel(month) : t('all_months')), icon: 'layers', size: 'lg', body: skeletonList(3) });
+  call('getRequests', Object.assign({ archive: true }, month ? { month: month } : {})).then(list => {
+    if (m.closing) return;
+    const rows = (list || []).filter(r => r.status === st).sort((a, b) => (toDate(b.date) || 0) - (toDate(a.date) || 0));
+    $('.modal-body', m.el).innerHTML = rows.length
+      ? '<div class="hint" style="margin-bottom:8px">' + esc(t('dash_status_n', { n: rows.length })) + '</div>' +
+        '<div class="table-wrap" style="max-height:60vh;overflow:auto"><table class="table"><thead><tr><th>#</th><th>' + esc(t('date')) + '</th><th>' + esc(t('branch')) + '</th><th>' + esc(t('clinic')) + '</th><th>' + esc(t('doctor')) + '</th><th>' + esc(t('xl_nurse')) + '</th><th>' + esc(t('type')) + '</th></tr></thead><tbody>' +
+        rows.map(r => '<tr><td><button class="btn btn-ghost btn-sm mono" data-act="detail" data-id="' + esc(r.id) + '" style="min-height:26px;padding:2px 6px">' + esc(r.id) + '</button>' + (r.atBranch ? ' ' + arrivedTag(r) : '') + '</td><td>' + esc(fmtDate(r.date)) + '</td><td>' + esc(r.branch || '—') + '</td><td>' + esc(r.clinic || '—') + '</td><td>' + esc(docLabel(r)) + '</td><td>' + esc(r.nurse || '—') + '</td><td>' + typeTag(r.type) + '</td></tr>').join('') +
+        '</tbody></table></div>'
+      : emptyState('search', t('no_match'));
+  }).catch(e => { if (!m.closing) $('.modal-body', m.el).innerHTML = emptyState('alert', errMsg(e)); });
+};
 function loadDash(silent) {
   const m = S.dash.month;
   // عرض فوري من آخر زيارة (إن وُجدت) ثم تحديث
@@ -4573,8 +4602,9 @@ function renderDash(silent) {
   const order = [ST.REVIEW, ST.APPROVED, ST.NEW, ST.PREP, ST.VENDOR_WAIT, ST.VENDOR_RECV, ST.SENT, ST.RECEIVED, ST.REJECTED];
   const present = order.filter(st => sc[st]);
   $('#dashDist').innerHTML = total
-    ? '<div class="stackbar">' + present.map(st => '<span style="--tone:' + stMeta(st).tone + '" data-w="' + (sc[st] / total * 100) + '%" title="' + esc(statusLabel(st)) + ': ' + sc[st] + '"></span>').join('') + '</div>' +
-      '<div class="legend">' + present.map(st => '<span style="--tone:' + stMeta(st).tone + '"><i></i>' + esc(statusLabel(st)) + ' <b>' + sc[st] + '</b></span>').join('') + '</div>'
+    ? '<div class="stackbar">' + present.map(st => '<span style="--tone:' + stMeta(st).tone + '" data-w="' + (sc[st] / total * 100) + '%" title="' + esc(statusLabel(st)) + ': ' + sc[st] + '" data-act="dashStatus" data-st="' + esc(st) + '" role="button"></span>').join('') + '</div>' +
+      '<div class="legend">' + present.map(st => '<button type="button" class="legend-btn" style="--tone:' + stMeta(st).tone + '" data-act="dashStatus" data-st="' + esc(st) + '"><i></i>' + esc(statusLabel(st)) + ' <b>' + sc[st] + '</b></button>').join('') + '</div>' +
+      '<div class="hint" style="margin-top:8px">' + icon('info', 'i-sm') + ' ' + esc(t('dash_status_hint')) + '</div>'
     : emptyState('chart', t('no_data'));
   animateBars($('#dashDist'));
 
@@ -6943,7 +6973,7 @@ function boxBase() {
 const boxLink = b => boxBase() + '?box=' + encodeURIComponent(b.id) + '&k=' + encodeURIComponent(b.k);
 const driverLink = () => boxBase() + '?driver=' + encodeURIComponent((BX.data && BX.data.driverToken) || '');
 /* مدراء الفروع / التشغيل: اطلاع فقط (أين بوكس كل طبيب) — التموين وحده يدير البوكسات */
-const bxRO = () => !S.user || S.user.screen !== 'procurement';
+const bxRO = () => !S.user || (S.user.screen !== 'procurement' && S.user.screen !== 'admin');
 VIEWS.boxes = {
   title: 'nav_boxes', get sub() { return bxRO() ? 'sub_boxes_ro' : 'sub_boxes'; },
   render() {
@@ -6974,7 +7004,11 @@ function bxRender() {
   $('#bxChips').innerHTML = chipsHtml(BX_GROUPS, BX.group, 'bxGroup', groupCounts(BX_GROUPS, all));
   const g = BX_GROUPS.find(x => x.id === BX.group) || BX_GROUPS[3];
   const q = (BX.q || '').toLowerCase();
-  const list = all.filter(b => matchGroup(g, b) && (!q || [b.id, b.owner, b.branch, placeLabel(b.location), b.destination].concat((b.loads || []).map(l => l.request)).join(' ').toLowerCase().indexOf(q) !== -1));
+  // الأحدث أولاً: آخر حركة على البوكس (تحميل، تسليم، طلب نقل…)
+  const lastAt = b => Math.max(toDate(b.updatedAt) ? toDate(b.updatedAt).getTime() : 0, toDate(b.loadedAt) ? toDate(b.loadedAt).getTime() : 0,
+    b.history && b.history[0] && toDate(b.history[0].time) ? toDate(b.history[0].time).getTime() : 0);
+  const list = all.filter(b => matchGroup(g, b) && (!q || [b.id, b.owner, b.branch, placeLabel(b.location), b.destination].concat((b.loads || []).map(l => l.request)).join(' ').toLowerCase().indexOf(q) !== -1))
+    .sort((a, b) => lastAt(b) - lastAt(a));
   $('#bxList').innerHTML = !all.length ? emptyState('truck', t('bx_none'))
     : !list.length ? emptyState('search', t('no_match'))
     : pageOf('bx', list).map(bxCard).join('') + moreBtn('bx', list.length);

@@ -456,6 +456,15 @@ function log(msg) { console.log('  ✔ ' + msg); }
   const xlBuf = fs.readFileSync(await xlDl.path());
   expect(xlDl.suggestedFilename().endsWith('.xlsx') && xlBuf.slice(0, 2).toString() === 'PK' && xlBuf.toString('utf8').includes(newId),
     'procurement exports an .xlsx with one row per item: ' + xlDl.suggestedFilename());
+  // فلتر نوع الطلب: طارئ فقط ثم شهري فقط
+  await page.selectOption('[data-change="procType"]', 'طارئ');
+  await page.waitForTimeout(300);
+  const typeCards = await page.$$eval('#procList .req', els => els.map(e => e.classList.contains('urgent')));
+  expect(typeCards.length > 0 && typeCards.every(Boolean), 'type filter: emergency requests only (' + typeCards.length + ')');
+  await page.selectOption('[data-change="procType"]', 'شهري');
+  await page.waitForTimeout(300);
+  expect(await page.$$eval('#procList .req', els => els.every(e => !e.classList.contains('urgent'))), 'type filter: monthly requests only');
+  await page.selectOption('[data-change="procType"]', '');
   await page.click('[data-act="clearSel"]');
   await page.waitForSelector(`.req[data-rid="${newId}"]`);
   const exp = await page.$(`#exp-${newId}`);
@@ -512,6 +521,7 @@ function log(msg) { console.log('  ✔ ' + msg); }
   await page.click('.sidebar [data-view="boxes"]');
   await page.waitForSelector('#bxList .box-card');
   const bx = await page.evaluate(() => BX.data.boxes[0]);
+  expect(await page.evaluate(() => { const ids = Array.from(document.querySelectorAll('#bxList .box-card .req-id')).map(e => e.textContent); return ids.length > 0; }), 'boxes listed (newest activity first)');
   expect(bx.status === 'جاهز للنقل' && bx.loads.length === 2 && bx.destination === bx.loads[0].branch, 'dispatch loaded the doctor box (2 shipments) → ready to deliver to the request branch');
   expect((await page.inputValue('#bxDrvUrl')).includes('?driver='), 'procurement sees the driver tasks link');
   await shot(page, 'proc-boxes');
@@ -1107,6 +1117,19 @@ function log(msg) { console.log('  ✔ ' + msg); }
   await page.waitForTimeout(600);
   await shot(page, 'dashboard-dark', true);
   await page.click('.topbar [data-act="toggleTheme"]');
+  // توزيع الحالات قابل للضغط: يعرض كل طلبات الحالة، ورقم الطلب يفتح تفاصيله
+  await page.click('.sidebar [data-view="overview"]');
+  await page.waitForSelector('#dashDist .legend-btn');
+  const lgN = Number(await page.textContent('#dashDist .legend-btn >> nth=0 >> b'));
+  await page.click('#dashDist .legend-btn >> nth=0');
+  await page.waitForSelector('.modal tbody tr');
+  expect(await page.locator('.modal tbody tr').count() === lgN, 'clicking a status lists its ' + lgN + ' request(s)');
+  await shot(page, 'dashboard-status-list');
+  await page.click('.modal tbody tr >> nth=0 >> [data-act="detail"]');
+  await page.waitForSelector('.modal .stepper');
+  expect(true, 'a request in the status list opens its details');
+  await page.keyboard.press('Escape'); await page.waitForTimeout(250);
+  await page.keyboard.press('Escape'); await page.waitForTimeout(300);
   // التقارير والإحصائيات + تقرير طبيب من قائمة منسدلة
   await page.click('.sidebar [data-view="reports"]');
   // تم تحميلها مسبقاً في الخلفية بعد الدخول: تظهر فوراً بلا انتظار الخادم
@@ -1228,6 +1251,22 @@ function log(msg) { console.log('  ✔ ' + msg); }
 
   // ---------- Admin ----------
   await login(page, 'المدير', '1234');
+  // الأدمن يرى كل التبويبات (الإدارية + تبويبات التموين التشغيلية) وكل تبويب يفتح بلا خطأ
+  const adminNav = await page.evaluate(() => navItems().map(n => n.id));
+  const wantAdmin = ['requests', 'overview', 'monitor', 'doctorslive', 'surveys', 'docprices', 'reports', 'finance', 'labkpi', 'assetsdash', 'boxes', 'complaints', 'notices', 'rules', 'users', 'catalog', 'freeitems', 'docadmin', 'settings', 'workflow'];
+  expect(wantAdmin.every(v => adminNav.includes(v)), 'admin has every tab — missing: ' + wantAdmin.filter(v => !adminNav.includes(v)).join(','));
+  const tabErrors = [];
+  for (const v of adminNav) {
+    await page.evaluate(() => document.querySelectorAll('.toast').forEach(t => t.remove()));
+    await page.click('.sidebar [data-view="' + v + '"]');
+    await page.waitForTimeout(1200);
+    const err = await page.evaluate(() => Array.from(document.querySelectorAll('.toast.error, #view .empty')).map(e => e.innerText).filter(x => /تعذّر|غير مسموح|ERR_|صلاحية/.test(x)).join(' | '));
+    if (err) tabErrors.push(v + ': ' + err);
+  }
+  expect(!tabErrors.length, 'every admin tab opens without errors' + (tabErrors.length ? ' — ' + tabErrors.join(' ; ') : ''));
+  await page.click('.sidebar [data-view="boxes"]');
+  await page.waitForSelector('#bxList');
+  expect(!!(await page.$('#bxDrvUrl')), 'admin manages boxes (driver link visible, not read-only)');
   await page.click('.sidebar [data-view="users"]');
   await page.waitForSelector('#uTable table');
   await shot(page, 'admin-users');

@@ -582,6 +582,8 @@ const BATCH_MAX = 12;
 /** يسمح بالدالة إن كانت شاشة المستخدم ضمن screens، أو لديه الصلاحية perm (للأدوار الإدارية) */
 function allowed_(def, user) {
   if (def.screens === '*' || def.screens.indexOf(user.screen) !== -1) return true;
+  // الأدمن يملك كل تبويبات التموين وعملياتها (الطلبات، الأصناف الحرة، البوكسات…)
+  if (user.screen === 'admin' && def.screens.indexOf('procurement') !== -1) return true;
   return !!def.perm && (user.perms || []).indexOf(def.perm) !== -1;
 }
 
@@ -1471,7 +1473,7 @@ function getBoxes_(user) {
     else if (str_(m.Action) === 'تسليم' && loadAt[k] && str_(m.To) !== BOX_HOME && Date.now() - toMs_(m.Timestamp) < 60 * 864e5) hrs.push((toMs_(m.Timestamp) - loadAt[k]) / 36e5);
   });
   // مدراء الفروع / التشغيل: اطلاع فقط — بلا رموز QR ولا رابط السواق (من يملكها يستطيع التسليم)، وفرعهم فقط
-  if (user.screen !== 'procurement') {
+  if (user.screen !== 'procurement' && user.screen !== 'admin') {
     const br = SCOPE_BRANCH_;
     return { readOnly: true, places: boxPlaces_(),
       boxes: list.filter(function (b) { return !br || b.branch === br || b.location === br || b.destination === br; })
