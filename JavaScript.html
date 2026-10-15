@@ -56,6 +56,7 @@ const I18N = {
     confirm_receive: 'تأكيد الاستلام', received_ok: 'تم تأكيد استلام {id}', receiver_required: 'اسم المستلم إلزامي',
     cancel: 'إلغاء', close: 'إغلاق', save: 'حفظ', delete: 'حذف', edit: 'تعديل', send: 'إرسال', confirm: 'تأكيد', back: 'رجوع',
     select_all: 'تحديد الكل', selected: 'محدد', clear_selection: 'إلغاء التحديد',
+    drv_scan_hint: 'للتسليم: امسح الباركود (QR) على البوكس نفسه بكاميرا الجوال', drv_locked: 'تم التسليم', drv_locked_sub: 'هذا البوكس سُلِّم مسبقاً ولا توجد عليه مهمة توصيل الآن', drv_last: 'آخر تسليم: {p} · {t} · {d}', ERR_BOX_DELIVERED: 'تم التسليم مسبقاً — لا توجد مهمة توصيل لهذا البوكس الآن',
     link_will: 'سيرتبط بـ: {n}', link_none: 'لا يوجد طبيب يطابق اسم الحساب — اختر الطبيب من القائمة', link_grp_free: 'أطباء بلا حساب', link_grp_taken: 'مرتبطون بحسابات أخرى', ERR_DOCTOR_LINK: 'حساب الطبيب لازم يرتبط بطبيب — اختر اسمه من «الطبيب المرتبط بالحساب»',
     rej_add: 'رفض الصنف', rej_title: 'رفض صنف من الطلب', rej_note: 'سبب الرفض — يظهر للطبيب والممرضة', rej_note_ph: 'مثال: غير متوفر لدى المورد، موقوف، مكرر في طلب آخر…', rej_go: 'رفض الصنف', rej_done: 'رُفض الصنف وأُبلغ الطبيب والممرضة بالسبب', rej_undo: 'إعادة الصنف', rej_undone: 'أُعيد الصنف للطلب', rej_tag: 'رفضه التموين', rej_hint: 'لن يُرسل هذا الصنف (أو ما تبقى منه). يمكنك إعادته لاحقاً ما دام الطلب لم يُرسل كاملاً.', ERR_ITEM_REJECTED: 'هذا الصنف مرفوض من التموين — أعده أولاً', ERR_ALL_REJECTED: 'لا يمكن رفض كل أصناف الطلب — ألغِ الطلب كاملاً بدلاً من ذلك (مع السبب)',
     xl_export: 'تصدير Excel', xl_title: 'تصدير الأصناف إلى Excel', xl_sub: 'صف لكل صنف — حسب الفلاتر الحالية (الطبيب، العيادة، الفرع، المرحلة، البحث)', xl_from: 'من تاريخ', xl_to: 'إلى تاريخ', xl_count: 'سيُصدَّر {n} طلب', xl_go: 'تصدير', xl_none: 'لا توجد طلبات في هذه المدة بالفلاتر الحالية', xl_done: 'تم تصدير {n} صنف', xl_item: 'اسم الصنف', xl_type: 'نوع الطلب', xl_status: 'حالة الطلب', xl_doctor: 'الطبيب', xl_nurse: 'الممرضة', xl_branch: 'الفرع للتسليم', xl_clinic: 'العيادة', xl_req: 'رقم الطلب', xl_date: 'تاريخ الطلب', xl_req_qty: 'الكمية المطلوبة', xl_ok_qty: 'الكمية المعتمدة', xl_sent_qty: 'الكمية المرسلة', xl_sub_of: 'بديل عن', xl_sheet: 'الأصناف',
@@ -160,6 +161,7 @@ const I18N = {
     confirm_receive: 'Confirm receipt', received_ok: 'Receipt of {id} confirmed', receiver_required: 'Receiver name is required',
     cancel: 'Cancel', close: 'Close', save: 'Save', delete: 'Delete', edit: 'Edit', send: 'Send', confirm: 'Confirm', back: 'Back',
     select_all: 'Select all', selected: 'selected', clear_selection: 'Clear',
+    drv_scan_hint: 'To deliver: scan the QR code on the box itself with your phone camera', drv_locked: 'Delivered', drv_locked_sub: 'This box was already delivered and has no delivery task now', drv_last: 'Last delivery: {p} · {t} · {d}', ERR_BOX_DELIVERED: 'Already delivered — this box has no delivery task now',
     link_will: 'Will link to: {n}', link_none: 'No doctor matches this account name — pick the doctor from the list', link_grp_free: 'Doctors without an account', link_grp_taken: 'Linked to other accounts', ERR_DOCTOR_LINK: 'A doctor account must be linked to a doctor — pick the name in “Linked doctor”',
     rej_add: 'Reject item', rej_title: 'Reject an item from the request', rej_note: 'Reason — shown to the doctor and the nurse', rej_note_ph: 'e.g. not available from the supplier, discontinued, duplicated…', rej_go: 'Reject item', rej_done: 'Item rejected — doctor and nurse were told why', rej_undo: 'Restore item', rej_undone: 'Item restored to the request', rej_tag: 'Rejected by procurement', rej_hint: 'This item (or what is left of it) will not be sent. You can restore it while the request is not fully sent.', ERR_ITEM_REJECTED: 'This item was rejected by procurement — restore it first', ERR_ALL_REJECTED: 'You cannot reject every item — cancel the whole request instead (with a reason)',
     xl_export: 'Export Excel', xl_title: 'Export items to Excel', xl_sub: 'One row per item — uses the current filters (doctor, clinic, branch, stage, search)', xl_from: 'From', xl_to: 'To', xl_count: '{n} request(s) will be exported', xl_go: 'Export', xl_none: 'No requests in this period with the current filters', xl_done: '{n} item(s) exported', xl_item: 'Item', xl_type: 'Request type', xl_status: 'Request status', xl_doctor: 'Doctor', xl_nurse: 'Nurse', xl_branch: 'Delivery branch', xl_clinic: 'Clinic', xl_req: 'Request #', xl_date: 'Request date', xl_req_qty: 'Requested qty', xl_ok_qty: 'Approved qty', xl_sent_qty: 'Sent qty', xl_sub_of: 'Substitute for', xl_sheet: 'Items',
@@ -228,6 +230,7 @@ Object.assign(I18N.en, {
 /* صفحة السواق فقط: بنغالي وهندي (أي نص آخر يرجع للإنجليزي) */
 const DRV_LANGS = [['ar', 'عربي'], ['en', 'English'], ['bn', 'বাংলা'], ['hi', 'हिन्दी']];
 I18N.bn = {
+  drv_scan_hint: 'ডেলিভারির জন্য: ফোনের ক্যামেরা দিয়ে বক্সের উপরের QR কোড স্ক্যান করুন', drv_locked: 'ডেলিভারি সম্পন্ন', drv_locked_sub: 'এই বক্সটি আগেই ডেলিভারি হয়েছে, এখন কোনো ডেলিভারি কাজ নেই', drv_last: 'শেষ ডেলিভারি: {p} · {t} · {d}', ERR_BOX_DELIVERED: 'আগেই ডেলিভারি হয়েছে — এখন এই বক্সের কোনো কাজ নেই',
   drv_where: 'বক্সটি কোথায় পৌঁছে দিয়েছেন?', drv_photo: 'বক্সের ছবি', drv_photo_tap: 'বক্সের ছবি তুলতে চাপুন', drv_photo_req: 'আগে বক্সের ছবি তুলুন',
   drv_name: 'আপনার নাম', drv_deliver: 'ডেলিভারি সম্পন্ন', drv_done: '{p}-এ ডেলিভারি সম্পন্ন হয়েছে', drv_bad_link: 'লিংকটি সঠিক নয় — স্টিকারটি আবার স্ক্যান করুন',
   drv_tasks: 'চালানসমূহ', drv_no_tasks: 'এখন সরানোর মতো কোনো বক্স নেই', drv_from_to: '{a} থেকে {b}', drv_open: 'খুলুন', drv_back: 'ফিরে যান',
@@ -237,6 +240,7 @@ I18N.bn = {
   ERR_NETWORK: 'সার্ভারে সংযোগ করা যায়নি — আবার চেষ্টা করুন'
 };
 I18N.hi = {
+  drv_scan_hint: 'डिलीवरी के लिए: फ़ोन कैमरे से बॉक्स पर लगा QR कोड स्कैन करें', drv_locked: 'डिलीवरी हो चुकी', drv_locked_sub: 'यह बॉक्स पहले ही डिलीवर हो चुका है, अभी कोई डिलीवरी काम नहीं है', drv_last: 'आख़िरी डिलीवरी: {p} · {t} · {d}', ERR_BOX_DELIVERED: 'पहले ही डिलीवर हो चुका — अभी इस बॉक्स का कोई काम नहीं है',
   drv_where: 'बॉक्स कहाँ पहुँचाया?', drv_photo: 'बॉक्स की फ़ोटो', drv_photo_tap: 'बॉक्स की फ़ोटो लेने के लिए दबाएँ', drv_photo_req: 'पहले बॉक्स की फ़ोटो लें',
   drv_name: 'आपका नाम', drv_deliver: 'डिलीवरी पूरी हुई', drv_done: '{p} पर डिलीवरी पूरी हुई', drv_bad_link: 'लिंक सही नहीं है — स्टिकर फिर से स्कैन करें',
   drv_tasks: 'शिपमेंट', drv_no_tasks: 'अभी कोई बॉक्स ले जाना नहीं है', drv_from_to: '{a} से {b}', drv_open: 'खोलें', drv_back: 'वापस',
@@ -7039,6 +7043,16 @@ function showDriverBox(id, k, back) {
   DRV.render = () => showDriverBox(id, k, back);
   drvShell(skeletonList(1));
   drvCall('boxInfo', { box: id, k: k }).then(b => {
+    // سُلِّم مسبقاً ولا مهمة عليه الآن: صفحة مقفلة «تم التسليم» بدون أي زر تسليم
+    if (!b.pending) {
+      DRV.render = null;
+      drvShell('<div class="drv-done drv-locked">' + icon('checkc') + '<h1>' + esc(t('drv_locked')) + '</h1>' +
+        '<div class="drv-head"><span class="drv-box mono">' + esc(b.id) + '</span><b>' + esc(b.owner) + '</b>' + branchTag(b.branch) + '</div>' +
+        '<div class="hint">' + esc(t('drv_locked_sub')) + '</div>' +
+        (b.last ? '<div class="hint">' + icon('pin', 'i-sm') + ' ' + esc(t('drv_last', { p: placeLabel(b.last.to), t: fmtDateTime(b.last.at), d: b.last.by })) + '</div>'
+          : '<div class="hint">' + icon('pin', 'i-sm') + ' ' + esc(t('bx_location')) + ': <b>' + esc(placeLabel(b.location)) + '</b></div>') + '</div>');
+      return;
+    }
     DRV.photo = ''; DRV.key = uid();
     // لا يمكن التسليم للمكان الموجود فيه البوكس أصلاً
     DRV.to = b.destination && b.destination !== b.location ? b.destination : (b.places.find(p => p !== b.location) || '');
@@ -7069,7 +7083,11 @@ function showDriverBox(id, k, back) {
         DRV.render = null;
         drvShell('<div class="drv-done">' + icon('checkc') + '<h1>' + esc(t('drv_done', { p: placeLabel(to) })) + '</h1><div class="hint">' + esc(b.id + ' · ' + b.owner + ' · ' + fmtDateTime(new Date())) + '</div>' +
           (back ? '<button class="btn btn-lg" data-act="drvBack">' + icon('route', 'i-sm') + esc(t('drv_tasks')) + '</button>' : '') + '</div>');
-      }).catch(er => { busy(btn, false); fail(errMsg(er)); });
+      }).catch(er => {
+        busy(btn, false);
+        if (errCode(er) === 'ERR_BOX_DELIVERED') return showDriverBox(id, k, back); // سلّمه جوال آخر للتو: الصفحة المقفلة
+        fail(errMsg(er));
+      });
     });
   }).catch(drvError);
 }
@@ -7083,10 +7101,11 @@ function showDriverTasks(tk) {
   try { cached = JSON.parse(localStorage.getItem(ck) || 'null'); } catch (e) { /* التخزين غير متاح */ }
   const draw = (list, stale) => drvShell('<div class="between"><h1 style="margin:0">' + icon('route') + ' ' + esc(t('drv_tasks')) + '</h1><button class="btn btn-soft btn-sm" data-act="drvTasks">' + icon('refresh', 'i-sm') + esc(t('drv_refresh')) + '</button></div>' +
       (stale ? '<div class="hint" style="color:var(--warning,#b45309)">' + icon('alert', 'i-sm') + ' ' + esc(t('drv_stale')) + '</div>' : '') +
-      (list.length ? '<div class="drv-tasks">' + list.map(x => '<button class="drv-task" data-act="drvOpen" data-id="' + esc(x.id) + '" data-k="' + esc(x.k) + '">' +
+      (list.length ? '<div class="hint drv-scan-hint">' + icon('qr', 'i-sm') + ' ' + esc(t('drv_scan_hint')) + '</div>' +
+        '<div class="drv-tasks">' + list.map(x => '<div class="drv-task">' +
         '<div class="between"><span class="drv-box mono">' + esc(x.id) + '</span>' + bxBadge(x.status) + '</div><b>' + esc(x.owner) + '</b>' + branchTag(x.branch) +
         '<span class="drv-route">' + icon('route', 'i-sm') + ' ' + esc(t('drv_from_to', { a: placeLabel(x.location), b: placeLabel(x.destination) })) + '</span>' +
-        '<span class="hint">' + (x.count ? esc(t('drv_loads', { n: x.count })) + ' · ' : '') + esc(relTime(x.since)) + '</span></button>').join('') + '</div>'
+        '<span class="hint">' + (x.count ? esc(t('drv_loads', { n: x.count })) + ' · ' : '') + esc(relTime(x.since)) + '</span></div>').join('') + '</div>'
         : emptyState('checkc', t('drv_no_tasks'))));
   if (cached && Array.isArray(cached.list)) draw(cached.list, false); else drvShell(skeletonList(2));
   drvCall('driverTasks', { k: tk }).then(list => {
@@ -7098,7 +7117,6 @@ function showDriverTasks(tk) {
     if (cached && Array.isArray(cached.list)) draw(cached.list, true); else drvError(e);
   });
 }
-ACT.drvOpen = el => showDriverBox(el.dataset.id, el.dataset.k, true);
 ACT.drvBack = () => showDriverTasks(DRV.tk);
 ACT.drvTasks = () => showDriverTasks(DRV.tk);
 

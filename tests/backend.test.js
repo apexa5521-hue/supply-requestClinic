@@ -1909,7 +1909,13 @@ test('boxes: dispatch loads the doctor box → driver scan delivers with photo �
   const res = api(null, 'boxDeliver', d);
   assert.deepEqual([res.box.status, res.box.location], ['وصل الفرع', 'جدة']);
   assert.equal(api(null, 'boxDeliver', d).duplicate, true, 'double tap is ignored');
-  throwsCode(() => api(null, 'boxDeliver', Object.assign({}, d, { clientKey: 'dlv-000009' })), 'ERR_SAME_PLACE');
+  // نفس الباركود بعد التسليم: مقفل «تم التسليم» — لا تسليم ثانٍ لأي مكان حتى يُحمَّل البوكس أو يُطلب نقله
+  throwsCode(() => api(null, 'boxDeliver', Object.assign({}, d, { clientKey: 'dlv-000009' })), 'ERR_BOX_DELIVERED');
+  throwsCode(() => api(null, 'boxDeliver', Object.assign({}, d, { clientKey: 'dlv-000010', to: 'التموين' })), 'ERR_BOX_DELIVERED');
+  const used = api(null, 'boxInfo', { box: d.box, k: d.k });
+  assert.equal(used.pending, false);
+  assert.deepEqual([used.last.to, used.last.by], ['جدة', 'أبو فهد']);
+  assert.ok(api(null, 'driverTasks', { k: bx.driverToken }).every(x => x.k === undefined), 'task list never carries box keys');
   assert.equal(rows(gas, 'BoxMoves').filter(m => m.Action === 'تسليم').length, 1);
   // الممرضة: الطلب «وصل الفرع» + تنبيه + تعليق
   const mine = api(reem, 'getMyRequests').find(r => r.id === id);

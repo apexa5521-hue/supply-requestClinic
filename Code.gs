@@ -1368,12 +1368,16 @@ function loadsInfo_(loads) {
     return { request: id, batch: Number(k.split('#')[1]) || 0, clinic: r ? str_(r.Clinic) : '', branch: r ? reqBranch_(r) : '' };
   });
 }
-/** صفحة السواق: بيانات البوكس فقط (بدون أسعار أو أصناف) */
+/** للبوكس مهمة توصيل الآن؟ (محمّل بشحنة أو طلب التموين نقله) — غير ذلك فقد سُلِّم ولا يُسلَّم مرة ثانية */
+function boxPending_(b) { return b.status === BX_ST.READY || b.status === BX_ST.MOVE; }
+/** صفحة السواق: بيانات البوكس فقط (بدون أسعار أو أصناف) + آخر تسليم */
 function boxInfo_(p) {
   const row = boxByToken_(p);
   const b = mapBox_(row);
+  const last = read_('BoxMoves').rows.filter(function (m) { return str_(m.BoxID) === b.id && (str_(m.Action) === 'تسليم' || str_(m.Action) === 'نقل'); }).pop();
   return { id: b.id, owner: b.owner, branch: b.branch, location: b.location, status: b.status, destination: b.destination,
-    loads: loadsInfo_(b.loads), places: boxPlaces_() };
+    loads: loadsInfo_(b.loads), places: boxPlaces_(), pending: boxPending_(b),
+    last: last ? { to: str_(last.To), at: last.Timestamp, by: str_(last.By) } : null };
 }
 /** «تسليم»: مكان التسليم + صورة البوكس + اسم السواق */
 function boxDeliver_(p) {
@@ -1386,6 +1390,7 @@ function boxDeliver_(p) {
     const dup = read_('BoxMoves').rows.filter(function (r) { return str_(r.ClientKey) === clientKey && str_(r.BoxID) === str_(pre.BoxID); })[0];
     if (dup) return { ok: true, duplicate: true, box: boxInfo_(p) };
   }
+  if (!boxPending_(mapBox_(pre))) throw new Error('ERR_BOX_DELIVERED');
   if (to === (str_(pre.Location) || BOX_HOME)) throw new Error('ERR_SAME_PLACE');
   if (!p.photo) throw new Error('ERR_PHOTO_REQUIRED');
   const photo = saveLabPhoto_(str_(pre.BoxID) + '-' + Date.now(), p.photo);
@@ -1394,6 +1399,8 @@ function boxDeliver_(p) {
     resetMemo_();
     const row = boxByToken_(p);
     const b = mapBox_(row);
+    // سُلِّم للتو من جوال آخر (نفس الـ QR مرتين): لا تسليم مكرر
+    if (!boxPending_(b)) throw new Error('ERR_BOX_DELIVERED');
     // البوكس موجود أصلاً في هذا المكان: لا تسليم مكرر
     if (to === b.location) throw new Error('ERR_SAME_PLACE');
     const now = new Date();
@@ -1437,9 +1444,9 @@ function driverTasks_(p) {
   const tk = str_(getSetting_('DriverToken', ''));
   if (!tk || str_(p.k) !== tk) throw new Error('ERR_BAD_LINK');
   const boxes = read_('Boxes').rows.map(mapBox_).filter(function (b) { return b.id && (b.status === BX_ST.READY || b.status === BX_ST.MOVE); });
+  // بدون رمز البوكس: التسليم فقط بمسح الـ QR على البوكس نفسه (لا يُسلَّم من القائمة)
   return boxes.map(function (b) {
-    const row = read_('Boxes').rows.filter(function (r) { return str_(r.BoxID) === b.id; })[0];
-    return { id: b.id, owner: b.owner, branch: b.branch, status: b.status, location: b.location, destination: b.destination, since: b.updatedAt, k: str_(row.Token), count: b.loads.length };
+    return { id: b.id, owner: b.owner, branch: b.branch, status: b.status, location: b.location, destination: b.destination, since: b.updatedAt, count: b.loads.length };
   }).sort(function (a, b) { return toMs_(a.since) - toMs_(b.since); });
 }
 /** شاشة التموين: كل البوكسات + آخر حركة + رابط الـ QR لكل بوكس + رابط الشحنات (السواق) */

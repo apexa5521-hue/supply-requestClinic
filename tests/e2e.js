@@ -537,7 +537,10 @@ function log(msg) { console.log('  ✔ ' + msg); }
   await page.click('[data-act="drvTasks"]');
   await page.waitForFunction(() => !document.querySelector('#driverView').textContent.includes('آخر قائمة محفوظة'));
   expect((await page.textContent('.drv-task')).includes('من التموين إلى ' + bx.destination), 'driver tasks: box from procurement to the branch');
-  await page.click('.drv-task');
+  // التسليم بالمسح فقط: بطاقات المهام للعرض ولا تحمل رمز البوكس
+  expect(await page.isVisible('.drv-scan-hint') && await page.locator('.drv-task[data-act], button.drv-task').count() === 0, 'driver tasks are view-only: delivery only by scanning the box QR');
+  expect(await page.evaluate(tk => __realCall('driverTasks', { k: tk }).then(l => l.every(x => !x.k)), await page.evaluate(() => BX.data.driverToken)), 'driver tasks do not expose box keys');
+  await page.evaluate(b => showDriverBox(b.id, b.k), bx);
   await page.waitForSelector('#drvGo');
   expect(await page.getAttribute('.drv-place[data-p="' + bx.destination + '"]', 'aria-pressed') === 'true', 'destination branch preselected');
   expect(await page.isDisabled('.drv-place[data-p="التموين"]'), 'the place where the box already is cannot be chosen');
@@ -558,6 +561,14 @@ function log(msg) { console.log('  ✔ ' + msg); }
   expect((await page.textContent('.drv-done')).includes('تم التسليم إلى ' + bx.destination), 'driver delivered with one tap');
   expect(await page.evaluate(() => __gas.dump('BoxMoves').filter(r => r[5] === 'تسليم').length) === 2, 'delivery logged for both shipments with photo');
   await shot(page, 'driver-done');
+  // نفس الباركود بعد التسليم: صفحة مقفلة «تم التسليم» بلا زر تسليم، والخادم يرفض التسليم المكرر
+  await page.evaluate(b => showDriverBox(b.id, b.k), bx);
+  await page.waitForSelector('.drv-locked');
+  expect((await page.textContent('.drv-locked')).includes('تم التسليم') && (await page.textContent('.drv-locked')).includes('أبو فهد') && !(await page.$('#drvGo')),
+    'a used barcode opens locked «Delivered» with the last delivery, no deliver button');
+  expect(await page.evaluate(b => __realCall('boxDeliver', { box: b.id, k: b.k, to: 'التموين', driver: 'x', photo: 'data:image/png;base64,iVBORw0KGgo=' }).then(() => 'ok', e => String(e.message)), bx) === 'ERR_BOX_DELIVERED',
+    'server refuses delivering a box that has no pending task');
+  await shot(page, 'driver-locked');
   await page.evaluate(() => { document.getElementById('driverView').remove(); document.getElementById('appShell').classList.remove('hidden'); });
   await logout(page);
 

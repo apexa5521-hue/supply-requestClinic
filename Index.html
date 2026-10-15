@@ -542,7 +542,9 @@ button.kpi[aria-pressed="true"] { border-color: var(--tone); box-shadow: 0 0 0 3
 .drv-done > .i { width: 64px; height: 64px; color: var(--t-green); }
 .drv-done h1 { font-size: 24px; margin: 0; }
 .drv-tasks { display: flex; flex-direction: column; gap: 10px; }
-.drv-task { display: flex; flex-direction: column; align-items: stretch; gap: 6px; text-align: start; padding: 14px; border-radius: 14px; border: 1px solid var(--border); background: var(--surface-2); font: inherit; color: var(--text); cursor: pointer; }
+.drv-task { display: flex; flex-direction: column; align-items: stretch; gap: 6px; text-align: start; padding: 14px; border-radius: 14px; border: 1px solid var(--border); background: var(--surface-2); font: inherit; color: var(--text); cursor: default; }
+.drv-scan-hint { display: flex; align-items: center; gap: 6px; padding: 10px 12px; border-radius: 12px; background: var(--primary-soft); color: var(--primary-strong); font-weight: 600; }
+.drv-locked .drv-head { align-items: center; }
 .drv-task b { font-size: 17px; }
 .drv-route { font-weight: 700; color: var(--primary); display: flex; align-items: center; gap: 6px; }
 /* ستيكرات QR للطباعة */
@@ -1078,6 +1080,7 @@ button.ship-open:hover { background: color-mix(in srgb, var(--t-indigo) 18%, tra
 <!-- ===== SVG icon sprite ===== -->
 <svg width="0" height="0" style="position:absolute" aria-hidden="true">
   <defs>
+    <symbol id="i-qr" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><path d="M14 14h3v3h-3zM20 14v.01M14 20h.01M17 20h4v-3"/></symbol>
     <symbol id="i-plus" viewBox="0 0 24 24"><path d="M5 12h14M12 5v14"/></symbol>
     <symbol id="i-minus" viewBox="0 0 24 24"><path d="M5 12h14"/></symbol>
     <symbol id="i-x" viewBox="0 0 24 24"><path d="M18 6 6 18M6 6l12 12"/></symbol>

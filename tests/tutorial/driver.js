@@ -27,8 +27,8 @@ async function flow(h) {
   });
   await scene('tasks', 'tasks', async () => {
     await page.evaluate(tk => showDriverTasks(tk), info.driverToken);
-    await page.waitForSelector('[data-act="drvOpen"]'); await wait(800);
-    await highlight('[data-act="drvOpen"] >> nth=0', 2200);
+    await page.waitForSelector('.drv-task'); await wait(800);
+    await highlight('.drv-task >> nth=0', 2200);
   });
   await scene('scan', 'deliver', async () => {
     await page.evaluate(([id, kk]) => showDriverBox(id, kk, true), [box.id, k]);
