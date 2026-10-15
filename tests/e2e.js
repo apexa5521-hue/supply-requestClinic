@@ -537,7 +537,10 @@ function log(msg) { console.log('  ✔ ' + msg); }
   await page.click('[data-act="drvTasks"]');
   await page.waitForFunction(() => !document.querySelector('#driverView').textContent.includes('آخر قائمة محفوظة'));
   expect((await page.textContent('.drv-task')).includes('من التموين إلى ' + bx.destination), 'driver tasks: box from procurement to the branch');
-  await page.click('.drv-task');
+  // التسليم بالمسح فقط: بطاقات المهام للعرض ولا تحمل رمز البوكس
+  expect(await page.isVisible('.drv-scan-hint') && await page.locator('.drv-task[data-act], button.drv-task').count() === 0, 'driver tasks are view-only: delivery only by scanning the box QR');
+  expect(await page.evaluate(tk => __realCall('driverTasks', { k: tk }).then(l => l.every(x => !x.k)), await page.evaluate(() => BX.data.driverToken)), 'driver tasks do not expose box keys');
+  await page.evaluate(b => showDriverBox(b.id, b.k), bx);
   await page.waitForSelector('#drvGo');
   expect(await page.getAttribute('.drv-place[data-p="' + bx.destination + '"]', 'aria-pressed') === 'true', 'destination branch preselected');
   expect(await page.isDisabled('.drv-place[data-p="التموين"]'), 'the place where the box already is cannot be chosen');
@@ -558,6 +561,14 @@ function log(msg) { console.log('  ✔ ' + msg); }
   expect((await page.textContent('.drv-done')).includes('تم التسليم إلى ' + bx.destination), 'driver delivered with one tap');
   expect(await page.evaluate(() => __gas.dump('BoxMoves').filter(r => r[5] === 'تسليم').length) === 2, 'delivery logged for both shipments with photo');
   await shot(page, 'driver-done');
+  // نفس الباركود بعد التسليم: صفحة مقفلة «تم التسليم» بلا زر تسليم، والخادم يرفض التسليم المكرر
+  await page.evaluate(b => showDriverBox(b.id, b.k), bx);
+  await page.waitForSelector('.drv-locked');
+  expect((await page.textContent('.drv-locked')).includes('تم التسليم') && (await page.textContent('.drv-locked')).includes('أبو فهد') && !(await page.$('#drvGo')),
+    'a used barcode opens locked «Delivered» with the last delivery, no deliver button');
+  expect(await page.evaluate(b => __realCall('boxDeliver', { box: b.id, k: b.k, to: 'التموين', driver: 'x', photo: 'data:image/png;base64,iVBORw0KGgo=' }).then(() => 'ok', e => String(e.message)), bx) === 'ERR_BOX_DELIVERED',
+    'server refuses delivering a box that has no pending task');
+  await shot(page, 'driver-locked');
   await page.evaluate(() => { document.getElementById('driverView').remove(); document.getElementById('appShell').classList.remove('hidden'); });
   await logout(page);
 
@@ -574,6 +585,14 @@ function log(msg) { console.log('  ✔ ' + msg); }
   await page.click('#mineChips [data-g="arrived"]');
   expect(await page.isVisible(`.req:has-text("${newId}")`), 'nurse filters «وصل الفرع» requests');
   await page.click('#mineChips [data-g="all"]');
+  // التايم لاين: خطوة «وصل الفرع» مكتملة بوقت تسليم السواق، والاستلام هو الخطوة الحالية
+  await page.evaluate(id => openDetail(id), newId);
+  await page.waitForSelector('.modal .step.done:has-text("وصل الفرع")');
+  expect(!!(await page.$('.modal .step.done:has-text("وصل الفرع") .s-time')) && (await page.textContent('.modal .step.done:has-text("وصل الفرع") .s-time')).trim().length > 2,
+    'timeline shows the «at branch» step with the driver delivery time');
+  await shot(page, 'timeline-arrived', true);
+  await page.keyboard.press('Escape');
+  await page.waitForTimeout(300);
   const sign = async (dx) => {
     const pad = await page.$('#sigPad');
     const bb = await pad.boundingBox();
@@ -619,7 +638,7 @@ function log(msg) { console.log('  ✔ ' + msg); }
   await page.fill('#dComment', 'تم الاستلام، شكراً');
   await page.click('#dSend');
   await page.waitForSelector('.msg.mine');
-  expect(await page.locator('.step.done').count() === 6, 'detail stepper shows all 6 stages done');
+  expect(await page.locator('.step.done').count() === 7, 'detail stepper shows all 7 stages done (incl. at branch)');
   await shot(page, 'request-detail');
   await page.evaluate(() => { window.print = () => {}; });
   await page.click('#dPrint');
@@ -1370,6 +1389,19 @@ function log(msg) { console.log('  ✔ ' + msg); }
   await page.click('#caList tr:has-text("Cotton Rolls") [data-act="caDel"]');
   await page.click('.modal [data-yes]');
   expect(await toastHas(page, 'حُذف'), 'item deleted from the catalog');
+  // تحديد عدة أصناف وحذفها دفعة واحدة + تصنيف «أدوات»
+  for (const nm of ['Tweezers', 'Mirror']) await page.evaluate(n => call('saveCatalogItem', '', { name: n, category: 'Instruments', price: 5, type: 'أدوات' }), nm);
+  await page.evaluate(() => loadCatalogAdmin(true));
+  await page.fill('#caQ', '');
+  await page.selectOption('#caCat', 'Instruments');
+  await page.waitForSelector('#caList tbody tr:has-text("Tweezers")');
+  expect((await page.textContent('#caList tbody tr:has-text("Tweezers")')).includes('أدوات'), 'catalog shows the new «أدوات» type');
+  await page.check('#caAll');
+  expect((await page.textContent('#caDelSel')).includes('(2)'), 'select all ticks the visible items (2)');
+  await page.click('#caDelSel');
+  await page.click('.modal [data-yes]');
+  expect(await toastHas(page, 'حُذف 2 صنف'), 'two items deleted in one go');
+  await page.selectOption('#caCat', '');
   // أسماء بديلة: كل ممرضة تسمي الصنف باسم، والكتالوج يجمعها تحت اسم التموين
   await page.fill('#caQ', 'DENTAL FLOSS');
   await page.click('#caList tbody tr:has-text("DENTAL FLOSS") [data-act="caEdit"]');

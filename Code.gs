@@ -195,7 +195,7 @@ function runSetupSteps_(force) {
   return out;
 }
 
-const ITEM_TYPES_ = ['مستهلك', 'ماتيريال'];
+const ITEM_TYPES_ = ['مستهلك', 'ماتيريال', 'أدوات']; // الأدوات تُحسب على الطبيب فقط إن كانت حسبته «الكل»
 /** صنف تكتبه الممرضة بحرية (غير موجود في القائمة): يُضاف للكتالوج ويعلّم بهذه الفئة ليميّزه التموين */
 const FREE_CATEGORY_ = 'حر — من الممرضة';
 /* مراجعة الأصناف الحرة لدى التموين: اعتماد بسعر، أو مطابقة لصنف موجود (يصبح اسماً بديلاً له)، أو رفض */
@@ -666,6 +666,7 @@ const API_ = {
   runSetupNow:               { screens: [], perm: 'users', fn: runSetupNow_ },
   backupNow:                 { screens: [], perm: 'users', fn: function (user) { return runBackup_(user.name); } },
   getDoctorLinks:            { screens: [], perm: 'users', fn: getDoctorLinks_ },
+  previewDoctorLink:         { screens: [], perm: 'users', fn: previewDoctorLink_ },
   createUser:                { screens: [], perm: 'users', fn: createUser_ },
   updateUser:                { screens: [], perm: 'users', fn: updateUser_ },
   deleteUser:                { screens: [], perm: 'users', fn: deleteUser_ },
@@ -728,6 +729,7 @@ const API_ = {
   getCatalogAdmin:           { screens: ['procurement', 'finance'], perm: 'users', fn: getCatalogAdmin_ },
   saveCatalogItem:           { screens: ['procurement', 'finance'], perm: 'users', fn: saveCatalogItem_ },
   deleteCatalogItem:         { screens: ['procurement', 'finance'], perm: 'users', fn: deleteCatalogItem_ },
+  deleteCatalogItems:        { screens: ['procurement', 'finance'], perm: 'users', fn: deleteCatalogItems_ },
   getDoctorsAdmin:           { screens: [], perm: 'users', fn: getDoctorsAdmin_ },
   saveDoctor:                { screens: [], perm: 'users', fn: saveDoctor_ },
   deleteDoctor:              { screens: [], perm: 'users', fn: deleteDoctor_ },
@@ -1367,12 +1369,16 @@ function loadsInfo_(loads) {
     return { request: id, batch: Number(k.split('#')[1]) || 0, clinic: r ? str_(r.Clinic) : '', branch: r ? reqBranch_(r) : '' };
   });
 }
-/** صفحة السواق: بيانات البوكس فقط (بدون أسعار أو أصناف) */
+/** للبوكس مهمة توصيل الآن؟ (محمّل بشحنة أو طلب التموين نقله) — غير ذلك فقد سُلِّم ولا يُسلَّم مرة ثانية */
+function boxPending_(b) { return b.status === BX_ST.READY || b.status === BX_ST.MOVE; }
+/** صفحة السواق: بيانات البوكس فقط (بدون أسعار أو أصناف) + آخر تسليم */
 function boxInfo_(p) {
   const row = boxByToken_(p);
   const b = mapBox_(row);
+  const last = read_('BoxMoves').rows.filter(function (m) { return str_(m.BoxID) === b.id && (str_(m.Action) === 'تسليم' || str_(m.Action) === 'نقل'); }).pop();
   return { id: b.id, owner: b.owner, branch: b.branch, location: b.location, status: b.status, destination: b.destination,
-    loads: loadsInfo_(b.loads), places: boxPlaces_() };
+    loads: loadsInfo_(b.loads), places: boxPlaces_(), pending: boxPending_(b),
+    last: last ? { to: str_(last.To), at: last.Timestamp, by: str_(last.By) } : null };
 }
 /** «تسليم»: مكان التسليم + صورة البوكس + اسم السواق */
 function boxDeliver_(p) {
@@ -1385,6 +1391,7 @@ function boxDeliver_(p) {
     const dup = read_('BoxMoves').rows.filter(function (r) { return str_(r.ClientKey) === clientKey && str_(r.BoxID) === str_(pre.BoxID); })[0];
     if (dup) return { ok: true, duplicate: true, box: boxInfo_(p) };
   }
+  if (!boxPending_(mapBox_(pre))) throw new Error('ERR_BOX_DELIVERED');
   if (to === (str_(pre.Location) || BOX_HOME)) throw new Error('ERR_SAME_PLACE');
   if (!p.photo) throw new Error('ERR_PHOTO_REQUIRED');
   const photo = saveLabPhoto_(str_(pre.BoxID) + '-' + Date.now(), p.photo);
@@ -1393,6 +1400,8 @@ function boxDeliver_(p) {
     resetMemo_();
     const row = boxByToken_(p);
     const b = mapBox_(row);
+    // سُلِّم للتو من جوال آخر (نفس الـ QR مرتين): لا تسليم مكرر
+    if (!boxPending_(b)) throw new Error('ERR_BOX_DELIVERED');
     // البوكس موجود أصلاً في هذا المكان: لا تسليم مكرر
     if (to === b.location) throw new Error('ERR_SAME_PLACE');
     const now = new Date();
@@ -1436,9 +1445,9 @@ function driverTasks_(p) {
   const tk = str_(getSetting_('DriverToken', ''));
   if (!tk || str_(p.k) !== tk) throw new Error('ERR_BAD_LINK');
   const boxes = read_('Boxes').rows.map(mapBox_).filter(function (b) { return b.id && (b.status === BX_ST.READY || b.status === BX_ST.MOVE); });
+  // بدون رمز البوكس: التسليم فقط بمسح الـ QR على البوكس نفسه (لا يُسلَّم من القائمة)
   return boxes.map(function (b) {
-    const row = read_('Boxes').rows.filter(function (r) { return str_(r.BoxID) === b.id; })[0];
-    return { id: b.id, owner: b.owner, branch: b.branch, status: b.status, location: b.location, destination: b.destination, since: b.updatedAt, k: str_(row.Token), count: b.loads.length };
+    return { id: b.id, owner: b.owner, branch: b.branch, status: b.status, location: b.location, destination: b.destination, since: b.updatedAt, count: b.loads.length };
   }).sort(function (a, b) { return toMs_(a.since) - toMs_(b.since); });
 }
 /** شاشة التموين: كل البوكسات + آخر حركة + رابط الـ QR لكل بوكس + رابط الشحنات (السواق) */
@@ -1541,6 +1550,21 @@ function backfillBoxes_(user) {
   return out;
 }
 /** حالة التوصيل لكل شحنة (للطلبات): آخر «تسليم» لفرع لكل طلب#شحنة */
+/**
+ * المرحلة الأخيرة للمتابعة: arrivedAt = أول وصول لبوكس الطلب للفرع (خطوة «وصل الفرع» في التايم لاين)،
+ * awaitingDelivery = شحنة أُرسلت ولم يسلّمها السواق للفرع ولم تُستلم بعد
+ */
+function arrivalOf_(id, ships) {
+  const dl = deliveriesIndex_();
+  let first = '';
+  let waiting = false;
+  ships.forEach(function (g) {
+    const d = dl[id + '#' + Number(g.batch)];
+    if (d && (!first || toMs_(d.at) < toMs_(first))) first = d.at;
+    if (!g.received && !d) waiting = true;
+  });
+  return { arrivedAt: first, awaitingDelivery: waiting };
+}
 function deliveriesIndex_() {
   if (MEMO_.dlv) return MEMO_.dlv;
   const out = {};
@@ -1754,7 +1778,8 @@ function getCatalog_(withPrice) {
     return true;
   }).map(function (r) {
     const o = { name: str_(r.ItemName), commercial: str_(r.CommercialName), category: str_(r.Category) };
-    if (str_(r.ItemType) === ITEM_TYPES_[1]) o.type = ITEM_TYPES_[1];
+    const ty = str_(r.ItemType);
+    if (ty !== ITEM_TYPES_[0] && ITEM_TYPES_.indexOf(ty) !== -1) o.type = ty;
     const al = aliases[o.name.toLowerCase()]; if (al) o.aliases = al;
     if (str_(r.Category) === FREE_CATEGORY_ && str_(r.FreeStatus) !== FREE_ST.OK) o.freePending = true;
     if (isAssetOwnership_(r.Ownership)) { o.asset = true; o.serialized = isYes_(r.Serialized); }
@@ -2078,6 +2103,7 @@ function queryRequests_(filters) {
     r.shipmentCount = st.ships.length;
     r.lastShipAt = st.ships.length ? st.ships.reduce(function (m, g) { return toMs_(g.sentAt) > toMs_(m) ? g.sentAt : m; }, '') : '';
     r.pendingShipments = st.pending;
+    Object.assign(r, arrivalOf_(r.id, st.ships));
     // شحنة وصل بوكسها الفرع ولم تُستلم بعد → «وصل الفرع»
     const waiting = st.ships.filter(function (g) { return !g.received && g.delivered; });
     r.atBranch = waiting.length > 0;
@@ -3224,40 +3250,65 @@ function doctorKey_(v) {
  */
 function doctorAccounts_() {
   if (MEMO_.docAcc) return MEMO_.docAcc;
-  const names = {};
-  read_('Doctors').rows.forEach(function (r) { if (str_(r.DoctorName)) names[str_(r.DoctorName)] = true; });
-  requestRows_().forEach(function (r) { if (str_(r.Doctor)) names[str_(r.Doctor)] = true; });
-  const all = Object.keys(names);
+  const all = doctorNameList_();
   const out = {};
   read_('Users').rows.forEach(function (u) {
     if (roleScreen_(u.Role) !== 'doctor' || !str_(u.Name)) return;
     const acc = str_(u.Name);
     out[acc] = acc;
-    const explicit = str_(u.DoctorName);
-    let matches;
-    if (explicit) {
-      matches = all.filter(function (n) { return n === explicit || doctorKey_(n) === doctorKey_(explicit); });
-      if (!matches.length) matches = [explicit];
-    } else {
-      const key = doctorKey_(acc);
-      const compact = function (x) { return x.replace(/\s+/g, '').replace(/^(al)/, ''); };
-      matches = all.filter(function (n) { return doctorKey_(n) === key || compact(doctorKey_(n)) === compact(key); });
-      if (!matches.length && key) {
-        const toks = key.split(' ');
-        const fuzzy = all.filter(function (n) {
-          const nt = doctorKey_(n).split(' ');
-          const joined = nt.join('');
-          // كل مقاطع اسم الحساب موجودة في اسم الطبيب، أو الاسم الملتصق جزء من اسم الطبيب بدون مسافات
-          return toks.every(function (t) { return nt.indexOf(t) !== -1; }) ||
-            (toks.length === 1 && t0len_(toks[0]) && joined.replace(/al/g, '').indexOf(toks[0].replace(/al/g, '')) !== -1);
-        });
-        if (fuzzy.length === 1) matches = fuzzy;
-      }
-    }
-    matches.forEach(function (n) { if (!out[n]) out[n] = acc; });
+    doctorMatches_(acc, str_(u.DoctorName), all).forEach(function (n) { if (!out[n]) out[n] = acc; });
   });
   MEMO_.docAcc = out;
   return out;
+}
+
+/** كل أسماء الأطباء المعروفة: تبويب Doctors + الأسماء في الطلبات */
+function doctorNameList_() {
+  const names = {};
+  read_('Doctors').rows.forEach(function (r) { if (str_(r.DoctorName)) names[str_(r.DoctorName)] = true; });
+  requestRows_().forEach(function (r) { if (str_(r.Doctor)) names[str_(r.Doctor)] = true; });
+  return Object.keys(names);
+}
+
+/**
+ * أسماء الأطباء التي يرتبط بها حساب: الاسم المحدد صراحةً (DoctorName)، وإلا تطابق اسم الحساب.
+ * «Dr.MohammedG» ← «Dr. Mohammed Al-Ghamdi»: حرف واحد في اسم الحساب = أول حرف من اسم العائلة (عند تطابق واحد فقط).
+ */
+function doctorMatches_(acc, explicit, all) {
+  if (explicit) {
+    const m = all.filter(function (n) { return n === explicit || doctorKey_(n) === doctorKey_(explicit); });
+    return m.length ? m : [explicit];
+  }
+  const key = doctorKey_(acc);
+  if (!key) return [];
+  const compact = function (x) { return x.replace(/\s+/g, '').replace(/^(al)/, ''); };
+  const exact = all.filter(function (n) { return doctorKey_(n) === key || compact(doctorKey_(n)) === compact(key); });
+  if (exact.length) return exact;
+  const toks = key.split(' ');
+  const fuzzy = all.filter(function (n) {
+    const nt = doctorKey_(n).split(' ');
+    const joined = nt.join('');
+    const words = nt.filter(function (w) { return w !== 'al' && w !== 'el'; }).map(function (w) { return w.replace(/^al(?=.{3})/, ''); });
+    // كل مقاطع اسم الحساب موجودة في اسم الطبيب (الحرف المفرد = بداية كلمة بعد الاسم الأول)،
+    // أو الاسم الملتصق جزء من اسم الطبيب بدون مسافات
+    return toks.every(function (t, i) {
+      if (t.length === 1 && i > 0) return words.slice(1).some(function (w) { return w.charAt(0) === t; });
+      return nt.indexOf(t) !== -1;
+    }) || (toks.length === 1 && t0len_(toks[0]) && joined.replace(/al/g, '').indexOf(toks[0].replace(/al/g, '')) !== -1);
+  });
+  return fuzzy.length === 1 ? fuzzy : [];
+}
+
+/** معاينة الربط في شاشة المستخدمين قبل الحفظ */
+function previewDoctorLink_(user, name, explicit) {
+  return doctorMatches_(str_(name), str_(explicit), doctorNameList_());
+}
+
+/** حساب الطبيب يجب أن يرتبط باسم طبيب — وإلا لن تصله طلباته (تذهب للتموين مباشرة) */
+function requireDoctorLink_(name, fields) {
+  if (roleScreen_(fields.role) !== 'doctor') return;
+  const all = doctorNameList_();
+  if (all.length && !doctorMatches_(name, fields.doctorName, all).length) throw new Error('ERR_DOCTOR_LINK');
 }
 
 /** هل هذا الطبيب (باسمه في الطلب) هو صاحب الحساب المسجّل؟ */
@@ -3975,6 +4026,7 @@ function getRequestDetail_(user, requestId) {
   itemNotes_(requestId).forEach(function (n) { (noteMap[n.item] = noteMap[n.item] || []).push(n); });
   const st = shipState_(req, itemsOf_(requestId));
   req.shipments = st.ships;
+  Object.assign(req, arrivalOf_(req.id, st.ships));
   const names = itemNameStates_();
   req.items = st.items.map(function (it) {
     it.notes = noteMap[it.item] || [];
@@ -4387,8 +4439,8 @@ function getStatsReport_(user, opts) {
         if (!who || charged_(docCharge[who], ctype[k])) billValue += v; // حسبة الطبيب: ما لا يُحسب عليه لا يدخل حسابه
         if (who && v && charged_(docCharge[who], ctype[k])) {
           const db = byDocBranch[who] || (byDocBranch[who] = {});
-          const cell = db[r.branch || '—'] || (db[r.branch || '—'] = { consumable: 0, material: 0 });
-          const tk = ctype[k] === ITEM_TYPES_[1] ? 'material' : 'consumable';
+          const cell = db[r.branch || '—'] || (db[r.branch || '—'] = { consumable: 0, material: 0, tools: 0 });
+          const tk = ctype[k] === ITEM_TYPES_[1] ? 'material' : ctype[k] === ITEM_TYPES_[2] ? 'tools' : 'consumable';
           cell[tk] = round2_(cell[tk] + v);
         }
         items[k] = items[k] || { item: n, qty: 0, value: 0, requests: 0 };
@@ -4444,14 +4496,15 @@ function docBranches_(m, docCharge) {
   Object.keys(m).forEach(function (d) { Object.keys(m[d]).forEach(function (b) { if (branches.indexOf(b) === -1) branches.push(b); }); });
   branches.sort();
   const rows = Object.keys(m).map(function (d) {
-    const row = { name: d, charge: docCharge[d] || 'all', cells: {}, consumable: 0, material: 0, total: 0 };
+    const row = { name: d, charge: docCharge[d] || 'all', cells: {}, consumable: 0, material: 0, tools: 0, total: 0 };
     branches.forEach(function (b) {
       const c = m[d][b];
       if (!c) return;
-      row.cells[b] = { consumable: c.consumable, material: c.material, total: round2_(c.consumable + c.material) };
-      row.consumable = round2_(row.consumable + c.consumable); row.material = round2_(row.material + c.material);
+      const tl = c.tools || 0;
+      row.cells[b] = { consumable: c.consumable, material: c.material, tools: tl, total: round2_(c.consumable + c.material + tl) };
+      row.consumable = round2_(row.consumable + c.consumable); row.material = round2_(row.material + c.material); row.tools = round2_(row.tools + tl);
     });
-    row.total = round2_(row.consumable + row.material);
+    row.total = round2_(row.consumable + row.material + row.tools);
     return row;
   }).sort(function (a, b) { return b.total - a.total || (a.name < b.name ? -1 : 1); });
   return { branches: branches, rows: rows };
@@ -4885,6 +4938,7 @@ function createUser_(user, u) {
   const fields = { role: str_(u.role), clinic: clean_(u.clinic, 500), email: str_(u.email), doctorName: clean_(u.doctorName, 120), department: normDept_(u.department), branch: validBranch_(u.branch), priceView: parsePriceView_(u.priceView) };
   validateUserFields_(fields);
   if (getUsers_().some(function (x) { return loginKey_(x.name) === loginKey_(name); })) throw new Error('ERR_USER_EXISTS');
+  requireDoctorLink_(name, fields);
   append_('Users', { Name: name, Password: hashPassword_(latinDigits_(password).trim()), Role: fields.role, Clinic: fields.clinic, Email: fields.email,
     DoctorName: roleScreen_(fields.role) === 'doctor' ? fields.doctorName : '', Department: fields.department, Branch: fields.branch,
     PriceView: PRICE_GATED_.indexOf(roleScreen_(fields.role)) !== -1 && fields.priceView ? PRICE_VIEW_LABEL_[fields.priceView] : '' });
@@ -4906,6 +4960,7 @@ function updateUser_(user, name, u) {
   if (roleScreen_(row.Role) === 'admin' && roleScreen_(fields.role) !== 'admin' && countAdmins_(str_(name)) === 0) {
     throw new Error('ERR_LAST_ADMIN');
   }
+  requireDoctorLink_(str_(name), fields);
   const upd = { Role: fields.role, Clinic: fields.clinic, Email: fields.email, DoctorName: roleScreen_(fields.role) === 'doctor' ? fields.doctorName : '', Department: fields.department, Branch: fields.branch,
     PriceView: PRICE_GATED_.indexOf(roleScreen_(fields.role)) !== -1 && fields.priceView ? PRICE_VIEW_LABEL_[fields.priceView] : '' };
   if (u.password) {
@@ -5106,6 +5161,17 @@ function syncAliases_(user, target, aliases) {
 }
 
 /** حذف صنف: يُمنع إن كان في طلب مفتوح لم يُرسل أو عهدة قائمة؛ أسماؤه البديلة تُحذف معه */
+/** حذف عدة أصناف دفعة واحدة: كل صنف يُفحص وحده (صنف مستخدم في طلب مفتوح أو عهدة يبقى ويُذكر سببه) */
+function deleteCatalogItems_(user, names) {
+  names = (Array.isArray(names) ? names : []).map(str_).filter(String).slice(0, 500);
+  if (!names.length) throw new Error('ERR_REQUIRED');
+  const deleted = [], failed = [];
+  names.forEach(function (n) {
+    try { deleteCatalogItem_(user, n); deleted.push(n); } catch (e) { failed.push({ name: n, error: String((e && e.message) || e) }); }
+  });
+  return { deleted: deleted, failed: failed };
+}
+
 function deleteCatalogItem_(user, name) {
   name = str_(name);
   if (!name) throw new Error('ERR_REQUIRED');

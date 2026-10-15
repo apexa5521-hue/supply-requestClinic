@@ -56,6 +56,10 @@ const I18N = {
     confirm_receive: 'تأكيد الاستلام', received_ok: 'تم تأكيد استلام {id}', receiver_required: 'اسم المستلم إلزامي',
     cancel: 'إلغاء', close: 'إغلاق', save: 'حفظ', delete: 'حذف', edit: 'تعديل', send: 'إرسال', confirm: 'تأكيد', back: 'رجوع',
     select_all: 'تحديد الكل', selected: 'محدد', clear_selection: 'إلغاء التحديد',
+    free_type_tools: 'أدوات', db_tools: 'أدوات', ca_del_sel: 'حذف المحدد ({n})', ca_del_many_q: 'حذف {n} صنف من الكتالوج نهائياً؟', ca_del_many_ok: 'حُذف {n} صنف', ca_del_many_fail: 'لم يُحذف {n}: {list}',
+    step_arrived: 'وصل الفرع', grp_deliver: 'بانتظار التوصيل', grp_await_receipt: 'وصل · بانتظار الاستلام', grp_signed: 'استُلم بالتوقيع',
+    drv_scan_hint: 'للتسليم: امسح الباركود (QR) على البوكس نفسه بكاميرا الجوال', drv_locked: 'تم التسليم', drv_locked_sub: 'هذا البوكس سُلِّم مسبقاً ولا توجد عليه مهمة توصيل الآن', drv_last: 'آخر تسليم: {p} · {t} · {d}', ERR_BOX_DELIVERED: 'تم التسليم مسبقاً — لا توجد مهمة توصيل لهذا البوكس الآن',
+    link_will: 'سيرتبط بـ: {n}', link_none: 'لا يوجد طبيب يطابق اسم الحساب — اختر الطبيب من القائمة', link_grp_free: 'أطباء بلا حساب', link_grp_taken: 'مرتبطون بحسابات أخرى', ERR_DOCTOR_LINK: 'حساب الطبيب لازم يرتبط بطبيب — اختر اسمه من «الطبيب المرتبط بالحساب»',
     rej_add: 'رفض الصنف', rej_title: 'رفض صنف من الطلب', rej_note: 'سبب الرفض — يظهر للطبيب والممرضة', rej_note_ph: 'مثال: غير متوفر لدى المورد، موقوف، مكرر في طلب آخر…', rej_go: 'رفض الصنف', rej_done: 'رُفض الصنف وأُبلغ الطبيب والممرضة بالسبب', rej_undo: 'إعادة الصنف', rej_undone: 'أُعيد الصنف للطلب', rej_tag: 'رفضه التموين', rej_hint: 'لن يُرسل هذا الصنف (أو ما تبقى منه). يمكنك إعادته لاحقاً ما دام الطلب لم يُرسل كاملاً.', ERR_ITEM_REJECTED: 'هذا الصنف مرفوض من التموين — أعده أولاً', ERR_ALL_REJECTED: 'لا يمكن رفض كل أصناف الطلب — ألغِ الطلب كاملاً بدلاً من ذلك (مع السبب)',
     xl_export: 'تصدير Excel', xl_title: 'تصدير الأصناف إلى Excel', xl_sub: 'صف لكل صنف — حسب الفلاتر الحالية (الطبيب، العيادة، الفرع، المرحلة، البحث)', xl_from: 'من تاريخ', xl_to: 'إلى تاريخ', xl_count: 'سيُصدَّر {n} طلب', xl_go: 'تصدير', xl_none: 'لا توجد طلبات في هذه المدة بالفلاتر الحالية', xl_done: 'تم تصدير {n} صنف', xl_item: 'اسم الصنف', xl_type: 'نوع الطلب', xl_status: 'حالة الطلب', xl_doctor: 'الطبيب', xl_nurse: 'الممرضة', xl_branch: 'الفرع للتسليم', xl_clinic: 'العيادة', xl_req: 'رقم الطلب', xl_date: 'تاريخ الطلب', xl_req_qty: 'الكمية المطلوبة', xl_ok_qty: 'الكمية المعتمدة', xl_sent_qty: 'الكمية المرسلة', xl_sub_of: 'بديل عن', xl_sheet: 'الأصناف',
     act_prep: 'قيد التجهيز', act_vendor_wait: 'بانتظار المندوب', act_vendor_recv: 'استلم المندوب', act_review: 'إعادة لمراجعة الطبيب', act_send: 'إرسال للفرع',
@@ -159,6 +163,10 @@ const I18N = {
     confirm_receive: 'Confirm receipt', received_ok: 'Receipt of {id} confirmed', receiver_required: 'Receiver name is required',
     cancel: 'Cancel', close: 'Close', save: 'Save', delete: 'Delete', edit: 'Edit', send: 'Send', confirm: 'Confirm', back: 'Back',
     select_all: 'Select all', selected: 'selected', clear_selection: 'Clear',
+    free_type_tools: 'Tools', db_tools: 'Tools', ca_del_sel: 'Delete selected ({n})', ca_del_many_q: 'Delete {n} item(s) from the catalog for good?', ca_del_many_ok: '{n} item(s) deleted', ca_del_many_fail: 'Not deleted ({n}): {list}',
+    step_arrived: 'At branch', grp_deliver: 'Awaiting delivery', grp_await_receipt: 'Arrived · awaiting receipt', grp_signed: 'Received & signed',
+    drv_scan_hint: 'To deliver: scan the QR code on the box itself with your phone camera', drv_locked: 'Delivered', drv_locked_sub: 'This box was already delivered and has no delivery task now', drv_last: 'Last delivery: {p} · {t} · {d}', ERR_BOX_DELIVERED: 'Already delivered — this box has no delivery task now',
+    link_will: 'Will link to: {n}', link_none: 'No doctor matches this account name — pick the doctor from the list', link_grp_free: 'Doctors without an account', link_grp_taken: 'Linked to other accounts', ERR_DOCTOR_LINK: 'A doctor account must be linked to a doctor — pick the name in “Linked doctor”',
     rej_add: 'Reject item', rej_title: 'Reject an item from the request', rej_note: 'Reason — shown to the doctor and the nurse', rej_note_ph: 'e.g. not available from the supplier, discontinued, duplicated…', rej_go: 'Reject item', rej_done: 'Item rejected — doctor and nurse were told why', rej_undo: 'Restore item', rej_undone: 'Item restored to the request', rej_tag: 'Rejected by procurement', rej_hint: 'This item (or what is left of it) will not be sent. You can restore it while the request is not fully sent.', ERR_ITEM_REJECTED: 'This item was rejected by procurement — restore it first', ERR_ALL_REJECTED: 'You cannot reject every item — cancel the whole request instead (with a reason)',
     xl_export: 'Export Excel', xl_title: 'Export items to Excel', xl_sub: 'One row per item — uses the current filters (doctor, clinic, branch, stage, search)', xl_from: 'From', xl_to: 'To', xl_count: '{n} request(s) will be exported', xl_go: 'Export', xl_none: 'No requests in this period with the current filters', xl_done: '{n} item(s) exported', xl_item: 'Item', xl_type: 'Request type', xl_status: 'Request status', xl_doctor: 'Doctor', xl_nurse: 'Nurse', xl_branch: 'Delivery branch', xl_clinic: 'Clinic', xl_req: 'Request #', xl_date: 'Request date', xl_req_qty: 'Requested qty', xl_ok_qty: 'Approved qty', xl_sent_qty: 'Sent qty', xl_sub_of: 'Substitute for', xl_sheet: 'Items',
     act_prep: 'In progress', act_vendor_wait: 'Awaiting vendor', act_vendor_recv: 'Vendor received', act_review: 'Back to doctor review', act_send: 'Dispatch',
@@ -226,6 +234,7 @@ Object.assign(I18N.en, {
 /* صفحة السواق فقط: بنغالي وهندي (أي نص آخر يرجع للإنجليزي) */
 const DRV_LANGS = [['ar', 'عربي'], ['en', 'English'], ['bn', 'বাংলা'], ['hi', 'हिन्दी']];
 I18N.bn = {
+  drv_scan_hint: 'ডেলিভারির জন্য: ফোনের ক্যামেরা দিয়ে বক্সের উপরের QR কোড স্ক্যান করুন', drv_locked: 'ডেলিভারি সম্পন্ন', drv_locked_sub: 'এই বক্সটি আগেই ডেলিভারি হয়েছে, এখন কোনো ডেলিভারি কাজ নেই', drv_last: 'শেষ ডেলিভারি: {p} · {t} · {d}', ERR_BOX_DELIVERED: 'আগেই ডেলিভারি হয়েছে — এখন এই বক্সের কোনো কাজ নেই',
   drv_where: 'বক্সটি কোথায় পৌঁছে দিয়েছেন?', drv_photo: 'বক্সের ছবি', drv_photo_tap: 'বক্সের ছবি তুলতে চাপুন', drv_photo_req: 'আগে বক্সের ছবি তুলুন',
   drv_name: 'আপনার নাম', drv_deliver: 'ডেলিভারি সম্পন্ন', drv_done: '{p}-এ ডেলিভারি সম্পন্ন হয়েছে', drv_bad_link: 'লিংকটি সঠিক নয় — স্টিকারটি আবার স্ক্যান করুন',
   drv_tasks: 'চালানসমূহ', drv_no_tasks: 'এখন সরানোর মতো কোনো বক্স নেই', drv_from_to: '{a} থেকে {b}', drv_open: 'খুলুন', drv_back: 'ফিরে যান',
@@ -235,6 +244,7 @@ I18N.bn = {
   ERR_NETWORK: 'সার্ভারে সংযোগ করা যায়নি — আবার চেষ্টা করুন'
 };
 I18N.hi = {
+  drv_scan_hint: 'डिलीवरी के लिए: फ़ोन कैमरे से बॉक्स पर लगा QR कोड स्कैन करें', drv_locked: 'डिलीवरी हो चुकी', drv_locked_sub: 'यह बॉक्स पहले ही डिलीवर हो चुका है, अभी कोई डिलीवरी काम नहीं है', drv_last: 'आख़िरी डिलीवरी: {p} · {t} · {d}', ERR_BOX_DELIVERED: 'पहले ही डिलीवर हो चुका — अभी इस बॉक्स का कोई काम नहीं है',
   drv_where: 'बॉक्स कहाँ पहुँचाया?', drv_photo: 'बॉक्स की फ़ोटो', drv_photo_tap: 'बॉक्स की फ़ोटो लेने के लिए दबाएँ', drv_photo_req: 'पहले बॉक्स की फ़ोटो लें',
   drv_name: 'आपका नाम', drv_deliver: 'डिलीवरी पूरी हुई', drv_done: '{p} पर डिलीवरी पूरी हुई', drv_bad_link: 'लिंक सही नहीं है — स्टिकर फिर से स्कैन करें',
   drv_tasks: 'शिपमेंट', drv_no_tasks: 'अभी कोई बॉक्स ले जाना नहीं है', drv_from_to: '{a} से {b}', drv_open: 'खोलें', drv_back: 'वापस',
@@ -1637,14 +1647,18 @@ window.addEventListener('resize', debounce(() => { $$('.segmented').forEach(plac
    Request detail (shared by all roles)
    ===================================================================== */
 function stepperHtml(r) {
-  const cur = stMeta(r.status).step;
+  // خطوة «وصل الفرع» بين الإرسال والاستلام: تكتمل لحظة تسليم السواق للبوكس في الفرع
+  let cur = stMeta(r.status).step;
+  // بعد الوصول تكون الخطوة الحالية «الاستلام» (وصل الفرع مكتملة)
+  if (cur >= 5 || (cur === 4 && r.arrivedAt)) cur = 6;
   const rejected = r.status === ST.REJECTED;
   const steps = [
     { k: 'step_submitted', ic: 'clipboard', at: r.submittedAt },
     { k: 'step_review', ic: 'steth', at: r.reviewAt },
     { k: 'step_approved', ic: rejected ? 'x' : 'check', at: rejected ? r.reviewedAt : (r.approvedAt || (r.status === ST.APPROVED ? r.reviewedAt : '')) },
     { k: 'step_prep', ic: 'package', at: r.prepAt },
-    { k: 'step_sent', ic: 'truck', at: r.sentAt },
+    { k: 'step_sent', ic: 'truck', at: r.sentAt || r.lastShipAt },
+    { k: 'step_arrived', ic: 'pin', at: r.arrivedAt },
     { k: 'step_received', ic: 'pen', at: r.receivedAt }
   ];
   return '<div class="stepper">' + steps.map((s, i) => {
@@ -2359,6 +2373,7 @@ const NURSE_GROUPS = [
   { id: 'all', k: 'grp_all' },
   { id: 'active', k: 'grp_active', statuses: [ST.NEW, ST.PREP, ST.VENDOR_WAIT, ST.VENDOR_RECV, ST.REVIEW, ST.APPROVED], tone: 'var(--t-amber)' },
   { id: 'to_receive', k: 'grp_to_receive', test: r => r.pendingShipments > 0, tone: 'var(--t-indigo)' },
+  { id: 'deliver', k: 'grp_deliver', test: r => !!r.awaitingDelivery, tone: 'var(--t-indigo)' },
   { id: 'arrived', k: 'grp_arrived', test: r => !!r.atBranch, tone: ARRIVED_TONE },
   { id: 'received', k: 'st_received', statuses: [ST.RECEIVED], tone: 'var(--t-green)' },
   { id: 'rejected', k: 'st_rejected', statuses: [ST.REJECTED], tone: 'var(--t-red)' },
@@ -2693,8 +2708,10 @@ const PROC_GROUPS = [
   { id: 'prep', k: 'grp_prep', statuses: [ST.PREP, ST.VENDOR_WAIT, ST.VENDOR_RECV], tone: 'var(--t-amber)' },
   { id: 'partial', k: 'grp_partial', test: r => r.sentQty > 0 && r.remainingQty > 0, tone: 'var(--t-orange)' },
   { id: 'sent', k: 'st_sent', statuses: [ST.SENT], tone: 'var(--t-indigo)' },
-  { id: 'arrived', k: 'grp_arrived', test: r => !!r.atBranch, tone: ARRIVED_TONE },
-  { id: 'received', k: 'st_received', statuses: [ST.RECEIVED], tone: 'var(--t-green)' },
+  // المرحلة الأخيرة: أُرسل ← بانتظار السواق ← وصل الفرع بانتظار الممرضة ← استُلم بالتوقيع
+  { id: 'deliver', k: 'grp_deliver', test: r => !!r.awaitingDelivery, tone: 'var(--t-indigo)' },
+  { id: 'arrived', k: 'grp_await_receipt', test: r => !!r.atBranch, tone: ARRIVED_TONE },
+  { id: 'received', k: 'grp_signed', statuses: [ST.RECEIVED], tone: 'var(--t-green)' },
   { id: 'rejected', k: 'st_rejected', statuses: [ST.REJECTED], tone: 'var(--t-red)' },
   { id: 'cancelled', k: 'st_cancelled', statuses: [ST.CANCELLED], tone: 'var(--t-gray)' }
 ];
@@ -3784,7 +3801,7 @@ function renderFreeItems() {
   if (!S.free.length) { box.innerHTML = emptyState('checkc', t('fi_empty'), t('fi_empty_sub')); fiSyncBtn(); return; }
   box.innerHTML = S.free.map(f =>
     '<div class="sub-row fi-row"><input type="checkbox" class="fi-pick" data-name="' + esc(f.name) + '"' + (sel.indexOf(f.name) !== -1 ? ' checked' : '') + ' aria-label="' + esc(f.name) + '">' +
-      '<div class="grow"><div><b class="alias-nm">' + esc(f.name) + '</b> <span class="tag">' + esc(f.type === 'ماتيريال' ? t('free_type_mat') : t('free_type_cons')) + '</span> ' + deptTag(f.dept) + '</div>' +
+      '<div class="grow"><div><b class="alias-nm">' + esc(f.name) + '</b> <span class="tag">' + esc(caTypeLabel(f.type)) + '</span> ' + deptTag(f.dept) + '</div>' +
       '<div class="hint">' + esc(t('fi_by', { n: f.by || '—' })) + (f.at ? ' · ' + esc(relTime(f.at)) : '') + ' · ' + esc(t('fi_used', { r: f.requests.length, q: fmtNum(f.qty, 0) })) + '</div>' +
       (f.requests.length ? '<div class="row-wrap" style="gap:4px;margin-top:4px">' + f.requests.slice(0, 6).map(id => '<button class="btn btn-ghost btn-sm mono" data-act="detail" data-id="' + esc(id) + '" style="min-height:24px;padding:1px 7px">' + esc(id) + '</button>').join('') + '</div>' : '') + '</div>' +
       '<div class="row-wrap"><button class="btn btn-sm btn-tone" style="--tone:var(--t-green)" data-act="fiApprove" data-name="' + esc(f.name) + '">' + icon('edit', 'i-sm') + esc(t('fi_edit')) + '</button>' +
@@ -3862,7 +3879,7 @@ ACT.fiApprove = el => {
 /* =====================================================================
    CATALOG ADMIN (procurement + admin): إضافة الأصناف وتعديلها وحذفها وتصنيفها من الموقع
    ===================================================================== */
-const CA = { data: null, q: '', cat: '' };
+const CA = { data: null, q: '', cat: '', sel: new Set() };
 function refreshCatalog() { call('getConfig').then(c => { if (c && c.catalog) S.catalog = c.catalog; }).catch(() => {}); }
 function loadCatalogAdmin(silent) {
   return call('getCatalogAdmin').then(d => { CA.data = d; renderCatalogAdmin(); }).catch(e => { if (!silent) toast(errMsg(e), 'error'); });
@@ -3873,6 +3890,7 @@ VIEWS.catalog = {
     return '<section class="card"><div class="card-head row-wrap" style="gap:8px">' +
       '<div class="input-icon grow" style="min-width:180px">' + icon('search') + '<input class="input" id="caQ" placeholder="' + esc(t('ca_search')) + '" value="' + esc(CA.q) + '"></div>' +
       '<select class="input" id="caCat" style="max-width:200px"></select>' +
+      '<button class="btn btn-danger-soft btn-sm hidden" id="caDelSel" data-act="caDelSel">' + icon('trash', 'i-sm') + '<span></span></button>' +
       '<button class="btn btn-primary btn-sm" data-act="caEdit">' + icon('plus', 'i-sm') + esc(t('ca_add')) + '</button></div>' +
       '<div id="caList">' + (CA.data ? '' : skeletonList(4)) + '</div></section>';
   },
@@ -3883,18 +3901,23 @@ VIEWS.catalog = {
   },
   refresh() { loadCatalogAdmin(true); }
 };
-const caTypeLabel = ty => t(ty === 'ماتيريال' ? 'free_type_mat' : 'free_type_cons');
+const caTypeLabel = ty => t(ty === 'ماتيريال' ? 'free_type_mat' : ty === 'أدوات' ? 'free_type_tools' : 'free_type_cons');
 function renderCatalogAdmin() {
   const box = $('#caList'), sel = $('#caCat'); if (!box || !CA.data) return;
   const d = CA.data;
   sel.innerHTML = '<option value="">' + esc(t('ca_all_cats', { n: d.items.length })) + '</option>' + d.categories.map(c => '<option value="' + esc(c) + '"' + (c === CA.cat ? ' selected' : '') + '>' + esc(c) + ' (' + d.items.filter(i => i.category === c).length + ')</option>').join('');
   const list = d.items.filter(i => (!CA.cat || i.category === CA.cat) &&
     (!CA.q || [i.name, i.commercial, i.category].concat(i.aliases).join(' ').toLowerCase().indexOf(CA.q) !== -1));
+  // التحديد يبقى للأصناف الموجودة فقط (بعد الحذف أو إعادة التحميل)
+  const names = new Set(d.items.map(i => i.name));
+  CA.sel.forEach(n => { if (!names.has(n)) CA.sel.delete(n); });
+  caSelBtn();
   if (!list.length) { box.innerHTML = emptyState('package', t('no_match')); return; }
-  box.innerHTML = '<div class="table-wrap" style="max-height:620px;overflow:auto"><table class="table"><thead><tr><th>' + esc(t('items')) + '</th><th>' + esc(t('ca_category')) + '</th><th>' + esc(t('ca_type')) + '</th><th class="num">' + esc(t('fn_price')) + '</th><th></th></tr></thead><tbody>' +
+  const allOn = list.every(i => CA.sel.has(i.name));
+  box.innerHTML = '<div class="table-wrap" style="max-height:620px;overflow:auto"><table class="table"><thead><tr><th style="width:36px"><input type="checkbox" class="check" id="caAll" data-change="caSelAll"' + (allOn ? ' checked' : '') + ' aria-label="' + esc(t('select_all')) + '"></th><th>' + esc(t('items')) + '</th><th>' + esc(t('ca_category')) + '</th><th>' + esc(t('ca_type')) + '</th><th class="num">' + esc(t('fn_price')) + '</th><th></th></tr></thead><tbody>' +
     list.map(i => {
       const k = d.items.indexOf(i);
-      return '<tr><td><b>' + esc(i.name) + '</b> ' + deptTag(i.dept) + (i.asset ? ' <span class="tag">' + esc(t(i.serialized ? 'ca_asset_serial' : 'ca_asset')) + '</span>' : '') +
+      return '<tr' + (CA.sel.has(i.name) ? ' class="selected"' : '') + '><td><input type="checkbox" class="check" data-change="caSel" data-i="' + k + '"' + (CA.sel.has(i.name) ? ' checked' : '') + ' aria-label="' + esc(i.name) + '"></td><td><b>' + esc(i.name) + '</b> ' + deptTag(i.dept) + (i.asset ? ' <span class="tag">' + esc(t(i.serialized ? 'ca_asset_serial' : 'ca_asset')) + '</span>' : '') +
           (i.commercial ? '<div class="muted" style="font-size:12px">' + esc(i.commercial) + '</div>' : '') +
           (i.aliases.length ? '<div class="hint">' + i.aliases.map(a => '<span class="alias-nm">' + esc(a) + '</span>').join('، ') + '</div>' : '') + '</td>' +
         '<td>' + (i.category ? '<span class="tag">' + esc(i.category) + '</span>' : '<span class="muted">—</span>') + '</td>' +
@@ -3904,6 +3927,31 @@ function renderCatalogAdmin() {
           '<button class="btn btn-ghost btn-sm" data-act="caDel" data-i="' + k + '" aria-label="' + esc(t('delete')) + '">' + icon('trash', 'i-sm') + '</button></td></tr>';
     }).join('') + '</tbody></table></div>';
 }
+function caSelBtn() {
+  const b = $('#caDelSel'); if (!b) return;
+  b.classList.toggle('hidden', !CA.sel.size);
+  b.querySelector('span').textContent = t('ca_del_sel', { n: CA.sel.size });
+}
+ACT.caSel = el => { const it = CA.data.items[Number(el.dataset.i)]; if (!it) return; if (el.checked) CA.sel.add(it.name); else CA.sel.delete(it.name); el.closest('tr').classList.toggle('selected', el.checked); caSelBtn(); };
+ACT.caSelAll = el => {
+  // تحديد الكل = الأصناف الظاهرة حسب البحث والتصنيف
+  $$('#caList [data-change="caSel"]').forEach(c => { const it = CA.data.items[Number(c.dataset.i)]; c.checked = el.checked; c.closest('tr').classList.toggle('selected', el.checked); if (el.checked) CA.sel.add(it.name); else CA.sel.delete(it.name); });
+  caSelBtn();
+};
+ACT.caDelSel = el => {
+  const names = Array.from(CA.sel); if (!names.length) return;
+  confirmDialog(t('ca_del_many_q', { n: names.length }), { danger: true, ok: t('delete'), icon: 'trash' }).then(ok => {
+    if (!ok) return;
+    busy(el, true);
+    call('deleteCatalogItems', names).then(r => {
+      busy(el, false);
+      r.deleted.forEach(n => CA.sel.delete(n));
+      if (r.deleted.length) toast(t('ca_del_many_ok', { n: r.deleted.length }), 'success');
+      if (r.failed.length) toast(t('ca_del_many_fail', { n: r.failed.length, list: r.failed.map(f => f.name + ' — ' + errMsg(new Error(f.error))).join(' · ') }), 'warning', 9000);
+      loadCatalogAdmin(true); refreshCatalog();
+    }).catch(e => { busy(el, false); toast(errMsg(e), 'error'); });
+  });
+};
 ACT.caEdit = el => {
   const d = CA.data; if (!d) return;
   const it = el.dataset.i !== undefined ? d.items[Number(el.dataset.i)] : null;
@@ -4307,6 +4355,8 @@ const DOC_GROUPS = [
   { id: 'review', k: 'pending_review', test: r => !!r.awaitingDoctor, tone: 'var(--t-violet)', ic: 'clock' },
   { id: 'approved', k: 'approved_by_you', statuses: [ST.APPROVED, ST.PREP, ST.VENDOR_WAIT, ST.VENDOR_RECV], tone: 'var(--t-teal)', ic: 'checkc' },
   { id: 'sent', k: 'sent_to_branch', statuses: [ST.SENT], tone: 'var(--t-indigo)', ic: 'truck' },
+  { id: 'deliver', k: 'grp_deliver', test: r => !!r.awaitingDelivery, tone: 'var(--t-indigo)', ic: 'route' },
+  { id: 'arrived', k: 'grp_await_receipt', test: r => !!r.atBranch, tone: ARRIVED_TONE, ic: 'pin' },
   { id: 'received', k: 'received_k', statuses: [ST.RECEIVED], tone: 'var(--t-green)', ic: 'pen' },
   { id: 'rejected', k: 'rejected_k', statuses: [ST.REJECTED], tone: 'var(--t-red)', ic: 'xc' },
   { id: 'all', k: 'grp_all', tone: 'var(--t-gray)', ic: 'layers' }
@@ -5025,11 +5075,11 @@ function docBranchTable(db) {
   const cell = (r, b) => b === '*' ? r : (r.cells[b] || {});
   const sum = (b, k) => rows.reduce((x, r) => x + (Number(cell(r, b)[k]) || 0), 0);
   return '<div class="table-wrap" style="max-height:520px;overflow:auto"><table class="table rp-table db-table"><thead>' +
-    '<tr><th rowspan="2">' + esc(t('dl_doctor')) + '</th>' + groups.map(b => '<th colspan="3" class="db-grp' + (b === '*' ? ' db-all' : '') + '">' + esc(b === '*' ? t('db_all') : b) + '</th>').join('') + '</tr>' +
-    '<tr>' + groups.map(b => '<th class="num">' + esc(t('db_cons')) + '</th><th class="num">' + esc(t('db_mat')) + '</th><th class="num' + (b === '*' ? ' db-all' : '') + '">' + esc(t('rep_total')) + '</th>').join('') + '</tr></thead><tbody>' +
+    '<tr><th rowspan="2">' + esc(t('dl_doctor')) + '</th>' + groups.map(b => '<th colspan="4" class="db-grp' + (b === '*' ? ' db-all' : '') + '">' + esc(b === '*' ? t('db_all') : b) + '</th>').join('') + '</tr>' +
+    '<tr>' + groups.map(b => '<th class="num">' + esc(t('db_cons')) + '</th><th class="num">' + esc(t('db_mat')) + '</th><th class="num">' + esc(t('db_tools')) + '</th><th class="num' + (b === '*' ? ' db-all' : '') + '">' + esc(t('rep_total')) + '</th>').join('') + '</tr></thead><tbody>' +
     rows.map(r => '<tr><td><b>' + esc(r.name) + '</b>' + (r.charge && r.charge !== 'all' ? ' <span class="tag">' + esc(t('ch_' + r.charge)) + '</span>' : '') + '</td>' +
-      groups.map(b => { const c = cell(r, b); return '<td class="num">' + n(c.consumable) + '</td><td class="num">' + n(c.material) + '</td><td class="num' + (b === '*' ? ' db-all' : '') + '"><b>' + n(c.total) + '</b></td>'; }).join('') + '</tr>').join('') +
-    '</tbody><tfoot><tr><th>' + esc(t('rep_total')) + '</th>' + groups.map(b => '<th class="num">' + fmtNum(sum(b, 'consumable'), 2) + '</th><th class="num">' + fmtNum(sum(b, 'material'), 2) + '</th><th class="num' + (b === '*' ? ' db-all' : '') + '">' + fmtNum(sum(b, 'total'), 2) + '</th>').join('') + '</tr></tfoot></table></div>';
+      groups.map(b => { const c = cell(r, b); return '<td class="num">' + n(c.consumable) + '</td><td class="num">' + n(c.material) + '</td><td class="num">' + n(c.tools) + '</td><td class="num' + (b === '*' ? ' db-all' : '') + '"><b>' + n(c.total) + '</b></td>'; }).join('') + '</tr>').join('') +
+    '</tbody><tfoot><tr><th>' + esc(t('rep_total')) + '</th>' + groups.map(b => '<th class="num">' + fmtNum(sum(b, 'consumable'), 2) + '</th><th class="num">' + fmtNum(sum(b, 'material'), 2) + '</th><th class="num">' + fmtNum(sum(b, 'tools'), 2) + '</th><th class="num' + (b === '*' ? ' db-all' : '') + '">' + fmtNum(sum(b, 'total'), 2) + '</th>').join('') + '</tr></tfoot></table></div>';
 }
 ACT.fnDbQ = debounce(el => { FN.dbQ = el.value.trim(); const b = $('#fnDbBody'); if (b && FN.data) b.innerHTML = docBranchTable(FN.data.docBranches); }, 150);
 ACT.fnDbCsv = () => {
@@ -5037,8 +5087,8 @@ ACT.fnDbCsv = () => {
   const db = d.docBranches, q = v => '"' + String(v === null || v === undefined ? '' : v).replace(/"/g, '""') + '"';
   const groups = db.branches.concat(['*']), gl = b => b === '*' ? t('db_all') : b;
   const lines = [[t('db_title'), periodLabel(FN.range), d.branch || t('all_branches')].map(q).join(','), '',
-    [t('dl_doctor'), t('ch_label')].concat(...groups.map(b => [gl(b) + ' — ' + t('db_cons'), gl(b) + ' — ' + t('db_mat'), gl(b) + ' — ' + t('rep_total')])).map(q).join(',')];
-  db.rows.forEach(r => lines.push([r.name, t('ch_' + (r.charge || 'all'))].concat(...groups.map(b => { const c = b === '*' ? r : (r.cells[b] || {}); return [c.consumable || 0, c.material || 0, c.total || 0]; })).map(q).join(',')));
+    [t('dl_doctor'), t('ch_label')].concat(...groups.map(b => [gl(b) + ' — ' + t('db_cons'), gl(b) + ' — ' + t('db_mat'), gl(b) + ' — ' + t('db_tools'), gl(b) + ' — ' + t('rep_total')])).map(q).join(',')];
+  db.rows.forEach(r => lines.push([r.name, t('ch_' + (r.charge || 'all'))].concat(...groups.map(b => { const c = b === '*' ? r : (r.cells[b] || {}); return [c.consumable || 0, c.material || 0, c.tools || 0, c.total || 0]; })).map(q).join(',')));
   const blob = new Blob(['\ufeff' + lines.join('\r\n')], { type: 'text/csv;charset=utf-8' });
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob); a.download = 'doctor-spend-by-branch-' + (FN.range.from || 'all') + '_' + (FN.range.to || 'all') + '.csv';
@@ -6333,10 +6383,8 @@ function openUserModal(u) {
       '<div class="field hidden" id="uPvWrap"><label for="uPriceView">' + icon('cart', 'i-sm') + ' ' + esc(t('pv_label')) + ' <span class="hint">· ' + esc(t('pv_hint')) + '</span></label><select class="select" id="uPriceView">' +
         ['', 'all'].map(v => '<option value="' + v + '"' + ((u.priceView === 'all' ? 'all' : '') === v ? ' selected' : '') + '>' + esc(t('pv_' + (v || 'auto'))) + '</option>').join('') + '</select></div>' +
       '<div class="field hidden" id="uDocWrap"><label for="uDoctor">' + esc(t('linked_doctor')) + ' <span class="hint">· ' + esc(t('linked_doctor_hint')) + '</span></label>' +
-        '<select class="select" id="uDoctor"><option value="">' + esc(t('link_auto')) + '</option>' +
-        ((S.admin.docLinks && S.admin.docLinks.names) || []).concat(u.doctorName && !((S.admin.docLinks && S.admin.docLinks.names) || []).includes(u.doctorName) ? [u.doctorName] : [])
-          .map(n => '<option' + (n === u.doctorName ? ' selected' : '') + '>' + esc(n) + '</option>').join('') + '</select>' +
-        (editing && u.linked ? '<div class="hint">' + esc(u.linked.length ? t('linked_now', { n: u.linked.join('، ') }) : t('not_linked')) + '</div>' : '') + '</div>' +
+        '<select class="select" id="uDoctor"><option value="">' + esc(t('link_auto')) + '</option>' + doctorLinkOptions(u) + '</select>' +
+        '<div class="hint" id="uLinkPrev"></div></div>' +
       '<div class="field" id="uClinicWrap"><span class="label">' + esc(t('clinic')) + ' <span class="hint">· ' + esc(t('clinics_hint')) + '</span></span><div class="chips" style="flex-wrap:wrap" id="uClinics">' +
         clinicNames().map(n => '<button type="button" class="chip" data-v="' + esc(n) + '" aria-pressed="' + (clinicsSel.indexOf(n) !== -1) + '">' + esc(n) + '</button>').join('') + '</div></div>' +
       '<div class="field-error hidden" id="uErr">' + icon('alert', 'i-sm') + '<span></span></div>',
@@ -6351,8 +6399,24 @@ function openUserModal(u) {
     $('#uDeptWrap', m.el).classList.toggle('hidden', ['procurement', 'doctor'].indexOf(sc) === -1);
     $('#uBranchWrap', m.el).classList.toggle('hidden', (MGMT_SCREENS.indexOf(sc) === -1 && sc !== 'housekeeper') || sc === 'admin');
   };
+  // معاينة الربط مباشرة: لمن سيرتبط الحساب، أو تنبيه أحمر إن لم يطابق أي طبيب
+  let prevSeq = 0;
+  const linkPrev = () => {
+    const box = $('#uLinkPrev', m.el);
+    if (roleScreenOf($('#uRole', m.el).value) !== 'doctor') { box.innerHTML = ''; return; }
+    const nm = $('#uName', m.el).value.trim(), ex = $('#uDoctor', m.el).value, seq = ++prevSeq;
+    if (!nm && !ex) { box.innerHTML = ''; return; }
+    call('previewDoctorLink', nm, ex).then(list => {
+      if (seq !== prevSeq) return;
+      box.innerHTML = list.length ? '<span style="color:var(--t-green)">' + icon('link', 'i-sm') + ' ' + esc(t('link_will', { n: list.join('، ') })) + '</span>'
+        : '<span style="color:var(--t-red)">' + icon('alert', 'i-sm') + ' ' + esc(t('link_none')) + '</span>';
+    }).catch(() => {});
+  };
   toggleClinic();
-  $('#uRole', m.el).addEventListener('change', toggleClinic);
+  linkPrev();
+  $('#uRole', m.el).addEventListener('change', () => { toggleClinic(); linkPrev(); });
+  $('#uDoctor', m.el).addEventListener('change', linkPrev);
+  $('#uName', m.el).addEventListener('input', debounce(linkPrev, 300));
   $('#uClinics', m.el).addEventListener('click', e => { const b = e.target.closest('.chip'); if (b) b.setAttribute('aria-pressed', String(b.getAttribute('aria-pressed') !== 'true')); });
   const showErr = msg => { const er = $('#uErr', m.el); er.querySelector('span').textContent = msg; er.classList.remove('hidden'); };
   $('#uSave', m.el).addEventListener('click', e => {
@@ -6380,6 +6444,15 @@ function openUserModal(u) {
         .catch(err => { busy(b, false); showErr(errMsg(err)); });
     });
   });
+}
+/* قائمة الأطباء للربط: من بلا حساب أولاً، ثم المرتبطون بحسابات أخرى */
+function doctorLinkOptions(u) {
+  const l = S.admin.docLinks || { names: [], unlinked: [] };
+  const names = l.names.concat(u.doctorName && l.names.indexOf(u.doctorName) === -1 ? [u.doctorName] : []);
+  const opt = n => '<option' + (n === u.doctorName ? ' selected' : '') + '>' + esc(n) + '</option>';
+  const free = names.filter(n => l.unlinked.indexOf(n) !== -1 || n === u.doctorName), taken = names.filter(n => free.indexOf(n) === -1);
+  return (free.length ? '<optgroup label="' + esc(t('link_grp_free')) + '">' + free.map(opt).join('') + '</optgroup>' : '') +
+    (taken.length ? '<optgroup label="' + esc(t('link_grp_taken')) + '">' + taken.map(opt).join('') + '</optgroup>' : '');
 }
 ACT.userNew = () => openUserModal(null);
 ACT.userEdit = el => openUserModal(S.admin.users.find(u => u.name === el.dataset.name));
@@ -7014,6 +7087,15 @@ function showDriverBox(id, k, back) {
   DRV.render = () => showDriverBox(id, k, back);
   drvShell(skeletonList(1));
   drvCall('boxInfo', { box: id, k: k }).then(b => {
+    // سُلِّم مسبقاً ولا مهمة عليه الآن: صفحة مقفلة «تم التسليم» بدون أي زر تسليم
+    if (!b.pending) {
+      drvShell('<div class="drv-done drv-locked">' + icon('checkc') + '<h1>' + esc(t('drv_locked')) + '</h1>' +
+        '<div class="drv-head"><span class="drv-box mono">' + esc(b.id) + '</span><b>' + esc(b.owner) + '</b>' + branchTag(b.branch) + '</div>' +
+        '<div class="hint">' + esc(t('drv_locked_sub')) + '</div>' +
+        (b.last ? '<div class="hint">' + icon('pin', 'i-sm') + ' ' + esc(t('drv_last', { p: placeLabel(b.last.to), t: fmtDateTime(b.last.at), d: b.last.by })) + '</div>'
+          : '<div class="hint">' + icon('pin', 'i-sm') + ' ' + esc(t('bx_location')) + ': <b>' + esc(placeLabel(b.location)) + '</b></div>') + '</div>');
+      return;
+    }
     DRV.photo = ''; DRV.key = uid();
     // لا يمكن التسليم للمكان الموجود فيه البوكس أصلاً
     DRV.to = b.destination && b.destination !== b.location ? b.destination : (b.places.find(p => p !== b.location) || '');
@@ -7044,7 +7126,11 @@ function showDriverBox(id, k, back) {
         DRV.render = null;
         drvShell('<div class="drv-done">' + icon('checkc') + '<h1>' + esc(t('drv_done', { p: placeLabel(to) })) + '</h1><div class="hint">' + esc(b.id + ' · ' + b.owner + ' · ' + fmtDateTime(new Date())) + '</div>' +
           (back ? '<button class="btn btn-lg" data-act="drvBack">' + icon('route', 'i-sm') + esc(t('drv_tasks')) + '</button>' : '') + '</div>');
-      }).catch(er => { busy(btn, false); fail(errMsg(er)); });
+      }).catch(er => {
+        busy(btn, false);
+        if (errCode(er) === 'ERR_BOX_DELIVERED') return showDriverBox(id, k, back); // سلّمه جوال آخر للتو: الصفحة المقفلة
+        fail(errMsg(er));
+      });
     });
   }).catch(drvError);
 }
@@ -7058,10 +7144,11 @@ function showDriverTasks(tk) {
   try { cached = JSON.parse(localStorage.getItem(ck) || 'null'); } catch (e) { /* التخزين غير متاح */ }
   const draw = (list, stale) => drvShell('<div class="between"><h1 style="margin:0">' + icon('route') + ' ' + esc(t('drv_tasks')) + '</h1><button class="btn btn-soft btn-sm" data-act="drvTasks">' + icon('refresh', 'i-sm') + esc(t('drv_refresh')) + '</button></div>' +
       (stale ? '<div class="hint" style="color:var(--warning,#b45309)">' + icon('alert', 'i-sm') + ' ' + esc(t('drv_stale')) + '</div>' : '') +
-      (list.length ? '<div class="drv-tasks">' + list.map(x => '<button class="drv-task" data-act="drvOpen" data-id="' + esc(x.id) + '" data-k="' + esc(x.k) + '">' +
+      (list.length ? '<div class="hint drv-scan-hint">' + icon('qr', 'i-sm') + ' ' + esc(t('drv_scan_hint')) + '</div>' +
+        '<div class="drv-tasks">' + list.map(x => '<div class="drv-task">' +
         '<div class="between"><span class="drv-box mono">' + esc(x.id) + '</span>' + bxBadge(x.status) + '</div><b>' + esc(x.owner) + '</b>' + branchTag(x.branch) +
         '<span class="drv-route">' + icon('route', 'i-sm') + ' ' + esc(t('drv_from_to', { a: placeLabel(x.location), b: placeLabel(x.destination) })) + '</span>' +
-        '<span class="hint">' + (x.count ? esc(t('drv_loads', { n: x.count })) + ' · ' : '') + esc(relTime(x.since)) + '</span></button>').join('') + '</div>'
+        '<span class="hint">' + (x.count ? esc(t('drv_loads', { n: x.count })) + ' · ' : '') + esc(relTime(x.since)) + '</span></div>').join('') + '</div>'
         : emptyState('checkc', t('drv_no_tasks'))));
   if (cached && Array.isArray(cached.list)) draw(cached.list, false); else drvShell(skeletonList(2));
   drvCall('driverTasks', { k: tk }).then(list => {
@@ -7073,7 +7160,6 @@ function showDriverTasks(tk) {
     if (cached && Array.isArray(cached.list)) draw(cached.list, true); else drvError(e);
   });
 }
-ACT.drvOpen = el => showDriverBox(el.dataset.id, el.dataset.k, true);
 ACT.drvBack = () => showDriverTasks(DRV.tk);
 ACT.drvTasks = () => showDriverTasks(DRV.tk);
 

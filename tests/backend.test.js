@@ -1892,6 +1892,8 @@ test('boxes: dispatch loads the doctor box → driver scan delivers with photo �
   assert.deepEqual([box.id, box.owner, box.status, box.location, box.destination, box.loads.map(l => l.request + '#' + l.batch)],
     ['BOX-001', 'د. سعد', 'جاهز للنقل', 'التموين', 'جدة', [id + '#1']], 'doctor box created and loaded, destination = request branch');
   assert.ok(box.k.length >= 24 && bx.driverToken.length >= 24);
+  let lr = api(p, 'getRequests', {}).find(r => r.id === id);
+  assert.deepEqual([lr.awaitingDelivery, lr.atBranch, lr.arrivedAt], [true, false, ''], 'sent, waiting for the driver');
   // مهام السواق برابط سري
   throwsCode(() => api(null, 'driverTasks', { k: 'wrong' }), 'ERR_BAD_LINK');
   assert.deepEqual(api(null, 'driverTasks', { k: bx.driverToken }).map(x => [x.id, x.destination]), [['BOX-001', 'جدة']]);
@@ -1908,8 +1910,17 @@ test('boxes: dispatch loads the doctor box → driver scan delivers with photo �
   throwsCode(() => api(null, 'boxDeliver', Object.assign({}, d, { to: 'التموين' })), 'ERR_SAME_PLACE');
   const res = api(null, 'boxDeliver', d);
   assert.deepEqual([res.box.status, res.box.location], ['وصل الفرع', 'جدة']);
+  lr = api(p, 'getRequests', {}).find(r => r.id === id);
+  assert.deepEqual([lr.awaitingDelivery, lr.atBranch, !!lr.arrivedAt], [false, true, true], 'arrived at the branch, waiting for the nurse');
+  assert.ok(api(reem, 'getRequestDetail', id).arrivedAt, 'timeline gets the «at branch» time');
   assert.equal(api(null, 'boxDeliver', d).duplicate, true, 'double tap is ignored');
-  throwsCode(() => api(null, 'boxDeliver', Object.assign({}, d, { clientKey: 'dlv-000009' })), 'ERR_SAME_PLACE');
+  // نفس الباركود بعد التسليم: مقفل «تم التسليم» — لا تسليم ثانٍ لأي مكان حتى يُحمَّل البوكس أو يُطلب نقله
+  throwsCode(() => api(null, 'boxDeliver', Object.assign({}, d, { clientKey: 'dlv-000009' })), 'ERR_BOX_DELIVERED');
+  throwsCode(() => api(null, 'boxDeliver', Object.assign({}, d, { clientKey: 'dlv-000010', to: 'التموين' })), 'ERR_BOX_DELIVERED');
+  const used = api(null, 'boxInfo', { box: d.box, k: d.k });
+  assert.equal(used.pending, false);
+  assert.deepEqual([used.last.to, used.last.by], ['جدة', 'أبو فهد']);
+  assert.ok(api(null, 'driverTasks', { k: bx.driverToken }).every(x => x.k === undefined), 'task list never carries box keys');
   assert.equal(rows(gas, 'BoxMoves').filter(m => m.Action === 'تسليم').length, 1);
   // الممرضة: الطلب «وصل الفرع» + تنبيه + تعليق
   const mine = api(reem, 'getMyRequests').find(r => r.id === id);
@@ -2120,14 +2131,14 @@ test('finance: each doctor\'s spend per branch separately (consumable / material
   let db = api(f, 'getFinance', {}).docBranches;
   assert.deepEqual(db.branches, ['الرياض', 'جدة']);
   const nora = db.rows.find(r => r.name === 'د. نورة');
-  assert.deepEqual(nora.cells['الرياض'], { consumable: 120, material: 120, total: 240 });
-  assert.deepEqual(nora.cells['جدة'], { consumable: 60, material: 0, total: 60 });
+  assert.deepEqual(nora.cells['الرياض'], { consumable: 120, material: 120, tools: 0, total: 240 });
+  assert.deepEqual(nora.cells['جدة'], { consumable: 60, material: 0, tools: 0, total: 60 });
   assert.deepEqual([nora.consumable, nora.material, nora.total], [180, 120, 300], 'total across both branches');
   assert.ok(!db.rows.find(r => r.name === 'د. خالد').cells['جدة'], 'no spend in a branch he never ordered in');
   // charge setting: consumables only → materials drop out of the doctor's columns
   api(f, 'setDoctorCharge', 'د. نورة', 'consumable');
   db = api(f, 'getFinance', {}).docBranches;
-  assert.deepEqual(db.rows.find(r => r.name === 'د. نورة').cells['الرياض'], { consumable: 120, material: 0, total: 120 });
+  assert.deepEqual(db.rows.find(r => r.name === 'د. نورة').cells['الرياض'], { consumable: 120, material: 0, tools: 0, total: 120 });
   // branch filter
   assert.deepEqual(api(f, 'getFinance', { branch: 'جدة' }).docBranches.branches, ['جدة']);
 });
@@ -2573,6 +2584,17 @@ test('catalog admin: procurement adds, edits (rename follows open requests), cat
   // عهدة مصروفة: لا تُحذف
   api(p, 'issueAssets', { clinic: 'عيادة الأسنان 1', item: 'Curing Light', qty: 1 });
   throwsCode(() => api(p, 'deleteCatalogItem', 'Curing Light'), 'ERR_ITEM_IN_CUSTODY');
+  // تصنيف «أدوات» + حذف عدة أصناف دفعة واحدة (المستخدم في عهدة يبقى مع سببه)
+  assert.ok(api(p, 'getCatalogAdmin').types.includes('أدوات'));
+  api(p, 'saveCatalogItem', '', { name: 'Tweezers', category: 'Instruments', price: 15, type: 'أدوات' });
+  api(p, 'saveCatalogItem', '', { name: 'Mirror', category: 'Instruments', price: 8, type: 'أدوات' });
+  assert.equal(api(n, 'getConfig').catalog.find(c => c.name === 'Tweezers').type, 'أدوات');
+  const del = api(p, 'deleteCatalogItems', ['Tweezers', 'Mirror', 'Curing Light']);
+  assert.deepEqual(del.deleted, ['Tweezers', 'Mirror']);
+  assert.deepEqual(del.failed.map(f => f.name), ['Curing Light']);
+  assert.ok(/ERR_ITEM_IN_CUSTODY/.test(del.failed[0].error));
+  assert.ok(!dump().some(r => r.ItemName === 'Tweezers' || r.ItemName === 'Mirror'));
+  throwsCode(() => api(n, 'deleteCatalogItems', ['PROPHY PASTE']), 'ERR_FORBIDDEN');
 });
 
 test('doctors admin (admin only): add a doctor with a new login, edit specialty/clinics, rename, link an existing account, delete', () => {
@@ -2927,4 +2949,27 @@ test('procurement rejects one item with a reason the doctor and nurse see; resto
   api(p, 'rejectItems', id, ['DENTAL FLOSS'], 'موقوف');
   assert.equal(api(n, 'getMyRequests').find(r => r.id === id).status, 'تم الإرسال');
   throwsCode(() => api(p, 'rejectItems', id, ['DENTAL FLOSS'], '', true), 'ERR_NEEDS_APPROVAL');
+});
+
+test('doctor accounts must link to a doctor; "Dr.MohammedG" links by first name + family initial', () => {
+  const { api, login, gas } = boot();
+  gas.seed('Doctors', ['DoctorName', 'Clinic', 'NurseName', 'Subspecialty'], [
+    ['د. خالد', 'عيادة الأسنان 1', 'سارة', ''],
+    ['Dr. Mohammed Al-Ghamdi', 'عيادة الأسنان 1', 'سارة', ''],
+    ['Dr. Mohammed Al-Harthi', 'عيادة الأسنان 2', 'ريم', ''],
+    ['Dr. Sami Al-Duwaihi', 'عيادة الأسنان 2', 'ريم', '']
+  ]);
+  const a = login('المدير', '1234');
+  assert.deepEqual(api(a, 'previewDoctorLink', 'Dr.MohammedG', ''), ['Dr. Mohammed Al-Ghamdi']);
+  assert.deepEqual(api(a, 'previewDoctorLink', 'Dr.Mohammed', ''), [], 'two Mohammeds: no guess');
+  assert.deepEqual(api(a, 'previewDoctorLink', 'Dr.Sami', ''), ['Dr. Sami Al-Duwaihi']);
+  assert.deepEqual(api(a, 'previewDoctorLink', 'Dr.Mohammed', 'Dr. Mohammed Al-Harthi'), ['Dr. Mohammed Al-Harthi']);
+  throwsCode(() => api(a, 'createUser', { name: 'Dr.Mohammed', password: '1111', role: 'طبيب' }), 'ERR_DOCTOR_LINK');
+  api(a, 'createUser', { name: 'Dr.MohammedG', password: '1111', role: 'طبيب' });
+  assert.deepEqual(api(a, 'getUsers').find(u => u.name === 'Dr.MohammedG').linked, ['Dr. Mohammed Al-Ghamdi']);
+  api(a, 'createUser', { name: 'Dr.Mohammed', password: '1111', role: 'طبيب', doctorName: 'Dr. Mohammed Al-Harthi' });
+  assert.deepEqual(api(a, 'getUsers').find(u => u.name === 'Dr.Mohammed').linked, ['Dr. Mohammed Al-Harthi']);
+  throwsCode(() => api(a, 'updateUser', 'Dr.Mohammed', { role: 'طبيب', doctorName: '' }), 'ERR_DOCTOR_LINK');
+  // غير الأطباء لا يحتاجون ربطاً
+  api(a, 'createUser', { name: 'ممرضة جديدة', password: '1111', role: 'ممرضة', clinic: 'عيادة الأسنان 1' });
 });
