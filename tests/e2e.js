@@ -1107,6 +1107,19 @@ function log(msg) { console.log('  ✔ ' + msg); }
   await page.waitForTimeout(600);
   await shot(page, 'dashboard-dark', true);
   await page.click('.topbar [data-act="toggleTheme"]');
+  // توزيع الحالات قابل للضغط: يعرض كل طلبات الحالة، ورقم الطلب يفتح تفاصيله
+  await page.click('.sidebar [data-view="overview"]');
+  await page.waitForSelector('#dashDist .legend-btn');
+  const lgN = Number(await page.textContent('#dashDist .legend-btn >> nth=0 >> b'));
+  await page.click('#dashDist .legend-btn >> nth=0');
+  await page.waitForSelector('.modal tbody tr');
+  expect(await page.locator('.modal tbody tr').count() === lgN, 'clicking a status lists its ' + lgN + ' request(s)');
+  await shot(page, 'dashboard-status-list');
+  await page.click('.modal tbody tr >> nth=0 >> [data-act="detail"]');
+  await page.waitForSelector('.modal .stepper');
+  expect(true, 'a request in the status list opens its details');
+  await page.keyboard.press('Escape'); await page.waitForTimeout(250);
+  await page.keyboard.press('Escape'); await page.waitForTimeout(300);
   // التقارير والإحصائيات + تقرير طبيب من قائمة منسدلة
   await page.click('.sidebar [data-view="reports"]');
   // تم تحميلها مسبقاً في الخلفية بعد الدخول: تظهر فوراً بلا انتظار الخادم

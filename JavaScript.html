@@ -56,6 +56,7 @@ const I18N = {
     confirm_receive: 'تأكيد الاستلام', received_ok: 'تم تأكيد استلام {id}', receiver_required: 'اسم المستلم إلزامي',
     cancel: 'إلغاء', close: 'إغلاق', save: 'حفظ', delete: 'حذف', edit: 'تعديل', send: 'إرسال', confirm: 'تأكيد', back: 'رجوع',
     select_all: 'تحديد الكل', selected: 'محدد', clear_selection: 'إلغاء التحديد',
+    dash_status_hint: 'اضغط على أي حالة لعرض طلباتها', dash_status_n: '{n} طلب — اضغط رقم الطلب لفتح تفاصيله',
     link_new: '➕ طبيب جديد — أنشئه واربطه بالحساب', link_new_name: 'اسم الطبيب كما يظهر للممرضات', link_new_clinics: 'عيادات الطبيب (اختياري)', link_new_will: 'سيُضاف الطبيب «{n}» لقائمة الأطباء ويُربط بهذا الحساب',
     free_type_tools: 'أدوات', db_tools: 'أدوات', ca_del_sel: 'حذف المحدد ({n})', ca_del_many_q: 'حذف {n} صنف من الكتالوج نهائياً؟', ca_del_many_ok: 'حُذف {n} صنف', ca_del_many_fail: 'لم يُحذف {n}: {list}',
     step_arrived: 'وصل الفرع', grp_deliver: 'بانتظار التوصيل', grp_await_receipt: 'وصل · بانتظار الاستلام', grp_signed: 'استُلم بالتوقيع',
@@ -164,6 +165,7 @@ const I18N = {
     confirm_receive: 'Confirm receipt', received_ok: 'Receipt of {id} confirmed', receiver_required: 'Receiver name is required',
     cancel: 'Cancel', close: 'Close', save: 'Save', delete: 'Delete', edit: 'Edit', send: 'Send', confirm: 'Confirm', back: 'Back',
     select_all: 'Select all', selected: 'selected', clear_selection: 'Clear',
+    dash_status_hint: 'Click any status to list its requests', dash_status_n: '{n} request(s) — click a number to open it',
     link_new: '➕ New doctor — create and link to this account', link_new_name: 'Doctor name as nurses see it', link_new_clinics: 'Doctor clinics (optional)', link_new_will: 'Doctor «{n}» will be added to the doctors list and linked to this account',
     free_type_tools: 'Tools', db_tools: 'Tools', ca_del_sel: 'Delete selected ({n})', ca_del_many_q: 'Delete {n} item(s) from the catalog for good?', ca_del_many_ok: '{n} item(s) deleted', ca_del_many_fail: 'Not deleted ({n}): {list}',
     step_arrived: 'At branch', grp_deliver: 'Awaiting delivery', grp_await_receipt: 'Arrived · awaiting receipt', grp_signed: 'Received & signed',
@@ -4549,6 +4551,21 @@ VIEWS.overview = {
 };
 ACT.dashMonth = el => { S.dash.month = el.value; go('overview', true); };
 ACT.dashAll = () => { S.dash.month = ''; go('overview', true); };
+/* الضغط على حالة في «توزيع الحالات»: كل طلبات هذه الحالة (لنفس الشهر المختار) — والضغط على الطلب يفتح تفاصيله */
+ACT.dashStatus = el => {
+  const st = el.dataset.st, month = S.dash.month;
+  const m = openModal({ title: esc(statusLabel(st)), sub: esc(month ? monthLabel(month) : t('all_months')), icon: 'layers', size: 'lg', body: skeletonList(3) });
+  call('getRequests', Object.assign({ archive: true }, month ? { month: month } : {})).then(list => {
+    if (m.closing) return;
+    const rows = (list || []).filter(r => r.status === st).sort((a, b) => (toDate(b.date) || 0) - (toDate(a.date) || 0));
+    $('.modal-body', m.el).innerHTML = rows.length
+      ? '<div class="hint" style="margin-bottom:8px">' + esc(t('dash_status_n', { n: rows.length })) + '</div>' +
+        '<div class="table-wrap" style="max-height:60vh;overflow:auto"><table class="table"><thead><tr><th>#</th><th>' + esc(t('date')) + '</th><th>' + esc(t('branch')) + '</th><th>' + esc(t('clinic')) + '</th><th>' + esc(t('doctor')) + '</th><th>' + esc(t('xl_nurse')) + '</th><th>' + esc(t('type')) + '</th></tr></thead><tbody>' +
+        rows.map(r => '<tr><td><button class="btn btn-ghost btn-sm mono" data-act="detail" data-id="' + esc(r.id) + '" style="min-height:26px;padding:2px 6px">' + esc(r.id) + '</button>' + (r.atBranch ? ' ' + arrivedTag(r) : '') + '</td><td>' + esc(fmtDate(r.date)) + '</td><td>' + esc(r.branch || '—') + '</td><td>' + esc(r.clinic || '—') + '</td><td>' + esc(docLabel(r)) + '</td><td>' + esc(r.nurse || '—') + '</td><td>' + typeTag(r.type) + '</td></tr>').join('') +
+        '</tbody></table></div>'
+      : emptyState('search', t('no_match'));
+  }).catch(e => { if (!m.closing) $('.modal-body', m.el).innerHTML = emptyState('alert', errMsg(e)); });
+};
 function loadDash(silent) {
   const m = S.dash.month;
   // عرض فوري من آخر زيارة (إن وُجدت) ثم تحديث
@@ -4580,8 +4597,9 @@ function renderDash(silent) {
   const order = [ST.REVIEW, ST.APPROVED, ST.NEW, ST.PREP, ST.VENDOR_WAIT, ST.VENDOR_RECV, ST.SENT, ST.RECEIVED, ST.REJECTED];
   const present = order.filter(st => sc[st]);
   $('#dashDist').innerHTML = total
-    ? '<div class="stackbar">' + present.map(st => '<span style="--tone:' + stMeta(st).tone + '" data-w="' + (sc[st] / total * 100) + '%" title="' + esc(statusLabel(st)) + ': ' + sc[st] + '"></span>').join('') + '</div>' +
-      '<div class="legend">' + present.map(st => '<span style="--tone:' + stMeta(st).tone + '"><i></i>' + esc(statusLabel(st)) + ' <b>' + sc[st] + '</b></span>').join('') + '</div>'
+    ? '<div class="stackbar">' + present.map(st => '<span style="--tone:' + stMeta(st).tone + '" data-w="' + (sc[st] / total * 100) + '%" title="' + esc(statusLabel(st)) + ': ' + sc[st] + '" data-act="dashStatus" data-st="' + esc(st) + '" role="button"></span>').join('') + '</div>' +
+      '<div class="legend">' + present.map(st => '<button type="button" class="legend-btn" style="--tone:' + stMeta(st).tone + '" data-act="dashStatus" data-st="' + esc(st) + '"><i></i>' + esc(statusLabel(st)) + ' <b>' + sc[st] + '</b></button>').join('') + '</div>' +
+      '<div class="hint" style="margin-top:8px">' + icon('info', 'i-sm') + ' ' + esc(t('dash_status_hint')) + '</div>'
     : emptyState('chart', t('no_data'));
   animateBars($('#dashDist'));
 
