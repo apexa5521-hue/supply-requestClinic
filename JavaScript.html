@@ -1122,7 +1122,11 @@ function resetApp() {
   S.proc.list = []; S.proc.items = {}; S.proc.expanded.clear(); S.proc.selected.clear(); S.proc.archive = false;
   if (typeof AS !== 'undefined') { AS.cfg = null; AS.clinics = []; AS.tickets = []; AS.stats = null; AS.tab = 'tickets'; AS.group = 'new'; }
   S.nurse.mine = []; S.nurse.archive = false; S.nurse.draft = null; S.nurse.lab = null; clearTimeout(AUTO_SEND.timer); AUTO_SEND.tries = 0; AUTO_SEND.sending = false;
-  LAB.mine = []; LAB.doc = []; LAB.board = []; LAB.stats = null; LAB.cfg = null; LAB.loaded = {}; // المسودة محفوظة لكل مستخدم على حدة S.doc.list = []; S.doc.archive = false;
+  LAB.mine = []; LAB.doc = []; LAB.board = []; LAB.stats = null; LAB.cfg = null; LAB.loaded = {}; // المسودة محفوظة لكل مستخدم على حدة
+  S.doc.list = []; S.doc.archive = false;
+  // بيانات شاشات الإدارة والتموين (البوكسات برموز الـ QR، الأسعار، التقارير…) لا تنتقل للمستخدم التالي على نفس الجهاز
+  BX.data = null; CA.data = null; CA.sel.clear(); DA.data = null; SETT.data = null; MON.data = null; DL.data = null; DP.list = null; SV.data = null;
+  FN.data = null; FN.prices = null; RP.stats = null; RP.doc = null; RP.doctors = []; REP.data = null;
   Object.keys(SIGS).forEach(k => delete SIGS[k]); Object.keys(LIMITS).forEach(k => delete LIMITS[k]);
   session.clear(); RC.clear();
   clearPersistedRC();
@@ -1183,6 +1187,8 @@ const NAV = {
 /* شاشات الإدارة (جودة / تنفيذية / مالية / أدمن): القائمة تُبنى من صلاحيات الدور التي يحددها الأدمن */
 const MGMT_SCREENS = ['quality', 'executive', 'finance', 'dashboard', 'branch', 'admin'];
 const PERM_NAV = [
+  // الأدمن: تبويبات التموين التشغيلية أيضاً (لوحة الطلبات والأصناف الحرة)
+  { id: 'requests', icon: 'package', k: 'nav_requests', perm: [], screens: ['admin'] },
   { id: 'overview', icon: 'chart', k: 'nav_overview', perm: ['overview'] },
   { id: 'monitor', icon: 'clock', k: 'nav_monitor', perm: ['monitor'] },
   { id: 'doctorslive', icon: 'steth', k: 'nav_doctors_live', perm: ['doctors_live'] },
@@ -1199,6 +1205,7 @@ const PERM_NAV = [
   { id: 'rules', icon: 'calendar', k: 'nav_rules', perm: ['order_rules'], screens: ['finance', 'executive', 'quality', 'admin'] },
   { id: 'users', icon: 'users', k: 'nav_users', perm: ['users'] },
   { id: 'catalog', icon: 'tag', k: 'nav_catalog', perm: ['users'], screens: ['finance'] },
+  { id: 'freeitems', icon: 'edit', k: 'nav_free_items', perm: [], screens: ['admin'] },
   { id: 'docadmin', icon: 'steth', k: 'nav_doc_admin', perm: ['users'] },
   // الإعدادات (بدل الشيت): الأدمن كل شيء، والمالية آخر موعد للطلبات القديمة فقط
   { id: 'settings', icon: 'layers', k: 'nav_settings', perm: ['users'], screens: ['finance'] },
@@ -6943,7 +6950,7 @@ function boxBase() {
 const boxLink = b => boxBase() + '?box=' + encodeURIComponent(b.id) + '&k=' + encodeURIComponent(b.k);
 const driverLink = () => boxBase() + '?driver=' + encodeURIComponent((BX.data && BX.data.driverToken) || '');
 /* مدراء الفروع / التشغيل: اطلاع فقط (أين بوكس كل طبيب) — التموين وحده يدير البوكسات */
-const bxRO = () => !S.user || S.user.screen !== 'procurement';
+const bxRO = () => !S.user || (S.user.screen !== 'procurement' && S.user.screen !== 'admin');
 VIEWS.boxes = {
   title: 'nav_boxes', get sub() { return bxRO() ? 'sub_boxes_ro' : 'sub_boxes'; },
   render() {

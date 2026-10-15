@@ -1228,6 +1228,22 @@ function log(msg) { console.log('  ✔ ' + msg); }
 
   // ---------- Admin ----------
   await login(page, 'المدير', '1234');
+  // الأدمن يرى كل التبويبات (الإدارية + تبويبات التموين التشغيلية) وكل تبويب يفتح بلا خطأ
+  const adminNav = await page.evaluate(() => navItems().map(n => n.id));
+  const wantAdmin = ['requests', 'overview', 'monitor', 'doctorslive', 'surveys', 'docprices', 'reports', 'finance', 'labkpi', 'assetsdash', 'boxes', 'complaints', 'notices', 'rules', 'users', 'catalog', 'freeitems', 'docadmin', 'settings', 'workflow'];
+  expect(wantAdmin.every(v => adminNav.includes(v)), 'admin has every tab — missing: ' + wantAdmin.filter(v => !adminNav.includes(v)).join(','));
+  const tabErrors = [];
+  for (const v of adminNav) {
+    await page.evaluate(() => document.querySelectorAll('.toast').forEach(t => t.remove()));
+    await page.click('.sidebar [data-view="' + v + '"]');
+    await page.waitForTimeout(1200);
+    const err = await page.evaluate(() => Array.from(document.querySelectorAll('.toast.error, #view .empty')).map(e => e.innerText).filter(x => /تعذّر|غير مسموح|ERR_|صلاحية/.test(x)).join(' | '));
+    if (err) tabErrors.push(v + ': ' + err);
+  }
+  expect(!tabErrors.length, 'every admin tab opens without errors' + (tabErrors.length ? ' — ' + tabErrors.join(' ; ') : ''));
+  await page.click('.sidebar [data-view="boxes"]');
+  await page.waitForSelector('#bxList');
+  expect(!!(await page.$('#bxDrvUrl')), 'admin manages boxes (driver link visible, not read-only)');
   await page.click('.sidebar [data-view="users"]');
   await page.waitForSelector('#uTable table');
   await shot(page, 'admin-users');
