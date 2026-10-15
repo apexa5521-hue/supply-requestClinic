@@ -991,7 +991,7 @@ function log(msg) { console.log('  ✔ ' + msg); }
 
   // ---------- التموين يرفض صنفاً بسبب يراه الطبيب والممرضة ----------
   await login(page, 'سارة', '1111');
-  const rjId = await page.evaluate(() => call('createRequest', { clinic: 'Sterilization', branch: 'الرياض', type: 'شهري', items: [{ name: 'PROPHY PASTE', qty: 2 }, { name: 'DENTAL FLOSS', qty: 4 }] }).then(r => r.id));
+  const rjId = await page.evaluate(() => call('createRequest', { clinic: 'Sterilization', branch: 'جدة', type: 'شهري', items: [{ name: 'PROPHY PASTE', qty: 2 }, { name: 'DENTAL FLOSS', qty: 4 }] }).then(r => r.id));
   await logout(page);
   await login(page, 'علي', '3333');
   await page.click('.sidebar [data-view="requests"]');
