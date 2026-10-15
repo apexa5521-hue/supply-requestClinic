@@ -2892,3 +2892,39 @@ test('housekeeper: nurse-like requests seen only by her, approved by her branch 
   const id3 = api(hk2, 'createRequest', { branch: 'الرياض', type: 'شهري', items: [{ name: 'PROPHY PASTE', qty: 1 }] }).id;
   assert.deepEqual([rows(gas, 'Requests').find(x => x.RequestID === id3).Branch, rows(gas, 'Requests').find(x => x.RequestID === id3).Status], ['الرياض', 'مراجعة الطبيب'], 'goes to the Riyadh manager');
 });
+
+test('procurement rejects one item with a reason the doctor and nurse see; restore; last item rejected completes the request', () => {
+  const { api, login, gas } = boot();
+  const n = login('سارة', '1111'), p = login('علي', '3333'), d = login('د. خالد', '4444');
+  const id = api(n, 'createRequest', { clinic: 'عيادة الأسنان 1', doctor: 'د. خالد', type: 'شهري', items: [{ name: 'PROPHY PASTE', qty: 4 }, { name: 'DENTAL FLOSS', qty: 10 }] }).id;
+  throwsCode(() => api(p, 'rejectItems', id, ['DENTAL FLOSS'], 'غير متوفر'), 'ERR_NEEDS_APPROVAL');
+  api(d, 'doctorReview', id, 'اعتمد', '', [], [{ item: 'DENTAL FLOSS', qty: 8 }, { item: 'PROPHY PASTE', qty: 4 }]);
+  throwsCode(() => api(p, 'rejectItems', id, ['DENTAL FLOSS'], ''), 'ERR_REASON_REQUIRED');
+  throwsCode(() => api(n, 'rejectItems', id, ['DENTAL FLOSS'], 'x'), 'ERR_FORBIDDEN');
+  throwsCode(() => api(p, 'rejectItems', id, ['DENTAL FLOSS', 'PROPHY PASTE'], 'x'), 'ERR_ALL_REJECTED');
+
+  let full = api(p, 'rejectItems', id, ['DENTAL FLOSS'], 'غير متوفر لدى المورد');
+  let fl = full.items.find(i => i.item === 'DENTAL FLOSS');
+  assert.equal(fl.rejected, true); assert.equal(fl.target, 0); assert.equal(fl.remainingQty, 0);
+  assert.equal(fl.rejectNote, 'غير متوفر لدى المورد');
+  // الممرضة والطبيب يريان السبب
+  for (const who of [n, d]) {
+    const det = api(who, 'getRequestDetail', id);
+    assert.equal(det.items.find(i => i.item === 'DENTAL FLOSS').rejectNote, 'غير متوفر لدى المورد');
+    assert.ok(det.comments.some(c => /رفض التموين: DENTAL FLOSS — السبب: غير متوفر لدى المورد/.test(c.message)));
+  }
+  assert.ok(gas.mails.some(m => m.to === 'sara@example.com' && /رفض التموين صنفاً/.test(m.subject)), 'nurse emailed');
+  assert.ok(gas.mails.some(m => m.to === 'khaled@example.com' && /رفض التموين صنفاً/.test(m.subject)), 'doctor emailed');
+  throwsCode(() => api(p, 'setItemsStatus', id, ['DENTAL FLOSS'], 'قيد التجهيز'), 'ERR_ITEM_REJECTED');
+
+  // إعادة الصنف: يرجع بكمية الطبيب
+  full = api(p, 'rejectItems', id, ['DENTAL FLOSS'], '', true);
+  fl = full.items.find(i => i.item === 'DENTAL FLOSS');
+  assert.equal(fl.rejected, false); assert.equal(fl.target, 8);
+
+  // إرسال الصنف الآخر ثم رفض المتبقي: يكتمل الطلب «تم الإرسال»
+  assert.equal(api(p, 'dispatchItems', id, ['PROPHY PASTE']).allSent, false);
+  api(p, 'rejectItems', id, ['DENTAL FLOSS'], 'موقوف');
+  assert.equal(api(n, 'getMyRequests').find(r => r.id === id).status, 'تم الإرسال');
+  throwsCode(() => api(p, 'rejectItems', id, ['DENTAL FLOSS'], '', true), 'ERR_NEEDS_APPROVAL');
+});
