@@ -56,6 +56,7 @@ const I18N = {
     confirm_receive: 'تأكيد الاستلام', received_ok: 'تم تأكيد استلام {id}', receiver_required: 'اسم المستلم إلزامي',
     cancel: 'إلغاء', close: 'إغلاق', save: 'حفظ', delete: 'حذف', edit: 'تعديل', send: 'إرسال', confirm: 'تأكيد', back: 'رجوع',
     select_all: 'تحديد الكل', selected: 'محدد', clear_selection: 'إلغاء التحديد',
+    link_new: '➕ طبيب جديد — أنشئه واربطه بالحساب', link_new_name: 'اسم الطبيب كما يظهر للممرضات', link_new_clinics: 'عيادات الطبيب (اختياري)', link_new_will: 'سيُضاف الطبيب «{n}» لقائمة الأطباء ويُربط بهذا الحساب',
     free_type_tools: 'أدوات', db_tools: 'أدوات', ca_del_sel: 'حذف المحدد ({n})', ca_del_many_q: 'حذف {n} صنف من الكتالوج نهائياً؟', ca_del_many_ok: 'حُذف {n} صنف', ca_del_many_fail: 'لم يُحذف {n}: {list}',
     step_arrived: 'وصل الفرع', grp_deliver: 'بانتظار التوصيل', grp_await_receipt: 'وصل · بانتظار الاستلام', grp_signed: 'استُلم بالتوقيع',
     drv_scan_hint: 'للتسليم: امسح الباركود (QR) على البوكس نفسه بكاميرا الجوال', drv_locked: 'تم التسليم', drv_locked_sub: 'هذا البوكس سُلِّم مسبقاً ولا توجد عليه مهمة توصيل الآن', drv_last: 'آخر تسليم: {p} · {t} · {d}', ERR_BOX_DELIVERED: 'تم التسليم مسبقاً — لا توجد مهمة توصيل لهذا البوكس الآن',
@@ -163,6 +164,7 @@ const I18N = {
     confirm_receive: 'Confirm receipt', received_ok: 'Receipt of {id} confirmed', receiver_required: 'Receiver name is required',
     cancel: 'Cancel', close: 'Close', save: 'Save', delete: 'Delete', edit: 'Edit', send: 'Send', confirm: 'Confirm', back: 'Back',
     select_all: 'Select all', selected: 'selected', clear_selection: 'Clear',
+    link_new: '➕ New doctor — create and link to this account', link_new_name: 'Doctor name as nurses see it', link_new_clinics: 'Doctor clinics (optional)', link_new_will: 'Doctor «{n}» will be added to the doctors list and linked to this account',
     free_type_tools: 'Tools', db_tools: 'Tools', ca_del_sel: 'Delete selected ({n})', ca_del_many_q: 'Delete {n} item(s) from the catalog for good?', ca_del_many_ok: '{n} item(s) deleted', ca_del_many_fail: 'Not deleted ({n}): {list}',
     step_arrived: 'At branch', grp_deliver: 'Awaiting delivery', grp_await_receipt: 'Arrived · awaiting receipt', grp_signed: 'Received & signed',
     drv_scan_hint: 'To deliver: scan the QR code on the box itself with your phone camera', drv_locked: 'Delivered', drv_locked_sub: 'This box was already delivered and has no delivery task now', drv_last: 'Last delivery: {p} · {t} · {d}', ERR_BOX_DELIVERED: 'Already delivered — this box has no delivery task now',
@@ -6383,8 +6385,11 @@ function openUserModal(u) {
       '<div class="field hidden" id="uPvWrap"><label for="uPriceView">' + icon('cart', 'i-sm') + ' ' + esc(t('pv_label')) + ' <span class="hint">· ' + esc(t('pv_hint')) + '</span></label><select class="select" id="uPriceView">' +
         ['', 'all'].map(v => '<option value="' + v + '"' + ((u.priceView === 'all' ? 'all' : '') === v ? ' selected' : '') + '>' + esc(t('pv_' + (v || 'auto'))) + '</option>').join('') + '</select></div>' +
       '<div class="field hidden" id="uDocWrap"><label for="uDoctor">' + esc(t('linked_doctor')) + ' <span class="hint">· ' + esc(t('linked_doctor_hint')) + '</span></label>' +
-        '<select class="select" id="uDoctor"><option value="">' + esc(t('link_auto')) + '</option>' + doctorLinkOptions(u) + '</select>' +
-        '<div class="hint" id="uLinkPrev"></div></div>' +
+        '<select class="select" id="uDoctor"><option value="">' + esc(t('link_auto')) + '</option><option value="__new__">' + esc(t('link_new')) + '</option>' + doctorLinkOptions(u) + '</select>' +
+        '<div class="hint" id="uLinkPrev"></div>' +
+        '<div class="stack hidden" id="uNewDoc" style="margin-top:8px;gap:8px"><div class="field"><label for="uNewDocName">' + esc(t('link_new_name')) + '</label><input class="input" id="uNewDocName" maxlength="120"></div>' +
+          '<div class="field"><span class="label">' + esc(t('link_new_clinics')) + '</span><div class="chips" style="flex-wrap:wrap" id="uNewDocClinics">' +
+            clinicNames().map(n => '<button type="button" class="chip" data-v="' + esc(n) + '" aria-pressed="false">' + esc(n) + '</button>').join('') + '</div></div></div></div>' +
       '<div class="field" id="uClinicWrap"><span class="label">' + esc(t('clinic')) + ' <span class="hint">· ' + esc(t('clinics_hint')) + '</span></span><div class="chips" style="flex-wrap:wrap" id="uClinics">' +
         clinicNames().map(n => '<button type="button" class="chip" data-v="' + esc(n) + '" aria-pressed="' + (clinicsSel.indexOf(n) !== -1) + '">' + esc(n) + '</button>').join('') + '</div></div>' +
       '<div class="field-error hidden" id="uErr">' + icon('alert', 'i-sm') + '<span></span></div>',
@@ -6400,14 +6405,29 @@ function openUserModal(u) {
     $('#uBranchWrap', m.el).classList.toggle('hidden', (MGMT_SCREENS.indexOf(sc) === -1 && sc !== 'housekeeper') || sc === 'admin');
   };
   // معاينة الربط مباشرة: لمن سيرتبط الحساب، أو تنبيه أحمر إن لم يطابق أي طبيب
-  let prevSeq = 0;
+  // «طبيب جديد»: اسم الطبيب مقترح من اسم الحساب (Dr.Thunayan ← Dr. Thunayan) ويمكن تعديله
+  let prevSeq = 0, nameTouched = false;
+  const suggestDoc = nm => nm.replace(/([a-z])([A-Z])/g, '$1 $2').replace(/^(dr|د)\.?\s*/i, (x, p) => /^d/i.test(p) ? 'Dr. ' : 'د. ').trim();
+  $('#uNewDocName', m.el).addEventListener('input', () => { nameTouched = true; linkPrev(); });
+  $('#uNewDocClinics', m.el).addEventListener('click', e => { const b = e.target.closest('.chip'); if (b) b.setAttribute('aria-pressed', String(b.getAttribute('aria-pressed') !== 'true')); });
   const linkPrev = () => {
-    const box = $('#uLinkPrev', m.el);
-    if (roleScreenOf($('#uRole', m.el).value) !== 'doctor') { box.innerHTML = ''; return; }
-    const nm = $('#uName', m.el).value.trim(), ex = $('#uDoctor', m.el).value, seq = ++prevSeq;
+    const box = $('#uLinkPrev', m.el), sel = $('#uDoctor', m.el), nd = $('#uNewDoc', m.el);
+    if (roleScreenOf($('#uRole', m.el).value) !== 'doctor') { box.innerHTML = ''; nd.classList.add('hidden'); return; }
+    const nm = $('#uName', m.el).value.trim(), seq = ++prevSeq;
+    if (sel.value === '__new__') {
+      nd.classList.remove('hidden');
+      if (!nameTouched) $('#uNewDocName', m.el).value = suggestDoc(nm);
+      const dn = $('#uNewDocName', m.el).value.trim();
+      box.innerHTML = dn ? '<span style="color:var(--t-green)">' + icon('plus', 'i-sm') + ' ' + esc(t('link_new_will', { n: dn })) + '</span>' : '';
+      return;
+    }
+    nd.classList.add('hidden');
+    const ex = sel.value;
     if (!nm && !ex) { box.innerHTML = ''; return; }
     call('previewDoctorLink', nm, ex).then(list => {
       if (seq !== prevSeq) return;
+      // حساب جديد لا يطابق أي طبيب: «طبيب جديد» يُختار تلقائياً (ويمكن اختيار طبيب موجود بدلاً منه)
+      if (!list.length && !ex && !editing) { sel.value = '__new__'; return linkPrev(); }
       box.innerHTML = list.length ? '<span style="color:var(--t-green)">' + icon('link', 'i-sm') + ' ' + esc(t('link_will', { n: list.join('، ') })) + '</span>'
         : '<span style="color:var(--t-red)">' + icon('alert', 'i-sm') + ' ' + esc(t('link_none')) + '</span>';
     }).catch(() => {});
@@ -6427,7 +6447,9 @@ function openUserModal(u) {
       email: $('#uEmail', m.el).value.trim(),
       department: $('#uDept', m.el).value,
       branch: MGMT_SCREENS.indexOf(roleScreenOf(role)) !== -1 || roleScreenOf(role) === 'housekeeper' ? $('#uBranch', m.el).value : '',
-      doctorName: roleScreenOf(role) === 'doctor' ? $('#uDoctor', m.el).value : '',
+      doctorName: roleScreenOf(role) === 'doctor' && $('#uDoctor', m.el).value !== '__new__' ? $('#uDoctor', m.el).value : '',
+      newDoctor: roleScreenOf(role) === 'doctor' && $('#uDoctor', m.el).value === '__new__'
+        ? { name: $('#uNewDocName', m.el).value.trim(), clinics: $$('#uNewDocClinics [aria-pressed="true"]', m.el).map(b => b.dataset.v) } : null,
       priceView: ['doctor', 'branch'].indexOf(roleScreenOf(role)) !== -1 ? $('#uPriceView', m.el).value : ''
     };
     if (!editing && (!data.name || !data.password)) { showErr(t('ERR_REQUIRED')); return; }
