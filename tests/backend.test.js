@@ -2970,6 +2970,17 @@ test('doctor accounts must link to a doctor; "Dr.MohammedG" links by first name 
   api(a, 'createUser', { name: 'Dr.Mohammed', password: '1111', role: 'طبيب', doctorName: 'Dr. Mohammed Al-Harthi' });
   assert.deepEqual(api(a, 'getUsers').find(u => u.name === 'Dr.Mohammed').linked, ['Dr. Mohammed Al-Harthi']);
   throwsCode(() => api(a, 'updateUser', 'Dr.Mohammed', { role: 'طبيب', doctorName: '' }), 'ERR_DOCTOR_LINK');
+  // «طبيب جديد» مع الحساب: يُضاف لتبويب Doctors مربوطاً ويظهر للممرضة في عيادته
+  api(a, 'createUser', { name: 'Dr.Thunayan', password: '1234', role: 'طبيب', newDoctor: { name: 'Dr. Thunayan', clinics: ['عيادة الأسنان 1'] } });
+  assert.deepEqual(api(a, 'getUsers').find(u => u.name === 'Dr.Thunayan').linked, ['Dr. Thunayan']);
+  const drow = rows(gas, 'Doctors').find(r => r.DoctorName === 'Dr. Thunayan');
+  assert.deepEqual([drow.Clinic, drow.LoginName], ['عيادة الأسنان 1', 'Dr.Thunayan']);
+  assert.ok(api(login('سارة', '1111'), 'getDoctors', 'عيادة الأسنان 1').some(d => d.name === 'Dr. Thunayan'), 'nurse sees him in his clinic');
+  assert.ok(!api(a, 'getDoctorLinks').unlinked.includes('Dr. Thunayan'));
+  // اسم طبيب موجود: يُربط بدل إنشاء نسخة مكررة
+  api(a, 'createUser', { name: 'Dr.Sami2', password: '1234', role: 'طبيب', newDoctor: { name: 'dr sami al-duwaihi' } });
+  assert.equal(rows(gas, 'Doctors').filter(r => /sami/i.test(r.DoctorName)).length, 1);
+  assert.deepEqual(api(a, 'getUsers').find(u => u.name === 'Dr.Sami2').linked, ['Dr. Sami Al-Duwaihi']);
   // غير الأطباء لا يحتاجون ربطاً
   api(a, 'createUser', { name: 'ممرضة جديدة', password: '1111', role: 'ممرضة', clinic: 'عيادة الأسنان 1' });
 });

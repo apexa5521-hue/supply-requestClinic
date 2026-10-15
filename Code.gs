@@ -3304,6 +3304,23 @@ function previewDoctorLink_(user, name, explicit) {
   return doctorMatches_(str_(name), str_(explicit), doctorNameList_());
 }
 
+/**
+ * «طبيب جديد» من شاشة المستخدمين: يُضاف لتبويب Doctors (الاسم + العيادات) مربوطاً بالحساب،
+ * فيظهر للممرضات ويصل طلباته لصفحته مثل باقي الأطباء. اسم موجود مسبقاً يُربط بدل التكرار.
+ */
+function newDoctorFor_(account, fields, nd) {
+  if (roleScreen_(fields.role) !== 'doctor' || !nd) return;
+  const name = clean_(nd.name, 120);
+  if (!name) throw new Error('ERR_REQUIRED');
+  const have = read_('Doctors').rows.filter(function (r) { return doctorKey_(str_(r.DoctorName)) === doctorKey_(name); })[0];
+  if (have) { fields.doctorName = str_(have.DoctorName); return; }
+  const clinics = (Array.isArray(nd.clinics) ? nd.clinics : str_(nd.clinics).split(/[,،]/)).map(function (c) { return clean_(c, 120); }).filter(String);
+  append_('Doctors', { DoctorName: name, Clinic: clinics.join(', '), LoginName: account });
+  resetMemo_();
+  fields.doctorName = name;
+  logAction_('', 'إضافة طبيب مع حسابه: ' + name + ' ← ' + account, '');
+}
+
 /** حساب الطبيب يجب أن يرتبط باسم طبيب — وإلا لن تصله طلباته (تذهب للتموين مباشرة) */
 function requireDoctorLink_(name, fields) {
   if (roleScreen_(fields.role) !== 'doctor') return;
@@ -4938,6 +4955,7 @@ function createUser_(user, u) {
   const fields = { role: str_(u.role), clinic: clean_(u.clinic, 500), email: str_(u.email), doctorName: clean_(u.doctorName, 120), department: normDept_(u.department), branch: validBranch_(u.branch), priceView: parsePriceView_(u.priceView) };
   validateUserFields_(fields);
   if (getUsers_().some(function (x) { return loginKey_(x.name) === loginKey_(name); })) throw new Error('ERR_USER_EXISTS');
+  newDoctorFor_(name, fields, u.newDoctor);
   requireDoctorLink_(name, fields);
   append_('Users', { Name: name, Password: hashPassword_(latinDigits_(password).trim()), Role: fields.role, Clinic: fields.clinic, Email: fields.email,
     DoctorName: roleScreen_(fields.role) === 'doctor' ? fields.doctorName : '', Department: fields.department, Branch: fields.branch,
@@ -4960,6 +4978,7 @@ function updateUser_(user, name, u) {
   if (roleScreen_(row.Role) === 'admin' && roleScreen_(fields.role) !== 'admin' && countAdmins_(str_(name)) === 0) {
     throw new Error('ERR_LAST_ADMIN');
   }
+  newDoctorFor_(str_(name), fields, u.newDoctor);
   requireDoctorLink_(str_(name), fields);
   const upd = { Role: fields.role, Clinic: fields.clinic, Email: fields.email, DoctorName: roleScreen_(fields.role) === 'doctor' ? fields.doctorName : '', Department: fields.department, Branch: fields.branch,
     PriceView: PRICE_GATED_.indexOf(roleScreen_(fields.role)) !== -1 && fields.priceView ? PRICE_VIEW_LABEL_[fields.priceView] : '' };
