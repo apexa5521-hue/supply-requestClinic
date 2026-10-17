@@ -3007,3 +3007,22 @@ test('device rooms (GentleMax / Hydrafacial): clinic consumables only, approved 
   const sr = api(p, 'getRequests', {}).find(x => x.id === s);
   assert.deepEqual([sr.approver, sr.cleared], ['', true]);
 });
+
+test('nurse rejects one item at receipt with a reason and photo: not received, procurement and doctor told', () => {
+  const { api, login, gas } = boot();
+  const n = login('سارة', '1111'), p = login('علي', '3333');
+  const PIC = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==';
+  const id = api(n, 'createRequest', { clinic: 'عيادة الأسنان 1', doctor: 'د. نورة', type: 'شهري', items: [{ name: 'PROPHY PASTE', qty: 2 }, { name: 'DENTAL FLOSS', qty: 3 }] }).id;
+  api(p, 'bulkUpdateStatus', [id], 'قيد التجهيز');
+  api(p, 'dispatchItems', id, ['PROPHY PASTE', 'DENTAL FLOSS']);
+  throwsCode(() => api(n, 'receiveShipment', id, 1, [{ name: 'DENTAL FLOSS', qty: 0, reject: { reason: '', photo: PIC } }], '', '', '', ''), 'ERR_REASON_REQUIRED');
+  throwsCode(() => api(n, 'receiveShipment', id, 1, [{ name: 'DENTAL FLOSS', qty: 0, reject: { reason: 'غير مطابق' } }], '', '', '', ''), 'ERR_PHOTO_REQUIRED');
+  const res = api(n, 'receiveShipment', id, 1, [{ name: 'PROPHY PASTE', qty: 2 }, { name: 'DENTAL FLOSS', qty: 3, reject: { reason: 'غير مطابق للطلب', photo: PIC } }], '', '', '', '');
+  assert.deepEqual(res.rejected, ['DENTAL FLOSS']);
+  const fl = api(p, 'getRequestItemsFull', id).items.find(i => i.item === 'DENTAL FLOSS');
+  assert.equal(fl.rcvRejects[0].reason, 'غير مطابق للطلب');
+  assert.ok(fl.rcvRejects[0].photo, 'photo saved');
+  assert.equal(api(n, 'getRequestDetail', id).items.find(i => i.item === 'DENTAL FLOSS').receivedQty, 0, 'counted as not received');
+  assert.ok(api(n, 'getComments', id).some(c => /رفضت الممرضة عند استلام الشحنة 1: DENTAL FLOSS/.test(c.message)));
+  assert.ok(gas.mails.some(m => /رفضت الممرضة صنفاً عند الاستلام/.test(m.subject)), 'procurement emailed');
+});
