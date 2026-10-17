@@ -4,6 +4,20 @@
    (يتطلب playwright — مثبت عالمياً أو عبر npm i -D playwright) */
 const fs = require('fs');
 const path = require('path');
+// نص كل الملفات داخل ملف مضغوط (xlsx): البحث في البايتات الخام يفشل إذا انضغط النص
+function zipText(buf) {
+  const zlib = require('zlib');
+  let e = buf.length - 22;
+  while (e >= 0 && buf.readUInt32LE(e) !== 0x06054b50) e--;
+  let off = buf.readUInt32LE(e + 16), out = '';
+  for (let i = buf.readUInt16LE(e + 10); i > 0; i--) {
+    const method = buf.readUInt16LE(off + 10), size = buf.readUInt32LE(off + 20), loc = buf.readUInt32LE(off + 42);
+    const start = loc + 30 + buf.readUInt16LE(loc + 26) + buf.readUInt16LE(loc + 28), data = buf.slice(start, start + size);
+    out += (method === 8 ? zlib.inflateRawSync(data) : data).toString('utf8');
+    off += 46 + buf.readUInt16LE(off + 28) + buf.readUInt16LE(off + 30) + buf.readUInt16LE(off + 32);
+  }
+  return out;
+}
 let playwright;
 try { playwright = require('playwright'); } catch (e) { playwright = require('/opt/node22/lib/node_modules/playwright'); }
 
@@ -89,7 +103,7 @@ function log(msg) { console.log('  ✔ ' + msg); }
   const results = { screenshots: [] };
 
   async function newPage(opts, withTour) {
-    const ctx = await browser.newContext(Object.assign({ viewport: { width: 1360, height: 900 }, deviceScaleFactor: 1 }, opts || {}));
+    const ctx = await browser.newContext(Object.assign({ viewport: { width: 1360, height: 900 }, deviceScaleFactor: 1, timezoneId: 'Asia/Riyadh' }, opts || {}));
     await ctx.route(/fonts\.(googleapis|gstatic)\.com/, r => r.abort());
     await ctx.addInitScript(initScript);
     // الجولة التعريفية تُختبر في قسم مستقل؛ هنا نوقفها حتى لا تغطي الشاشة
@@ -422,7 +436,7 @@ function log(msg) { console.log('  ✔ ' + msg); }
   await page.click('.chip[data-g="review"]');
   expect(await page.locator(`#procList .req[data-rid="${newId}"]`).count() === 0, 'an approved request is not repeated under «awaiting approval»');
   expect((await page.textContent('.chip[data-g="review"]')).includes('جديد · لم يُعتمد بعد') && (await page.textContent('#procHint')).includes('تقدر تبدأ تجهّزها مسبقاً'), '«new · not approved yet» explains preparing early');
-  expect((await page.textContent('.chip[data-g="ready_new"]')).includes('بدون اعتماد · بحاجة لتجهيز'), 'requests that need no approval are named so');
+  expect(!(await page.$('.chip[data-g="ready_new"]')), 'no separate «no approval» stage');
   await page.click('.chip[data-g="ready"]');
   expect((await page.textContent('#procHint')).trim() === '', 'the hint shows only on «not approved yet»');
   await page.click('.chip[data-g="ready"]');
@@ -461,7 +475,7 @@ function log(msg) { console.log('  ✔ ' + msg); }
   expect(/\d+/.test(await page.textContent('.modal #xlCount')), 'excel export shows how many requests will be exported');
   const [xlDl] = await Promise.all([page.waitForEvent('download'), page.click('.modal #xlGo')]);
   const xlBuf = fs.readFileSync(await xlDl.path());
-  expect(xlDl.suggestedFilename().endsWith('.xlsx') && xlBuf.slice(0, 2).toString() === 'PK' && xlBuf.toString('utf8').includes(newId),
+  expect(xlDl.suggestedFilename().endsWith('.xlsx') && xlBuf.slice(0, 2).toString() === 'PK' && zipText(xlBuf).includes(newId),
     'procurement exports an .xlsx with one row per item: ' + xlDl.suggestedFilename());
   // فلتر نوع الطلب: طارئ فقط ثم شهري فقط
   await page.selectOption('[data-change="procType"]', 'طارئ');
@@ -866,7 +880,7 @@ function log(msg) { console.log('  ✔ ' + msg); }
   const labSupId = await page.evaluate(() => __gas.dump('Requests').slice(-1)[0][0]);
   await page.click('.sidebar [data-view="mine"]');
   await page.waitForSelector(`.req:has-text("${labSupId}")`);
-  expect((await page.textContent(`.req:has-text("${labSupId}") .badge`)).includes('بدون اعتماد · بحاجة لتجهيز'), 'lab sees its request as needing no approval');
+  expect((await page.textContent(`.req:has-text("${labSupId}") .badge`)).includes('جديد'), 'lab sees its request as new');
   await logout(page);
   await login(page, 'علي', '3333');
   await page.click('.sidebar [data-view="requests"]');
@@ -1682,7 +1696,7 @@ function log(msg) { console.log('  ✔ ' + msg); }
     const sctx = vm.createContext(Object.assign({ Buffer }, gas.globals));
     vm.runInContext(fs.readFileSync(path.join(ROOT, 'Code.gs'), 'utf8'), sctx);
     const net = { posts: 0, batches: 0, failNext: 0 };
-    const ctx = await browser.newContext({ viewport: { width: 1200, height: 800 } });
+    const ctx = await browser.newContext({ viewport: { width: 1200, height: 800 }, timezoneId: 'Asia/Riyadh' });
     await ctx.route(/fonts\.(googleapis|gstatic)\.com/, r => r.abort());
     await ctx.addInitScript(() => { try { localStorage.setItem('sf_tour_off', 'true'); } catch (e) { /* ignore */ } });
     await ctx.route('http://pages.test/Index.html', r => r.fulfill({ contentType: 'text/html; charset=utf-8', body: fs.readFileSync(path.join(ROOT, 'Index.html'), 'utf8') }));
