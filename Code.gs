@@ -340,8 +340,11 @@ const DEFAULT_CLINICS_ = (function () {
  *  المناطق المشتركة: «مستهلكات عيادة» (بدون طبيب) للتعقيم وغرفة الفرز وغرف أجهزة الجلدية (Hydrafacial / Clarity / Gentle Pro)
  *  أما عيادات الأطباء فطلبها «طلب طبيب»: تُختار العيادة ثم الطبيب، والاستهلاك يُحسب على الطبيب
  * ===================================================================== */
-const SHARED_AREA_RE_ = /ster[ia]li|تعقيم|triage|فرز|hydra\s*facial|clarity|gentle\s*pro/i;
-function isSharedArea_(c) { return !!c && SHARED_AREA_RE_.test(str_(c.name) + ' ' + str_(c.type)); }
+// غرف أجهزة الجلدية (Gentle Pro / GentleMax / Hydrafacial / Clarity): بلا طبيب، ويعتمد طلبها مدير الفرع
+const DEVICE_ROOM_RE_ = /hydra\s*facial|clarity|gentle|جنتل|هيدرا|هايدرا|كلاريتي/i;
+const SHARED_AREA_RE_ = /ster[ia]li|تعقيم|triage|فرز/i;
+function isDeviceRoom_(c) { return !!c && DEVICE_ROOM_RE_.test(str_(c.name) + ' ' + str_(c.type)); }
+function isSharedArea_(c) { return !!c && (SHARED_AREA_RE_.test(str_(c.name) + ' ' + str_(c.type)) || isDeviceRoom_(c)); }
 /** العيادات التي تقبل «مستهلكات عيادة» (بدون طبيب): المناطق المشتركة + كل عيادات الأسنان */
 function clinicConsumablesOk_(c) { return isSharedArea_(c) || (!!c && (normDept_(c.type) || normDept_(c.name)) === 'أسنان'); }
 function ensureTriageRooms_() {
@@ -2632,10 +2635,14 @@ function createRequest_(user, payload) {
   if (clinicOnly && !clinic) throw new Error('ERR_REQUIRED');
   if (REQUEST_TYPES.indexOf(type) === -1) throw new Error('ERR_BAD_TYPE');
   const mine = userClinics_(user);
+  let device = false;
   if (clinic && !forLab && !user.hk) {
     // مستهلكات العيادة للمناطق المشتركة (التعقيم / غرفة الفرز / أجهزة الجلدية) وعيادات الأسنان في أي فرع؛ طلب الطبيب يبقى ضمن عيادات الممرضة
-    if (!clinicOnly && mine.length && mine.indexOf(clinic) === -1) throw new Error('ERR_FORBIDDEN');
     const cRows = getClinics_().filter(function (c) { return c.name === clinic; });
+    // غرفة جهاز: «مستهلكات عيادة» فقط (بلا طبيب) — واعتمادها لمدير الفرع
+    device = cRows.some(isDeviceRoom_);
+    if (device && !clinicOnly) throw new Error('ERR_DEVICE_NO_DOCTOR');
+    if (!clinicOnly && mine.length && mine.indexOf(clinic) === -1) throw new Error('ERR_FORBIDDEN');
     if (!cRows.length) throw new Error('ERR_BAD_CLINIC');
     if (clinicOnly && !cRows.some(clinicConsumablesOk_)) throw new Error('ERR_CLINIC_SHARED_ONLY');
   }
@@ -2710,7 +2717,7 @@ function createRequest_(user, payload) {
   const cache = CacheService.getScriptCache();
 
   // الطبيب الذي له حساب يراجع الطلب أولاً؛ غير ذلك يذهب للتموين مباشرة
-  const branchApproval = !!user.hk && !forLab;
+  const branchApproval = (!!user.hk || device) && !forLab;
   const needsReview = branchApproval ? branchManagers_(branch).length > 0 : !clinicOnly && doctorHasAccount_(doctor);
   // مفتاح المسودة من الجهاز: إعادة إرسال نفس المسودة بعد انقطاع الاتصال لا تنشئ طلباً مكرراً أبداً
   const clientKey = /^[A-Za-z0-9-]{8,64}$/.test(str_(payload.clientKey)) ? str_(payload.clientKey) : '';

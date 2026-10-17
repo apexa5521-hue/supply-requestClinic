@@ -2984,3 +2984,26 @@ test('doctor accounts must link to a doctor; "Dr.MohammedG" links by first name 
   // غير الأطباء لا يحتاجون ربطاً
   api(a, 'createUser', { name: 'ممرضة جديدة', password: '1111', role: 'ممرضة', clinic: 'عيادة الأسنان 1' });
 });
+
+test('device rooms (GentleMax / Hydrafacial): clinic consumables only, approved by the branch manager before procurement', () => {
+  const { api, login, gas } = boot();
+  gas.seed('Clinics', ['ClinicName', 'Branch', 'Type'], [
+    ['عيادة الأسنان 1', 'الرياض', 'أسنان'], ['عيادة الجلدية 1', 'الرياض', 'جلدية'], ['Derma GentleMax', 'الرياض', 'Dermatology'], ['Sterilization', 'الرياض', 'تعقيم']
+  ]);
+  const a = login('المدير', '1234'), p = login('علي', '3333'), n = login('سارة', '1111');
+  api(a, 'createUser', { name: 'مدير الرياض', password: '9191', role: 'مدير فرع', branch: 'الرياض' });
+  const mr = login('مدير الرياض', '9191');
+  // لا طبيب لغرفة الجهاز
+  throwsCode(() => api(n, 'createRequest', { clinic: 'Derma GentleMax', doctor: 'د. فهد', type: 'شهري', items: [{ name: 'DENTAL FLOSS', qty: 1 }] }), 'ERR_DEVICE_NO_DOCTOR');
+  const id = api(n, 'createRequest', { clinic: 'Derma GentleMax', type: 'شهري', items: [{ name: 'DENTAL FLOSS', qty: 2 }] }).id;
+  const r = api(p, 'getRequests', {}).find(x => x.id === id);
+  assert.deepEqual([r.approver, r.awaitingDoctor, r.cleared], ['branch', true, false], 'waits for the branch manager, not a doctor');
+  throwsCode(() => api(p, 'dispatchItems', id, ['DENTAL FLOSS']), 'ERR_NEEDS_APPROVAL');
+  assert.ok(api(mr, 'getDoctorRequests').some(x => x.id === id), 'branch manager sees it to approve');
+  api(mr, 'doctorReview', id, 'اعتمد', '', []);
+  assert.equal(api(p, 'getRequests', {}).find(x => x.id === id).cleared, true, 'approved → procurement can prepare');
+  // التعقيم يبقى كما هو: مباشرة للتموين
+  const s = api(n, 'createRequest', { clinic: 'Sterilization', branch: 'الرياض', type: 'شهري', items: [{ name: 'DENTAL FLOSS', qty: 1 }] }).id;
+  const sr = api(p, 'getRequests', {}).find(x => x.id === s);
+  assert.deepEqual([sr.approver, sr.cleared], ['', true]);
+});
