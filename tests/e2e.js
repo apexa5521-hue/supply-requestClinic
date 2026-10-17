@@ -418,7 +418,7 @@ function log(msg) { console.log('  ✔ ' + msg); }
   const stageAll = Number(await page.textContent('#procChips .chip[data-g="all"] .count-pill'));
   expect(stageSum === stageAll, 'stage chips do not overlap: ' + stageSum + ' = ' + stageAll);
   await page.click('.chip[data-g="ready"]');
-  expect((await page.textContent('.chip[data-g="ready"]')).includes('معتمد · جاهز للتجهيز') && await page.locator(`#procList .req[data-rid="${newId}"]`).count() === 1, '«approved · ready to prepare» lists the doctor-approved request');
+  expect((await page.textContent('.chip[data-g="ready"]')).includes('معتمد من الطبيب · بحاجة لتجهيز') && await page.locator(`#procList .req[data-rid="${newId}"]`).count() === 1, '«approved · ready to prepare» lists the doctor-approved request');
   await page.click('.chip[data-g="review"]');
   expect(await page.locator(`#procList .req[data-rid="${newId}"]`).count() === 0, 'an approved request is not repeated under «awaiting approval»');
   await page.click('.chip[data-g="ready"]');
