@@ -3026,3 +3026,22 @@ test('nurse rejects one item at receipt with a reason and photo: not received, p
   assert.ok(api(n, 'getComments', id).some(c => /رفضت الممرضة عند استلام الشحنة 1: DENTAL FLOSS/.test(c.message)));
   assert.ok(gas.mails.some(m => /رفضت الممرضة صنفاً عند الاستلام/.test(m.subject)), 'procurement emailed');
 });
+
+test('monthly requests can be locked after the window ends (procurement / finance / admin open or close it)', () => {
+  const { api, login } = boot();
+  const n = login('سارة', '1111'), p = login('علي', '3333'), a = login('المدير', '1234');
+  const day = Number(new Date(Date.now() + 3 * 36e5).toISOString().slice(8, 10));
+  const req = type => api(n, 'createRequest', { clinic: 'عيادة الأسنان 1', doctor: 'د. نورة', type: type, items: [{ name: 'DENTAL FLOSS', qty: 1 }] });
+  // نافذة انتهت قبل اليوم (أو اليوم أول الشهر: لا يمكن اختبار ما بعد النافذة)
+  if (day < 2) return;
+  throwsCode(() => api(n, 'saveOrderRules', { monthlyLock: 1 }), 'ERR_FORBIDDEN');
+  api(p, 'saveOrderRules', { winStart: 1, winEnd: day - 1, monthlyLock: 1 });
+  assert.equal(api(n, 'getOrderRules').monthlyLock, 1);
+  throwsCode(() => req('شهري'), 'ERR_MONTHLY_CLOSED');
+  assert.ok(req('طارئ').id, 'emergencies are not affected');
+  api(a, 'saveOrderRules', { monthlyLock: 0 });
+  assert.ok(req('شهري').id, 'reopened: monthly accepted again (marked late)');
+  // داخل النافذة: الإقفال لا يمنع
+  api(p, 'saveOrderRules', { winStart: 1, winEnd: Math.min(31, day + 1), monthlyLock: 1 });
+  assert.ok(api(n, 'createRequest', { clinic: 'عيادة الأسنان 1', doctor: 'د. سعد', type: 'شهري', items: [{ name: 'PROPHY PASTE', qty: 1 }] }).id);
+});

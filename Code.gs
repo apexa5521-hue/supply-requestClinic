@@ -2149,6 +2149,7 @@ const ORDER_RULES_ = [
   ['winEnd', 'MonthlyWindowEnd', MONTHLY_WINDOW[1], 1, 31, 'نهاية نافذة الطلب الشهري (يوم من الشهر)'],
   ['dispatchDay', 'MonthlyDispatchDay', 1, 1, 31, 'يوم صرف الطلب الشهري — بعد نهاية النافذة = نفس الشهر، وإلا الشهر التالي'],
   ['monthlyMax', 'MonthlyMaxPerMonth', 0, 0, 99, 'عدد الطلبات الشهرية المسموحة لكل من يطلب في الشهر (0 = بلا حد)'],
+  ['monthlyLock', 'MonthlyLockedAfterWindow', 0, 0, 1, 'إقفال الطلب الشهري بعد نهاية النافذة: 1 = مقفل · 0 = مفتوح (يُرفع ويُعلَّم «متأخر»)'],
   ['emergencyMax', 'EmergencyMaxPerMonth', 0, 0, 99, 'عدد الطلبات الطارئة المسموحة لكل من يطلب في الشهر (0 = بلا حد)'],
   ['emergencyHours', 'EmergencyDueHours', EMERGENCY_DUE_HOURS, 3, 48, 'مهلة الطلب الطارئ بالساعات (من 3 إلى 48)'],
   ['emergencyMaxItems', 'EmergencyMaxItems', 0, 0, 200, 'أقصى عدد أصناف مختلفة (مستهلك أو ماتيريال) في الطلب الطارئ (0 = بلا حد)'],
@@ -2234,7 +2235,11 @@ function checkOrderRules_(user, type, itemCount) {
   if (type === 'طارئ') {
     if (R.emergencyMaxItems && itemCount > R.emergencyMaxItems) throw new Error('ERR_EMERGENCY_ITEMS:max=' + R.emergencyMaxItems + ';n=' + itemCount + ';left=' + emLeft);
     if (R.emergencyMax && u.emergency >= R.emergencyMax) throw new Error('ERR_EMERGENCY_LIMIT:max=' + R.emergencyMax);
-  } else if (R.monthlyMax && u.monthly >= R.monthlyMax) throw new Error('ERR_MONTHLY_LIMIT:max=' + R.monthlyMax);
+  } else {
+    // بعد نهاية النافذة: إن أقفله التموين/المالية/الأدمن يُرفض الشهري (الطارئ والأثر الرجعي مستثنيان)
+    if (R.monthlyLock && Number(riyadh_(Date.now()).slice(8, 10)) > R.winEnd) throw new Error('ERR_MONTHLY_CLOSED:a=' + R.winStart + ';b=' + R.winEnd);
+    if (R.monthlyMax && u.monthly >= R.monthlyMax) throw new Error('ERR_MONTHLY_LIMIT:max=' + R.monthlyMax);
+  }
 }
 
 /** بداية يوم 1 من الشهر التالي لـ 'yyyy-MM' بتوقيت الرياض */
