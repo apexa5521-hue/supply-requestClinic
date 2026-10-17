@@ -1432,8 +1432,11 @@ function boxDeliver_(p) {
   read_('Requests').rows.forEach(function (r) { reqs[str_(r.RequestID)] = r; });
   notify.forEach(function (l) {
     const r = reqs[l.request];
-    if (r && str_(r.Nurse)) notifyUser_(str_(r.Nurse), 'وصل بوكس طلبك ' + l.request + ' إلى فرع ' + to,
-      'وصل البوكس الخاص بطلبك ' + l.request + ' (الشحنة ' + l.batch + ') إلى فرع ' + to + '.\nافتح البوكس وأكّد الاستلام والكميات من النظام.');
+    if (r && str_(r.Nurse)) notifyUser_(str_(r.Nurse), 'وصل بوكس طلبك ' + l.request + ' إلى فرع ' + to + ' · Box arrived, check and sign', mailMsg_({ order: ['en', 'ar'], id: l.request, req: mapRequest_(r), step: 4,
+      en: { title: 'Your box reached the ' + to + ' branch', lead: 'Box ' + str_(pre.BoxID) + ' (shipment ' + l.batch + ') was delivered by ' + driver + '.',
+        action: 'Check the items, enter what you received, reject anything that does not match (with a photo), then sign.', btn: 'Open receipt', foot: 'You received this because you raised the request. Automatic message, please do not reply.' },
+      ar: { title: 'وصل بوكس طلبك إلى فرع ' + to, lead: 'سلّم السواق ' + driver + ' البوكس ' + str_(pre.BoxID) + ' (الشحنة ' + l.batch + ').',
+        action: 'افحصي الأصناف، اكتبي الكمية المستلمة، ارفضي أي صنف غير مطابق مع صورة، ثم وقّعي.', btn: 'افتح الاستلام', foot: 'وصلك هذا الإيميل لأنك رفعتِ الطلب. رسالة آلية، لا تردي عليها.' } }));
   });
   return { ok: true, box: boxInfo_(p) };
 }
@@ -2048,6 +2051,8 @@ function getDoctorProfile_(user, doctor) {
 
 function requestRows_() { return read_('Requests').rows.filter(function (r) { return str_(r.RequestID) && (!SCOPE_BRANCH_ || inScope_(reqBranch_(r))); }); }
 
+/** الطلب كما يُعرض في الإيميل، أو null بدون خطأ */
+function findRequestSafe_(id) { try { return mapRequest_(findRequest_(id).row); } catch (e) { return null; } }
 function findRequest_(id) {
   id = str_(id);
   const t = read_('Requests');
@@ -2759,21 +2764,18 @@ function createRequest_(user, payload) {
   }
   logAction_(id, 'إنشاء طلب (' + type + ')', user.name);
 
-  const details = '\nرقم الطلب: ' + id + (dept ? '\nالقسم: ' + dept : '') + '\nالفرع: ' + (branch || '—') + '\nالعيادة: ' + (clinic || '—') + '\nالطبيب: ' + (doctor || 'مستهلكات عيادة') +
-    '\nالممرضة: ' + user.name + '\nنوع الطلب: ' + type + '\nعدد الأصناف: ' + items.length;
+  const lite = { id: id, clinic: clinic, branch: branch, doctor: doctor, nurse: user.name, type: type, department: dept };
   if (needsReview && branchApproval) {
     branchManagers_(branch).forEach(function (m) {
-      notifyUser_(m, (type === 'طارئ' ? '🚨 طلب طارئ بانتظار اعتمادك - ' : 'طلب بانتظار اعتمادك - ') + id,
-        'رفعت ' + user.name + ' طلباً لفرعك بانتظار اعتمادك من داخل النظام.' + details);
+      notifyUser_(m, (type === 'طارئ' ? '🚨 طلب طارئ بانتظار اعتمادك - ' : 'طلب بانتظار اعتمادك - ') + id + ' · Awaiting your approval', approvalMail_(lite, items, { branch: true }));
     });
   } else if (needsReview) {
-    notifyUser_(doctorAccounts_()[doctor], (type === 'طارئ' ? '🚨 طلب طارئ بانتظار مراجعتك - ' : 'طلب جديد بانتظار مراجعتك - ') + id,
-      'رُفع طلب جديد لعيادتك بانتظار مراجعتك واعتمادك من داخل النظام.' + details);
+    notifyUser_(doctorAccounts_()[doctor], (type === 'طارئ' ? '🚨 طلب طارئ بانتظار مراجعتك - ' : 'طلب جديد بانتظار مراجعتك - ') + id + ' · Awaiting your approval', approvalMail_(lite, items));
     // الطارئ: التموين يعلم مبكراً (للاستعداد) رغم انتظار الاعتماد
-    if (type === 'طارئ') notifyProcurement_(dept, '🚨 طلب طارئ (بانتظار اعتماد الطبيب) - ' + id, 'رُفع طلب طارئ وهو الآن لدى الطبيب للاعتماد.' + details);
+    if (type === 'طارئ') notifyProcurement_(dept, '🚨 طلب طارئ (بانتظار اعتماد الطبيب) - ' + id + ' · Emergency awaiting doctor', procNewMail_(lite, items, 'waiting'));
   } else {
-    notifyProcurement_(dept, (type === 'طارئ' ? '🚨 طلب طارئ - ' : 'طلب مستلزمات جديد - ') + id,
-      (forLab ? 'تم رفع طلب مستهلكات المعمل (لا يحتاج اعتماداً — يُسلَّم للمعمل مباشرة بلا بوكس).' : clinicOnly ? 'تم رفع طلب مستهلكات عيادة (بدون طبيب — لا يحتاج اعتماداً).' : 'تم رفع طلب جديد (الطبيب ليس له حساب — لا يحتاج اعتماداً في النظام).') + details);
+    notifyProcurement_(dept, (type === 'طارئ' ? '🚨 طلب طارئ - ' : 'طلب مستلزمات جديد - ') + id + (type === 'طارئ' ? ' · New emergency request' : ' · New supplies request'),
+      procNewMail_(lite, items, forLab ? 'lab' : clinicOnly ? 'clinic' : 'noacc'));
   }
   const k = type === 'طارئ' ? 'emergency' : 'monthly';
   if (rules.used) { rules.used[k]++; if (rules.left[k] !== null) rules.left[k] = Math.max(0, rules.left[k] - 1); }
@@ -3089,9 +3091,14 @@ function proposeSubstitute_(user, payload) {
     res = { request: req, auto: auto, sub: sub, qty: qty };
   });
   if (!res.auto) {
-    notifyUser_(doctorAccounts_()[res.request.doctor], 'مستهلك بديل بانتظار موافقتك - ' + requestId,
-      'اقترح التموين بديلاً لصنف غير متوفر في الطلب ' + requestId + ':\n' + item + ' ← ' + res.sub + ' × ' + res.qty + (note ? '\nملاحظة: ' + note : '') +
-      '\n\nافتح النظام للموافقة أو الرفض.');
+    const rq = res.request;
+    notifyUser_(doctorAccounts_()[rq.doctor], 'مستهلك بديل بانتظار موافقتك - ' + requestId + ' · Substitute awaiting your decision', mailMsg_({ order: ['ar', 'en'], id: requestId, req: rq, step: 2,
+      ar: { title: 'التموين يقترح مستهلكاً بديلاً', lead: 'الصنف «' + item + '» غير متوفر، واقترح التموين بديلاً له في طلبك.',
+        action: 'وافق على البديل أو ارفضه من الموقع. إن رفضته يبقى الصنف الأصلي كما هو ولا يُرسل البديل.', btn: 'افتح الطلب وقرّر',
+        lines: [item + ' ← ' + res.sub + ' × ' + res.qty].concat(note ? ['ملاحظة التموين: ' + note] : []), foot: 'وصلك هذا الإيميل لأن الطلب باسمك. رسالة آلية، لا ترد عليها.' },
+      en: { title: 'Procurement suggests a substitute item', lead: '“' + item + '” is not available, so procurement suggested a substitute in your request.',
+        action: 'Accept or reject the substitute on the website. If you reject it, the original item stays and the substitute is not sent.', btn: 'Open and decide',
+        lines: [item + ' → ' + res.sub + ' × ' + res.qty].concat(note ? ['Procurement note: ' + note] : []), foot: 'You received this because the request is in your name. Automatic message, please do not reply.' } }));
   }
   return { status: res.auto ? SUB_ST.OK : SUB_ST.PENDING };
 }
@@ -3099,7 +3106,7 @@ function proposeSubstitute_(user, payload) {
 /** الطبيب يوافق على البديل (يحل محل المتبقي من الأصلي) أو يرفضه (يبقى الأصلي كما هو) */
 function reviewSubstitute_(user, requestId, substitute, accept, reason) {
   requestId = str_(requestId); substitute = str_(substitute);
-  let req;
+  let req, of = '';
   withLock_(function () {
     resetMemo_();
     const f = findRequest_(requestId);
@@ -3109,7 +3116,7 @@ function reviewSubstitute_(user, requestId, substitute, accept, reason) {
     const rows = t.rows.filter(function (r) { return str_(r.RequestID) === req.id; });
     const row = rows.filter(function (r) { return str_(r.ItemName) === substitute && str_(r.SubStatus) === SUB_ST.PENDING; })[0];
     if (!row) throw new Error('ERR_NOT_FOUND');
-    const of = str_(row.SubstituteOf);
+    of = str_(row.SubstituteOf);
     if (accept) {
       const origRow = rows.filter(function (r) { return str_(r.ItemName) === of && str_(r.SubStatus) !== SUB_ST.NO; })[0];
       const orig = shipState_(req, rows).items.filter(function (i) { return i.item === of && i.subStatus !== SUB_ST.NO; })[0];
@@ -3121,8 +3128,12 @@ function reviewSubstitute_(user, requestId, substitute, accept, reason) {
     }
     logAction_(req.id, (accept ? 'وافق الطبيب على البديل: ' : 'رفض الطبيب البديل: ') + of + ' ← ' + substitute + (!accept && reason ? ' — ' + clean_(reason, 300) : ''), user.name);
   });
-  notifyProcurement_(req.department, (accept ? 'وافق الطبيب على البديل - ' : 'رفض الطبيب البديل - ') + requestId,
-    'الطلب ' + requestId + ': ' + substitute + (accept ? ' — يمكن إرساله الآن.' : ' — مرفوض' + (reason ? ' (' + clean_(reason, 300) + ')' : '') + '، والصنف الأصلي باقٍ كما هو.'));
+  const rsn = clean_(reason, 300);
+  notifyProcurement_(req.department, (accept ? 'وافق الطبيب على البديل - ' : 'رفض الطبيب البديل - ') + requestId + (accept ? ' · Substitute accepted' : ' · Substitute rejected'), mailMsg_({ order: ['ar', 'en'], id: requestId, req: req, step: 2,
+    ar: { title: accept ? 'وافق الطبيب على البديل' : 'رفض الطبيب البديل', lead: of + ' ← ' + substitute,
+      action: accept ? 'يمكن إرسال البديل الآن.' : '', lines: accept ? [] : ['الصنف الأصلي باقٍ كما هو.'].concat(rsn ? ['السبب: ' + rsn] : []), btn: 'افتح في التموين' },
+    en: { title: accept ? 'The doctor accepted the substitute' : 'The doctor rejected the substitute', lead: of + ' → ' + substitute,
+      action: accept ? 'You can send the substitute now.' : '', lines: accept ? [] : ['The original item stays as it is.'].concat(rsn ? ['Reason: ' + rsn] : []), btn: 'Open in procurement' } }));
   return { ok: true };
 }
 
@@ -3433,9 +3444,9 @@ function cancelRequests_(user, requestIds, reason) {
     });
   });
   toNotify.forEach(function (req) {
-    notifyUser_(req.nurse, 'أُلغي طلبك - ' + req.id,
-      'ألغى التموين طلبك رقم ' + req.id + ' (عيادة ' + req.clinic + (req.branch ? ' · فرع ' + req.branch + ')' : ')') +
-      '.\nالسبب: ' + reason + '\n\nلا تنتظري هذا الطلب — ارفعي طلباً جديداً إن احتجتِ.');
+    notifyUser_(req.nurse, 'أُلغي طلبك - ' + req.id + ' · Request cancelled', mailMsg_({ order: ['en', 'ar'], id: req.id, req: req, step: -1,
+      en: { title: 'Procurement cancelled your request', lead: 'Reason: ' + reason, lines: ['Do not wait for this request. Raise a new one if you still need the items.'], foot: 'You received this because you raised the request. Automatic message, please do not reply.' },
+      ar: { title: 'ألغى التموين طلبك', lead: 'السبب: ' + reason, lines: ['لا تنتظري هذا الطلب — ارفعي طلباً جديداً إن احتجتِ.'], foot: 'وصلك هذا الإيميل لأنك رفعتِ الطلب. رسالة آلية، لا تردي عليها.' } }));
   });
   return result;
 }
@@ -3481,8 +3492,8 @@ function bulkUpdateStatus_(user, requestIds, newStatus, boxes) {
   });
   toNotify.forEach(function (req) {
     if (newStatus === ST.SENT) notifyNurseSent_(req);
-    if (newStatus === ST.REVIEW) notifyUser_(doctorAccounts_()[req.doctor] || req.doctor, 'طلب بانتظار مراجعتك - ' + req.id,
-      'الطلب ' + req.id + ' (عيادة ' + req.clinic + (req.branch ? ' · فرع ' + req.branch : '') + ') جاهز لمراجعتك واعتمادك من داخل النظام.');
+    if (newStatus === ST.REVIEW) notifyUser_(doctorAccounts_()[req.doctor] || req.doctor, 'طلب بانتظار مراجعتك - ' + req.id + ' · Awaiting your approval',
+      approvalMail_(req, itemsOf_(req.id).map(function (r) { return { name: str_(r.ItemName), qty: r.RequestedQty }; })));
   });
   return result;
 }
@@ -3675,10 +3686,11 @@ function rejectItems_(user, requestId, items, note, undo) {
     res = { changed: ups.length, names: names, completed: completed, req: mapRequest_(f.row) };
   });
   if (res.changed && !undo) {
-    const subject = 'رفض التموين صنفاً من طلبك - ' + requestId;
-    const body = 'رفض التموين من الطلب ' + requestId + ' (عيادة ' + res.req.clinic + '):\n- ' + res.names.join('\n- ') + '\n\nالسبب: ' + note + '\n— ' + user.name;
-    notifyUser_(res.req.nurse, subject, body);
-    if (res.req.doctor) notifyUser_(doctorAccounts_()[res.req.doctor], subject, body);
+    const subject = 'رفض التموين صنفاً من طلبك - ' + requestId + ' · Item rejected by procurement';
+    const body = mailMsg_({ order: ['en', 'ar'], id: requestId, req: res.req, step: 2,
+      en: { title: 'Procurement rejected ' + (res.names.length > 1 ? res.names.length + ' items' : 'an item') + ' in your request', lead: 'Reason: ' + note, lines: res.names, foot: 'The rest of the request continues as normal. You received this because you raised the request. Automatic message, please do not reply.' },
+      ar: { title: 'رفض التموين ' + (res.names.length > 1 ? res.names.length + ' أصناف' : 'صنفاً') + ' من طلبك', lead: 'السبب: ' + note, lines: res.names, foot: 'باقي الطلب يكمل بشكل طبيعي. وصلك هذا الإيميل لأنك رفعتِ الطلب. رسالة آلية، لا تردي عليها.' } });
+    notifyUser_(res.req.nurse, subject, body); // الطبيب يراه على الطلب في الموقع (إيميلاته: الاعتماد، البديل، الاستلام فقط)
     if (res.completed) notifyNurseSent_(res.req);
   }
   delete res.req;
@@ -3741,9 +3753,11 @@ function revertStep_(user, requestId, reason, expected) {
       if (plan.status === ST.SENT) setCells_(f.t, f.row, { Status: plan.to, SentAt: '' });
       addReversal_(user, p.req.id, 'إلغاء شحنة أُرسلت', plan.from + ' · ' + plan.status, plan.to, reason,
         plan.items.map(function (i) { return i.item + ' ×' + i.qty; }).join('، '));
-      notify = { nurse: p.req.nurse, subject: 'إلغاء شحنة من طلبك - ' + p.req.id + ' (الشحنة ' + plan.batch + ')',
-        body: 'أُلغيت الشحنة رقم ' + plan.batch + ' من طلبك ' + p.req.id + ' (أُرسلت بالخطأ).\nالسبب: ' + reason + '\nالأصناف:\n- ' +
-          plan.items.map(function (i) { return i.item + ' ×' + i.qty; }).join('\n- ') + '\n\nلا تؤكدي استلامها — ستصلك شحنة صحيحة لاحقاً.' };
+      notify = { nurse: p.req.nurse, subject: 'إلغاء شحنة من طلبك - ' + p.req.id + ' (الشحنة ' + plan.batch + ') · Shipment cancelled',
+        body: mailMsg_({ order: ['en', 'ar'], id: p.req.id, req: p.req, step: 2, urgent: true,
+          en: { title: 'Shipment ' + plan.batch + ' was cancelled (sent by mistake)', lead: 'Reason: ' + reason, action: 'Do not sign for this shipment. A correct one will follow.', foot: 'You received this because you raised the request. Automatic message, please do not reply.' },
+          ar: { title: 'أُلغيت الشحنة ' + plan.batch + ' من طلبك (أُرسلت بالخطأ)', lead: 'السبب: ' + reason, action: 'لا تؤكدي استلامها — ستصلك شحنة صحيحة لاحقاً.', foot: 'وصلك هذا الإيميل لأنك رفعتِ الطلب. رسالة آلية، لا تردي عليها.' },
+          items: mailItems_(plan.items, [['الكمية', 'Qty', function (i) { return i.qty; }]]) }) };
     } else {
       const clear = {}; clear[TRANSITIONS[plan.status].stamp] = '';
       setCells_(f.t, f.row, Object.assign({ Status: plan.to }, clear));
@@ -3814,13 +3828,21 @@ function doctorReview_(user, requestId, decision, reason, itemNotes, qtys) {
   if (reason && decision === 'اعتمد') addComment_(user, requestId, reason);
   const where = ' (عيادة ' + req.clinic + (req.branch ? ' · فرع ' + req.branch : '') + ')';
   if (decision === 'اعتمد') {
-    notifyProcurement_(req.department, (req.type === 'طارئ' ? '🚨 طلب طارئ معتمد - ' : 'طلب معتمد جاهز للتجهيز - ') + requestId,
-      'اعتمد ' + (req.approver === 'branch' ? 'مدير الفرع' : 'الطبيب') + ' ' + user.name + ' الطلب ' + requestId + where + ' وهو جاهز للتجهيز.' + (reason ? '\nملاحظة: ' + reason : ''));
+    const byBm = req.approver === 'branch', em = req.type === 'طارئ';
+    const apItems = itemsOf_(requestId).filter(function (r) { return !(str_(r.SubstituteOf) && str_(r.SubStatus) !== SUB_ST.OK); })
+      .map(function (r) { return { name: str_(r.ItemName), req: r.RequestedQty, ok: targetQty_(r) }; });
+    notifyProcurement_(req.department, (em ? '🚨 طلب طارئ معتمد - ' : 'طلب معتمد جاهز للتجهيز - ') + requestId + ' · Approved, needs preparing', mailMsg_({ order: ['ar', 'en'], id: requestId, req: req, step: 2, urgent: em,
+      ar: { title: 'اعتمد ' + (byBm ? 'مدير الفرع ' : '') + user.name + ' الطلب' + (em ? ' الطارئ' : ''), lead: (byBm ? 'معتمد من مدير الفرع' : 'معتمد من الطبيب') + ' · بحاجة لتجهيز.',
+        action: em ? 'جهّز الطلب الطارئ وأرسله خلال المهلة.' : 'جهّز الطلب وأرسله في موعد الصرف.', btn: 'افتح في التموين', lines: reason ? ['ملاحظة: ' + reason] : [] },
+      en: { title: user.name + ' approved the' + (em ? ' emergency' : '') + ' request', lead: (byBm ? 'Branch manager approved' : 'Doctor approved') + ' · needs preparing.',
+        action: em ? 'Prepare and dispatch the emergency request within the deadline.' : 'Prepare and dispatch it on the dispatch day.', btn: 'Open in procurement', lines: reason ? ['Note: ' + reason] : [] },
+      items: mailItems_(apItems, [['المطلوب', 'Requested', function (i) { return i.req; }], ['المعتمد', 'Approved', function (i) { return i.ok; }]]) }));
   } else {
     const who = req.approver === 'branch' ? 'مدير الفرع' : 'الطبيب';
-    notifyUser_(req.nurse, 'رفض ' + who + ' للطلب - ' + requestId,
-      'رفض ' + who + ' ' + user.name + ' الطلب ' + requestId + where + '.\nالسبب: ' + reason +
-      '\nيمكنك مراجعة الطلب وإعادة إرساله من شاشة «طلباتي».');
+    const whoEn = req.approver === 'branch' ? 'the branch manager' : 'the doctor';
+    notifyUser_(req.nurse, 'رفض ' + who + ' للطلب - ' + requestId + ' · Request rejected', mailMsg_({ order: ['en', 'ar'], id: requestId, req: req, step: 1, urgent: true,
+      en: { title: 'Your request was rejected by ' + whoEn, lead: user.name + ' rejected it. Reason: ' + reason, action: 'Edit the request and send it again from «My requests».', btn: 'Open request', foot: 'You received this because you raised the request. Automatic message, please do not reply.' },
+      ar: { title: 'رفض ' + who + ' طلبك', lead: 'رفضه ' + user.name + '. السبب: ' + reason, action: 'يمكنك مراجعة الطلب وإعادة إرساله من شاشة «طلباتي».', btn: 'افتح الطلب', foot: 'وصلك هذا الإيميل لأنك رفعتِ الطلب. رسالة آلية، لا تردي عليها.' } }));
   }
   return true;
 }
@@ -3840,8 +3862,8 @@ function resubmitRequest_(user, requestId, note) {
     logAction_(requestId, 'إعادة إرسال للطبيب بعد الرفض', user.name);
   });
   if (note) addComment_(user, requestId, note);
-  (req.approver === 'branch' ? branchManagers_(req.branch) : [doctorAccounts_()[req.doctor] || req.doctor]).forEach(function (to) { notifyUser_(to, 'طلب مُعاد لمراجعتك - ' + requestId,
-    'أعادت الممرضة ' + user.name + ' إرسال الطلب ' + requestId + ' (عيادة ' + req.clinic + ') لمراجعتك بعد الرفض.' + (note ? '\nملاحظتها: ' + note : '')); });
+  const resentMail = approvalMail_(Object.assign({}, req, { nurse: user.name }), itemsOf_(requestId).map(function (r) { return { name: str_(r.ItemName), qty: r.RequestedQty }; }), { resent: true, note: note, branch: req.approver === 'branch' });
+  (req.approver === 'branch' ? branchManagers_(req.branch) : [doctorAccounts_()[req.doctor] || req.doctor]).forEach(function (to) { notifyUser_(to, 'طلب مُعاد لمراجعتك - ' + requestId + ' · Sent back for your review', resentMail); });
   return true;
 }
 
@@ -3905,12 +3927,11 @@ function withdrawRequest_(user, requestId, reason) {
   requestId = str_(requestId);
   reason = clean_(reason, 500) || 'رُفع بالغلط';
   guardSee_(user, requestId);
-  let req, wasReview = false;
+  let req;
   withLock_(function () {
     resetMemo_();
     const f = findRequest_(requestId);
     const own = nurseOwnedItems_(user, f, requestId), from = own.from;
-    wasReview = from === ST.REVIEW;
     const now = new Date();
     setCells_(f.t, f.row, { Status: ST.CANCELLED, CancelReason: reason, CancelledAt: now, CancelledBy: user.name });
     logAction_(requestId, 'ألغت الممرضة الطلب (' + from + ' ← ' + ST.CANCELLED + ') — السبب: ' + reason, user.name);
@@ -3919,8 +3940,7 @@ function withdrawRequest_(user, requestId, reason) {
     // حتى تقدر ترفع نفس الطلب فوراً بعد إلغائه (لا يرجع لها الطلب الملغي كـ«مكرر»)
     clearRequestDupKey_(user, f, own.rows);
   });
-  if (wasReview) notifyUser_(doctorAccounts_()[req.doctor] || req.doctor, 'أُلغي طلب كان بانتظار مراجعتك - ' + requestId,
-    'ألغت الممرضة ' + user.name + ' الطلب ' + requestId + ' (عيادة ' + req.clinic + ') قبل مراجعتك — لا حاجة لأي إجراء.\nالسبب: ' + reason);
+  // الطبيب لا يصله إيميل هنا: يختفي الطلب من «بانتظار اعتمادك» في صفحته مع سبب الإلغاء
   return true;
 }
 
@@ -4021,21 +4041,34 @@ function receiveShipment_(user, requestId, batch, receivedItems, receiverName, s
       logAction_(req.id, 'اكتمل استلام الطلب (' + after.ships.length + ' شحنة)' + (mergedUrl ? ' — إيصال موحّد بكل التواقيع' : ''), user.name);
     }
     res = {
-      rejected: res && res.rejected ? res.rejected : [], _req: req,
+      rejected: res && res.rejected ? res.rejected : [], _req: req, _items: after.items,
       complete: complete, batch: batch, pendingShipments: after.pending, notDispatched: after.total - after.dispatched, remainingQty: after.remainingQty,
       receiptUrl: receiptUrl, signatureUrl: sig.url, mergedReceiptUrl: complete ? (mergedUrl || receiptUrl) : ''
     };
   });
   // التموين والطبيب يعرفون فوراً بالصنف المرفوض وسببه
+  const r0 = res._req;
+  const rjLines = function (ar) { return res.rejected.map(function (n) { return n + ': ' + rejects[n].reason + (rejects[n].url ? (ar ? ' — الصورة: ' : ' — photo: ') + rejects[n].url : ''); }); };
   if (res.rejected.length) {
-    const r0 = res._req;
-    const subject = 'رفضت الممرضة صنفاً عند الاستلام - ' + requestId;
-    const body = 'الطلب ' + requestId + ' (عيادة ' + r0.clinic + ') — الشحنة ' + batch + ':\n- ' +
-      res.rejected.map(function (n) { return n + ': ' + rejects[n].reason + (rejects[n].url ? ' — الصورة: ' + rejects[n].url : ''); }).join('\n- ') + '\n— ' + user.name;
-    notifyProcurement_(r0.department, subject, body);
-    if (r0.doctor) notifyUser_(doctorAccounts_()[r0.doctor], subject, body);
+    notifyProcurement_(r0.department, 'رفضت الممرضة صنفاً عند الاستلام - ' + requestId + ' · Item rejected at receipt', mailMsg_({ order: ['ar', 'en'], id: requestId, req: r0, step: 5, urgent: true,
+      ar: { title: 'رفضت الممرضة صنفاً عند الاستلام', lead: 'الشحنة ' + batch + ' — ' + user.name + ' فحصت الشحنة ورفضت ما يلي:', action: 'راجع السبب والصورة وعالج الصنف (بديل أو إرسال صحيح).', btn: 'افتح في التموين', lines: rjLines(true) },
+      en: { title: 'The nurse rejected an item at receipt', lead: 'Shipment ' + batch + ': ' + user.name + ' checked it and rejected:', action: 'Check the reason and photo, then sort the item out (substitute or correct item).', btn: 'Open in procurement', lines: rjLines(false) } }));
   }
-  delete res._req;
+  // الطبيب: آخر مرحلة — استلمت الممرضة الطلب كاملاً ووقّعت (مع ما رُفض عند الاستلام إن وُجد)
+  if (res.complete && r0.doctor && doctorAccounts_()[r0.doctor]) {
+    const its = res._items.filter(function (i) { return i.target > 0 || (i.rcvRejects || []).length; });
+    const rjAll = [];
+    res._items.forEach(function (i) { (i.rcvRejects || []).forEach(function (x) { rjAll.push([i.item, x.reason]); }); });
+    notifyUser_(doctorAccounts_()[r0.doctor], 'استلمت الممرضة طلبك - ' + requestId + ' · Your request was received', mailMsg_({ order: ['ar', 'en'], id: requestId, req: r0, step: 5,
+      ar: { title: 'استُلم طلبك بتوقيع الممرضة', lead: user.name + ' فحصت الشحنات ووقّعت الاستلام — اكتمل الطلب.', btn: 'افتح الطلب',
+        lines: rjAll.map(function (x) { return 'مرفوض عند الاستلام: ' + x[0] + ' (' + x[1] + ')'; }).concat(res.mergedReceiptUrl ? ['الإيصال: ' + res.mergedReceiptUrl] : []),
+        foot: 'وصلك هذا الإيميل لأن الطلب باسمك. لا يحتاج منك أي إجراء.' },
+      en: { title: 'Your request was received and signed', lead: user.name + ' checked the shipments and signed for them. The request is complete.', btn: 'Open request',
+        lines: rjAll.map(function (x) { return 'Rejected at receipt: ' + x[0] + ' (' + x[1] + ')'; }).concat(res.mergedReceiptUrl ? ['Receipt: ' + res.mergedReceiptUrl] : []),
+        foot: 'You received this because the request is in your name. No action needed.' },
+      items: mailItems_(its, [['المعتمد', 'Approved', function (i) { return i.target; }], ['المستلم', 'Received', function (i) { return i.receivedQty === '' || i.receivedQty === null || i.receivedQty === undefined ? '—' : i.receivedQty; }]]) }));
+  }
+  delete res._req; delete res._items;
   return res;
 }
 
@@ -4198,11 +4231,13 @@ function addComplaint_(user, requestId, type, message) {
     Role: user.role, Type: type, Message: message, Resolved: false
   });
   logAction_(requestId, 'بلاغ (' + type + ')', user.name);
-  const subject = 'بلاغ جديد (' + type + ') على الطلب ' + requestId;
-  const body = user.name + ' (' + user.role + '):\n' + message;
-  notifyRole_('procurement', subject, body);
-  notifyPerm_('complaints_close', subject, body);
-  notifyRole_('admin', subject, body);
+  // البلاغ (من الطبيب أو الممرضة): التموين + الأدمن + الجودة + كل من لديه صلاحية البلاغات — إيميل واحد بلا تكرار
+  const creq = findRequestSafe_(requestId);
+  const subject = 'بلاغ جديد (' + type + ') على الطلب ' + requestId + ' · New complaint';
+  const body = mailMsg_({ order: ['ar', 'en'], id: str_(requestId), req: creq, step: -1, urgent: true,
+    ar: { title: 'بلاغ جديد على الطلب: ' + type, lead: 'من ' + user.name + ' (' + user.role + '):', lines: [message], action: 'راجع البلاغ وتابع معالجته.', btn: 'افتح البلاغات' },
+    en: { title: 'New complaint on the request: ' + type, lead: 'From ' + user.name + ' (' + user.role + '):', lines: [message], action: 'Review the complaint and follow it up.', btn: 'Open complaints' } });
+  notifyMany_(['procurement', 'admin', 'quality'], ['complaints', 'complaints_close'], subject, body);
   return { id: id };
 }
 
@@ -4332,7 +4367,143 @@ function getAlerts_(user) {
 const BRAND_ = 'MasarX · مسار اكس'; // اسم المُرسل في الإيميلات
 function sendMail_(to, subject, body) {
   if (!to) return;
-  try { MailApp.sendEmail(to, subject, body, { name: BRAND_ }); } catch (e) { console.error('Mail failed', e); }
+  // body نص عادي، أو { text, html } من mailMsg_ (إيميل منسّق بلغتين، والنص احتياطي لبرامج البريد البسيطة)
+  const html = body && typeof body === 'object' ? body.html : '';
+  const text = body && typeof body === 'object' ? body.text : body;
+  try { MailApp.sendEmail(to, subject, text, html ? { name: BRAND_, htmlBody: html } : { name: BRAND_ }); } catch (e) { console.error('Mail failed', e); }
+}
+
+/* =====================================================================
+ *  الإيميلات المنسّقة: هيكل واحد لكل الإيميلات، بلغتين، مناسب للجوال
+ *  - الممرضة: الإنجليزي أولاً ثم العربي · الطبيب والتموين والإدارة: العربي أولاً ثم الإنجليزي
+ *  - العنوان: رقم الطلب + ما حدث بالعربي + بالإنجليزي
+ *  - «المطلوب منك» يظهر فقط عند الحاجة لإجراء، مع زر يفتح الطلب (Settings ← AppUrl)
+ * ===================================================================== */
+const MAIL_STEPS_ = {
+  ar: ['رُفع', 'الاعتماد', 'قيد التجهيز', 'شُحن', 'وصل الفرع', 'استُلم'],
+  en: ['Submitted', 'Approval', 'Preparing', 'Shipped', 'At branch', 'Received']
+};
+const MAIL_TYPE_EN_ = { 'طارئ': 'Emergency', 'شهري': 'Monthly' };
+function h_(v) { return String(v === null || v === undefined ? '' : v).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'); }
+/** رابط يفتح الطلب في النظام (يُضبط مرة في Settings ← AppUrl = رابط الموقع الذي يدخل منه الفريق) */
+function appLink_(id) {
+  const u = str_(getSetting_('AppUrl', ''));
+  if (!/^https?:\/\//.test(u)) return '';
+  return id ? u + (u.indexOf('?') === -1 ? '?' : '&') + 'req=' + encodeURIComponent(id) : u;
+}
+/** بطاقة الطلب بلغة واحدة: [[العنوان, القيمة], ...] */
+function mailCard_(req, lang) {
+  if (!req) return [];
+  const ar = lang === 'ar';
+  return [
+    [ar ? 'العيادة' : 'Clinic', req.clinic],
+    [ar ? 'الفرع' : 'Branch', req.branch],
+    [ar ? 'الطبيب' : 'Doctor', req.doctor || (ar ? 'مستهلكات عيادة' : 'Clinic supplies')],
+    [ar ? 'الممرضة' : 'Nurse', req.nurse],
+    [ar ? 'نوع الطلب' : 'Type', ar ? req.type : (MAIL_TYPE_EN_[req.type] || req.type)]
+  ].filter(function (x) { return str_(x[1]); });
+}
+/**
+ * m = { order: ['ar','en'] أو ['en','ar'], id, req, step (0..5 أو -1), urgent,
+ *       ar: { title, lead, action, btn, lines: [], foot }, en: {...},
+ *       items: { ar: [عناوين], en: [headers], rows: [[...]] } }
+ * يرجع { text, html } لـ sendMail_
+ */
+function mailMsg_(m) {
+  const order = m.order || ['ar', 'en'];
+  const link = appLink_(m.id);
+  const text = [], blocks = [];
+  order.forEach(function (lang) {
+    const c = m[lang] || {}, ar = lang === 'ar', dir = ar ? 'rtl' : 'ltr', align = ar ? 'right' : 'left';
+    const card = mailCard_(m.req, lang);
+    // النص الاحتياطي
+    text.push(c.title + (c.lead ? '\n' + c.lead : '') + (c.action ? '\n\n' + (ar ? 'المطلوب منك: ' : 'Your action: ') + c.action : '') +
+      ((c.lines || []).length ? '\n' + c.lines.join('\n') : '') +
+      (card.length ? '\n\n' + card.map(function (x) { return x[0] + ': ' + x[1]; }).join('\n') : '') +
+      (m.id ? '\n' + (ar ? 'رقم الطلب: ' : 'Request: ') + m.id : '') +
+      (m.items && m.items.rows.length ? '\n\n' + m.items.rows.map(function (r) { return '- ' + r.join(' · '); }).join('\n') : '') +
+      (link && c.btn ? '\n\n' + c.btn + ': ' + link : '') + (c.foot ? '\n\n' + c.foot : ''));
+    // HTML: جداول وأنماط داخلية فقط (أغلب برامج البريد تتجاهل <style>)، عرض كامل على الجوال وحد 600px على الكمبيوتر
+    const steps = m.step >= 0 ? '<div style="margin:12px 0 4px;line-height:2.1">' + MAIL_STEPS_[lang].map(function (st, i) {
+      const done = i < m.step, now = i === m.step;
+      return '<span style="display:inline-block;margin:0 0 4px 4px;padding:2px 10px;border-radius:99px;font-size:12px;' +
+        (now ? 'background:#2f7fb8;color:#ffffff;font-weight:bold' : done ? 'background:#e2f3ea;color:#237a4b' : 'background:#f1f4f6;color:#7a8a96') + '">' + h_(st) + '</span>';
+    }).join('') + '</div>' : '';
+    const ask = c.action ? '<div style="margin:14px 0;padding:12px 14px;border:1.5px solid ' + (m.urgent ? '#b5452f' : '#2f7fb8') + ';border-radius:10px;background:' + (m.urgent ? '#fbe8e3' : '#e3eff8') + '">' +
+      '<div style="font-weight:bold;color:' + (m.urgent ? '#b5452f' : '#1f5f8c') + ';font-size:15px;line-height:1.6">' + h_((ar ? 'المطلوب منك: ' : 'Your action: ') + c.action) + '</div>' +
+      (link && c.btn ? '<a href="' + h_(link) + '" style="display:block;margin-top:10px;padding:12px 14px;background:#2f7fb8;color:#ffffff;text-decoration:none;border-radius:8px;font-weight:bold;text-align:center;font-size:15px">' + h_(c.btn) + '</a>' : '') + '</div>' : '';
+    const lines = (c.lines || []).length ? '<div style="margin:10px 0;font-size:14px;line-height:1.8;color:#14212b">' + c.lines.map(h_).join('<br>') + '</div>' : '';
+    const cardH = card.length ? '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:10px 0;font-size:14px;border-collapse:collapse">' +
+      card.map(function (x) { return '<tr><td style="padding:3px 0;color:#5b6b77;width:34%;vertical-align:top">' + h_(x[0]) + '</td><td style="padding:3px 0;font-weight:bold;color:#14212b">' + h_(x[1]) + '</td></tr>'; }).join('') + '</table>' : '';
+    const itemsH = m.items && m.items.rows.length ? '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:8px 0;font-size:13px;border-collapse:collapse;border:1px solid #dbe3e9">' +
+      '<tr>' + m.items[lang].map(function (x, i) { return '<th style="padding:7px 8px;background:#f1f4f6;color:#5b6b77;text-align:' + (i ? 'center' : align) + ';font-weight:bold">' + h_(x) + '</th>'; }).join('') + '</tr>' +
+      m.items.rows.map(function (r) { return '<tr>' + r.map(function (v, i) { return '<td style="padding:7px 8px;border-top:1px solid #dbe3e9;color:#14212b;text-align:' + (i ? 'center' : align) + (i ? '' : ';word-break:break-word') + '">' + h_(v) + '</td>'; }).join('') + '</tr>'; }).join('') + '</table>' : '';
+    blocks.push('<div dir="' + dir + '" lang="' + lang + '" style="text-align:' + align + ';padding:18px 18px 16px;font-family:' + (ar ? 'Tahoma,Arial,sans-serif' : 'Arial,Helvetica,sans-serif') + '">' +
+      '<div style="font-size:19px;font-weight:bold;color:#14212b;line-height:1.5">' + h_(c.title) + '</div>' +
+      (c.lead ? '<div style="margin-top:6px;font-size:15px;line-height:1.75;color:#33434f">' + h_(c.lead) + '</div>' : '') +
+      ask + steps + lines + cardH + itemsH +
+      (c.foot ? '<div style="margin-top:12px;font-size:12px;color:#7a8a96;line-height:1.6">' + h_(c.foot) + '</div>' : '') + '</div>');
+  });
+  const html = '<div style="margin:0;padding:12px 8px;background:#eef3f6">' +
+    '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:600px;margin:0 auto;background:#ffffff;border:1px solid #dbe3e9;border-radius:12px;border-collapse:separate;overflow:hidden">' +
+    '<tr><td style="background:#2f7fb8;color:#ffffff;padding:12px 18px;font-family:Arial,Tahoma,sans-serif;font-size:15px;font-weight:bold">' + h_(BRAND_) +
+      (m.id ? '<span style="float:right;font-family:monospace;font-weight:normal;font-size:13px;direction:ltr">' + h_(m.id) + '</span>' : '') + '</td></tr>' +
+    blocks.map(function (b, i) { return '<tr><td style="' + (i ? 'border-top:1px dashed #cfd9e0' : '') + '">' + b + '</td></tr>'; }).join('') +
+    '</table></div>';
+  return { text: text.join('\n\n──────────\n\n'), html: html };
+}
+/** جدول أصناف قصير للإيميل: cols = [['المطلوب','Requested', fn(it)], ...] */
+function mailItems_(list, cols) {
+  return {
+    ar: ['الصنف'].concat(cols.map(function (c) { return c[0]; })),
+    en: ['Item'].concat(cols.map(function (c) { return c[1]; })),
+    rows: (list || []).slice(0, 40).map(function (it) { return [it.name || it.item].concat(cols.map(function (c) { return c[2](it); })); })
+  };
+}
+/** إيميل لعدة أدوار/صلاحيات معاً بدون تكرار نفس العنوان (مثل البلاغات) */
+function notifyMany_(screens, perms, subject, body) {
+  const set = {};
+  read_('Users').rows.forEach(function (u) {
+    const em = str_(u.Email); if (!em || !str_(u.Name)) return;
+    const sc = roleScreen_(u.Role);
+    const ps = permsOf_({ role: str_(u.Role), screen: sc });
+    if (screens.indexOf(sc) !== -1 || perms.some(function (p) { return ps.indexOf(p) !== -1; })) set[em.toLowerCase()] = em;
+  });
+  const to = Object.keys(set).map(function (k) { return set[k]; });
+  if (to.length) sendMail_(to.join(','), subject, body);
+}
+
+const QTY_REQ_ = ['المطلوب', 'Requested', function (it) { return it.qty !== undefined ? it.qty : it.requestedQty; }];
+/** للطبيب أو مدير الفرع: طلب بانتظار اعتمادك (عند الرفع، أو بعد إعادة الإرسال) — العربي أولاً */
+function approvalMail_(req, items, o) {
+  o = o || {};
+  const bm = o.branch, em = req.type === 'طارئ';
+  return mailMsg_({ order: ['ar', 'en'], id: req.id, req: req, step: 1, urgent: em,
+    ar: { title: (o.resent ? 'طلب مُعاد لمراجعتك' : em ? 'طلب طارئ بانتظار اعتمادك' : 'طلب جديد بانتظار اعتمادك'),
+      lead: o.resent ? 'أعادت الممرضة ' + req.nurse + ' إرسال الطلب بعد التعديل.' + (o.note ? ' ملاحظتها: ' + o.note : '')
+        : 'رفعت ' + req.nurse + ' طلباً ' + (bm ? 'لفرعك' : 'لعيادتك') + ' ويحتاج اعتمادك قبل أن يبدأ التموين التجهيز.',
+      action: 'راجع الكميات ثم اعتمد الطلب، أو ارفضه مع ذكر السبب.', btn: 'افتح الطلب واعتمد',
+      foot: (bm ? 'وصلك هذا الإيميل لأنك مدير الفرع.' : 'وصلك هذا الإيميل لأن الطلب باسمك.') + ' رسالة آلية، لا ترد عليها.' },
+    en: { title: (o.resent ? 'A request was sent back for your review' : em ? 'Emergency request awaiting your approval' : 'New request awaiting your approval'),
+      lead: o.resent ? 'Nurse ' + req.nurse + ' sent the request again after editing it.' + (o.note ? ' Her note: ' + o.note : '')
+        : 'Nurse ' + req.nurse + ' raised a request for your ' + (bm ? 'branch' : 'clinic') + '. Procurement starts preparing once you approve it.',
+      action: 'Review the quantities, then approve or reject with a reason.', btn: 'Open and approve',
+      foot: (bm ? 'You received this as the branch manager.' : 'You received this because the request is in your name.') + ' Automatic message, please do not reply.' },
+    items: mailItems_(items, [QTY_REQ_]) });
+}
+/** للتموين: طلب جديد (أو طارئ لدى الطبيب) — العربي أولاً */
+function procNewMail_(req, items, kind) {
+  const em = req.type === 'طارئ', waiting = kind === 'waiting';
+  const why = { lab: ['طلب مستهلكات المعمل — لا يحتاج اعتماداً، ويُسلَّم للمعمل مباشرة بلا بوكس.', 'Lab supplies request: no approval needed, handed to the lab without a box.'],
+    clinic: ['طلب مستهلكات عيادة — بدون طبيب ولا يحتاج اعتماداً.', 'Clinic supplies request: no doctor, no approval needed.'],
+    noacc: ['الطبيب ليس له حساب في النظام — لا يحتاج اعتماداً.', 'The doctor has no account in the system: no approval needed.'],
+    waiting: ['طلب طارئ ما زال لدى الطبيب للاعتماد — للاستعداد فقط.', 'An emergency request still awaiting the doctor: for your heads-up only.'] }[kind];
+  return mailMsg_({ order: ['ar', 'en'], id: req.id, req: req, step: waiting ? 1 : 2, urgent: em,
+    ar: { title: waiting ? 'طلب طارئ بانتظار اعتماد الطبيب' : em ? 'طلب طارئ جديد' : 'طلب مستلزمات جديد', lead: why[0],
+      action: waiting ? '' : 'جهّز الطلب وأرسله.', btn: 'افتح في التموين', lines: req.department ? ['القسم: ' + req.department] : [] },
+    en: { title: waiting ? 'Emergency request awaiting the doctor' : em ? 'New emergency request' : 'New supplies request', lead: why[1],
+      action: waiting ? '' : 'Prepare and dispatch the request.', btn: 'Open in procurement' },
+    items: mailItems_(items, [QTY_REQ_]) });
 }
 
 function notifyRole_(screen, subject, body) {
@@ -4362,12 +4533,16 @@ function notifyNursePartial_(req, r) {
     notifyUser_(req.nurse, 'جزء من طلبك جاهز من التموين - ' + req.id, 'جزء من طلب مستهلكات المعمل ' + req.id + ' جاهز (' + r.items.map(function (i) { return i.item + ' ×' + i.qty; }).join('، ') + ') — والباقي لاحقاً.');
     return;
   }
-  notifyUser_(req.nurse, 'شحنة جزئية من طلبك - ' + req.id + ' (الشحنة ' + r.batch + ')',
-    'تم إرسال الشحنة رقم ' + r.batch + ' من طلبك ' + req.id + ' الخاص بعيادة ' + req.clinic + (req.branch ? ' (فرع ' + req.branch + ')' : '') + ':\n- ' +
-    r.items.map(function (i) { return i.item + ' ×' + i.qty + (i.remaining ? ' (باقي ' + i.remaining + ')' : ''); }).join('\n- ') +
-    '\n\nالمتبقي من الطلب (' + r.remainingQty + ' قطعة) سيُرسل لاحقاً:\n- ' +
-    r.remainingItems.map(function (i) { return i.item + ': باقي ' + i.qty + ' من ' + i.target; }).join('\n- ') +
-    '\n\nيرجى تأكيد استلام هذه الشحنة والتوقيع عليها من داخل النظام عند وصولها.');
+  notifyUser_(req.nurse, 'شحنة جزئية من طلبك - ' + req.id + ' (الشحنة ' + r.batch + ') · Partial shipment', mailMsg_({ order: ['en', 'ar'], id: req.id, req: req, step: 3,
+    en: { title: 'Part of your request was shipped (shipment ' + r.batch + ')', lead: 'It is in the box, waiting for the driver. The rest (' + r.remainingQty + ' units) follows later.',
+      lines: ['In this shipment:'].concat(r.items.map(function (i) { return i.item + ' ×' + i.qty + (i.remaining ? ' (' + i.remaining + ' left)' : ''); }),
+        ['', 'Still to come:'], r.remainingItems.map(function (i) { return i.item + ': ' + i.qty + ' of ' + i.target + ' left'; })),
+      foot: 'You will get another email when the box reaches your branch. ' + 'You received this because you raised the request. Automatic message, please do not reply.' },
+    ar: { title: 'أُرسل جزء من طلبك (الشحنة ' + r.batch + ')', lead: 'الشحنة في البوكس بانتظار السواق.',
+      lines: ['في هذه الشحنة:'].concat(r.items.map(function (i) { return i.item + ' ×' + i.qty + (i.remaining ? ' (باقي ' + i.remaining + ')' : ''); }),
+        ['', 'المتبقي من الطلب (' + r.remainingQty + ' قطعة) سيُرسل لاحقاً:'], r.remainingItems.map(function (i) { return i.item + ': باقي ' + i.qty + ' من ' + i.target; })),
+      foot: 'سيصلك إيميل عندما يصل البوكس فرعك. ' + 'وصلك هذا الإيميل لأنك رفعتِ الطلب. رسالة آلية، لا تردي عليها.' },
+  }));
 }
 
 function notifyNurseSent_(req) {
@@ -4375,9 +4550,9 @@ function notifyNurseSent_(req) {
     notifyUser_(req.nurse, 'جاهز للاستلام من التموين - ' + req.id, 'طلب مستهلكات المعمل رقم ' + req.id + ' جاهز — استلمه من التموين.');
     return;
   }
-  notifyUser_(req.nurse, 'تم إرسال طلبك - ' + req.id,
-    'تم إرسال طلبك رقم ' + req.id + ' الخاص بعيادة ' + req.clinic + (req.branch ? ' (فرع ' + req.branch + ')' : '') +
-    '.\nيرجى تأكيد الاستلام والتوقيع من داخل النظام عند وصول الطلب.');
+  notifyUser_(req.nurse, 'تم إرسال طلبك - ' + req.id + ' · Your request was shipped', mailMsg_({ order: ['en', 'ar'], id: req.id, req: req, step: 3,
+    en: { title: 'Your request was shipped', lead: 'Everything is in the box, waiting for the driver to take it to your branch.', foot: 'You will get another email when the box arrives, to check and sign. You received this because you raised the request. Automatic message, please do not reply.' },
+    ar: { title: 'تم إرسال طلبك', lead: 'كل الأصناف في البوكس بانتظار السواق ليوصلها لفرعك.', foot: 'سيصلك إيميل عند وصول البوكس لتفحصي الأصناف وتوقّعي. وصلك هذا الإيميل لأنك رفعتِ الطلب. رسالة آلية، لا تردي عليها.' } }));
 }
 
 /* =====================================================================
@@ -6180,6 +6355,7 @@ function setDoctorCharge_(user, doctor, charge) {
  * ===================================================================== */
 const SETTING_KEYS_ = {
   DriverEmail:       { roles: ['admin'], kind: 'email', note: 'إيميل السواق — يصله تنبيه البوكسات الجاهزة للنقل' },
+  AppUrl:            { roles: ['admin'], kind: 'url', note: 'رابط الموقع الذي يدخل منه الفريق — زر «افتح الطلب» في الإيميلات يفتح الطلب مباشرة' },
   BackdateUntil:     { roles: ['admin', 'finance'], kind: 'date', note: 'آخر يوم لإدخال الطلبات السابقة بأثر رجعي (YYYY-MM-DD) — off يقفلها' },
   IteroLab:          { roles: ['admin', 'lab'], kind: 'lab', note: 'معمل سكانات iTero' },
   LabTurnaroundDays: { roles: ['admin', 'lab'], kind: 'int', min: 1, max: 120, note: 'أيام تنفيذ المعمل الافتراضية' },
@@ -6226,6 +6402,7 @@ function saveSettingKeys_(user, vals) {
     if (!def || def.roles.indexOf(role) === -1) throw new Error('ERR_FORBIDDEN');
     let v = str_(vals[k]);
     if (def.kind === 'email' && v && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v)) throw new Error('ERR_BAD_EMAIL');
+    if (def.kind === 'url' && v && !/^https:\/\/[^\s]+$/.test(v)) throw new Error('ERR_BAD_URL');
     if (def.kind === 'date' && v && v !== 'off' && !/^\d{4}-\d{2}-\d{2}$/.test(v)) throw new Error('ERR_BAD_DATE:' + k);
     if (def.kind === 'int' && v !== '') { const n = Number(v); if (!(Math.floor(n) === n && n >= def.min && n <= def.max)) throw new Error('ERR_RULE_RANGE:' + k); }
     if (def.kind === 'yesno') v = /^(لا|no|false|0)$/i.test(v) ? 'لا' : 'نعم';

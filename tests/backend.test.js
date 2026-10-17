@@ -2386,7 +2386,7 @@ test('boxes view for branch managers / operations: own branch only (all if no br
   throwsCode(() => api(login('مدير جدة', '9090'), 'requestBoxMove', 'BOX-001', 'التموين'), 'ERR_FORBIDDEN');
 });
 
-test('nurse cancels her own request raised by mistake — only at doctor review or «new» before procurement starts; doctor is told', () => {
+test('nurse cancels her own request raised by mistake — only at doctor review or «new» before procurement starts', () => {
   const { api, login, gas } = boot();
   const n = login('سارة', '1111'), p = login('علي', '3333'), d = login('د. خالد', '4444');
   const items = [{ name: 'PROPHY PASTE', qty: 2 }];
@@ -2398,7 +2398,7 @@ test('nurse cancels her own request raised by mistake — only at doctor review 
   assert.equal(api(n, 'withdrawRequest', r.id, 'اخترت الطبيب الخطأ'), true);
   const q = rows(gas, 'Requests').find(x => x.RequestID === r.id);
   assert.deepEqual([q.Status, q.CancelReason, q.CancelledBy], ['ملغي', 'اخترت الطبيب الخطأ', 'سارة']);
-  assert.ok(gas.mails.some(m => /أُلغي طلب كان بانتظار مراجعتك/.test(m.subject)), 'doctor notified');
+  assert.ok(!gas.mails.some(m => /أُلغي طلب كان بانتظار مراجعتك/.test(m.subject)), 'doctor gets only approval / substitute / received emails (sees the cancellation on his page)');
   assert.ok(rows(gas, 'Log').some(l => l.RequestID === r.id && /ألغت الممرضة الطلب/.test(l.Action)));
   throwsCode(() => api(n, 'withdrawRequest', r.id), 'ERR_WITHDRAW_REVIEW_ONLY');
   // بعد الإلغاء ترفع نفس الطلب فوراً كطلب جديد (لا يُعتبر مكرراً للملغي)
@@ -2810,7 +2810,7 @@ test('settings in the app: admin edits clinics, labs, lists, keys, survey; finan
   const a = login('المدير', '1234'), f = login('نواف', '7777'), p = login('علي', '3333');
   let st = api(a, 'getSettingsAdmin');
   assert.ok(st.clinics.length && st.labs.length && st.workTypes.length && st.materials.length && st.questions.length);
-  assert.deepEqual(Object.keys(st.keys).sort(), ['BackdateUntil', 'DriverEmail', 'IteroLab', 'LabTurnaroundDays', 'SurveyEnabled', 'SurveyEveryDays', 'SurveyOpenDays', 'SurveyStart'].sort());
+  assert.deepEqual(Object.keys(st.keys).sort(), ['AppUrl', 'BackdateUntil', 'DriverEmail', 'IteroLab', 'LabTurnaroundDays', 'SurveyEnabled', 'SurveyEveryDays', 'SurveyOpenDays', 'SurveyStart'].sort());
   // finance: only the backdate key
   assert.deepEqual(Object.keys(api(f, 'getSettingsAdmin').keys), ['BackdateUntil']);
   throwsCode(() => api(f, 'saveSettingKeys', { DriverEmail: 'x@y.com' }), 'ERR_FORBIDDEN');
@@ -2936,7 +2936,7 @@ test('procurement rejects one item with a reason the doctor and nurse see; resto
     assert.ok(det.comments.some(c => /رفض التموين: DENTAL FLOSS — السبب: غير متوفر لدى المورد/.test(c.message)));
   }
   assert.ok(gas.mails.some(m => m.to === 'sara@example.com' && /رفض التموين صنفاً/.test(m.subject)), 'nurse emailed');
-  assert.ok(gas.mails.some(m => m.to === 'khaled@example.com' && /رفض التموين صنفاً/.test(m.subject)), 'doctor emailed');
+  assert.ok(!gas.mails.some(m => m.to === 'khaled@example.com' && /رفض التموين صنفاً/.test(m.subject)), 'doctor not emailed (sees it on the request)');
   throwsCode(() => api(p, 'setItemsStatus', id, ['DENTAL FLOSS'], 'قيد التجهيز'), 'ERR_ITEM_REJECTED');
 
   // إعادة الصنف: يرجع بكمية الطبيب
@@ -3044,4 +3044,31 @@ test('monthly requests can be locked after the window ends (procurement / financ
   // داخل النافذة: الإقفال لا يمنع
   api(p, 'saveOrderRules', { winStart: 1, winEnd: Math.min(31, day + 1), monthlyLock: 1 });
   assert.ok(api(n, 'createRequest', { clinic: 'عيادة الأسنان 1', doctor: 'د. سعد', type: 'شهري', items: [{ name: 'PROPHY PASTE', qty: 1 }] }).id);
+});
+
+test('emails: bilingual HTML — nurse English first, doctor Arabic first; doctor gets approval + received; complaints reach procurement, admin and quality', () => {
+  const { api, login, gas } = boot();
+  const n = login('سارة', '1111'), p = login('علي', '3333'), d = login('د. خالد', '4444');
+  const order = m => { const en = m.html.indexOf('lang="en"'), ar = m.html.indexOf('lang="ar"'); return en < ar ? 'en' : 'ar'; };
+  const id = api(n, 'createRequest', { clinic: 'عيادة الأسنان 1', doctor: 'د. خالد', type: 'شهري', items: [{ name: 'PROPHY PASTE', qty: 2 }] }).id;
+  const toDoc = gas.mails.find(m => m.to === 'khaled@example.com');
+  assert.ok(toDoc && toDoc.html && order(toDoc) === 'ar' && /Awaiting your approval/.test(toDoc.subject) && toDoc.html.includes('PROPHY PASTE'), 'doctor approval email: Arabic first, items listed');
+  assert.ok(/max-width:600px/.test(toDoc.html), 'fits phones (fluid, capped at 600px)');
+  api(d, 'doctorReview', id, 'اعتمد', '', []);
+  api(p, 'bulkUpdateStatus', [id], 'قيد التجهيز');
+  gas.mails.length = 0;
+  api(p, 'dispatchItems', id, ['PROPHY PASTE']);
+  const toNurse = gas.mails.find(m => m.to === 'sara@example.com');
+  assert.ok(toNurse && order(toNurse) === 'en' && /Your request was shipped/.test(toNurse.html), 'nurse email: English first');
+  assert.ok(!gas.mails.some(m => m.to === 'khaled@example.com'), 'doctor not emailed on shipping');
+  gas.mails.length = 0;
+  api(n, 'receiveShipment', id, 1, [{ name: 'PROPHY PASTE', qty: 2 }], '', '', '', '');
+  const done = gas.mails.find(m => m.to === 'khaled@example.com');
+  assert.ok(done && /استلمت الممرضة طلبك/.test(done.subject) && order(done) === 'ar', 'doctor told the request was received (last stage)');
+  // البلاغ: التموين + الأدمن + الجودة في إيميل واحد
+  gas.mails.length = 0;
+  api(d, 'addComplaint', id, 'نقص', 'ناقص صنف');
+  const c = gas.mails.find(m => /بلاغ جديد/.test(m.subject));
+  assert.ok(c && c.to.includes('ali@example.com') && c.to.includes('mona@example.com'), 'complaint emailed to procurement and quality: ' + (c && c.to));
+  assert.equal(gas.mails.filter(m => /بلاغ جديد/.test(m.subject)).length, 1, 'one email, no duplicates');
 });

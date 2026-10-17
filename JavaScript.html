@@ -56,6 +56,7 @@ const I18N = {
     confirm_receive: 'تأكيد الاستلام', received_ok: 'تم تأكيد استلام {id}', receiver_required: 'اسم المستلم إلزامي',
     cancel: 'إلغاء', close: 'إغلاق', save: 'حفظ', delete: 'حذف', edit: 'تعديل', send: 'إرسال', confirm: 'تأكيد', back: 'رجوع',
     select_all: 'تحديد الكل', selected: 'محدد', clear_selection: 'إلغاء التحديد',
+    stk_app_url: 'رابط الموقع (لزر «افتح الطلب» في الإيميلات)', stk_app_url_h: 'الرابط الذي يدخل منه الفريق، يبدأ بـ https://', ERR_BAD_URL: 'الرابط غير صحيح — يجب أن يبدأ بـ https://',
     rl_monthly_lock: 'الطلب الشهري بعد نهاية النافذة', rl_monthly_lock_h: 'عند الإقفال لا يُقبل طلب شهري بعد يوم النهاية حتى تُفتح من جديد (الطارئ لا يتأثر)', ERR_MONTHLY_CLOSED: 'الطلب الشهري مقفل — نافذة الرفع من يوم {a} إلى {b}. للضرورة ارفعي طلباً طارئاً أو اطلبي من التموين فتح الشهري',
     rcv_reject: 'رفض', rcv_unreject: 'تراجع', rcv_rej_title: 'رفض صنف عند الاستلام', rcv_rej_reason: 'السبب — مثلاً: غير مطابق للطلب، تالف، غير مرغوب', rcv_rej_photo: 'صورة الصنف (إلزامية)', rcv_rej_ok: 'رفض الصنف', rcv_rej_tag: 'مرفوض عند الاستلام', rcv_rej_photo_link: 'الصورة', rcv_rej_hint: 'الصنف المرفوض يُسجَّل «لم يُستلم» ويصل السبب والصورة للتموين والطبيب',
     stg_review: 'بانتظار الاعتماد', stg_ready: 'معتمد من الطبيب · بحاجة لتجهيز', stg_ready_bm: 'معتمد من مدير الفرع · بحاجة لتجهيز', stg_ready_new: 'جديد · بحاجة لتجهيز', stg_prep: 'قيد التجهيز', stg_partial: 'أُرسل جزء · الباقي قيد التجهيز', stg_shipping: 'جاهز · بانتظار السواق', stg_arrived: 'وصل الفرع · بحاجة استلام', stg_received: 'استُلم بتوقيع الممرضة', stg_rejected: 'مرفوض · يحتاج تعديل', stg_cancelled: 'ملغي', st_shipping: 'جاهز · بانتظار السواق', st_arrived: 'وصل الفرع · بحاجة استلام',
@@ -170,6 +171,7 @@ const I18N = {
     confirm_receive: 'Confirm receipt', received_ok: 'Receipt of {id} confirmed', receiver_required: 'Receiver name is required',
     cancel: 'Cancel', close: 'Close', save: 'Save', delete: 'Delete', edit: 'Edit', send: 'Send', confirm: 'Confirm', back: 'Back',
     select_all: 'Select all', selected: 'selected', clear_selection: 'Clear',
+    stk_app_url: 'Website link (for the «Open request» button in emails)', stk_app_url_h: 'The link your team signs in from, starting with https://', ERR_BAD_URL: 'The link is not valid — it must start with https://',
     rl_monthly_lock: 'Monthly requests after the window ends', rl_monthly_lock_h: 'When locked, no monthly request is accepted after the end day until it is opened again (emergencies are not affected)', ERR_MONTHLY_CLOSED: 'Monthly requests are closed — the window is day {a} to {b}. Raise an emergency request if needed, or ask procurement to reopen monthly requests',
     rcv_reject: 'Reject', rcv_unreject: 'Undo', rcv_rej_title: 'Reject an item at receipt', rcv_rej_reason: 'Reason — e.g. not what was ordered, damaged, not wanted', rcv_rej_photo: 'Photo of the item (required)', rcv_rej_ok: 'Reject item', rcv_rej_tag: 'Rejected at receipt', rcv_rej_photo_link: 'Photo', rcv_rej_hint: 'A rejected item is recorded as not received; procurement and the doctor get the reason and photo',
     stg_review: 'Awaiting approval', stg_ready: 'Doctor approved · needs preparing', stg_ready_bm: 'Branch manager approved · needs preparing', stg_ready_new: 'New · needs preparing', stg_prep: 'In preparation', stg_partial: 'Partly sent · rest in preparation', stg_shipping: 'Ready · waiting for the driver', stg_arrived: 'At branch · needs receipt', stg_received: 'Received · signed', stg_rejected: 'Rejected · needs changes', stg_cancelled: 'Cancelled', st_shipping: 'Ready · waiting for the driver', st_arrived: 'At branch · needs receipt',
@@ -945,6 +947,8 @@ function openModal(opts) {
   MODALS.push(m);
   document.body.style.overflow = 'hidden';
   setTimeout(() => {
+    // لا نسحب التركيز إن بدأ المستخدم الكتابة في حقل داخل النافذة خلال هذه المهلة
+    if (layer.contains(document.activeElement)) return;
     const f = layer.querySelector('[autofocus]') || layer.querySelector('.modal-body input:not([type=hidden]):not([disabled]), .modal-body textarea, .modal-body select');
     const md = layer.querySelector('.modal');
     if (f && !('ontouchstart' in window)) f.focus(); else { md.setAttribute('tabindex', '-1'); md.focus({ preventScroll: true }); }
@@ -1269,6 +1273,7 @@ function enterApp(cfg) {
   const saved = store.get('view_' + S.user.screen, null);
   const nav = navItems();
   go(nav.some(n => n.id === saved) ? saved : (nav[0] && nav[0].id));
+  if (S.pendingReq) { const rq = S.pendingReq; S.pendingReq = null; setTimeout(() => openDetail(rq), 500); }
   S.lastSync = new Date(); S.cfgAt = Date.now(); updateSyncTime();
   loadAlerts();
   if (S.user.screen === 'nurse' && S.view !== 'mine') loadMine(true);
@@ -4264,6 +4269,7 @@ ACT.rlSave = el => {
    ===================================================================== */
 const ST_KEYS = {
   DriverEmail: { k: 'stk_driver_email', type: 'email' },
+  AppUrl: { k: 'stk_app_url', type: 'url', hint: 'stk_app_url_h' },
   BackdateUntil: { k: 'stk_backdate', type: 'date', hint: 'stk_backdate_h' },
   IteroLab: { k: 'stk_itero', type: 'lab' },
   LabTurnaroundDays: { k: 'stk_lab_days', type: 'number', min: 1, max: 120 },
@@ -4285,7 +4291,7 @@ function stField(key, val) {
   let input;
   if (f.type === 'yesno') input = '<select class="select st-key" id="' + id + '" data-k="' + key + '"><option value="نعم"' + (val !== 'لا' ? ' selected' : '') + '>' + esc(t('st_yes')) + '</option><option value="لا"' + (val === 'لا' ? ' selected' : '') + '>' + esc(t('st_no')) + '</option></select>';
   else if (f.type === 'lab') input = '<select class="select st-key" id="' + id + '" data-k="' + key + '"><option value="">' + esc(t('stk_auto')) + '</option>' + (d.labNames || []).map(n => '<option' + (n === val ? ' selected' : '') + '>' + esc(n) + '</option>').join('') + '</select>';
-  else input = '<input class="input st-key" id="' + id + '" data-k="' + key + '" type="' + (f.type === 'number' ? 'number' : f.type === 'date' ? 'text' : 'email') + '"' +
+  else input = '<input class="input st-key" id="' + id + '" data-k="' + key + '" type="' + (f.type === 'number' ? 'number' : f.type === 'date' ? 'text' : f.type === 'url' ? 'url' : 'email') + '"' +
     (f.type === 'date' ? ' placeholder="YYYY-MM-DD" dir="ltr"' : '') + (f.min ? ' min="' + f.min + '" max="' + f.max + '"' : '') + ' value="' + esc(val) + '"' +
     (d.defaults[key] !== undefined ? ' placeholder="' + esc(String(d.defaults[key])) + '"' : '') + '>';
   return '<div class="field"><label for="' + id + '">' + esc(t(f.k)) + '</label>' + input + (f.hint ? '<div class="hint">' + esc(t(f.hint)) + '</div>' : '') + '</div>';
@@ -7313,6 +7319,8 @@ ACT.drvTasks = () => showDriverTasks(DRV.tk);
   getUrlParams().then(p => {
     if (p.box && p.k) { done(); showDriverBox(p.box, p.k, false); return; }
     if (p.driver) { done(); showDriverTasks(p.driver); return; }
+    // زر «افتح الطلب» في الإيميل: يفتح تفاصيل الطلب بعد الدخول
+    if (p.req && /^[\w-]{3,40}$/.test(p.req)) S.pendingReq = p.req;
     startApp();
   });
   function startApp() {

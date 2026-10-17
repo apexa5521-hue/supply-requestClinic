@@ -147,7 +147,7 @@
         setProperty(k, v) { op('cache', 0, 'setprop ' + k); props[k] = String(v); return this; },
         deleteProperty(k) { delete props[k]; return this; },
         getKeys() { return Object.keys(props); } }; } },
-      MailApp: { sendEmail(to, subject, body) { op('mail'); mails.push({ to, subject, body }); } },
+      MailApp: { sendEmail(to, subject, body, opts) { op('mail'); mails.push({ to, subject, body, html: (opts && opts.htmlBody) || '' }); } },
       DriveApp: {
         Access: { ANYONE_WITH_LINK: 'ANYONE_WITH_LINK' },
         Permission: { VIEW: 'VIEW' },
