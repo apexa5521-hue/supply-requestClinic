@@ -117,7 +117,7 @@ export function createGas({ onMail } = {}) {
       deleteProperty(k) { delete props[k]; return this; },
       getKeys() { return Object.keys(props); },
       getProperties() { return Object.assign({}, props); } }; } },
-    MailApp: { sendEmail(to, subject, body) { if (onMail) onMail({ to, subject, body }); }, getRemainingDailyQuota() { return 100; } },
+    MailApp: { sendEmail(to, subject, body, opts) { if (onMail) onMail({ to, subject, body, html: (opts && opts.htmlBody) || '', name: (opts && opts.name) || '' }); }, getRemainingDailyQuota() { return 100; } },
     DriveApp: {
       Access: { ANYONE_WITH_LINK: 'ANYONE_WITH_LINK' },
       Permission: { VIEW: 'VIEW' },

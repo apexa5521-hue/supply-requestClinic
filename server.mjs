@@ -14,6 +14,7 @@ import { driveConfigFromEnv, driveViewUrl } from './server/drive.mjs';
 import { googleAccessToken, mirrorToSheet, runExclusive } from './server/sync.mjs';
 import { Store, storageState, encodeGrid } from './server/store.mjs';
 import { exportWorkbook, instantFromCell } from './server/workbook.mjs';
+import { mailConfigFromEnv, createMailer, createPusher, loadVapid, SERVICE_WORKER, MANIFEST, HEAD_TAGS } from './server/notify.mjs';
 const SHEET_TZ = process.env.SHEET_TZ || 'Asia/Riyadh';
 
 dotenv.config();
@@ -30,7 +31,12 @@ const driveCfg = driveConfigFromEnv(process.env);
 const store = new Store(pool, driveCfg ? { cfg: driveCfg, token: null } : null);
 
 /* ---------- Code.gs runtime ---------- */
-const gas = createGas({ onMail: m => console.log('[mail] to=%s subject=%s', m.to, m.subject) });
+// email: SMTP_USER + SMTP_PASS in Render (without them the email is only written to the log)
+const mailer = createMailer(mailConfigFromEnv(process.env));
+const gas = createGas({ onMail: m => { mailer.send(m); } });
+// phone push: Code.gs calls PushService.send (only defined once the keys are loaded at boot)
+let pusher = null;
+const PushService = { send(subs, payload) { if (pusher) pusher.send(JSON.parse(subs), payload).catch(e => console.error('[push]', e.message)); } };
 const ctx = vm.createContext(Object.assign({ console }, gas.globals));
 vm.runInContext(read('Code.gs'), ctx, { filename: 'Code.gs' });
 const VmDate = vm.runInContext('Date', ctx);
@@ -55,6 +61,8 @@ function buildIndex() {
   let html = read('Index.html').replace("<?!= include_('JavaScript'); ?>", () => js);
   if (!/<title>/i.test(html)) html = html.replace('<head>', '<head>\n<title>مسار — ApexCare</title>');
   if (!/name="viewport"/.test(html)) html = html.replace('<head>', '<head>\n<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">');
+  // installable on the phone (iPhone: Add to Home Screen) so it can receive notifications
+  html = html.replace('</head>', HEAD_TAGS + '\n</head>');
   return html;
 }
 const INDEX = buildIndex();
@@ -77,6 +85,16 @@ app.post('/api', express.text({ type: '*/*', limit: '25mb' }), async (req, res) 
     const code = err && typeof err.code === 'string' && /^ERR_[A-Z_]+$/.test(err.code) ? err.code : 'ERR_SERVER';
     res.status(500).json({ ok: false, error: code });
   }
+});
+
+/* ---------- phone notifications: service worker, manifest, icons, public key ---------- */
+app.get('/sw.js', (req, res) => { res.set('Cache-Control', 'no-cache'); res.set('Service-Worker-Allowed', '/'); res.type('application/javascript').send(SERVICE_WORKER); });
+app.get('/manifest.webmanifest', (req, res) => { res.set('Cache-Control', 'public, max-age=3600'); res.type('application/manifest+json').send(MANIFEST); });
+app.use('/icons', express.static(path.join(ROOT, 'public', 'icons'), { maxAge: '7d', fallthrough: false }));
+app.get('/push/key', async (req, res) => {
+  await ready;
+  if (!pusher) return res.sendStatus(404);
+  res.set('Cache-Control', 'no-cache'); res.type('text').send(pusher.publicKey);
 });
 
 // files that Code.gs saved to "Drive" (receipts, signatures, photos)
@@ -252,7 +270,8 @@ app.get('/health', async (req, res) => {
   }
   let storage = null;
   try { storage = storageState(await store.dbBytes(), store.limitMb); storage.drive = !!driveCfg; } catch (e) { storage = { error: e.code || 'ERROR' }; }
-  res.json({ status: bootError ? 'error' : 'ok', db, storage, sheets: gas.order.length, timestamp: new Date().toISOString() });
+  res.json({ status: bootError ? 'error' : 'ok', db, storage, sheets: gas.order.length,
+    notify: { email: mailer.enabled, push: !!pusher, ...mailer.stats() }, timestamp: new Date().toISOString() });
 });
 
 /* storage details for the admin page: size, the biggest tables */
@@ -274,6 +293,12 @@ ready = (async () => {
     console.log('Loaded from PostgreSQL:', n);
     // empty database: the same first-time setup as Apps Script (tabs, default roles, admin «المدير» / 1234)
     if (!n.sheets) { ctx.setupSheets(); await store.flush(gas); console.log('New database: created', gas.order.length, 'tabs'); }
+    try {
+      // devices that turned notifications off are removed from PushSubs
+      pusher = createPusher(await loadVapid(pool, process.env), { onGone: list => serial(async () => { ctx.prunePushSubs_(list); await store.flush(gas); }) });
+      ctx.PushService = PushService;
+    } catch (e) { console.error('Push setup failed (the app works without it):', e.message); }
+    console.log('Notifications: email', mailer.enabled ? 'on' : 'off (set SMTP_USER and SMTP_PASS)', '· push', pusher ? 'on' : 'off');
   } catch (e) { bootError = e; console.error('Boot failed:', e); }
 })();
 
