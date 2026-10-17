@@ -32,7 +32,7 @@ const I18N = {
     sub_requests: 'جهّز الطلبات المعتمدة ثم أرسلها للفرع', sub_complaints: 'بلاغات التأخير والنقص والزيادة',
     sub_reviews: 'راجع الطلبات واعتمدها أو ارفضها', sub_overview: 'مؤشرات الأداء وزمن التنفيذ', sub_notices: 'أرسل تنبيهات للإدارات',
     sub_users: 'إدارة الحسابات والأدوار والصلاحيات',
-    st_new: 'بدون اعتماد · بحاجة لتجهيز', st_prep: 'قيد التجهيز', st_vendor_wait: 'بانتظار المندوب', st_vendor_recv: 'استلم المندوب',
+    st_new: 'جديد', st_prep: 'قيد التجهيز', st_vendor_wait: 'بانتظار المندوب', st_vendor_recv: 'استلم المندوب',
     st_review: 'جديد · لم يعتمده الطبيب بعد', st_approved: 'معتمد من الطبيب · بحاجة لتجهيز', st_rejected: 'مرفوض · يحتاج تعديل', st_sent: 'شُحن · في الطريق للفرع', st_received: 'استُلم بتوقيع الممرضة',
     type_monthly: 'شهري', type_emergency: 'طارئ',
     grp_all: 'الكل', grp_prep: 'قيد التجهيز', grp_active: 'قيد التنفيذ', grp_to_receive: 'بانتظار استلامك',
@@ -60,7 +60,7 @@ const I18N = {
     stk_app_url: 'رابط الموقع (لزر «افتح الطلب» في الإيميلات)', stk_app_url_h: 'الرابط الذي يدخل منه الفريق، يبدأ بـ https://', ERR_BAD_URL: 'الرابط غير صحيح — يجب أن يبدأ بـ https://',
     rl_monthly_lock: 'الطلب الشهري بعد نهاية النافذة', rl_monthly_lock_h: 'عند الإقفال لا يُقبل طلب شهري بعد يوم النهاية حتى تُفتح من جديد (الطارئ لا يتأثر)', ERR_MONTHLY_CLOSED: 'الطلب الشهري مقفل — نافذة الرفع من يوم {a} إلى {b}. للضرورة ارفعي طلباً طارئاً أو اطلبي من التموين فتح الشهري',
     rcv_reject: 'رفض', rcv_unreject: 'تراجع', rcv_rej_title: 'رفض صنف عند الاستلام', rcv_rej_reason: 'السبب — مثلاً: غير مطابق للطلب، تالف، غير مرغوب', rcv_rej_photo: 'صورة الصنف (إلزامية)', rcv_rej_ok: 'رفض الصنف', rcv_rej_tag: 'مرفوض عند الاستلام', rcv_rej_photo_link: 'الصورة', rcv_rej_hint: 'الصنف المرفوض يُسجَّل «لم يُستلم» ويصل السبب والصورة للتموين والطبيب',
-    stg_review: 'جديد · لم يُعتمد بعد', proc_review_hint: 'طلبات لم يعتمدها الطبيب أو مدير الفرع بعد — تقدر تبدأ تجهّزها مسبقاً، وأول ما تُعتمد تنتقل لـ«معتمد · بحاجة لتجهيز» فحوّلها «قيد التجهيز».', stg_ready: 'معتمد من الطبيب · بحاجة لتجهيز', stg_ready_bm: 'معتمد من مدير الفرع · بحاجة لتجهيز', stg_ready_new: 'بدون اعتماد · بحاجة لتجهيز', stg_prep: 'قيد التجهيز', stg_partial: 'أُرسل جزء · الباقي قيد التجهيز', stg_shipping: 'جاهز · بانتظار السواق', stg_arrived: 'وصل الفرع · بحاجة استلام', stg_received: 'استُلم بتوقيع الممرضة', stg_rejected: 'مرفوض · يحتاج تعديل', stg_cancelled: 'ملغي', st_shipping: 'جاهز · بانتظار السواق', st_arrived: 'وصل الفرع · بحاجة استلام',
+    stg_review: 'جديد · لم يُعتمد بعد', proc_review_hint: 'طلبات جديدة لم تُعتمد بعد — تقدر تبدأ تجهّزها مسبقاً، وأول ما يعتمدها الطبيب أو مدير الفرع تنتقل لـ«معتمد · بحاجة لتجهيز» فحوّلها «قيد التجهيز». طلب المعمل ومستهلكات العيادة والطبيب بلا حساب ما لها معتمِد، فحوّلها «قيد التجهيز» مباشرة.', stg_ready: 'معتمد من الطبيب · بحاجة لتجهيز', stg_ready_bm: 'معتمد من مدير الفرع · بحاجة لتجهيز', stg_prep: 'قيد التجهيز', stg_partial: 'أُرسل جزء · الباقي قيد التجهيز', stg_shipping: 'جاهز · بانتظار السواق', stg_arrived: 'وصل الفرع · بحاجة استلام', stg_received: 'استُلم بتوقيع الممرضة', stg_rejected: 'مرفوض · يحتاج تعديل', stg_cancelled: 'ملغي', st_shipping: 'جاهز · بانتظار السواق', st_arrived: 'وصل الفرع · بحاجة استلام',
     ERR_DEVICE_NO_DOCTOR: 'غرف الأجهزة (Gentle / Hydrafacial / Clarity) تُطلب «مستهلكات عيادة» بدون طبيب — ويعتمدها مدير الفرع',
     all_types: 'كل الأنواع (شهري / طارئ)',
     dash_status_hint: 'اضغط على أي حالة لعرض طلباتها', dash_status_n: '{n} طلب — اضغط رقم الطلب لفتح تفاصيله',
@@ -148,7 +148,7 @@ const I18N = {
     sub_requests: 'Prepare approved requests, then dispatch them', sub_complaints: 'Delay, shortage and excess reports',
     sub_reviews: 'Review, approve or reject requests', sub_overview: 'Performance and fulfilment time', sub_notices: 'Send notices to departments',
     sub_users: 'Manage accounts, roles and access',
-    st_new: 'No approval needed · needs preparing', st_prep: 'In progress', st_vendor_wait: 'Awaiting vendor', st_vendor_recv: 'Vendor received',
+    st_new: 'New', st_prep: 'In progress', st_vendor_wait: 'Awaiting vendor', st_vendor_recv: 'Vendor received',
     st_review: 'New · not yet approved by the doctor', st_approved: 'Doctor approved · needs preparing', st_rejected: 'Rejected · needs changes', st_sent: 'Shipped · on the way to the branch', st_received: 'Received · signed by the nurse',
     type_monthly: 'Monthly', type_emergency: 'Emergency',
     grp_all: 'All', grp_prep: 'In progress', grp_active: 'Active', grp_to_receive: 'To receive',
@@ -176,7 +176,7 @@ const I18N = {
     stk_app_url: 'Website link (for the «Open request» button in emails)', stk_app_url_h: 'The link your team signs in from, starting with https://', ERR_BAD_URL: 'The link is not valid — it must start with https://',
     rl_monthly_lock: 'Monthly requests after the window ends', rl_monthly_lock_h: 'When locked, no monthly request is accepted after the end day until it is opened again (emergencies are not affected)', ERR_MONTHLY_CLOSED: 'Monthly requests are closed — the window is day {a} to {b}. Raise an emergency request if needed, or ask procurement to reopen monthly requests',
     rcv_reject: 'Reject', rcv_unreject: 'Undo', rcv_rej_title: 'Reject an item at receipt', rcv_rej_reason: 'Reason — e.g. not what was ordered, damaged, not wanted', rcv_rej_photo: 'Photo of the item (required)', rcv_rej_ok: 'Reject item', rcv_rej_tag: 'Rejected at receipt', rcv_rej_photo_link: 'Photo', rcv_rej_hint: 'A rejected item is recorded as not received; procurement and the doctor get the reason and photo',
-    stg_review: 'New · not approved yet', proc_review_hint: 'Not approved by the doctor or branch manager yet — you can start preparing early. Once approved it moves to “Approved · needs preparing”; then set it “In preparation”.', stg_ready: 'Doctor approved · needs preparing', stg_ready_bm: 'Branch manager approved · needs preparing', stg_ready_new: 'No approval needed · needs preparing', stg_prep: 'In preparation', stg_partial: 'Partly sent · rest in preparation', stg_shipping: 'Ready · waiting for the driver', stg_arrived: 'At branch · needs receipt', stg_received: 'Received · signed', stg_rejected: 'Rejected · needs changes', stg_cancelled: 'Cancelled', st_shipping: 'Ready · waiting for the driver', st_arrived: 'At branch · needs receipt',
+    stg_review: 'New · not approved yet', proc_review_hint: 'New requests not approved yet — you can start preparing early. Once the doctor or branch manager approves, it moves to “Approved · needs preparing”; then set it “In preparation”. Lab, clinic-supply and no-account-doctor requests have no approver: set them “In preparation” directly.', stg_ready: 'Doctor approved · needs preparing', stg_ready_bm: 'Branch manager approved · needs preparing', stg_prep: 'In preparation', stg_partial: 'Partly sent · rest in preparation', stg_shipping: 'Ready · waiting for the driver', stg_arrived: 'At branch · needs receipt', stg_received: 'Received · signed', stg_rejected: 'Rejected · needs changes', stg_cancelled: 'Cancelled', st_shipping: 'Ready · waiting for the driver', st_arrived: 'At branch · needs receipt',
     ERR_DEVICE_NO_DOCTOR: 'Device rooms (Gentle / Hydrafacial / Clarity) are ordered as clinic consumables, no doctor — the branch manager approves',
     all_types: 'All types (monthly / emergency)',
     dash_status_hint: 'Click any status to list its requests', dash_status_n: '{n} request(s) — click a number to open it',
@@ -1657,8 +1657,8 @@ window.addEventListener('scroll', () => { $('#topbar').classList.toggle('scrolle
    Alerts, notices, sync
    ===================================================================== */
 const ALERT_ICON = { info: 'info', success: 'checkc', warning: 'clock', danger: 'alert' };
-/* «بحاجة لتجهيز» ثلاث مجموعات (اعتمده الطبيب / مدير الفرع / بدون اعتماد): التنبيه يفتح أول مجموعة فيها طلبات */
-const READY_GROUPS = ['ready', 'ready_bm', 'ready_new'];
+/* «جاهز للتجهيز»: المعتمد من الطبيب أو مدير الفرع، أو الجديد الذي لا يعتمده أحد — التنبيه يفتح أول مجموعة فيها طلبات */
+const READY_GROUPS = ['ready', 'ready_bm', 'review'];
 const ALERT_TARGET = {
   alert_to_receive: ['mine', 'to_receive'], alert_box_arrived: ['mine', 'to_receive'], alert_rejected: ['mine', 'rejected'],
   alert_partial: ['requests', 'partial'], alert_urgent_new: ['requests', READY_GROUPS], alert_new: ['requests', READY_GROUPS], alert_approved_ready: ['requests', 'prep'], alert_urgent_review: ['requests', 'review'],
@@ -2899,11 +2899,11 @@ function procStage(r) {
   if (r.sentQty > 0 && r.remainingQty > 0) return 'partial';
   if (r.status === ST.SENT) return r.atBranch ? 'arrived' : 'shipping';
   if ([ST.PREP, ST.VENDOR_WAIT, ST.VENDOR_RECV].indexOf(r.status) !== -1) return 'prep';
-  // بحاجة لتجهيز: من اعتمده (الطبيب أو مدير الفرع)، أو جديد لا يحتاج اعتماداً
-  return !r.doctorApproved ? 'ready_new' : r.approver === 'branch' ? 'ready_bm' : 'ready';
+  // معتمد · بحاجة لتجهيز (من الطبيب أو مدير الفرع)؛ وما لم يُعتمد = «جديد» (ومنه طلب المعمل ومستهلكات العيادة والطبيب بلا حساب)
+  return !r.doctorApproved ? 'review' : r.approver === 'branch' ? 'ready_bm' : 'ready';
 }
 const PROC_GROUPS = [{ id: 'all', k: 'grp_all' }].concat([
-  ['review', 'var(--t-violet)'], ['ready', 'var(--t-teal)'], ['ready_bm', 'var(--t-teal)'], ['ready_new', 'var(--t-blue)'], ['prep', 'var(--t-amber)'], ['partial', 'var(--t-orange)'],
+  ['review', 'var(--t-violet)'], ['ready', 'var(--t-teal)'], ['ready_bm', 'var(--t-teal)'], ['prep', 'var(--t-amber)'], ['partial', 'var(--t-orange)'],
   ['shipping', 'var(--t-indigo)'], ['arrived', ARRIVED_TONE], ['received', 'var(--t-green)'], ['rejected', 'var(--t-red)'], ['cancelled', 'var(--t-gray)']
 ].map(x => ({ id: x[0], k: 'stg_' + x[0], tone: x[1], test: r => procStage(r) === x[0] })));
 const BULK = [
