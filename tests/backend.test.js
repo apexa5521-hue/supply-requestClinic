@@ -2984,3 +2984,45 @@ test('doctor accounts must link to a doctor; "Dr.MohammedG" links by first name 
   // غير الأطباء لا يحتاجون ربطاً
   api(a, 'createUser', { name: 'ممرضة جديدة', password: '1111', role: 'ممرضة', clinic: 'عيادة الأسنان 1' });
 });
+
+test('device rooms (GentleMax / Hydrafacial): clinic consumables only, approved by the branch manager before procurement', () => {
+  const { api, login, gas } = boot();
+  gas.seed('Clinics', ['ClinicName', 'Branch', 'Type'], [
+    ['عيادة الأسنان 1', 'الرياض', 'أسنان'], ['عيادة الجلدية 1', 'الرياض', 'جلدية'], ['Derma GentleMax', 'الرياض', 'Dermatology'], ['Sterilization', 'الرياض', 'تعقيم']
+  ]);
+  const a = login('المدير', '1234'), p = login('علي', '3333'), n = login('سارة', '1111');
+  api(a, 'createUser', { name: 'مدير الرياض', password: '9191', role: 'مدير فرع', branch: 'الرياض' });
+  const mr = login('مدير الرياض', '9191');
+  // لا طبيب لغرفة الجهاز
+  throwsCode(() => api(n, 'createRequest', { clinic: 'Derma GentleMax', doctor: 'د. فهد', type: 'شهري', items: [{ name: 'DENTAL FLOSS', qty: 1 }] }), 'ERR_DEVICE_NO_DOCTOR');
+  const id = api(n, 'createRequest', { clinic: 'Derma GentleMax', type: 'شهري', items: [{ name: 'DENTAL FLOSS', qty: 2 }] }).id;
+  const r = api(p, 'getRequests', {}).find(x => x.id === id);
+  assert.deepEqual([r.approver, r.awaitingDoctor, r.cleared], ['branch', true, false], 'waits for the branch manager, not a doctor');
+  throwsCode(() => api(p, 'dispatchItems', id, ['DENTAL FLOSS']), 'ERR_NEEDS_APPROVAL');
+  assert.ok(api(mr, 'getDoctorRequests').some(x => x.id === id), 'branch manager sees it to approve');
+  api(mr, 'doctorReview', id, 'اعتمد', '', []);
+  assert.equal(api(p, 'getRequests', {}).find(x => x.id === id).cleared, true, 'approved → procurement can prepare');
+  // التعقيم يبقى كما هو: مباشرة للتموين
+  const s = api(n, 'createRequest', { clinic: 'Sterilization', branch: 'الرياض', type: 'شهري', items: [{ name: 'DENTAL FLOSS', qty: 1 }] }).id;
+  const sr = api(p, 'getRequests', {}).find(x => x.id === s);
+  assert.deepEqual([sr.approver, sr.cleared], ['', true]);
+});
+
+test('nurse rejects one item at receipt with a reason and photo: not received, procurement and doctor told', () => {
+  const { api, login, gas } = boot();
+  const n = login('سارة', '1111'), p = login('علي', '3333');
+  const PIC = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==';
+  const id = api(n, 'createRequest', { clinic: 'عيادة الأسنان 1', doctor: 'د. نورة', type: 'شهري', items: [{ name: 'PROPHY PASTE', qty: 2 }, { name: 'DENTAL FLOSS', qty: 3 }] }).id;
+  api(p, 'bulkUpdateStatus', [id], 'قيد التجهيز');
+  api(p, 'dispatchItems', id, ['PROPHY PASTE', 'DENTAL FLOSS']);
+  throwsCode(() => api(n, 'receiveShipment', id, 1, [{ name: 'DENTAL FLOSS', qty: 0, reject: { reason: '', photo: PIC } }], '', '', '', ''), 'ERR_REASON_REQUIRED');
+  throwsCode(() => api(n, 'receiveShipment', id, 1, [{ name: 'DENTAL FLOSS', qty: 0, reject: { reason: 'غير مطابق' } }], '', '', '', ''), 'ERR_PHOTO_REQUIRED');
+  const res = api(n, 'receiveShipment', id, 1, [{ name: 'PROPHY PASTE', qty: 2 }, { name: 'DENTAL FLOSS', qty: 3, reject: { reason: 'غير مطابق للطلب', photo: PIC } }], '', '', '', '');
+  assert.deepEqual(res.rejected, ['DENTAL FLOSS']);
+  const fl = api(p, 'getRequestItemsFull', id).items.find(i => i.item === 'DENTAL FLOSS');
+  assert.equal(fl.rcvRejects[0].reason, 'غير مطابق للطلب');
+  assert.ok(fl.rcvRejects[0].photo, 'photo saved');
+  assert.equal(api(n, 'getRequestDetail', id).items.find(i => i.item === 'DENTAL FLOSS').receivedQty, 0, 'counted as not received');
+  assert.ok(api(n, 'getComments', id).some(c => /رفضت الممرضة عند استلام الشحنة 1: DENTAL FLOSS/.test(c.message)));
+  assert.ok(gas.mails.some(m => /رفضت الممرضة صنفاً عند الاستلام/.test(m.subject)), 'procurement emailed');
+});

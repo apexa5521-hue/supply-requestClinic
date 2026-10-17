@@ -276,7 +276,7 @@ function log(msg) { console.log('  ✔ ' + msg); }
   expect(await page.isVisible(`text=${newId}`), 'new request appears in "my requests"');
   await page.click('#mineChips .chip[data-g="all"]').catch(() => {});
   await page.waitForSelector(`.req:has-text("${bdId}") .tag.backdated`);
-  expect(await page.locator(`.req:has-text("${bdId}") .badge:has-text("تم الاستلام")`).count() >= 1, 'backdated request is received and tagged «أثر رجعي»');
+  expect(await page.locator(`.req:has-text("${bdId}") .badge:has-text("استُلم بتوقيع")`).count() >= 1, 'backdated request is received and tagged «أثر رجعي»');
   await shot(page, 'nurse-backdated-tag');
   expect((await page.textContent(`.req:has-text("${newId}") .tag.branch`)).includes('جدة'), 'request card shows its branch');
   expect(await page.locator(`.req:has-text("${newId}") .tag.branch`).count() === 1, 'branch tag appears once');
@@ -316,7 +316,7 @@ function log(msg) { console.log('  ✔ ' + msg); }
   expect(await page.getAttribute(`#procList .req[data-rid="${newId}"]`, 'data-tone') !== null, 'procurement request cards are colored by status');
   // الطلب الجديد لدى الطبيب أولاً: التموين يراه لكن لا يستطيع تجهيزه
   expect(await page.isVisible('.alert.warning:has-text("لدى الطبيب")'), 'procurement is alerted that an emergency awaits doctor approval');
-  expect((await page.textContent(`.req[data-rid="${newId}"] .badge`)).includes('مراجعة الطبيب'), 'new request goes straight to doctor review');
+  expect((await page.textContent(`.req[data-rid="${newId}"] .badge`)).includes('بانتظار اعتماد الطبيب'), 'new request goes straight to doctor review');
   await page.check(`.req[data-rid="${newId}"] .req-main > .check`);
   await page.waitForSelector('#bulkbar.show');
   const bulkState = async () => page.$$eval('#bulkbar [data-act="bulk"]', bs => bs.map(b => b.dataset.s + ':' + (b.disabled ? 'off' : 'on')).join(','));
@@ -413,12 +413,15 @@ function log(msg) { console.log('  ✔ ' + msg); }
   await login(page, 'علي', '3333');
   expect(await page.isVisible('#pageTitle:has-text("البلاغات")'), 'app remembers the last visited screen');
   await page.click('.sidebar [data-view="requests"]');
-  await page.click('.chip[data-g="docok"]');
-  expect((await page.textContent('.chip[data-g="docok"]')).includes('معتمد من الطبيب') && await page.locator(`#procList .req[data-rid="${newId}"]`).count() === 1, '«doctor approved» chip lists the approved request');
-  expect((await page.textContent('.chip[data-g="ready"]')).includes('جديد يحتاج إلى تجهيز'), '«ready to prepare» chip is renamed «new, needs preparing»');
+  // مراحل التموين: كل طلب في مرحلة واحدة فقط — ومجموع المراحل = «الكل»
+  const stageSum = await page.evaluate(() => Array.from(document.querySelectorAll('#procChips .chip:not([data-g="all"]) .count-pill')).reduce((a, x) => a + Number(x.textContent), 0));
+  const stageAll = Number(await page.textContent('#procChips .chip[data-g="all"] .count-pill'));
+  expect(stageSum === stageAll, 'stage chips do not overlap: ' + stageSum + ' = ' + stageAll);
   await page.click('.chip[data-g="ready"]');
-  expect(await page.locator(`#procList .req[data-rid="${newId}"]`).count() === 0, 'a doctor-approved request is not repeated under «new, needs preparing»');
-  await page.click('.chip[data-g="docok"]');
+  expect((await page.textContent('.chip[data-g="ready"]')).includes('معتمد · جاهز للتجهيز') && await page.locator(`#procList .req[data-rid="${newId}"]`).count() === 1, '«approved · ready to prepare» lists the doctor-approved request');
+  await page.click('.chip[data-g="review"]');
+  expect(await page.locator(`#procList .req[data-rid="${newId}"]`).count() === 0, 'an approved request is not repeated under «awaiting approval»');
+  await page.click('.chip[data-g="ready"]');
   await page.check(`.req[data-rid="${newId}"] .req-main > .check`);
   await page.waitForSelector('#bulkbar.show');
   expect(await bulkState() === 'قيد التجهيز:on,بانتظار المندوب:off,استلم المندوب:off,تم الإرسال:on',
@@ -1121,6 +1124,8 @@ function log(msg) { console.log('  ✔ ' + msg); }
   await page.click('.sidebar [data-view="overview"]');
   await page.waitForSelector('#dashDist .legend-btn');
   const lgN = Number(await page.textContent('#dashDist .legend-btn >> nth=0 >> b'));
+  const sums = await page.evaluate(() => ({ legend: Array.from(document.querySelectorAll('#dashDist .legend-btn b')).reduce((x, b) => x + Number(b.textContent), 0), total: S.dash.stats.count }));
+  expect(sums.legend === sums.total, 'status numbers add up to the total requests (' + sums.legend + ' / ' + sums.total + ')');
   await page.click('#dashDist .legend-btn >> nth=0');
   await page.waitForSelector('.modal tbody tr');
   expect(await page.locator('.modal tbody tr').count() === lgN, 'clicking a status lists its ' + lgN + ' request(s)');
@@ -1182,7 +1187,7 @@ function log(msg) { console.log('  ✔ ' + msg); }
   expect(qNav.includes('doctorslive'), 'quality sees «Doctors — live»');
   await page.click('.sidebar [data-view="doctorslive"]');
   await page.waitForSelector('#dlBody .rp-table');
-  expect(await page.locator('#dlTiles .rp-tile').count() === 5 && (await page.textContent('#dlTiles')).includes('مراجعة الطبيب'), 'totals by stage at the top (review, new, approved, prep, sent)');
+  expect(await page.locator('#dlTiles .rp-tile').count() === 5 && (await page.textContent('#dlTiles')).includes('بانتظار اعتماد الطبيب'), 'totals by stage at the top (review, new, approved, prep, sent)');
   expect((await page.textContent('#dlBody')).includes('د. خالد'), 'one row per doctor');
   await page.click('#dlBody .dl-n >> nth=0');
   await page.waitForSelector('.modal [data-act="detail"]');
@@ -1576,7 +1581,7 @@ function log(msg) { console.log('  ✔ ' + msg); }
   await page.click('.sidebar [data-view="mine"]');
   await page.evaluate(() => loadMine(true)); // القائمة قد تُرسم قبل وصول الطلب الجديد
   await page.waitForSelector(`.req:has-text("${hkId}")`);
-  expect((await page.textContent(`.req:has-text("${hkId}") .badge`)).includes('بانتظار مدير الفرع'), 'her card says it waits for the branch manager');
+  expect((await page.textContent(`.req:has-text("${hkId}") .badge`)).includes('بانتظار اعتماد مدير الفرع'), 'her card says it waits for the branch manager');
   await shot(page, 'housekeeper-mine');
   await logout(page);
   await login(page, 'مدير جدة', '4545');
