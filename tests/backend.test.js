@@ -3072,3 +3072,43 @@ test('emails: bilingual HTML — nurse English first, doctor Arabic first; docto
   assert.ok(c && c.to.includes('ali@example.com') && c.to.includes('mona@example.com'), 'complaint emailed to procurement and quality: ' + (c && c.to));
   assert.equal(gas.mails.filter(m => /بلاغ جديد/.test(m.subject)).length, 1, 'one email, no duplicates');
 });
+
+test('push notifications (Render): a device subscribes, gets a short bilingual push that opens the request; Apps Script has none', () => {
+  // Apps Script: no PushService → subscribing is refused and nothing breaks
+  const plain = boot();
+  assert.throws(() => plain.api(plain.login('سارة', '1111'), 'savePushSub', { endpoint: 'https://push.example/x', keys: { p256dh: 'a'.repeat(40), auth: 'b'.repeat(16) } }), /ERR_PUSH_OFF/);
+  const { api, login, gas, ctx } = boot();
+  const sent = [];
+  ctx.PushService = { send: (subs, payload) => sent.push({ subs: JSON.parse(subs), p: JSON.parse(payload) }) };
+  const n = login('سارة', '1111'), d = login('د. خالد', '4444');
+  const sub = ep => ({ endpoint: 'https://push.example/' + ep, keys: { p256dh: 'P'.repeat(60), auth: 'A'.repeat(16) }, ua: 'iPhone' });
+  assert.throws(() => api(d, 'savePushSub', { endpoint: 'http://insecure', keys: {} }), /ERR_REQUIRED/);
+  api(d, 'savePushSub', sub('doc-phone'));
+  api(d, 'savePushSub', sub('doc-phone'));
+  assert.equal(rows(gas, 'PushSubs').length, 1, 'same device saved once');
+  const id = api(n, 'createRequest', { clinic: 'عيادة الأسنان 1', doctor: 'د. خالد', type: 'شهري', items: [{ name: 'PROPHY PASTE', qty: 2 }] }).id;
+  const toDoc = sent.find(s => s.subs.some(x => x.endpoint === 'https://push.example/doc-phone'));
+  assert.ok(toDoc, 'doctor phone got a push');
+  assert.equal(toDoc.p.url, '/?req=' + id, 'tapping opens the request');
+  assert.ok(/[؀-ۿ]/.test(toDoc.p.title) && toDoc.p.body.includes(id), 'doctor push: Arabic title, request number in the text');
+  // the device moves to whoever signs in on it last; logging out removes it
+  sent.length = 0;
+  api(n, 'savePushSub', sub('doc-phone'));
+  assert.equal(rows(gas, 'PushSubs')[0].User, 'سارة');
+  api(n, 'removePushSub', 'https://push.example/doc-phone');
+  assert.equal(rows(gas, 'PushSubs').length, 0);
+  // expired devices are pruned by the server
+  api(d, 'savePushSub', sub('old'));
+  api(d, 'savePushSub', sub('new'));
+  ctx.prunePushSubs_(['https://push.example/old']);
+  assert.deepEqual(rows(gas, 'PushSubs').map(r => r.Endpoint), ['https://push.example/new']);
+  // a nurse with no email still gets the push (English first for nurses)
+  const r = login('ريم', '2222'), p = login('علي', '3333');
+  api(r, 'savePushSub', sub('reem'));
+  const rid = api(r, 'createRequest', { clinic: 'عيادة الأسنان 2', doctor: 'د. نورة', type: 'شهري', items: [{ name: 'PROPHY PASTE', qty: 1 }] }).id;
+  gas.mails.length = 0; sent.length = 0;
+  api(p, 'cancelRequests', [rid], 'الصنف غير متوفر لدى المورد');
+  const toReem = sent.find(s => s.subs.some(x => x.endpoint === 'https://push.example/reem'));
+  assert.ok(toReem && /^[\x00-\x7F]+$/.test(toReem.p.title) && toReem.p.url === '/?req=' + rid, 'nurse without email: English push that opens the request');
+  assert.equal(gas.mails.length, 0, 'no email address, no email');
+});

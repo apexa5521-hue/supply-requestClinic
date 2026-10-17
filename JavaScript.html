@@ -55,6 +55,7 @@ const I18N = {
     receiver_name: 'اسم المستلم', receiver_locked: 'يُسجَّل الاستلام باسم حسابك تلقائياً ولا يمكن تغييره', signature: 'التوقيع', signature_hint: 'وقّع هنا بالإصبع أو الفأرة', clear_sig: 'مسح',
     confirm_receive: 'تأكيد الاستلام', received_ok: 'تم تأكيد استلام {id}', receiver_required: 'اسم المستلم إلزامي',
     cancel: 'إلغاء', close: 'إغلاق', save: 'حفظ', delete: 'حذف', edit: 'تعديل', send: 'إرسال', confirm: 'تأكيد', back: 'رجوع',
+    push_title: 'إشعارات الجوال', push_on: 'الإشعارات مفعّلة على هذا الجهاز', push_on_h: 'يوصلك إشعار فوري لكل طلب يحتاج إجراء منك، حتى لو كان الموقع مقفلاً. الضغط على الإشعار يفتح الطلب.', push_enable: 'فعّل الإشعارات', push_off_h: 'فعّل الإشعارات ليوصلك تنبيه فوري على جوالك عند أي طلب يحتاج إجراء منك — حتى لو كان الموقع مقفلاً.', push_disable: 'إيقاف على هذا الجهاز', push_test: 'إرسال إشعار تجريبي', push_test_ok: 'أُرسل — يوصلك خلال ثوانٍ', push_on_ok: 'تم تفعيل الإشعارات ✓', push_off_ok: 'أُوقفت الإشعارات على هذا الجهاز', push_denied: 'الإشعارات ممنوعة لهذا الموقع', push_denied_ios: 'افتح «الإعدادات» في الآيفون ← «الإشعارات» ← «مسار اكس» وفعّل «السماح بالإشعارات»، ثم ارجع هنا.', push_denied_web: 'اضغط القفل 🔒 بجانب رابط الموقع ← الإشعارات ← سماح، ثم أعد تحميل الصفحة.', push_unsupported: 'هذا المتصفح لا يدعم الإشعارات. على الآيفون استخدم Safari (iOS 16.4 أو أحدث).', push_not_ready: 'الإشعارات غير مفعّلة على الخادم بعد — راجع الأدمن', push_install_t: 'أضف «مسار اكس» إلى الشاشة الرئيسية', push_install_h: 'الآيفون يرسل الإشعارات فقط للمواقع المضافة للشاشة الرئيسية. خطوة واحدة مرة واحدة:', push_install_1: 'اضغط زر المشاركة {ic} أسفل Safari', push_install_2: 'اختر «إضافة إلى الشاشة الرئيسية» ثم «إضافة»', push_install_3: 'افتح «مسار اكس» من الأيقونة الجديدة، وسجّل دخولك', push_install_4: 'اضغط «فعّل الإشعارات» ثم «سماح»', push_ask_later: 'لاحقاً', ERR_PUSH_OFF: 'الإشعارات غير مفعّلة على الخادم بعد — راجع الأدمن',
     select_all: 'تحديد الكل', selected: 'محدد', clear_selection: 'إلغاء التحديد',
     stk_app_url: 'رابط الموقع (لزر «افتح الطلب» في الإيميلات)', stk_app_url_h: 'الرابط الذي يدخل منه الفريق، يبدأ بـ https://', ERR_BAD_URL: 'الرابط غير صحيح — يجب أن يبدأ بـ https://',
     rl_monthly_lock: 'الطلب الشهري بعد نهاية النافذة', rl_monthly_lock_h: 'عند الإقفال لا يُقبل طلب شهري بعد يوم النهاية حتى تُفتح من جديد (الطارئ لا يتأثر)', ERR_MONTHLY_CLOSED: 'الطلب الشهري مقفل — نافذة الرفع من يوم {a} إلى {b}. للضرورة ارفعي طلباً طارئاً أو اطلبي من التموين فتح الشهري',
@@ -170,6 +171,7 @@ const I18N = {
     receiver_name: 'Receiver name', receiver_locked: 'Receipt is recorded under your account name and cannot be changed', signature: 'Signature', signature_hint: 'Sign here with finger or mouse', clear_sig: 'Clear',
     confirm_receive: 'Confirm receipt', received_ok: 'Receipt of {id} confirmed', receiver_required: 'Receiver name is required',
     cancel: 'Cancel', close: 'Close', save: 'Save', delete: 'Delete', edit: 'Edit', send: 'Send', confirm: 'Confirm', back: 'Back',
+    push_title: 'Phone notifications', push_on: 'Notifications are on for this device', push_on_h: 'You get an instant alert for every request that needs you, even when the site is closed. Tap it to open the request.', push_enable: 'Turn on notifications', push_off_h: 'Turn on notifications to get an instant alert on your phone whenever a request needs you — even when the site is closed.', push_disable: 'Turn off on this device', push_test: 'Send a test notification', push_test_ok: 'Sent — it arrives in a few seconds', push_on_ok: 'Notifications are on ✓', push_off_ok: 'Notifications turned off on this device', push_denied: 'Notifications are blocked for this site', push_denied_ios: 'Open iPhone Settings → Notifications → MasarX and turn on Allow Notifications, then come back.', push_denied_web: 'Tap the lock 🔒 next to the site address → Notifications → Allow, then reload the page.', push_unsupported: 'This browser does not support notifications. On iPhone use Safari (iOS 16.4 or later).', push_not_ready: 'Notifications are not set up on the server yet — ask the admin', push_install_t: 'Add MasarX to your Home Screen', push_install_h: 'iPhone only sends notifications to sites added to the Home Screen. One step, once:', push_install_1: 'Tap the Share button {ic} at the bottom of Safari', push_install_2: 'Choose “Add to Home Screen”, then “Add”', push_install_3: 'Open MasarX from the new icon and sign in', push_install_4: 'Tap “Turn on notifications”, then “Allow”', push_ask_later: 'Later', ERR_PUSH_OFF: 'Notifications are not set up on the server yet — ask the admin',
     select_all: 'Select all', selected: 'selected', clear_selection: 'Clear',
     stk_app_url: 'Website link (for the «Open request» button in emails)', stk_app_url_h: 'The link your team signs in from, starting with https://', ERR_BAD_URL: 'The link is not valid — it must start with https://',
     rl_monthly_lock: 'Monthly requests after the window ends', rl_monthly_lock_h: 'When locked, no monthly request is accepted after the end day until it is opened again (emergencies are not affected)', ERR_MONTHLY_CLOSED: 'Monthly requests are closed — the window is day {a} to {b}. Raise an emergency request if needed, or ask procurement to reopen monthly requests',
@@ -1192,7 +1194,10 @@ ACT.pwShow = el => {
   el.querySelector('use').setAttribute('href', show ? '#i-eyeoff' : '#i-eye');
 };
 ACT.logout = () => {
-  call('logout').catch(() => {});
+  // هذا الجهاز لا يستقبل إشعارات المستخدم بعد خروجه (بنفس الجلسة قبل إنهائها)
+  const tok = S.token, ep = PUSH.ep;
+  if (tok && ep) { const bye = () => transport({ token: tok, fn: 'logout', args: [] }).catch(() => {}); transport({ token: tok, fn: 'removePushSub', args: [ep] }).then(bye, bye); }
+  else call('logout').catch(() => {});
   resetApp();
 };
 
@@ -1285,7 +1290,108 @@ function enterApp(cfg) {
   if (!tourSeen()) setTimeout(() => { if (S.user && !MODALS.length) startTour(); }, 900);
   setTimeout(warmViews, 1800);
   setTimeout(resumePendingSend, 1200);
+  pushInit();
 }
+/* =====================================================================
+   إشعارات الجوال (Web Push) — على Render فقط (الخادم يقدّم /sw.js و/push/key)
+   الجهاز يتبع آخر من سجّل دخوله منه، والخروج يوقف إشعاراته عليه
+   ===================================================================== */
+const PUSH = { on: APPS_SCRIPT_URL === '/api' && 'serviceWorker' in navigator, reg: null, ep: '' };
+const isIOS = () => /iP(hone|ad|od)/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+const isStandalone = () => (window.matchMedia && matchMedia('(display-mode: standalone)').matches) || navigator.standalone === true;
+/** on · off · denied · install (آيفون خارج الشاشة الرئيسية) · unsupported */
+function pushState() {
+  if (!PUSH.on) return 'unsupported';
+  if (isIOS() && !isStandalone()) return 'install';
+  if (!('PushManager' in window) || !('Notification' in window)) return 'unsupported';
+  if (Notification.permission === 'denied') return 'denied';
+  return PUSH.ep && Notification.permission === 'granted' ? 'on' : 'off';
+}
+const subJson = sub => { const j = sub.toJSON(); return { endpoint: j.endpoint, keys: j.keys, ua: navigator.userAgent.slice(0, 120) }; };
+function b64u8(b64) {
+  const s = atob((b64 + '='.repeat((4 - b64.length % 4) % 4)).replace(/-/g, '+').replace(/_/g, '/'));
+  return Uint8Array.from(s, c => c.charCodeAt(0));
+}
+async function pushInit() {
+  if (!PUSH.on) return;
+  $('#pushBtn').classList.remove('hidden');
+  try {
+    PUSH.reg = PUSH.reg || await navigator.serviceWorker.register('/sw.js');
+    const sub = PUSH.reg.pushManager && await PUSH.reg.pushManager.getSubscription();
+    PUSH.ep = sub ? sub.endpoint : '';
+    if (sub && Notification.permission === 'granted') await call('savePushSub', subJson(sub));
+  } catch (e) { /* بدون إشعارات: الموقع يعمل كالمعتاد */ }
+  pushAutoPrompt();
+}
+/* مرة كل 3 أيام بعد الدخول: من لم يفعّل الإشعارات على هذا الجهاز يُعرض عليه التفعيل (أو خطوات الآيفون) */
+function pushAutoPrompt() {
+  const st = pushState();
+  if (!S.user || (st !== 'off' && st !== 'install') || !tourSeen()) return;
+  const k = 'push_ask_' + S.user.name, last = Number(store.get(k, 0)) || 0;
+  if (Date.now() - last < 3 * 864e5) return;
+  setTimeout(() => { if (S.user && !MODALS.length) { store.set(k, Date.now()); ACT.pushMenu(); } }, 2500);
+}
+async function pushEnable() {
+  const st = pushState();
+  if (st === 'install' || st === 'unsupported' || st === 'denied') return ACT.pushMenu();
+  // الطلب من المتصفح أولاً (يجب أن يكون مباشرة من ضغطة المستخدم — شرط الآيفون)
+  const perm = await Notification.requestPermission();
+  if (perm !== 'granted') { toast(t('push_denied'), 'error'); return; }
+  const key = await fetch('/push/key').then(r => (r.ok ? r.text() : '')).catch(() => '');
+  if (!key) { toast(t('push_not_ready'), 'error'); return; }
+  PUSH.reg = PUSH.reg || await navigator.serviceWorker.register('/sw.js');
+  await navigator.serviceWorker.ready;
+  let sub = await PUSH.reg.pushManager.getSubscription();
+  if (!sub) sub = await PUSH.reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: b64u8(key.trim()) });
+  await call('savePushSub', subJson(sub));
+  PUSH.ep = sub.endpoint;
+  toast(t('push_on_ok'), 'success');
+}
+async function pushDisable() {
+  const sub = PUSH.reg && await PUSH.reg.pushManager.getSubscription();
+  if (sub) { await call('removePushSub', sub.endpoint).catch(() => {}); await sub.unsubscribe().catch(() => {}); }
+  PUSH.ep = '';
+  toast(t('push_off_ok'), 'success');
+}
+ACT.pushMenu = () => {
+  const st = pushState();
+  // أيقونة زر المشاركة في Safari (مربع وسهم للأعلى)
+  const share = '<svg class="i i-sm" viewBox="0 0 24 24" style="vertical-align:-3px;color:var(--primary)"><path d="M12 3v12M8 7l4-4 4 4M5 11v8a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-8"/></svg>';
+  const step = (n, txt) => '<div class="row-wrap" style="gap:10px;align-items:flex-start;margin:8px 0"><span class="badge" style="min-width:26px;justify-content:center">' + n + '</span><span class="grow">' + txt + '</span></div>';
+  let body, foot = '<span class="spacer"></span><button class="btn" data-close>' + esc(t(st === 'off' ? 'push_ask_later' : 'close')) + '</button>';
+  if (st === 'install') {
+    body = '<p style="margin-top:0">' + esc(t('push_install_h')) + '</p>' +
+      step(1, t('push_install_1', { ic: share })) + step(2, esc(t('push_install_2'))) + step(3, esc(t('push_install_3'))) + step(4, esc(t('push_install_4')));
+  } else if (st === 'on') {
+    body = '<div class="alert success" style="margin:0 0 10px"><span class="alert-ic">' + icon('checkc') + '</span><span>' + esc(t('push_on')) + '</span></div><p class="muted" style="margin:0">' + esc(t('push_on_h')) + '</p>';
+    foot = '<button class="btn btn-ghost" id="pushOffBtn" style="color:var(--t-red)">' + esc(t('push_disable')) + '</button><span class="spacer"></span>' +
+      '<button class="btn" id="pushTestBtn">' + icon('bell', 'i-sm') + esc(t('push_test')) + '</button><button class="btn btn-primary" data-close>' + esc(t('close')) + '</button>';
+  } else if (st === 'denied') {
+    body = '<div class="alert danger" style="margin:0 0 10px"><span class="alert-ic">' + icon('alert') + '</span><span>' + esc(t('push_denied')) + '</span></div><p style="margin:0">' + esc(t(isIOS() ? 'push_denied_ios' : 'push_denied_web')) + '</p>';
+  } else if (st === 'unsupported') {
+    body = '<p style="margin:0">' + esc(t('push_unsupported')) + '</p>';
+  } else {
+    body = '<p style="margin-top:0">' + esc(t('push_off_h')) + '</p>';
+    foot += '<button class="btn btn-primary" id="pushOnBtn">' + icon('bell', 'i-sm') + esc(t('push_enable')) + '</button>';
+  }
+  const m = openModal({ title: esc(t(st === 'install' ? 'push_install_t' : 'push_title')), icon: 'bell', size: 'sm', body: body, foot: foot });
+  const wire = (id, fn) => { const b = $('#' + id, m.el); if (b) b.addEventListener('click', () => { busy(b, true); fn().then(() => { busy(b, false); closeModal(m); }, e => { busy(b, false); toast(errMsg(e), 'error'); }); }); };
+  wire('pushOnBtn', pushEnable);
+  wire('pushOffBtn', pushDisable);
+  wire('pushTestBtn', () => call('testPush').then(() => toast(t('push_test_ok'), 'success')));
+};
+/* رقم على أيقونة التطبيق = عدد ما ينتظر منك إجراء (أجهزة تدعمه: الآيفون من الشاشة الرئيسية، أندرويد، الكمبيوتر) */
+function pushBadge(list) {
+  if (!navigator.setAppBadge) return;
+  const n = (list || []).reduce((a, x) => a + (ALERT_TARGET[x.code] ? Number(x.n) || 0 : 0), 0);
+  (n ? navigator.setAppBadge(n) : navigator.clearAppBadge()).catch(() => {});
+}
+// الضغط على إشعار والموقع مفتوح: يفتح الطلب (أو بعد الدخول إن كانت شاشة الدخول ظاهرة)
+if (PUSH.on) navigator.serviceWorker.addEventListener('message', e => {
+  const r = e.data && e.data.req;
+  if (!r || !/^[\w-]{3,40}$/.test(r)) return;
+  if (S.user) openDetail(r); else S.pendingReq = r;
+});
 /* ---------- استبيان الأطباء ---------- */
 /* نافذة مرة واحدة باليوم عند الدخول (مع «لاحقاً») — والشريط أعلى الصفحة يبقى حتى يُعبّأ */
 function surveyAutoPrompt() {
@@ -1485,6 +1591,7 @@ function openMobileMenu(withNav) {
         item('toggleLang', 'globe', t('lang_switch')) +
         item('toggleTheme', document.documentElement.dataset.theme === 'dark' ? 'sun' : 'moon', t('theme_toggle')) +
         item('changePassword', 'lock', t('change_pw')) +
+        (PUSH.on ? item('pushMenu', 'bell', t('push_title')) : '') +
         item('startTour', 'info', t('tour_replay')) +
         item('logout', 'logout', t('logout'), ' style="color:var(--t-red)"') +
       '</div>',
@@ -1557,7 +1664,7 @@ const ALERT_TARGET = {
   alert_lab_new: ['labboard', 'new'], alert_lab_redo: ['labboard', 'redo'], alert_lab_late: ['labboard', 'late'], alert_lab_to_receive: ['labmine', 'receive']
 };
 function loadAlerts() {
-  call('getAlerts').then(a => { S.alerts = a || []; renderAlerts(S.alerts); if (S.user && S.user.screen === 'procurement') renderNav(); }).catch(() => {});
+  call('getAlerts').then(a => { S.alerts = a || []; renderAlerts(S.alerts); pushBadge(S.alerts); if (S.user && S.user.screen === 'procurement') renderNav(); }).catch(() => {});
 }
 function renderAlerts(list) {
   $('#alerts').innerHTML = (list || []).map((a, i) => {

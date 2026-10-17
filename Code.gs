@@ -54,6 +54,8 @@ const SCHEMA = {
   LabMaterials: ['Material'],
   // إعدادات عامة قابلة للتعديل من الشيت (مثل LabTurnaroundDays = أيام تنفيذ المعمل الافتراضية)
   Settings:     ['Key', 'Value', 'Notes'],
+  // إشعارات الجوال (Render فقط): سطر لكل جهاز فعّل الإشعارات — الرابط فريد، والجهاز يتبع آخر من سجّل دخوله منه
+  PushSubs:     ['Endpoint', 'User', 'Keys', 'CreatedAt', 'UA'],
   // الاستبيان: الأسئلة تُعدَّل من الشيت (Type: stars = 1–5 · nps = 0–10 · text) — والإجابات سطر لكل سؤال
   SurveyQuestions: ['QID', 'Question', 'QuestionEn', 'Type', 'Section', 'Required', 'Active', 'Order'],
   SurveyResponses: ['Timestamp', 'Cycle', 'User', 'Doctor', 'Branch', 'QID', 'Question', 'Score', 'Answer'],
@@ -618,6 +620,9 @@ const API_ = {
   getOrderRules:             { screens: ALL, fn: getOrderRules_ },
   saveOrderRules:            { screens: RULES_SCREENS_, perm: 'order_rules', fn: saveOrderRules_ },
   changePassword:            { screens: ALL, fn: changePassword_ },
+  savePushSub:               { screens: ALL, fn: savePushSub_ },
+  removePushSub:             { screens: ALL, fn: removePushSub_ },
+  testPush:                  { screens: ALL, fn: testPush_ },
   getAlerts:                 { screens: ALL, fn: getAlerts_ },
   getNotices:                { screens: ALL, fn: getNotices_ },
   getDoctors:                { screens: ['nurse'], fn: getDoctors_ },
@@ -1700,10 +1705,9 @@ function scopedRequestIds_() {
 function deptMatch_(userDept, reqDept) { return !userDept || !reqDept || userDept === reqDept; }
 /** إيميل للتموين: حسابات القسم نفسه + حسابات التموين العامة (بلا قسم) */
 function notifyProcurement_(dept, subject, body) {
-  const emails = read_('Users').rows.filter(function (u) {
-    return str_(u.Email) && roleScreen_(u.Role) === 'procurement' && deptMatch_(normDept_(u.Department), dept);
-  }).map(function (u) { return str_(u.Email); });
-  if (emails.length) sendMail_(emails.join(','), subject, body);
+  deliver_(read_('Users').rows.filter(function (u) {
+    return roleScreen_(u.Role) === 'procurement' && deptMatch_(normDept_(u.Department), dept);
+  }), subject, body);
 }
 
 function userClinics_(user) {
@@ -4450,7 +4454,11 @@ function mailMsg_(m) {
       (m.id ? '<span style="float:right;font-family:monospace;font-weight:normal;font-size:13px;direction:ltr">' + h_(m.id) + '</span>' : '') + '</td></tr>' +
     blocks.map(function (b, i) { return '<tr><td style="' + (i ? 'border-top:1px dashed #cfd9e0' : '') + '">' + b + '</td></tr>'; }).join('') +
     '</table></div>';
-  return { text: text.join('\n\n──────────\n\n'), html: html };
+  // إشعار الجوال: سطران بلغة المستلم الأولى، والضغط يفتح الطلب
+  const f = m[order[0]] || {}, s2 = m[order[1]] || {};
+  const push = { title: f.title, tag: m.id || '', url: m.id ? '/?req=' + encodeURIComponent(m.id) : '/',
+    body: [m.id ? m.id + (m.req && m.req.clinic ? ' · ' + m.req.clinic : '') : '', f.action || f.lead || '', s2.title || ''].filter(String).join('\n').slice(0, 240) };
+  return { text: text.join('\n\n──────────\n\n'), html: html, push: push };
 }
 /** جدول أصناف قصير للإيميل: cols = [['المطلوب','Requested', fn(it)], ...] */
 function mailItems_(list, cols) {
@@ -4462,15 +4470,12 @@ function mailItems_(list, cols) {
 }
 /** إيميل لعدة أدوار/صلاحيات معاً بدون تكرار نفس العنوان (مثل البلاغات) */
 function notifyMany_(screens, perms, subject, body) {
-  const set = {};
-  read_('Users').rows.forEach(function (u) {
-    const em = str_(u.Email); if (!em || !str_(u.Name)) return;
+  deliver_(read_('Users').rows.filter(function (u) {
+    if (!str_(u.Name)) return false;
     const sc = roleScreen_(u.Role);
     const ps = permsOf_({ role: str_(u.Role), screen: sc });
-    if (screens.indexOf(sc) !== -1 || perms.some(function (p) { return ps.indexOf(p) !== -1; })) set[em.toLowerCase()] = em;
-  });
-  const to = Object.keys(set).map(function (k) { return set[k]; });
-  if (to.length) sendMail_(to.join(','), subject, body);
+    return screens.indexOf(sc) !== -1 || perms.some(function (p) { return ps.indexOf(p) !== -1; });
+  }), subject, body);
 }
 
 const QTY_REQ_ = ['المطلوب', 'Requested', function (it) { return it.qty !== undefined ? it.qty : it.requestedQty; }];
@@ -4507,25 +4512,110 @@ function procNewMail_(req, items, kind) {
 }
 
 function notifyRole_(screen, subject, body) {
-  const emails = read_('Users').rows
-    .filter(function (u) { return str_(u.Email) && roleScreen_(u.Role) === screen; })
-    .map(function (u) { return str_(u.Email); });
-  if (emails.length) sendMail_(emails.join(','), subject, body);
+  deliver_(read_('Users').rows.filter(function (u) { return roleScreen_(u.Role) === screen; }), subject, body);
 }
 
 /** إيميل لكل من لديه صلاحية معيّنة (مثلاً المتابعة أو إغلاق البلاغات) */
 function notifyPerm_(perm, subject, body) {
-  const emails = read_('Users').rows.filter(function (u) {
-    if (!str_(u.Email) || !str_(u.Name)) return false;
+  deliver_(read_('Users').rows.filter(function (u) {
+    if (!str_(u.Name)) return false;
     return permsOf_({ role: str_(u.Role), screen: roleScreen_(u.Role) }).indexOf(perm) !== -1;
-  }).map(function (u) { return str_(u.Email); });
-  if (emails.length) sendMail_(emails.join(','), subject, body);
+  }), subject, body);
 }
 
 function notifyUser_(name, subject, body) {
   const u = read_('Users').rows.filter(function (r) { return str_(r.Name) === str_(name); })[0];
-  if (u && str_(u.Email)) { sendMail_(str_(u.Email), subject, body); return true; }
-  return false;
+  return u ? deliver_([u], subject, body) : false;
+}
+
+/** يوصل الإشعار لمستخدمين: إيميل لمن له إيميل (بدون تكرار) + إشعار جوال لكل أجهزتهم. يرجع true إن أُرسل إيميل */
+function deliver_(users, subject, body) {
+  const emails = {}, names = [];
+  users.forEach(function (u) {
+    const em = str_(u.Email), nm = str_(u.Name);
+    if (em && !emails[em.toLowerCase()]) emails[em.toLowerCase()] = em;
+    if (nm && names.indexOf(nm) === -1) names.push(nm);
+  });
+  const to = Object.keys(emails).map(function (k) { return emails[k]; });
+  if (to.length) sendMail_(to.join(','), subject, body);
+  pushNotify_(names, subject, body);
+  return to.length > 0;
+}
+
+/* =====================================================================
+ *  إشعارات الجوال (Web Push) — تعمل على Render فقط: الخادم يضع PushService (يرسل بمفاتيح VAPID).
+ *  في Apps Script لا يوجد PushService، فلا شيء يُرسل والواجهة تخفي زر التفعيل.
+ * ===================================================================== */
+function pushReady_() { return typeof PushService !== 'undefined' && !!PushService && typeof PushService.send === 'function'; }
+function savePushSub_(user, sub) {
+  if (!pushReady_()) throw new Error('ERR_PUSH_OFF');
+  sub = sub && typeof sub === 'object' ? sub : {};
+  const ep = str_(sub.endpoint), keys = sub.keys && typeof sub.keys === 'object' ? sub.keys : {};
+  const p256 = str_(keys.p256dh), auth = str_(keys.auth);
+  if (!/^https:\/\/\S{10,700}$/.test(ep) || !/^[\w-]{20,200}$/.test(p256) || !/^[\w-]{8,100}$/.test(auth)) throw new Error('ERR_REQUIRED');
+  const k = JSON.stringify({ p256dh: p256, auth: auth });
+  withLock_(function () {
+    resetMemo_();
+    invalidate_('PushSubs');
+    const t = freshTable_('PushSubs');
+    const row = t.rows.filter(function (r) { return str_(r.Endpoint) === ep; })[0];
+    if (row) setMany_(t, [{ row: row, obj: { User: user.name, Keys: k, CreatedAt: new Date() } }]);
+    else append_('PushSubs', { Endpoint: ep, User: user.name, Keys: k, CreatedAt: new Date(), UA: clean_(sub.ua, 120) });
+  });
+  return true;
+}
+/** إيقاف الإشعارات على هذا الجهاز (أو عند تسجيل الخروج حتى لا تصل إشعارات المستخدم السابق) */
+function removePushSub_(user, endpoint) {
+  const ep = str_(endpoint);
+  if (!ep) return true;
+  withLock_(function () {
+    resetMemo_();
+    invalidate_('PushSubs');
+    const t = freshTable_('PushSubs');
+    t.rows.filter(function (r) { return str_(r.Endpoint) === ep && str_(r.User) === user.name; })
+      .sort(function (a, b) { return b._row - a._row; }).forEach(function (r) { deleteRow_(t, r); });
+  });
+  return true;
+}
+/** زر «إشعار تجريبي»: يصل لكل أجهزة المستخدم نفسه — يرجع عددها */
+function testPush_(user) {
+  if (!pushReady_()) throw new Error('ERR_PUSH_OFF');
+  const n = read_('PushSubs').rows.filter(function (r) { return str_(r.User) === user.name; }).length;
+  if (!n) throw new Error('ERR_NOT_FOUND');
+  pushNotify_([user.name], '', { push: { title: BRAND_, tag: 'test', url: '/',
+    body: 'الإشعارات تعمل على هذا الجهاز ✓\nNotifications work on this device ✓' } });
+  return n;
+}
+/** يستدعيه الخادم لحذف أجهزة ألغت الاشتراك أو انتهى رابطها (رد 404/410 من خدمة الإشعارات) */
+function prunePushSubs_(endpoints) {
+  const set = {};
+  (endpoints || []).forEach(function (e) { set[str_(e)] = 1; });
+  MEMO_ = {};
+  withLock_(function () {
+    invalidate_('PushSubs');
+    const t = freshTable_('PushSubs');
+    t.rows.filter(function (r) { return set[str_(r.Endpoint)]; })
+      .sort(function (a, b) { return b._row - a._row; }).forEach(function (r) { deleteRow_(t, r); });
+  });
+  flushDirty_();
+  return true;
+}
+/** إشعار لكل أجهزة هؤلاء المستخدمين: من mailMsg_ (عنوان + سطرين + رابط الطلب)، أو من عنوان الإيميل وأول سطرين */
+function pushNotify_(names, subject, body) {
+  if (!pushReady_() || !names || !names.length) return;
+  try {
+    const subs = [];
+    read_('PushSubs').rows.forEach(function (r) {
+      if (names.indexOf(str_(r.User)) === -1) return;
+      try { subs.push({ endpoint: str_(r.Endpoint), keys: JSON.parse(str_(r.Keys)) }); } catch (e) { /* سطر تالف */ }
+    });
+    if (!subs.length) return;
+    const p = body && typeof body === 'object' && body.push ? body.push : {
+      title: subject, url: '/',
+      body: String(body && typeof body === 'object' ? body.text : body || '').split('\n').map(str_).filter(String).slice(0, 2).join('\n').slice(0, 240)
+    };
+    PushService.send(JSON.stringify(subs), JSON.stringify(p));
+  } catch (e) { console.error('Push failed', e); }
 }
 
 function notifyNursePartial_(req, r) {
