@@ -1121,6 +1121,8 @@ function log(msg) { console.log('  ✔ ' + msg); }
   await page.click('.sidebar [data-view="overview"]');
   await page.waitForSelector('#dashDist .legend-btn');
   const lgN = Number(await page.textContent('#dashDist .legend-btn >> nth=0 >> b'));
+  const sums = await page.evaluate(() => ({ legend: Array.from(document.querySelectorAll('#dashDist .legend-btn b')).reduce((x, b) => x + Number(b.textContent), 0), total: S.dash.stats.count }));
+  expect(sums.legend === sums.total, 'status numbers add up to the total requests (' + sums.legend + ' / ' + sums.total + ')');
   await page.click('#dashDist .legend-btn >> nth=0');
   await page.waitForSelector('.modal tbody tr');
   expect(await page.locator('.modal tbody tr').count() === lgN, 'clicking a status lists its ' + lgN + ' request(s)');
