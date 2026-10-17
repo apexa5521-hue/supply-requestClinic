@@ -40,7 +40,7 @@ const SCHEMA = {
   // سجل التراجعات: كل تراجع عن خطوة (شحنة أُرسلت بالغلط، حالة طلب، حالة صنف) مع السبب والوقت — تراه الجودة والإدارة
   Reversals:    ['Timestamp', 'RequestID', 'User', 'Role', 'Scope', 'From', 'To', 'Reason', 'Details'],
   // كل سطر = كمية صنف واحد داخل شحنة واحدة (يسمح بإرسال جزء من كمية الصنف)
-  ShipmentItems: ['RequestID', 'Batch', 'ItemName', 'Qty', 'DispatchedAt', 'DispatchedBy', 'ReceivedQty'],
+  ShipmentItems: ['RequestID', 'Batch', 'ItemName', 'Qty', 'DispatchedAt', 'DispatchedBy', 'ReceivedQty', 'RejectReason', 'RejectPhoto'], // رفض الممرضة لصنف عند الاستلام (السبب + صورة)
   Shipments:    ['RequestID', 'Batch', 'ReceivedAt', 'ReceiverName', 'ReceivedBy', 'SignatureURL', 'SignatureFileID', 'ReceiptURL'],
   ItemNotes:    ['Timestamp', 'RequestID', 'ItemName', 'Author', 'Role', 'Note'],
   Log:          ['Timestamp', 'RequestID', 'Action', 'User'],
@@ -340,8 +340,11 @@ const DEFAULT_CLINICS_ = (function () {
  *  المناطق المشتركة: «مستهلكات عيادة» (بدون طبيب) للتعقيم وغرفة الفرز وغرف أجهزة الجلدية (Hydrafacial / Clarity / Gentle Pro)
  *  أما عيادات الأطباء فطلبها «طلب طبيب»: تُختار العيادة ثم الطبيب، والاستهلاك يُحسب على الطبيب
  * ===================================================================== */
-const SHARED_AREA_RE_ = /ster[ia]li|تعقيم|triage|فرز|hydra\s*facial|clarity|gentle\s*pro/i;
-function isSharedArea_(c) { return !!c && SHARED_AREA_RE_.test(str_(c.name) + ' ' + str_(c.type)); }
+// غرف أجهزة الجلدية (Gentle Pro / GentleMax / Hydrafacial / Clarity): بلا طبيب، ويعتمد طلبها مدير الفرع
+const DEVICE_ROOM_RE_ = /hydra\s*facial|clarity|gentle|جنتل|هيدرا|هايدرا|كلاريتي/i;
+const SHARED_AREA_RE_ = /ster[ia]li|تعقيم|triage|فرز/i;
+function isDeviceRoom_(c) { return !!c && DEVICE_ROOM_RE_.test(str_(c.name) + ' ' + str_(c.type)); }
+function isSharedArea_(c) { return !!c && (SHARED_AREA_RE_.test(str_(c.name) + ' ' + str_(c.type)) || isDeviceRoom_(c)); }
 /** العيادات التي تقبل «مستهلكات عيادة» (بدون طبيب): المناطق المشتركة + كل عيادات الأسنان */
 function clinicConsumablesOk_(c) { return isSharedArea_(c) || (!!c && (normDept_(c.type) || normDept_(c.name)) === 'أسنان'); }
 function ensureTriageRooms_() {
@@ -674,6 +677,8 @@ const API_ = {
   deleteUser:                { screens: [], perm: 'users', fn: deleteUser_ },
   getRoles:                  { screens: [], perm: 'users', fn: function () { return getRoles_(); } },
   getMonitor:                { screens: [], perm: 'monitor', fn: getMonitor_ },
+  // دورة الطلب الشهري (من رفع طلبه ومن لم يرفع) — تظهر للتموين أعلى صفحة الطلبات
+  getMonthlyCycle:           { screens: ['procurement'], perm: 'monitor', fn: function (u) { return cachedRead_(function () { return getMonitor_(u, {}).cycle; }); } },
   getDoctorsLive:            { screens: [], perm: 'doctors_live', fn: getDoctorsLive_ },
   getMySurvey:               { screens: ['doctor'], fn: getMySurvey_ },
   getDoctorPriceAccess:      { screens: [], perm: 'doctor_prices', fn: getDoctorPriceAccess_ },
@@ -2632,10 +2637,14 @@ function createRequest_(user, payload) {
   if (clinicOnly && !clinic) throw new Error('ERR_REQUIRED');
   if (REQUEST_TYPES.indexOf(type) === -1) throw new Error('ERR_BAD_TYPE');
   const mine = userClinics_(user);
+  let device = false;
   if (clinic && !forLab && !user.hk) {
     // مستهلكات العيادة للمناطق المشتركة (التعقيم / غرفة الفرز / أجهزة الجلدية) وعيادات الأسنان في أي فرع؛ طلب الطبيب يبقى ضمن عيادات الممرضة
-    if (!clinicOnly && mine.length && mine.indexOf(clinic) === -1) throw new Error('ERR_FORBIDDEN');
     const cRows = getClinics_().filter(function (c) { return c.name === clinic; });
+    // غرفة جهاز: «مستهلكات عيادة» فقط (بلا طبيب) — واعتمادها لمدير الفرع
+    device = cRows.some(isDeviceRoom_);
+    if (device && !clinicOnly) throw new Error('ERR_DEVICE_NO_DOCTOR');
+    if (!clinicOnly && mine.length && mine.indexOf(clinic) === -1) throw new Error('ERR_FORBIDDEN');
     if (!cRows.length) throw new Error('ERR_BAD_CLINIC');
     if (clinicOnly && !cRows.some(clinicConsumablesOk_)) throw new Error('ERR_CLINIC_SHARED_ONLY');
   }
@@ -2710,7 +2719,7 @@ function createRequest_(user, payload) {
   const cache = CacheService.getScriptCache();
 
   // الطبيب الذي له حساب يراجع الطلب أولاً؛ غير ذلك يذهب للتموين مباشرة
-  const branchApproval = !!user.hk && !forLab;
+  const branchApproval = (!!user.hk || device) && !forLab;
   const needsReview = branchApproval ? branchManagers_(branch).length > 0 : !clinicOnly && doctorHasAccount_(doctor);
   // مفتاح المسودة من الجهاز: إعادة إرسال نفس المسودة بعد انقطاع الاتصال لا تنشئ طلباً مكرراً أبداً
   const clientKey = /^[A-Za-z0-9-]{8,64}$/.test(str_(payload.clientKey)) ? str_(payload.clientKey) : '';
@@ -2879,6 +2888,9 @@ function shipState_(req, rows) {
       if (n) parts.push({ batch: n, qty: target, at: at, receivedQty: r.ReceivedQty, legacy: true });
     }
     parts.sort(function (x, y) { return x.batch - y.batch; });
+    // أصناف رفضتها الممرضة عند الاستلام (غير مطابق / غير مرغوب) مع السبب والصورة
+    it.rcvRejects = mine.filter(function (x) { return str_(x.RejectReason); })
+      .map(function (x) { return { batch: Number(x.Batch), reason: str_(x.RejectReason), photo: str_(x.RejectPhoto), qty: Number(x.Qty) || 0 }; });
     if (replaced[it.item] && !str_(r.SubstituteOf)) {
       target = Math.min(target, parts.reduce(function (a, p) { return a + (p.legacy ? 0 : p.qty); }, 0));
       it.replaced = true;
@@ -3923,8 +3935,21 @@ function receiveShipment_(user, requestId, batch, receivedItems, receiverName, s
     return st;
   });
   const lastOne = pre.allDispatched && pre.pending === 1;
+  // رفض صنف عند الاستلام: سبب + صورة إلزاميان (يُستلم صفر من هذا الصنف)
+  const rejects = {};
+  (receivedItems || []).forEach(function (it) {
+    if (!it || !it.reject) return;
+    const reason = clean_(it.reject.reason, 300);
+    if (!reason) throw new Error('ERR_REASON_REQUIRED');
+    if (!it.reject.photo) throw new Error('ERR_PHOTO_REQUIRED');
+    rejects[str_(it.name)] = { reason: reason, photo: it.reject.photo };
+  });
 
   const tag = requestId + '-S' + batch;
+  Object.keys(rejects).forEach(function (n, i) {
+    try { rejects[n].url = saveImage_(tag + '-reject-' + (i + 1), rejects[n].photo).url; } catch (e) { console.error(e); rejects[n].url = ''; }
+    delete rejects[n].photo;
+  });
   let sig = { url: '', id: '' }, receiptUrl = '', mergedUrl = '';
   try { if (signatureDataUrl) sig = saveImage_(tag + '-signature', signatureDataUrl); } catch (e) { console.error(e); }
   try { if (receiptDataUrl) receiptUrl = saveImage_(tag + '-receipt', receiptDataUrl).url; } catch (e) { console.error(e); }
@@ -3949,12 +3974,15 @@ function receiveShipment_(user, requestId, batch, receivedItems, receiverName, s
     const qty = {};
     (receivedItems || []).forEach(function (it) {
       const n = str_(it && it.name);
-      if (inShip[n]) qty[n] = Math.max(0, Math.floor(Number(it.qty) || 0));
+      if (inShip[n]) qty[n] = rejects[n] ? 0 : Math.max(0, Math.floor(Number(it.qty) || 0));
     });
     // المستلم فعلياً لكل صنف داخل هذه الشحنة، ثم مجموعه على الصنف في RequestItems
     const si = read_('ShipmentItems');
     const siRows = si.rows.filter(function (r) { return str_(r.RequestID) === req.id && Number(r.Batch) === batch && str_(r.ItemName) in qty; });
-    setMany_(si, siRows.map(function (r) { return { row: r, obj: { ReceivedQty: qty[str_(r.ItemName)] } }; }));
+    setMany_(si, siRows.map(function (r) {
+      const n = str_(r.ItemName), rj = rejects[n];
+      return { row: r, obj: rj ? { ReceivedQty: 0, RejectReason: rj.reason, RejectPhoto: rj.url } : { ReceivedQty: qty[n] } };
+    }));
     delete MEMO_.sitems;
     const withSi = {};
     siRows.forEach(function (r) { withSi[str_(r.ItemName)] = true; });
@@ -3967,6 +3995,13 @@ function receiveShipment_(user, requestId, batch, receivedItems, receiverName, s
       return { row: r, obj: { ReceivedQty: total } };
     }));
     logAction_(req.id, 'استلام الشحنة ' + batch + ' وتوقيعها (' + ship.items.length + ' صنف)', receiverName + ' (' + user.name + ')');
+    const rjNames = Object.keys(rejects).filter(function (n) { return inShip[n]; });
+    if (rjNames.length) {
+      const msg = '⛔ رفضت الممرضة عند استلام الشحنة ' + batch + ': ' + rjNames.map(function (n) { return n + ' (' + rejects[n].reason + ')'; }).join('، ');
+      append_('Comments', { Timestamp: now, RequestID: req.id, Author: user.name, Role: user.role, Message: msg });
+      logAction_(req.id, msg, user.name);
+      res = { rejected: rjNames, req: req };
+    }
     try { unloadBox_(req.id, batch, user.name, 'استلام الممرضة'); } catch (e) { console.error('unloadBox_', e); }
 
     const after = shipState_(req, rows);
@@ -3981,10 +4016,21 @@ function receiveShipment_(user, requestId, batch, receivedItems, receiverName, s
       logAction_(req.id, 'اكتمل استلام الطلب (' + after.ships.length + ' شحنة)' + (mergedUrl ? ' — إيصال موحّد بكل التواقيع' : ''), user.name);
     }
     res = {
+      rejected: res && res.rejected ? res.rejected : [], _req: req,
       complete: complete, batch: batch, pendingShipments: after.pending, notDispatched: after.total - after.dispatched, remainingQty: after.remainingQty,
       receiptUrl: receiptUrl, signatureUrl: sig.url, mergedReceiptUrl: complete ? (mergedUrl || receiptUrl) : ''
     };
   });
+  // التموين والطبيب يعرفون فوراً بالصنف المرفوض وسببه
+  if (res.rejected.length) {
+    const r0 = res._req;
+    const subject = 'رفضت الممرضة صنفاً عند الاستلام - ' + requestId;
+    const body = 'الطلب ' + requestId + ' (عيادة ' + r0.clinic + ') — الشحنة ' + batch + ':\n- ' +
+      res.rejected.map(function (n) { return n + ': ' + rejects[n].reason + (rejects[n].url ? ' — الصورة: ' + rejects[n].url : ''); }).join('\n- ') + '\n— ' + user.name;
+    notifyProcurement_(r0.department, subject, body);
+    if (r0.doctor) notifyUser_(doctorAccounts_()[r0.doctor], subject, body);
+  }
+  delete res._req;
   return res;
 }
 
