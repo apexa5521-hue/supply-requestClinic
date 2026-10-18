@@ -3189,3 +3189,32 @@ test('order limits belong to the doctor whoever orders; a doctor-specific limit 
   api(n, 'createRequest', { clinic: 'عيادة الأسنان 1', doctor: 'د. خالد', type: 'شهري', items: [{ name: 'PROPHY PASTE', qty: 1 }] });
   throwsCode(() => api(l, 'createRequest', { clinic: 'عيادة الأسنان 1', doctor: 'د. خالد', type: 'شهري', items: [{ name: 'DENTAL FLOSS', qty: 1 }] }), 'ERR_MONTHLY_LIMIT');
 });
+
+test('catalog bulk add: rows pasted from Excel are checked first, then saved together', () => {
+  const { api, login, gas } = boot();
+  const p = login('علي', '3333');
+  const before = rows(gas, 'ItemsCatalog').length;
+  // any bad row: nothing saved, each error points at its row and column
+  let r = api(p, 'saveCatalogItems', [
+    { name: 'Bond 7th gen', price: '1,250.5', dept: 'أسنان', type: 'ماتيريال', asset: '', serialized: '' },
+    { name: 'PROPHY PASTE', price: '5' },
+    { name: 'Gauze 4x4', price: 'abc' },
+    { name: 'Scaler tip', price: '90', type: 'أدوات', asset: 'ربما' },
+    { name: 'bond 7TH gen', price: '3' }
+  ]);
+  assert.equal(r.ok, false);
+  assert.deepEqual(r.errors.map(e => [e.row, e.code, e.col]), [[1, 'ERR_ITEM_EXISTS', 'name'], [2, 'ERR_BAD_PRICE', 'price'], [3, 'ERR_BAD_YESNO', 'asset'], [4, 'ERR_ITEM_DUP', 'name']]);
+  assert.equal(rows(gas, 'ItemsCatalog').length, before, 'nothing saved');
+  // all good: saved with the same fields as one item
+  r = api(p, 'saveCatalogItems', [
+    { name: 'Bond 7th gen', commercial: 'Tokuyama', category: 'Bonding', price: '١٢٥٠', dept: 'Dental', type: 'material', asset: 'لا', serialized: '', aliases: 'بوند، bond' },
+    { name: 'Handpiece LED', price: '3200', dept: '', type: 'أدوات', asset: 'نعم', serialized: 'نعم' }
+  ]);
+  assert.deepEqual([r.ok, r.saved], [true, 2]);
+  const cat = rows(gas, 'ItemsCatalog');
+  const bond = cat.find(x => x.ItemName === 'Bond 7th gen'), hp = cat.find(x => x.ItemName === 'Handpiece LED');
+  assert.deepEqual([bond.CommercialName, bond.Category, Number(bond.Price), bond.Department, bond.ItemType, bond.Ownership], ['Tokuyama', 'Bonding', 1250, 'أسنان', 'ماتيريال', '']);
+  assert.deepEqual([hp.Department, hp.ItemType, hp.Ownership, hp.Serialized], ['', 'أدوات', 'عهدة', 'نعم']);
+  assert.ok(cat.some(x => x.ItemName === 'بوند' && x.AliasOf === 'Bond 7th gen'), 'aliases column works');
+  throwsCode(() => api(login('سارة', '1111'), 'saveCatalogItems', [{ name: 'x', price: 1 }]), 'ERR_FORBIDDEN');
+});

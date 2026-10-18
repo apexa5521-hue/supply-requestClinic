@@ -744,6 +744,7 @@ const API_ = {
   // إدارة الكتالوج من الموقع (التموين والأدمن)، والأطباء وحساباتهم للأدمن فقط
   getCatalogAdmin:           { screens: ['procurement', 'finance'], perm: 'users', fn: getCatalogAdmin_ },
   saveCatalogItem:           { screens: ['procurement', 'finance'], perm: 'users', fn: saveCatalogItem_ },
+  saveCatalogItems:          { screens: ['procurement', 'finance'], perm: 'users', fn: saveCatalogItems_ },
   deleteCatalogItem:         { screens: ['procurement', 'finance'], perm: 'users', fn: deleteCatalogItem_ },
   deleteCatalogItems:        { screens: ['procurement', 'finance'], perm: 'users', fn: deleteCatalogItems_ },
   getDoctorsAdmin:           { screens: [], perm: 'users', fn: getDoctorsAdmin_ },
@@ -5681,6 +5682,82 @@ function saveCatalogItem_(user, orig, it) {
     resetMemo_();
   });
   return { ok: true, name: f.name, renamed: renamed, aliases: aliasOut };
+}
+
+/**
+ * إضافة أصناف دفعة واحدة (لصق من Excel): نفس خانات الصنف الفردي.
+ * يُفحص كل سطر أولاً — إن كان في أي سطر خطأ لا يُحفظ شيء ويرجع { errors: [{ row, code, col }] } لتصحيحه في الجدول.
+ * القسم: أسنان/جلدية/فارغ = مشترك · النوع: مستهلك/ماتيريال/أدوات (فارغ = مستهلك) · عهدة/رقم تسلسلي: نعم/لا
+ */
+const BULK_MAX_ = 500;
+function yesNo_(v) {
+  v = str_(v).toLowerCase();
+  if (!v || /^(لا|no|n|0|false|-)$/.test(v)) return false;
+  if (/^(نعم|yes|y|1|true|✓|✔|x)$/.test(v)) return true;
+  return null;
+}
+function bulkType_(v) {
+  v = str_(v).toLowerCase();
+  if (!v || /مستهلك|consum/.test(v)) return ITEM_TYPES_[0];
+  if (/ماتيريال|مادة|material/.test(v)) return ITEM_TYPES_[1];
+  if (/أدوات|ادوات|اداة|أداة|tool|instrument/.test(v)) return ITEM_TYPES_[2];
+  return null;
+}
+function saveCatalogItems_(user, items) {
+  if (!Array.isArray(items) || !items.length) throw new Error('ERR_NO_ITEMS');
+  if (items.length > BULK_MAX_) throw new Error('ERR_TOO_MANY_ITEMS');
+  const errors = [], ready = [];
+  const cat = read_('ItemsCatalog').rows;
+  const taken = {};
+  cat.forEach(function (r) { const k = str_(r.ItemName).toLowerCase(); if (k) taken[k] = r; });
+  const inBatch = {};
+  items.forEach(function (raw, i) {
+    raw = raw || {};
+    const err = function (code, col) { errors.push({ row: i, code: code, col: col }); };
+    const dept = str_(raw.dept), deptN = dept ? normDept_(dept) : '';
+    if (dept && !deptN && !/مشترك|shared|both|الكل/i.test(dept)) return err('ERR_BAD_DEPT', 'dept');
+    const type = bulkType_(raw.type);
+    if (!type) return err('ERR_BAD_TYPE', 'type');
+    const asset = yesNo_(raw.asset), serial = yesNo_(raw.serialized);
+    if (asset === null) return err('ERR_BAD_YESNO', 'asset');
+    if (serial === null) return err('ERR_BAD_YESNO', 'serialized');
+    let f;
+    try {
+      f = catalogFields_({ name: raw.name, commercial: raw.commercial, category: raw.category, price: str_(raw.price).replace(/[,٬\s]/g, '').replace(/[٠-٩]/g, function (d) { return String(d.charCodeAt(0) - 1632); }),
+        dept: deptN, type: type, asset: asset, serialized: asset && serial });
+    } catch (e) { return err(String(e.message), e.message === 'ERR_REQUIRED' ? 'name' : 'price'); }
+    const k = f.name.toLowerCase();
+    if (taken[k]) return err('ERR_ITEM_EXISTS', 'name');
+    if (inBatch[k] !== undefined) return err('ERR_ITEM_DUP', 'name');
+    inBatch[k] = i;
+    const aliases = str_(raw.aliases).split(/[،,;|\n]+/).map(function (a) { return clean_(a, 120); }).filter(String);
+    for (let j = 0; j < aliases.length; j++) {
+      const ak = aliases[j].toLowerCase(), hit = taken[ak];
+      if (hit && !(str_(hit.Category) === FREE_CATEGORY_ && !str_(hit.AliasOf) && str_(hit.FreeStatus) === FREE_ST.NO)) return err('ERR_ALIAS_TAKEN:' + aliases[j], 'aliases');
+    }
+    if (aliases.length > ALIAS_MAX_) return err('ERR_TOO_MANY_ALIASES', 'aliases');
+    ready.push({ f: f, aliases: aliases, row: i });
+  });
+  // اسم بديل يساوي اسم صنف في نفس الدفعة
+  ready.forEach(function (x) { x.aliases.forEach(function (a) { if (inBatch[a.toLowerCase()] !== undefined) errors.push({ row: x.row, code: 'ERR_ALIAS_TAKEN:' + a, col: 'aliases' }); }); });
+  if (errors.length) return { ok: false, errors: errors, saved: 0 };
+  withLock_(function () {
+    resetMemo_();
+    // نفس الفحص داخل القفل (لو أضاف أحد صنفاً بنفس الاسم أثناء التعبئة)
+    const fresh = {};
+    freshTable_('ItemsCatalog').rows.forEach(function (r) { fresh[str_(r.ItemName).toLowerCase()] = true; });
+    const clash = ready.filter(function (x) { return fresh[x.f.name.toLowerCase()]; })[0];
+    if (clash) throw new Error('ERR_ITEM_EXISTS');
+    ready.forEach(function (x) { append_('ItemsCatalog', x.f.obj); });
+    ready.forEach(function (x) { if (x.aliases.length) syncAliases_(user, x.f.name, x.aliases); });
+    logAction_('', 'إضافة ' + ready.length + ' صنف للكتالوج دفعة واحدة: ' + ready.slice(0, 20).map(function (x) { return x.f.name; }).join('، ') + (ready.length > 20 ? '…' : ''), user.name);
+    // السعر بتنسيق رقمي حتى لا يتحول لتاريخ في الشيت
+    try {
+      const t2 = tableWithCols_('ItemsCatalog'), sh = sheet_('ItemsCatalog');
+      t2.rows.filter(function (r) { return inBatch[str_(r.ItemName).toLowerCase()] !== undefined; }).forEach(function (r) { sh.getRange(r._row, t2.col.Price + 1).setNumberFormat('#,##0.00'); });
+    } catch (e) { /* التنسيق تحسين فقط */ }
+  });
+  return { ok: true, saved: ready.length, errors: [] };
 }
 
 const ALIAS_MAX_ = 30;

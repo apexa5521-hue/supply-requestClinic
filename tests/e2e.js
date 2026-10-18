@@ -1439,6 +1439,26 @@ function log(msg) { console.log('  ✔ ' + msg); }
   await login(page, 'علي', '3333');
   await page.click('.sidebar [data-view="catalog"]');
   await page.waitForSelector('#caList table');
+  // إضافة أصناف دفعة واحدة: لصق صفوف من Excel (مع سطر رؤوس الأعمدة) في الجدول
+  await page.click('.card-head [data-act="caBulk"]');
+  await page.waitForSelector('.modal #cbBody');
+  expect((await page.textContent('.modal .cb-grid thead')).includes('السعر') && (await page.textContent('.modal .cb-grid thead')).includes('عهدة؟'), 'bulk grid: the single-item fields as column headers');
+  await page.click('.modal .cb-c[data-r="0"][data-c="0"]');
+  await page.evaluate(() => {
+    const tsv = 'اسم الصنف\tالاسم التجاري\tالتصنيف\tالسعر\nBulk Gauze\tSoft\tDisposables\t12.5\tأسنان\tمستهلك\tلا\t\tشاش\nBulk Mirror\t\t\t30\t\tأدوات\tنعم\tلا\nPROPHY PASTE\t\t\t9\r\n';
+    const dt = new DataTransfer(); dt.setData('text/plain', tsv);
+    document.querySelector('.modal .cb-c[data-r="0"][data-c="0"]').dispatchEvent(new ClipboardEvent('paste', { clipboardData: dt, bubbles: true, cancelable: true }));
+  });
+  expect(await page.inputValue('.modal .cb-c[data-r="1"][data-c="3"]') === '30' && (await page.textContent('#cbCount')).includes('3'), 'paste fills rows and columns, header row skipped');
+  await shot(page, 'catalog-bulk');
+  await page.click('.modal #cbOk');
+  await page.waitForSelector('.modal #cbErr:not(.hidden)');
+  expect((await page.textContent('.modal #cbErr')).includes('السطر 3') && await page.locator('.modal .cb-c.invalid').count() === 1, 'an existing item is flagged on its row; nothing saved');
+  await page.fill('.modal .cb-c[data-r="2"][data-c="0"]', '');
+  await page.fill('.modal .cb-c[data-r="2"][data-c="3"]', '');
+  await page.click('.modal #cbOk');
+  expect(await toastHas(page, 'أُضيف 2 صنف'), 'two items added in one go');
+  await page.waitForSelector('#caList tr:has-text("Bulk Mirror")');
   await page.click('.card-head [data-act="caEdit"]');
   await page.waitForSelector('.modal #caN');
   await page.fill('.modal #caN', 'Cotton Rolls');
