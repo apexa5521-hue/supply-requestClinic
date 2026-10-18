@@ -57,11 +57,18 @@ const I18N = {
     cancel: 'إلغاء', close: 'إغلاق', save: 'حفظ', delete: 'حذف', edit: 'تعديل', send: 'إرسال', confirm: 'تأكيد', back: 'رجوع',
     push_title: 'إشعارات الجوال', push_on: 'الإشعارات مفعّلة على هذا الجهاز', push_on_h: 'يوصلك إشعار فوري لكل طلب يحتاج إجراء منك، حتى لو كان الموقع مقفلاً. الضغط على الإشعار يفتح الطلب.', push_enable: 'فعّل الإشعارات', push_off_h: 'فعّل الإشعارات ليوصلك تنبيه فوري على جوالك عند أي طلب يحتاج إجراء منك — حتى لو كان الموقع مقفلاً.', push_disable: 'إيقاف على هذا الجهاز', push_test: 'إرسال إشعار تجريبي', push_test_ok: 'أُرسل — يوصلك خلال ثوانٍ', push_on_ok: 'تم تفعيل الإشعارات ✓', push_off_ok: 'أُوقفت الإشعارات على هذا الجهاز', push_denied: 'الإشعارات ممنوعة لهذا الموقع', push_denied_ios: 'افتح «الإعدادات» في الآيفون ← «الإشعارات» ← «مسار اكس» وفعّل «السماح بالإشعارات»، ثم ارجع هنا.', push_denied_web: 'اضغط القفل 🔒 بجانب رابط الموقع ← الإشعارات ← سماح، ثم أعد تحميل الصفحة.', push_unsupported: 'هذا المتصفح لا يدعم الإشعارات. على الآيفون استخدم Safari (iOS 16.4 أو أحدث).', push_not_ready: 'الإشعارات غير مفعّلة على الخادم بعد — راجع الأدمن', push_install_t: 'أضف «مسار اكس» إلى الشاشة الرئيسية', push_install_h: 'الآيفون يرسل الإشعارات فقط للمواقع المضافة للشاشة الرئيسية. خطوة واحدة مرة واحدة:', push_install_1: 'اضغط زر المشاركة {ic} أسفل Safari', push_install_2: 'اختر «إضافة إلى الشاشة الرئيسية» ثم «إضافة»', push_install_3: 'افتح «مسار اكس» من الأيقونة الجديدة، وسجّل دخولك', push_install_4: 'اضغط «فعّل الإشعارات» ثم «سماح»', push_ask_later: 'لاحقاً', ERR_PUSH_OFF: 'الإشعارات غير مفعّلة على الخادم بعد — راجع الأدمن',
     rej_tag_nurse: 'حذفته الممرضة', rej_tag_admin: 'حُذف إدارياً', rm_items: 'حذف صنف', rm_reason: 'السبب', rm_reason_ph: 'مثال: طلبته بالغلط', rm_items_h: 'يُحذف ما لم يُرسل من الصنف. الصنف المستلم لا يُحذف من هنا — تواصلي مع الإدارة.', rm_confirm: 'حذف', rm_none: 'كل الأصناف أُرسلت — لا يوجد صنف يمكن حذفه', rm_sent_h: 'أُرسلت ولا تُحذف من هنا:', rm_pick: 'اختاري الصنف', rm_done: 'حُذف {n} صنف من الطلب', nav_req_fix: 'تصحيح الطلبات', sub_req_fix: 'حذف صنف من طلب حتى لو استُلم — بالسبب، ومسجّل للتدقيق', rf_open: 'فتح الطلب', rf_h: 'اكتب رقم الطلب. الحذف يصفّر المعتمد والمرسل والمستلم للصنف (المطلوب يبقى كما رُفع)، فتتفق المالية والتقارير، والقيم الأصلية تُحفظ في سجل التراجعات ويمكن استرجاعها.', rf_total: 'القيمة المعتمدة', rf_sent: 'المرسل', rf_received: 'المستلم', rf_value: 'القيمة', rf_remove: 'حذف الصنف', rf_restore: 'استرجاع', rf_asset: 'عليه عهدة — أرجِعها أولاً', rf_log: 'سجل التصحيحات والتراجعات', rf_remove_h: 'الصنف يخرج من حساب الطلب (المعتمد والمرسل والمستلم = 0) ومن تقارير المالية. يُسجَّل السبب والقيمة واسمك.', rf_removed: 'حُذف الصنف وسُجّل في سجل التراجعات', rf_restored: 'استُرجع الصنف بكمياته الأصلية', rf_restore_q: 'استرجاع «{n}» بكمياته الأصلية؟', ERR_ITEM_HAS_ASSET: 'صُرفت من هذا الصنف عهدة (أداة برقم تسلسلي) — أرجِعها من شاشة العهدة أولاً',
-    rl_dl_title: 'حد خاص لطبيب (زيادة أو تقليل)', rl_dl_h: 'الحد العام لكل طبيب هذا الشهر: شهري {m} · طارئ {e}. أضف طبيباً لتزيد أو تقلل طلباته — الخانة الفارغة = الحد العام، و0 = بلا حد.', rl_dl_m: 'الشهري', rl_dl_e: 'الطارئ', rl_dl_default: 'العام', rl_dl_used: 'هذا الشهر: شهري {m} · طارئ {e}', rl_dl_none: 'لا يوجد حد خاص — كل الأطباء على الحد العام.', rl_dl_pick: 'اسم الطبيب', rl_dl_add: 'إضافة',
+    rl_dl_title: 'حد خاص لطبيب (زيادة أو تقليل)', rl_dl_h: 'الحد العام لكل طبيب هذا الشهر: شهري {m} · طارئ {e} · أصناف الطارئ {i}. أضف طبيباً لتزيد أو تقلل طلباته أو عدد أصناف طارئه كاستثناء — الخانة الفارغة = الحد العام، و0 = بلا حد.', rl_dl_m: 'الشهري', rl_dl_e: 'الطارئ', rl_dl_default: 'العام', rl_dl_used: 'هذا الشهر: شهري {m} · طارئ {e}', rl_dl_none: 'لا يوجد حد خاص — كل الأطباء على الحد العام.', rl_dl_pick: 'اسم الطبيب', rl_dl_add: 'إضافة',
     cb_btn: 'إضافة أصناف دفعة واحدة', cb_title: 'إضافة أصناف دفعة واحدة', cb_sub: 'مثل Excel — انسخ الصفوف من Excel والصقها هنا', cb_h: 'ضع المؤشر في أول خانة (اسم الصنف) والصق (Ctrl+V). نفس خانات الصنف الفردي؛ الخانات بـ * إجبارية. لا يُحفظ شيء حتى تصح كل الصفوف.', cb_price: 'السعر', cb_asset: 'عهدة؟', cb_serial: 'رقم تسلسلي؟', cb_dept_h: 'أسنان / جلدية / فارغ = مشترك', cb_type_h: 'مستهلك / ماتيريال / أدوات', cb_yes_h: 'نعم / لا', cb_alias_h: 'افصل بينها بـ ،', cb_more: '10 صفوف أخرى', cb_copy_head: 'نسخ رؤوس الأعمدة لـ Excel', cb_head_ok: 'نُسخت رؤوس الأعمدة — الصقها في أول صف في Excel', cb_clear: 'مسح الجدول', cb_count: '{n} صنف', cb_save: 'حفظ {n} صنف', cb_empty: 'الجدول فارغ — الصق الأصناف أولاً', cb_row: 'السطر {n}', cb_done: 'أُضيف {n} صنف للكتالوج', ERR_BAD_DEPT: 'القسم غير معروف (أسنان / جلدية / فارغ)', ERR_BAD_TYPE: 'النوع غير معروف (مستهلك / ماتيريال / أدوات)', ERR_BAD_YESNO: 'اكتب نعم أو لا', ERR_ITEM_DUP: 'الاسم مكرر في الجدول',
     grp_my_docs: 'أطبائي', nurse_docs: 'الأطباء المسؤولة عنهم', nurse_docs_hint: 'تظهر لها «أطبائي» أولاً عند رفع الطلب — يمكن اختيار أكثر من طبيب',
     nav_doc_items: 'أصناف كل طبيب', sub_doc_items: 'الأصناف الأكثر طلباً لكل طبيب في الشهر', di_sort_req: 'الأكثر طلبات أولاً', di_sort_top: 'الأعلى تكراراً لصنف', di_sort_name: 'اسم الطبيب', di_search: 'ابحث عن صنف أو طبيب', di_all_docs: 'كل الأطباء', di_none: 'لا توجد طلبات للأطباء في {m}', di_h: '{n} طبيب · {m} — عدد المرات = عدد الطلبات التي فيها الصنف (الملغي والمرفوض لا يُحسب)', di_reqs: '{n} طلب', di_em: '{n} طارئ', di_best: 'الأكثر طلباً: {i} — {n} مرة في {m}', di_times: 'عدد المرات', di_qty: 'الكمية', di_more: '+ {n} صنف آخر — اختر الطبيب لعرض الكل',
-    select_all: 'تحديد الكل', selected: 'محدد', clear_selection: 'إلغاء التحديد',
+    di_month: 'الشهر', di_prev: 'الشهر السابق', di_next: 'الشهر التالي',
+    resolve_title: 'إغلاق البلاغ', resolve_note: 'ملاحظة الإغلاق', resolve_note_ph: 'ماذا تم؟ مثال: أُرسل الصنف الناقص مع شحنة اليوم', resolve_note_h: 'تُحفظ مع البلاغ، وتظهر على الطلب، ويصل صاحب البلاغ إشعار بها.', ERR_NOTE_REQUIRED: 'اكتب ملاحظة الإغلاق', ERR_ALREADY_RESOLVED: 'البلاغ مُغلق مسبقاً',
+    who_by: 'رافع الطلب:', who_for_you: 'رفع لك الطلب:', jr_sub: 'رُفع', jr_appr: 'الاعتماد', jr_appr_done: 'اعتُمد', jr_no_appr: 'بلا اعتماد', jr_prep: 'التجهيز', jr_prep_done: 'جُهّز', jr_ship: 'الشحن', jr_ship_done: 'شُحن', jr_arr: 'وصل الفرع', jr_rcv: 'الاستلام', jr_rcv_done: 'استُلم', jr_rejected: 'رُفض',
+    now_lbl: 'المطلوب الآن', now_yours: 'دورك الآن', now_wait_doc: 'اعتماد {d}', now_wait_bm: 'اعتماد مدير الفرع', now_wait_doc_pre: 'اعتماد {d} — تقدر تجهّز مسبقاً', now_wait_bm_pre: 'اعتماد مدير الفرع — تقدر تجهّز مسبقاً', now_you_review: 'راجع الطلب واعتمده أو ارفضه',
+    now_wait_prep: 'بدء التجهيز — عند التموين', now_you_prep: 'ابدأ التجهيز', now_prep: 'قيد التجهيز — عند التموين', now_you_send: 'أكمل التجهيز وأرسل للفرع', now_partial: 'إرسال الباقي ({n}) — عند التموين', now_you_rest: 'أرسل الباقي ({n})',
+    now_driver: 'جاهز — بانتظار السواق ينقله للفرع', now_receive: 'استلام {n} وتوقيعها', now_you_receive: 'استلم الطلب ووقّع', now_rejected: 'تعديل {n} وإعادة الإرسال', now_you_fix: 'عدّل الطلب وأعد إرساله',
+    sla_left: 'طارئ · باقي {h} س', sla_over: 'طارئ · متأخر {h} س', more_n: '+{n} صنف', tag_complaints: 'بلاغ ({n})', tag_complaints_h: 'بلاغات مفتوحة على الطلب', tag_comments_h: 'تعليقات على الطلب',
+    resolve_add_note: 'أضف ملاحظة الإغلاق', resolve_note_saved: 'حُفظت ملاحظة الإغلاق — تظهر على الطلب', rl_dl_i: 'أصناف الطارئ (حد أقصى)', select_all: 'تحديد الكل', selected: 'محدد', clear_selection: 'إلغاء التحديد',
     stk_app_url: 'رابط الموقع (لزر «افتح الطلب» في الإيميلات)', stk_app_url_h: 'الرابط الذي يدخل منه الفريق، يبدأ بـ https://', ERR_BAD_URL: 'الرابط غير صحيح — يجب أن يبدأ بـ https://',
     rl_monthly_lock: 'الطلب الشهري بعد نهاية النافذة', rl_monthly_lock_h: 'عند الإقفال لا يُقبل طلب شهري بعد يوم النهاية حتى تُفتح من جديد (الطارئ لا يتأثر)', ERR_MONTHLY_CLOSED: 'الطلب الشهري مقفل — نافذة الرفع من يوم {a} إلى {b}. للضرورة ارفعي طلباً طارئاً أو اطلبي من التموين فتح الشهري',
     rcv_reject: 'رفض', rcv_unreject: 'تراجع', rcv_rej_title: 'رفض صنف عند الاستلام', rcv_rej_reason: 'السبب — مثلاً: غير مطابق للطلب، تالف، غير مرغوب', rcv_rej_photo: 'صورة الصنف (إلزامية)', rcv_rej_ok: 'رفض الصنف', rcv_rej_tag: 'مرفوض عند الاستلام', rcv_rej_photo_link: 'الصورة', rcv_rej_hint: 'الصنف المرفوض يُسجَّل «لم يُستلم» ويصل السبب والصورة للتموين والطبيب',
@@ -178,11 +185,18 @@ const I18N = {
     cancel: 'Cancel', close: 'Close', save: 'Save', delete: 'Delete', edit: 'Edit', send: 'Send', confirm: 'Confirm', back: 'Back',
     push_title: 'Phone notifications', push_on: 'Notifications are on for this device', push_on_h: 'You get an instant alert for every request that needs you, even when the site is closed. Tap it to open the request.', push_enable: 'Turn on notifications', push_off_h: 'Turn on notifications to get an instant alert on your phone whenever a request needs you — even when the site is closed.', push_disable: 'Turn off on this device', push_test: 'Send a test notification', push_test_ok: 'Sent — it arrives in a few seconds', push_on_ok: 'Notifications are on ✓', push_off_ok: 'Notifications turned off on this device', push_denied: 'Notifications are blocked for this site', push_denied_ios: 'Open iPhone Settings → Notifications → MasarX and turn on Allow Notifications, then come back.', push_denied_web: 'Tap the lock 🔒 next to the site address → Notifications → Allow, then reload the page.', push_unsupported: 'This browser does not support notifications. On iPhone use Safari (iOS 16.4 or later).', push_not_ready: 'Notifications are not set up on the server yet — ask the admin', push_install_t: 'Add MasarX to your Home Screen', push_install_h: 'iPhone only sends notifications to sites added to the Home Screen. One step, once:', push_install_1: 'Tap the Share button {ic} at the bottom of Safari', push_install_2: 'Choose “Add to Home Screen”, then “Add”', push_install_3: 'Open MasarX from the new icon and sign in', push_install_4: 'Tap “Turn on notifications”, then “Allow”', push_ask_later: 'Later', ERR_PUSH_OFF: 'Notifications are not set up on the server yet — ask the admin',
     rej_tag_nurse: 'Removed by the nurse', rej_tag_admin: 'Removed by admin', rm_items: 'Remove item', rm_reason: 'Reason', rm_reason_ph: 'e.g. ordered by mistake', rm_items_h: 'Removes what has not been sent yet. A received item can’t be removed here — contact the admin.', rm_confirm: 'Remove', rm_none: 'Everything was sent — nothing left to remove', rm_sent_h: 'Already sent (not removable here):', rm_pick: 'Pick an item', rm_done: '{n} item(s) removed from the request', nav_req_fix: 'Fix requests', sub_req_fix: 'Remove an item even after receipt — with a reason, logged for audit', rf_open: 'Open request', rf_h: 'Type the request number. Removing sets the item’s approved, sent and received to 0 (requested stays as raised), so finance and reports agree; the original values are kept in the reversals log and can be restored.', rf_total: 'Approved value', rf_sent: 'Sent', rf_received: 'Received', rf_value: 'Value', rf_remove: 'Remove item', rf_restore: 'Restore', rf_asset: 'Has custody assets — return them first', rf_log: 'Fixes and reversals log', rf_remove_h: 'The item leaves the request totals (approved, sent, received = 0) and finance reports. The reason, value and your name are recorded.', rf_removed: 'Item removed and logged', rf_restored: 'Item restored with its original quantities', rf_restore_q: 'Restore “{n}” with its original quantities?', ERR_ITEM_HAS_ASSET: 'Custody assets were issued from this item — return them from Custody first',
-    rl_dl_title: 'Doctor-specific limit (raise or lower)', rl_dl_h: 'General limit per doctor this month: monthly {m} · emergency {e}. Add a doctor to raise or lower their requests — empty = the general limit, 0 = no limit.', rl_dl_m: 'Monthly', rl_dl_e: 'Emergency', rl_dl_default: 'General', rl_dl_used: 'This month: monthly {m} · emergency {e}', rl_dl_none: 'No special limits — every doctor uses the general limit.', rl_dl_pick: 'Doctor name', rl_dl_add: 'Add',
+    rl_dl_title: 'Doctor-specific limit (raise or lower)', rl_dl_h: 'General limit per doctor this month: monthly {m} · emergency {e} · emergency items {i}. Add a doctor to raise or lower their requests or emergency item count as an exception — empty = the general limit, 0 = no limit.', rl_dl_m: 'Monthly', rl_dl_e: 'Emergency', rl_dl_default: 'General', rl_dl_used: 'This month: monthly {m} · emergency {e}', rl_dl_none: 'No special limits — every doctor uses the general limit.', rl_dl_pick: 'Doctor name', rl_dl_add: 'Add',
     cb_btn: 'Add items in bulk', cb_title: 'Add items in bulk', cb_sub: 'Like Excel — copy rows from Excel and paste them here', cb_h: 'Put the cursor in the first cell (item name) and paste (Ctrl+V). Same fields as a single item; * is required. Nothing is saved until every row is valid.', cb_price: 'Price', cb_asset: 'Custody?', cb_serial: 'Serial no.?', cb_dept_h: 'Dental / Derma / empty = shared', cb_type_h: 'Consumable / Material / Tools', cb_yes_h: 'Yes / No', cb_alias_h: 'separate with ,', cb_more: '10 more rows', cb_copy_head: 'Copy column headers for Excel', cb_head_ok: 'Headers copied — paste them in the first Excel row', cb_clear: 'Clear', cb_count: '{n} item(s)', cb_save: 'Save {n} item(s)', cb_empty: 'The table is empty — paste the items first', cb_row: 'Row {n}', cb_done: '{n} item(s) added to the catalog', ERR_BAD_DEPT: 'Unknown department (Dental / Derma / empty)', ERR_BAD_TYPE: 'Unknown type (Consumable / Material / Tools)', ERR_BAD_YESNO: 'Write yes or no', ERR_ITEM_DUP: 'Name repeated in the table',
     grp_my_docs: 'My doctors', nurse_docs: 'Doctors she orders for', nurse_docs_hint: 'Shown first as “My doctors” when she raises a request — pick as many as needed',
     nav_doc_items: 'Items per doctor', sub_doc_items: 'Most requested items per doctor each month', di_sort_req: 'Most requests first', di_sort_top: 'Highest repeat of one item', di_sort_name: 'Doctor name', di_search: 'Search an item or doctor', di_all_docs: 'All doctors', di_none: 'No doctor requests in {m}', di_h: '{n} doctor(s) · {m} — times = number of requests with the item (cancelled and rejected not counted)', di_reqs: '{n} request(s)', di_em: '{n} emergency', di_best: 'Most requested: {i} — {n} time(s) in {m}', di_times: 'Times', di_qty: 'Quantity', di_more: '+ {n} more items — pick the doctor to see all',
-    select_all: 'Select all', selected: 'selected', clear_selection: 'Clear',
+    di_month: 'Month', di_prev: 'Previous month', di_next: 'Next month',
+    resolve_title: 'Close the complaint', resolve_note: 'Closing note', resolve_note_ph: 'What was done? e.g. the missing item went out with today’s shipment', resolve_note_h: 'Saved with the complaint, shown on the request, and sent to the person who reported it.', ERR_NOTE_REQUIRED: 'Write the closing note', ERR_ALREADY_RESOLVED: 'The complaint is already closed',
+    who_by: 'Requested by', who_for_you: 'Requested for you by', jr_sub: 'Submitted', jr_appr: 'Approval', jr_appr_done: 'Approved', jr_no_appr: 'No approval', jr_prep: 'Preparing', jr_prep_done: 'Prepared', jr_ship: 'Shipping', jr_ship_done: 'Shipped', jr_arr: 'At branch', jr_rcv: 'Receipt', jr_rcv_done: 'Received', jr_rejected: 'Rejected',
+    now_lbl: 'Needed now', now_yours: 'Your turn', now_wait_doc: 'approval by {d}', now_wait_bm: 'branch manager approval', now_wait_doc_pre: 'approval by {d} — you can prepare ahead', now_wait_bm_pre: 'branch manager approval — you can prepare ahead', now_you_review: 'review the request, approve or reject',
+    now_wait_prep: 'start preparing — with procurement', now_you_prep: 'start preparing', now_prep: 'being prepared — with procurement', now_you_send: 'finish preparing and send to the branch', now_partial: 'send the rest ({n}) — with procurement', now_you_rest: 'send the rest ({n})',
+    now_driver: 'ready — waiting for the driver', now_receive: '{n} to receive and sign', now_you_receive: 'receive the request and sign', now_rejected: '{n} to edit and resubmit', now_you_fix: 'edit the request and resubmit',
+    sla_left: 'Emergency · {h}h left', sla_over: 'Emergency · {h}h late', more_n: '+{n} items', tag_complaints: 'Report ({n})', tag_complaints_h: 'Open reports on this request', tag_comments_h: 'Comments on this request',
+    resolve_add_note: 'Add closing note', resolve_note_saved: 'Closing note saved — shown on the request', rl_dl_i: 'Emergency items (max)', select_all: 'Select all', selected: 'selected', clear_selection: 'Clear',
     stk_app_url: 'Website link (for the «Open request» button in emails)', stk_app_url_h: 'The link your team signs in from, starting with https://', ERR_BAD_URL: 'The link is not valid — it must start with https://',
     rl_monthly_lock: 'Monthly requests after the window ends', rl_monthly_lock_h: 'When locked, no monthly request is accepted after the end day until it is opened again (emergencies are not affected)', ERR_MONTHLY_CLOSED: 'Monthly requests are closed — the window is day {a} to {b}. Raise an emergency request if needed, or ask procurement to reopen monthly requests',
     rcv_reject: 'Reject', rcv_unreject: 'Undo', rcv_rej_title: 'Reject an item at receipt', rcv_rej_reason: 'Reason — e.g. not what was ordered, damaged, not wanted', rcv_rej_photo: 'Photo of the item (required)', rcv_rej_ok: 'Reject item', rcv_rej_tag: 'Rejected at receipt', rcv_rej_photo_link: 'Photo', rcv_rej_hint: 'A rejected item is recorded as not received; procurement and the doctor get the reason and photo',
@@ -334,6 +348,7 @@ const INTL_OPTS_ = {
   day: { timeZone: 'Asia/Riyadh', day: 'numeric' },
   monthLong: { month: 'long', year: 'numeric' },
   monthShortUtc: { month: 'short', timeZone: 'UTC' },
+  monthYearUtc: { month: 'long', year: 'numeric', timeZone: 'UTC' },
   stamp: { timeZone: 'Asia/Riyadh', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit' },
   rel: { numeric: 'auto' }
 };
@@ -867,6 +882,94 @@ function shipTrack(r) {
   return '<div class="ship-track">' + icon('truck', 'i-sm') + '<span>' + parts.join(' · ') + '</span>' +
     '<div class="progress"><i data-w="' + Math.max(6, Math.round(pct * 100)) + '%"></i></div></div>' + rem;
 }
+/*
+ * بطاقة «رحلة الطلب» (ب+): من رفع الطلب + خط المراحل الست بأوقاتها + «المطلوب الآن» حسب الدور
+ * + عدّاد الطارئ + معاينة الأصناف. المرحلة الحالية من procStage (نفس مراحل التموين والنظرة العامة)
+ */
+const JR_CUR = { review: 1, ready: 2, ready_bm: 2, prep: 2, partial: 3, shipping: 3, arrived: 4, received: 6, rejected: 1 };
+const stgTone = stg => (PROC_GROUPS.find(g => g.id === stg) || {}).tone || 'var(--primary)';
+function jrInfo(r) {
+  const stg = procStage(r);
+  let cur = JR_CUR[stg];
+  if (stg === 'review' && !r.needsReview) cur = 2; // طلب بلا معتمِد (المعمل / مستهلكات العيادة / طبيب بلا حساب)
+  return { stg: stg, cur: cur, tone: stgTone(stg) };
+}
+function whoLine(r) {
+  const scr = S.user.screen, mine = scr === 'nurse' || scr === 'lab';
+  const by = r.nurse && !(mine && r.nurse === S.user.name)
+    ? '<span class="who-by">' + icon('user', 'i-sm') + esc(t(scr === 'doctor' || scr === 'branch' ? 'who_for_you' : 'who_by')) + ' <b>' + esc(r.nurse) + '</b></span>' : '';
+  const doc = scr === 'doctor' ? '' : '<span>' + icon('steth', 'i-sm') + esc(docLabel(r)) + '</span>';
+  return '<div class="req-who">' + by + doc + '<span>' + icon('building', 'i-sm') + esc(r.clinic || '—') + '</span></div>';
+}
+function journeyHtml(r) {
+  const j = jrInfo(r);
+  if (j.stg === 'cancelled') return '';
+  const rej = j.stg === 'rejected', noAppr = !r.needsReview;
+  const at = [r.submittedAt || r.date, noAppr ? '' : (r.approvedAt || r.reviewedAt), r.prepAt, r.lastShipAt || r.sentAt, r.arrivedAt, r.receivedAt];
+  const done = ['jr_sub', noAppr ? 'jr_no_appr' : 'jr_appr_done', 'jr_prep_done', 'jr_ship_done', 'jr_arr', 'jr_rcv_done'];
+  const todo = ['jr_sub', 'jr_appr', 'jr_prep', 'jr_ship', 'jr_arr', 'jr_rcv'];
+  const partial = j.stg === 'partial' && r.totalQty ? Math.round(r.sentQty / r.totalQty * 100) : 0;
+  return '<ol class="jr" style="--jt:' + j.tone + '" aria-label="' + esc(t('stg_' + j.stg)) + '">' + todo.map((k, i) => {
+    const st = i < j.cur ? 'done' : i === j.cur || (rej && i === 1) ? (rej ? 'bad' : 'cur') : '';
+    const lbl = rej && i === 1 ? t('jr_rejected') : t(i < j.cur ? done[i] : k);
+    const when = i < j.cur || (rej && i === 1) ? (rej && i === 1 ? r.reviewedAt : at[i]) : '';
+    const sub = st === 'cur' && partial ? t('units_sent_of', { a: fmtNum(r.sentQty, 0), b: fmtNum(r.totalQty, 0) }) : when ? fmtDateTime(when) : '';
+    return '<li class="jr-step ' + st + '"><span class="jr-bar">' + (st === 'cur' && partial ? '<i data-w="' + Math.max(8, partial) + '%"></i>' : '') + '</span>' +
+      '<span class="jr-lbl">' + esc(lbl) + '</span>' + (sub ? '<span class="jr-at">' + esc(sub) + '</span>' : '') + '</li>';
+  }).join('') + '</ol>';
+}
+/* المطلوب الآن: عند مَن الطلب، ومتى وصل لهذه المرحلة — ولو كان الدور عليك يُبرز «دورك» */
+function nowBox(r) {
+  const j = jrInfo(r), scr = S.user.screen;
+  if (j.stg === 'received' || j.stg === 'cancelled') return '';
+  const left = fmtNum(r.remainingQty || 0, 0), nurse = r.nurse || t('nurse');
+  let k, p = {}, mine = false, since;
+  if (j.stg === 'review' && r.needsReview) {
+    const bm = r.approver === 'branch';
+    mine = bm ? scr === 'branch' : scr === 'doctor';
+    k = mine ? 'now_you_review' : bm ? 'now_wait_bm' : 'now_wait_doc'; p.d = r.doctor || t('doctor');
+    if (scr === 'procurement') k += '_pre';
+    since = r.submittedAt || r.date;
+  } else if (j.stg === 'review' || j.stg === 'ready' || j.stg === 'ready_bm') {
+    mine = scr === 'procurement'; k = mine ? 'now_you_prep' : 'now_wait_prep'; since = r.approvedAt || r.submittedAt || r.date;
+  } else if (j.stg === 'prep') {
+    mine = scr === 'procurement'; k = mine ? 'now_you_send' : 'now_prep'; since = r.prepAt;
+  } else if (j.stg === 'partial') {
+    mine = scr === 'procurement'; k = mine ? 'now_you_rest' : 'now_partial'; p.n = left; since = r.lastShipAt;
+  } else if (j.stg === 'shipping') {
+    k = 'now_driver'; since = r.lastShipAt || r.sentAt;
+  } else if (j.stg === 'arrived') {
+    mine = scr === 'nurse' || scr === 'lab'; k = mine ? 'now_you_receive' : 'now_receive'; p.n = nurse; since = r.arrivedAt;
+  } else if (j.stg === 'rejected') {
+    mine = scr === 'nurse' || scr === 'lab'; k = mine ? 'now_you_fix' : 'now_rejected'; p.n = nurse; since = r.reviewedAt;
+  }
+  if (!k) return '';
+  return '<div class="jr-now' + (mine ? ' mine' : '') + '" style="--jt:' + j.tone + '">' + icon(mine ? 'zap' : 'clock', 'i-sm') +
+    '<span class="grow"><b>' + esc(t(mine ? 'now_yours' : 'now_lbl')) + ':</b> ' + esc(t(k, p)) + '</span>' +
+    (since ? '<span class="jr-since">' + esc(relTime(since)) + '</span>' : '') + '</div>';
+}
+/* الطارئ: شريط المهلة (48 ساعة افتراضياً) من الرفع حتى الموعد */
+function slaBar(r) {
+  if (r.type !== 'طارئ' || !r.dueAt || ['received', 'cancelled', 'rejected'].indexOf(procStage(r)) !== -1) return '';
+  const s = toDate(r.submittedAt || r.date), d = toDate(r.dueAt);
+  if (!s || !d || d <= s) return '';
+  const now = Date.now(), pct = Math.min(100, Math.max(0, (now - s) / (d - s) * 100)), h = (d - now) / 36e5;
+  const lbl = h > 0 ? t('sla_left', { h: h < 1 ? '<1' : Math.floor(h) }) : t('sla_over', { h: Math.max(1, Math.ceil(-h)) });
+  return '<div class="sla' + (h <= 0 ? ' over' : pct >= 75 ? ' risk' : '') + '">' + icon('zap', 'i-sm') + '<span>' + esc(lbl) + '</span>' +
+    '<span class="sla-bar"><i data-w="' + Math.max(4, Math.round(pct)) + '%"></i></span></div>';
+}
+function itemsPreview(r) {
+  if (!r.preview || !r.preview.length) return '';
+  return '<div class="jr-items">' + icon('package', 'i-sm') + r.preview.map(i => '<span>' + esc(i.item) + ' <b>×' + fmtNum(i.qty, 0) + '</b></span>').join('') +
+    (r.previewMore ? '<span class="more">' + esc(t('more_n', { n: r.previewMore })) + '</span>' : '') + '</div>';
+}
+/* شارات التعليقات والبلاغات المفتوحة */
+function noteTags(r) {
+  return (r.openComplaints ? '<span class="tag late" title="' + esc(t('tag_complaints_h')) + '">' + icon('alert') + esc(t('tag_complaints', { n: r.openComplaints })) + '</span>' : '') +
+    (r.comments ? '<span class="tag" title="' + esc(t('tag_comments_h')) + '">' + icon('msg') + r.comments + '</span>' : '');
+}
+/* جسم البطاقة المشترك: من رفع الطلب ← الرحلة ← عدّاد الطارئ ← المطلوب الآن ← الأصناف */
+function reqFlow(r) { return whoLine(r) + journeyHtml(r) + slaBar(r) + nowBox(r) + itemsPreview(r); }
 /* ملخص الشحنات بالكميات + كل شحنة بأصنافها وكمياتها وحالة استلامها وتوقيعها */
 const SHIP_CTX = {};
 function shipSummary(items, ships, req) {
@@ -1465,14 +1568,17 @@ VIEWS.docitems = {
   title: 'nav_doc_items', sub: 'sub_doc_items',
   render() {
     return '<section class="card card-pad"><div class="row-wrap" style="gap:10px">' +
-      '<select class="select" id="diMonth" style="max-width:180px"></select>' +
+      // تقويم لاختيار الشهر والسنة (أي شهر سابق) + أسهم الشهر السابق/التالي
+      '<div class="row-wrap" style="gap:4px;align-items:center"><button type="button" class="btn btn-ghost btn-icon btn-sm" data-act="diStep" data-d="-1" aria-label="' + esc(t('di_prev')) + '">' + icon('chevr', 'i-sm') + '</button>' +
+        '<input class="input" type="month" id="diMonth" dir="ltr" max="' + todayStr().slice(0, 7) + '" value="' + esc(DI.month || todayStr().slice(0, 7)) + '" style="max-width:170px" aria-label="' + esc(t('di_month')) + '">' +
+        '<button type="button" class="btn btn-ghost btn-icon btn-sm" data-act="diStep" data-d="1" aria-label="' + esc(t('di_next')) + '">' + icon('chevr', 'i-sm flip') + '</button></div>' +
       '<select class="select" id="diDoc" style="max-width:240px"></select>' +
       '<select class="select" id="diSort" style="max-width:220px">' + [['requests', 'di_sort_req'], ['top', 'di_sort_top'], ['name', 'di_sort_name']].map(o => '<option value="' + o[0] + '"' + (DI.sort === o[0] ? ' selected' : '') + '>' + esc(t(o[1])) + '</option>').join('') + '</select>' +
       '<div class="input-icon grow" style="min-width:180px">' + icon('search') + '<input class="input" id="diQ" placeholder="' + esc(t('di_search')) + '" value="' + esc(DI.q) + '"></div></div></section>' +
       '<div id="diBox" style="margin-top:16px">' + skeletonList(3) + '</div>';
   },
   mount() {
-    $('#diMonth').addEventListener('change', e => { DI.month = e.target.value; diLoad(); });
+    $('#diMonth').addEventListener('change', e => { const v = e.target.value; if (/^\d{4}-\d{2}$/.test(v)) { DI.month = v; diLoad(); } });
     $('#diDoc').addEventListener('change', e => { DI.doctor = e.target.value; diLoad(); });
     $('#diSort').addEventListener('change', e => { DI.sort = e.target.value; diRender(); });
     $('#diQ').addEventListener('input', debounce(e => { DI.q = e.target.value.trim().toLowerCase(); diRender(); }, 200));
@@ -1480,27 +1586,36 @@ VIEWS.docitems = {
   },
   refresh() { diLoad(); }
 };
+ACT.diStep = el => {
+  const cur = DI.month || todayStr().slice(0, 7);
+  let y = Number(cur.slice(0, 4)), m = Number(cur.slice(5, 7)) + Number(el.dataset.d);
+  if (m < 1) { m = 12; y--; } if (m > 12) { m = 1; y++; }
+  const v = y + '-' + ('0' + m).slice(-2);
+  if (v > todayStr().slice(0, 7)) return;
+  DI.month = v; $('#diMonth').value = v; diLoad();
+};
 function diLoad() {
   return call('getDoctorItemStats', { month: DI.month, doctor: DI.doctor }).then(d => { DI.data = d; DI.month = d.month; diRender(); })
     .catch(e => { const b = $('#diBox'); if (b) b.innerHTML = emptyState('alert', errMsg(e)); });
 }
+const monthYearLabel = m => m ? intl('d', 'monthYearUtc').format(new Date(m + '-15T12:00:00Z')) : '';
 function diRender() {
   const d = DI.data, box = $('#diBox'); if (!box || !d) return;
   const ms = $('#diMonth'), ds = $('#diDoc');
-  if (ms) ms.innerHTML = d.months.map(m => '<option value="' + m + '"' + (m === d.month ? ' selected' : '') + '>' + esc(monthLabel(m)) + '</option>').join('');
+  if (ms && ms.value !== d.month) ms.value = d.month;
   if (ds) ds.innerHTML = '<option value="">' + esc(t('di_all_docs')) + '</option>' + d.allDoctors.map(n => '<option' + (n === DI.doctor ? ' selected' : '') + '>' + esc(n) + '</option>').join('');
   const q = DI.q;
   let list = d.doctors.map(x => Object.assign({}, x, { items: q ? x.items.filter(i => i.item.toLowerCase().indexOf(q) !== -1) : x.items }))
     .filter(x => !q || x.items.length || x.doctor.toLowerCase().indexOf(q) !== -1);
   const top = x => (x.items[0] && x.items[0].times) || 0;
   list.sort((a, b) => DI.sort === 'name' ? a.doctor.localeCompare(b.doctor) : DI.sort === 'top' ? top(b) - top(a) || b.requests - a.requests : b.requests - a.requests || top(b) - top(a));
-  if (!list.length) { box.innerHTML = emptyState('chart', t('di_none', { m: monthLabel(d.month) })); return; }
+  if (!list.length) { box.innerHTML = emptyState('chart', t('di_none', { m: monthYearLabel(d.month) })); return; }
   const lim = DI.doctor ? 200 : 10;
-  box.innerHTML = '<div class="hint" style="margin-bottom:10px">' + esc(t('di_h', { n: list.length, m: monthLabel(d.month) })) + '</div><div class="grid-2">' + list.map(x => {
+  box.innerHTML = '<div class="hint" style="margin-bottom:10px">' + esc(t('di_h', { n: list.length, m: monthYearLabel(d.month) })) + '</div><div class="grid-2">' + list.map(x => {
     const best = x.items[0];
     return '<section class="card"><div class="card-head"><h3>' + icon('steth') + esc(x.doctor) + '</h3><span class="muted">' + esc(t('di_reqs', { n: x.requests })) + (x.emergency ? ' · ' + esc(t('di_em', { n: x.emergency })) : '') + '</span></div><div class="card-body">' +
       (x.clinics.length ? '<div class="hint" style="margin-bottom:8px">' + icon('building', 'i-sm') + ' ' + esc(x.clinics.join('، ')) + '</div>' : '') +
-      (best ? '<div class="alert info" style="margin:0 0 10px"><span class="alert-ic">' + icon('chart') + '</span><span>' + esc(t('di_best', { i: best.item, n: best.times, m: monthLabel(d.month) })) + '</span></div>' : '') +
+      (best ? '<div class="alert info" style="margin:0 0 10px"><span class="alert-ic">' + icon('chart') + '</span><span>' + esc(t('di_best', { i: best.item, n: best.times, m: monthYearLabel(d.month) })) + '</span></div>' : '') +
       '<div class="table-wrap"><table class="table"><thead><tr><th style="width:1%">#</th><th>' + esc(t('items')) + '</th><th class="num">' + esc(t('di_times')) + '</th><th class="num">' + esc(t('di_qty')) + '</th></tr></thead><tbody>' +
       x.items.slice(0, lim).map((it, i) => '<tr><td class="muted">' + (i + 1) + '</td><td><b>' + esc(it.item) + '</b></td><td class="num">' + fmtNum(it.times, 0) + '</td><td class="num">' + fmtNum(it.qty, 0) + '</td></tr>').join('') +
       '</tbody></table></div>' + (x.itemCount > lim && !q ? '<div class="hint" style="margin-top:6px">' + esc(t('di_more', { n: x.itemCount - lim })) + '</div>' : '') + '</div></section>';
@@ -2064,7 +2179,8 @@ function ruleBarHtml() {
     if (L.emergency !== null) lines.push(t('rl_left_em', { n: L.emergency, m: L.eMax, who: tg }));
     if (L.monthly !== null) lines.push(t('rl_left_mo', { n: L.monthly, m: L.mMax, who: tg }));
   } else if (L && (R.emergencyMax || R.monthlyMax)) lines.push(t('rl_per_doc', { e: R.emergencyMax || '∞', m: R.monthlyMax || '∞' }));
-  lines.push(t('rl_em_rule', { h: R.emergencyHours }) + (R.emergencyMaxItems ? ' ' + t('rl_em_items_rule', { k: R.emergencyMaxItems }) : ''));
+  const maxItems = L && tg && L.iMax !== undefined ? L.iMax : R.emergencyMaxItems;
+  lines.push(t('rl_em_rule', { h: R.emergencyHours }) + (maxItems ? ' ' + t('rl_em_items_rule', { k: maxItems }) : ''));
   return '<div class="rule-bar' + (inW ? ' in' : ' out') + '" role="status">' + icon(inW ? 'checkc' : 'calendar', 'i-sm') +
     '<div class="grow"><b>' + esc(t(inW ? 'rl_in' : 'rl_out', { a: R.winStart, b: R.winEnd, d: fmtDate(R.dispatchAt) })) + '</b>' +
     '<div class="rule-sub">' + lines.map(esc).join(' · ') + '</div></div></div>';
@@ -2080,13 +2196,13 @@ function ruleTarget(d) {
 /** حد الطبيب: الحد الخاص به (زيادة أو تقليل) وإلا الحد العام — 0 = بلا حد */
 function limitsFor(target) {
   const R = S.rules || {}, o = (R.docLimits || {})[target] || {};
-  return { m: typeof o.m === 'number' ? o.m : R.monthlyMax, e: typeof o.e === 'number' ? o.e : R.emergencyMax };
+  return { m: typeof o.m === 'number' ? o.m : R.monthlyMax, e: typeof o.e === 'number' ? o.e : R.emergencyMax, i: typeof o.i === 'number' ? o.i : R.emergencyMaxItems };
 }
 function leftFor(target) {
   const R = S.rules;
   if (!R || !R.usedBy) return null;
   const u = R.usedBy[target] || { monthly: 0, emergency: 0 }, L = limitsFor(target);
-  return { monthly: L.m ? Math.max(0, L.m - u.monthly) : null, emergency: L.e ? Math.max(0, L.e - u.emergency) : null, mMax: L.m, eMax: L.e };
+  return { monthly: L.m ? Math.max(0, L.m - u.monthly) : null, emergency: L.e ? Math.max(0, L.e - u.emergency) : null, mMax: L.m, eMax: L.e, iMax: L.i };
 }
 function paintRuleBar() { $$('.rule-slot').forEach(el => { el.innerHTML = ruleBarHtml(); }); }
 /* القواعد قد تتغير في أي لحظة: تُجلب مع كل تحديث للشاشة */
@@ -2095,10 +2211,10 @@ function loadRules() { return call('getOrderRules').then(r => { S.rules = r; pai
 function ruleBlock(d) {
   const R = S.rules;
   if (!R || bdOn(d)) return '';
-  const L = leftFor(ruleTarget(d)) || {};
+  const L = leftFor(ruleTarget(d)) || {}, maxItems = L.iMax !== undefined ? L.iMax : R.emergencyMaxItems;
   if (d.type === 'طارئ') {
-    if (R.emergencyMaxItems && d.items.length > R.emergencyMaxItems)
-      return t('ERR_EMERGENCY_ITEMS', { n: d.items.length, max: R.emergencyMaxItems }) + (L.emergency !== null && L.emergency !== undefined ? ' ' + t('rl_left_tail', { n: L.emergency }) : '');
+    if (maxItems && d.items.length > maxItems)
+      return t('ERR_EMERGENCY_ITEMS', { n: d.items.length, max: maxItems }) + (L.emergency !== null && L.emergency !== undefined ? ' ' + t('rl_left_tail', { n: L.emergency }) : '');
     if (L.emergency === 0) return t('ERR_EMERGENCY_LIMIT', { max: L.eMax });
   } else if (R.monthlyLock && pastMonthlyWindow()) return t('ERR_MONTHLY_CLOSED', { a: R.winStart, b: R.winEnd });
   else if (L.monthly === 0) return t('ERR_MONTHLY_LIMIT', { max: L.mMax });
@@ -2653,10 +2769,10 @@ function renderMineList(animate) {
   setList(box, pageOf('mine', list).map((r, i) => stagger(
     '<article class="req' + (r.type === 'طارئ' ? ' urgent' : '') + '"' + reqTone(r) + '>' +
       '<div class="req-main clickable" data-act="detail" data-id="' + esc(r.id) + '">' +
-        '<div class="grow"><div class="row-wrap"><span class="req-id">' + esc(r.id) + '</span>' + typeTag(r.type) + bdTag(r) + branchTag(r.branch) + arrivedTag(r) + '</div>' +
-          '<div class="req-sub"><span>' + icon('building') + esc(r.clinic || '—') + '</span><span>' + icon('steth') + esc(docLabel(r)) + '</span>' + stageStamp(r) + '<span>' + icon('package') + esc(t('items_count', { n: r.itemCount || 0 })) + '</span></div>' + shipTrack(r) + boxAtHtml(r.boxAt) +
+        '<div class="grow"><div class="row-wrap"><span class="req-id">' + esc(r.id) + '</span>' + typeTag(r.type) + bdTag(r) + branchTag(r.branch) + arrivedTag(r) + noteTags(r) + '</div>' + whoLine(r) +
+          '<div class="req-sub">' + stageStamp(r) + '<span>' + icon('package') + esc(t('items_count', { n: r.itemCount || 0 })) + '</span></div>' + journeyHtml(r) + slaBar(r) + nowBox(r) + itemsPreview(r) + shipTrack(r) + boxAtHtml(r.boxAt) +
           cancelBox(r) + (r.status === ST.REJECTED && r.rejectionReason ? '<div class="reject-box" style="margin-top:8px">' + icon('xc') + '<div><b>' + esc(t('rejection_reason')) + ':</b> ' + esc(r.rejectionReason) + '</div></div>' : '') + '</div>' +
-        '<div class="req-side">' + badge(r.status, r) + progressBar(r.status) + '</div>' +
+        '<div class="req-side">' + badge(r.status, r) + '</div>' +
       '</div>' +
       '<div class="req-actions">' +
         (r.pendingShipments > 0 ? '<button class="btn btn-primary btn-sm" data-act="receive" data-id="' + esc(r.id) + '">' + icon('pen', 'i-sm') + esc(t('receive_btn')) + (r.pendingShipments > 1 ? '<span class="count-pill">' + r.pendingShipments + '</span>' : '') + '</button>' : '') +
@@ -3216,10 +3332,10 @@ function procCard(r) {
   return '<article class="req' + (sel ? ' selected' : '') + (open ? ' open' : '') + (r.type === 'طارئ' ? ' urgent' : '') + '" data-rid="' + esc(r.id) + '"' + reqTone(r) + '>' +
     '<div class="req-main">' +
       '<input type="checkbox" class="check" data-change="procSel" data-id="' + esc(r.id) + '"' + (sel ? ' checked' : '') + ' aria-label="' + esc(r.id) + '">' +
-      '<div class="grow clickable" data-act="procToggle" data-id="' + esc(r.id) + '" style="cursor:pointer"><div class="row-wrap"><span class="req-id">' + esc(r.id) + '</span>' + typeTag(r.type) + bdTag(r) + branchTag(r.branch) + deptTag(r.department, true) + arrivedTag(r) +
-        '</div>' +
-        '<div class="req-sub"><span>' + icon('building') + esc(r.clinic || '—') + '</span><span>' + icon('steth') + esc(docLabel(r)) + '</span><span>' + icon('user') + esc(r.nurse) + '</span>' + stageStamp(r) + '<span>' + icon('package') + esc(t('items_count', { n: r.itemCount || 0 })) + '</span></div>' + shipTrack(r) + cancelBox(r) + '</div>' +
-      '<div class="req-side">' + badge(r.status, r) + progressBar(r.status) + '</div>' +
+      '<div class="grow clickable" data-act="procToggle" data-id="' + esc(r.id) + '" style="cursor:pointer"><div class="row-wrap"><span class="req-id">' + esc(r.id) + '</span>' + typeTag(r.type) + bdTag(r) + branchTag(r.branch) + deptTag(r.department, true) + arrivedTag(r) + noteTags(r) +
+        '</div>' + whoLine(r) +
+        '<div class="req-sub">' + stageStamp(r) + '<span>' + icon('package') + esc(t('items_count', { n: r.itemCount || 0 })) + '</span></div>' + journeyHtml(r) + slaBar(r) + nowBox(r) + itemsPreview(r) + shipTrack(r) + cancelBox(r) + '</div>' +
+      '<div class="req-side">' + badge(r.status, r) + '</div>' +
     '</div>' +
     '<div class="req-actions">' +
       '<button class="btn btn-sm' + (open ? ' btn-soft' : '') + '" data-act="procToggle" data-id="' + esc(r.id) + '">' + icon('package', 'i-sm') + esc(t('view_items')) + icon('chevd', 'i-sm chev' + (open ? ' open' : '')) + '</button>' +
@@ -4627,16 +4743,16 @@ function renderRulesForm() {
 /* حد خاص لطبيب: زيادة أو تقليل عدد الطلبات الشهرية/الطارئة عن الحد العام (الفارغ = الحد العام، 0 = بلا حد) */
 function docLimitRow(name, o, ro) {
   const u = ((S.rules && S.rules.usedBy) || {})[name] || { monthly: 0, emergency: 0 };
-  const inp = (f, v) => '<input class="input dl-in" type="number" inputmode="numeric" min="0" max="99" step="1" data-f="' + f + '" value="' + (typeof v === 'number' ? v : '') + '" placeholder="' + esc(t('rl_dl_default')) + '"' + (ro ? ' disabled' : '') + ' style="max-width:110px">';
+  const inp = (f, v) => '<input class="input dl-in" type="number" inputmode="numeric" min="0" max="' + (f === 'i' ? 200 : 99) + '" step="1" data-f="' + f + '" value="' + (typeof v === 'number' ? v : '') + '" placeholder="' + esc(t('rl_dl_default')) + '"' + (ro ? ' disabled' : '') + ' style="max-width:110px">';
   return '<tr class="dl-row" data-name="' + esc(name) + '"><td><b>' + esc(name) + '</b><div class="hint">' + esc(t('rl_dl_used', { m: u.monthly, e: u.emergency })) + '</div></td>' +
-    '<td>' + inp('m', o.m) + '</td><td>' + inp('e', o.e) + '</td>' +
+    '<td>' + inp('m', o.m) + '</td><td>' + inp('e', o.e) + '</td><td>' + inp('i', o.i) + '</td>' +
     '<td class="num">' + (ro ? '' : '<button type="button" class="btn btn-ghost btn-icon btn-sm" data-act="dlDel" aria-label="' + esc(t('remove')) + '">' + icon('trash', 'i-sm') + '</button>') + '</td></tr>';
 }
 function docLimitsHtml(R, ro) {
   const dl = R.docLimits || {}, names = Object.keys(dl).sort();
   return '<section class="card" style="margin-top:16px"><div class="card-head"><h3>' + icon('steth') + esc(t('rl_dl_title')) + '</h3></div><div class="card-body">' +
-    '<div class="hint" style="margin-bottom:10px">' + esc(t('rl_dl_h', { m: R.monthlyMax || '∞', e: R.emergencyMax || '∞' })) + '</div>' +
-    '<div class="table-wrap"><table class="table"><thead><tr><th>' + esc(t('doctor')) + '</th><th>' + esc(t('rl_dl_m')) + '</th><th>' + esc(t('rl_dl_e')) + '</th><th></th></tr></thead><tbody id="dlBody">' +
+    '<div class="hint" style="margin-bottom:10px">' + esc(t('rl_dl_h', { m: R.monthlyMax || '∞', e: R.emergencyMax || '∞', i: R.emergencyMaxItems || '∞' })) + '</div>' +
+    '<div class="table-wrap"><table class="table"><thead><tr><th>' + esc(t('doctor')) + '</th><th>' + esc(t('rl_dl_m')) + '</th><th>' + esc(t('rl_dl_e')) + '</th><th>' + esc(t('rl_dl_i')) + '</th><th></th></tr></thead><tbody id="dlBody">' +
     names.map(n => docLimitRow(n, dl[n], ro)).join('') + '</tbody></table></div>' +
     (names.length ? '' : '<div class="hint" id="dlEmpty">' + esc(t('rl_dl_none')) + '</div>') +
     (ro ? '' : '<div class="row-wrap" style="gap:8px;margin-top:10px"><input class="input grow" id="dlName" list="dlNames" placeholder="' + esc(t('rl_dl_pick')) + '" style="max-width:320px">' +
@@ -4674,7 +4790,7 @@ ACT.rlSave = el => {
     $$('.dl-in', r).forEach(i => {
       if (i.value.trim() === '') return;
       const n = Number(i.value);
-      if (!(Number.isInteger(n) && n >= 0 && n <= 99)) badDl = badDl || i; else o[i.dataset.f] = n;
+      if (!(Number.isInteger(n) && n >= 0 && n <= Number(i.getAttribute('max')))) badDl = badDl || i; else o[i.dataset.f] = n;
     });
     v.docLimits[r.dataset.name] = o;
   });
@@ -4846,24 +4962,37 @@ function renderComplaints(animate) {
       '<div class="grow"><div class="row-wrap"><b>' + esc(t(C_KEY[c.type] || 'c_other')) + '</b><button class="btn btn-ghost btn-sm mono" data-act="detail" data-id="' + esc(c.requestId) + '" style="min-height:26px;padding:2px 8px">' + esc(c.requestId) + '</button></div>' +
         '<div style="margin-top:4px;white-space:pre-wrap;overflow-wrap:anywhere">' + esc(c.message) + '</div>' +
         '<div class="req-sub"><span>' + icon('user') + esc(c.author) + ' · ' + esc(c.role) + '</span><span>' + icon('clock') + esc(relTime(c.time)) + '</span>' +
-          (c.resolved ? '<span>' + icon('checkc') + esc(t('resolved_by', { n: c.resolvedBy })) + '</span>' : '') + '</div></div>' +
+          (c.resolved ? '<span>' + icon('checkc') + esc(t('resolved_by', { n: c.resolvedBy })) + '</span>' : '') + '</div>' +
+          (c.resolved && c.resolveNote ? '<div class="hint" style="margin-top:6px;white-space:pre-wrap;overflow-wrap:anywhere;color:var(--t-green)">' + icon('msg', 'i-sm') + ' <b>' + esc(t('resolve_note')) + ':</b> ' + esc(c.resolveNote) + '</div>' : '') + '</div>' +
       // الإغلاق للجودة والإدارة التنفيذية فقط؛ التموين يرى البلاغ ويعلّق على الطلب
       (!c.resolved ? (!hasPerm('complaints_close')
         ? '<span class="hint">' + icon('lock', 'i-sm') + ' ' + esc(t('close_mgmt_only')) + '</span>'
-        : '<button class="btn btn-soft btn-sm" data-act="resolve" data-id="' + esc(c.id) + '">' + icon('check', 'i-sm') + esc(t('resolve')) + '</button>') : '') +
+        : '<button class="btn btn-soft btn-sm" data-act="resolve" data-id="' + esc(c.id) + '">' + icon('check', 'i-sm') + esc(t('resolve')) + '</button>')
+        // أُغلق سابقاً بدون ملاحظة: تُضاف ملاحظته الآن وتظهر على الطلب للطبيب والممرضة والتموين
+        : !c.resolveNote && hasPerm('complaints_close') ? '<button class="btn btn-soft btn-sm" data-act="resolve" data-late="1" data-id="' + esc(c.id) + '">' + icon('msg', 'i-sm') + esc(t('resolve_add_note')) + '</button>' : '') +
     '</div></article>', i)).join(''), animate);
 }
+/* إغلاق البلاغ بملاحظة (ماذا تم): تُحفظ مع البلاغ وتُكتب على الطلب ويُبلَّغ صاحب البلاغ */
 ACT.resolve = el => {
-  busy(el, true);
-  call('resolveComplaint', el.dataset.id).then(() => {
-    toast(t('complaint_resolved'));
-    const c = S.dash.complaints.find(x => x.id === el.dataset.id);
-    if (c) { c.resolved = true; c.resolvedBy = S.user.name; }
-    const card = el.closest('.req');
-    card.style.transition = 'opacity .25s, transform .25s'; card.style.opacity = '0'; card.style.transform = 'translateX(12px)';
-    setTimeout(() => { renderComplaints(false); renderNav(); }, REDUCED ? 0 : 240);
-    loadAlerts();
-  }).catch(e => { busy(el, false); toast(errMsg(e), 'error'); });
+  const id = el.dataset.id, late = !!el.dataset.late, card = late ? null : el.closest('.req');
+  const m = openModal({ title: esc(t(late ? 'resolve_add_note' : 'resolve_title')), icon: late ? 'msg' : 'checkc', size: 'sm',
+    body: '<div class="field"><label for="rsNote">' + esc(t('resolve_note')) + '</label><textarea class="textarea" id="rsNote" maxlength="1000" placeholder="' + esc(t('resolve_note_ph')) + '"></textarea>' +
+      '<div class="hint">' + esc(t('resolve_note_h')) + '</div></div><div class="field-error hidden" id="rsErr">' + icon('alert', 'i-sm') + '<span></span></div>',
+    foot: '<span class="spacer"></span><button class="btn" data-close>' + esc(t('cancel')) + '</button><button class="btn btn-primary" id="rsOk">' + icon('check', 'i-sm') + esc(t(late ? 'save' : 'resolve')) + '</button>' });
+  $('#rsOk', m.el).addEventListener('click', e => {
+    const note = $('#rsNote', m.el).value.trim(), err = $('#rsErr', m.el);
+    if (!note) { err.querySelector('span').textContent = t('ERR_NOTE_REQUIRED'); err.classList.remove('hidden'); $('#rsNote', m.el).focus(); return; }
+    const b = e.currentTarget; busy(b, true);
+    call('resolveComplaint', id, note).then(() => {
+      closeModal(m);
+      toast(t(late ? 'resolve_note_saved' : 'complaint_resolved'));
+      const c = S.dash.complaints.find(x => x.id === id);
+      if (c) { c.resolved = true; c.resolvedBy = S.user.name; c.resolveNote = note; }
+      if (card) { card.style.transition = 'opacity .25s, transform .25s'; card.style.opacity = '0'; card.style.transform = 'translateX(12px)'; }
+      setTimeout(() => { renderComplaints(false); renderNav(); }, REDUCED ? 0 : 240);
+      loadAlerts();
+    }).catch(er => { busy(b, false); err.querySelector('span').textContent = errMsg(er); err.classList.remove('hidden'); });
+  });
 };
 
 /* =====================================================================
@@ -4916,10 +5045,11 @@ function renderDoc(animate, keepKpis) {
   if (!list.length) { box.innerHTML = emptyState(g.id === 'review' ? 'checkc' : 'clipboard', t('no_requests'), g.id === 'review' ? t('no_complaints_sub') : ''); return; }
   setList(box, pageOf('doc', list).map((r, i) => stagger(
     '<article class="req' + (r.type === 'طارئ' ? ' urgent' : '') + '"' + reqTone(r) + '><div class="req-main clickable" data-act="review" data-id="' + esc(r.id) + '">' +
-      '<div class="grow"><div class="row-wrap"><span class="req-id">' + esc(r.id) + '</span>' + typeTag(r.type) + bdTag(r) + branchTag(r.branch) + arrivedTag(r) + '</div>' +
-        '<div class="req-sub"><span>' + icon('building') + esc(r.clinic) + '</span><span>' + icon('user') + esc(r.nurse) + '</span>' + stageStamp(r) + '<span>' + icon('package') + esc(t('items_count', { n: r.itemCount || 0 })) + '</span></div>' + boxAtHtml(r.boxAt) + '</div>' +
+      '<div class="grow"><div class="row-wrap"><span class="req-id">' + esc(r.id) + '</span>' + typeTag(r.type) + bdTag(r) + branchTag(r.branch) + arrivedTag(r) + noteTags(r) + '</div>' + whoLine(r) +
+        '<div class="req-sub">' + stageStamp(r) + '<span>' + icon('package') + esc(t('items_count', { n: r.itemCount || 0 })) + '</span></div>' + journeyHtml(r) + slaBar(r) + nowBox(r) + itemsPreview(r) + boxAtHtml(r.boxAt) + '</div>' +
       '<div class="req-side">' + badge(r.status, r) + (r.status === ST.REVIEW ? '<span class="btn btn-primary btn-sm">' + esc(t('review_title')) + icon('chevr', 'i-sm flip') + '</span>' : '') + '</div>' +
     '</div></article>', i)).join('') + moreBtn('doc', list.length) + archiveBtn('doc', S.doc.archive), animate);
+  animateBars(box);
 }
 ACT.review = el => openReview(el.dataset.id);
 function openReview(id) {
@@ -5060,11 +5190,11 @@ ACT.dashMonth = el => { S.dash.month = el.value; go('overview', true); };
 ACT.dashAll = () => { S.dash.month = ''; go('overview', true); };
 /* الضغط على حالة في «توزيع الحالات»: كل طلبات هذه الحالة (لنفس الشهر المختار) — والضغط على الطلب يفتح تفاصيله */
 ACT.dashStatus = el => {
-  const st = el.dataset.st, month = S.dash.month;
-  const m = openModal({ title: esc(statusLabel(st)), sub: esc(month ? monthLabel(month) : t('all_months')), icon: 'layers', size: 'lg', body: skeletonList(3) });
+  const stage = el.dataset.stage, month = S.dash.month;
+  const m = openModal({ title: esc(t('stg_' + stage)), sub: esc(month ? monthLabel(month) : t('all_months')), icon: 'layers', size: 'lg', body: skeletonList(3) });
   call('getRequests', Object.assign({ archive: true }, month ? { month: month } : {})).then(list => {
     if (m.closing) return;
-    const rows = (list || []).filter(r => r.status === st).sort((a, b) => (toDate(b.date) || 0) - (toDate(a.date) || 0));
+    const rows = (list || []).filter(r => procStage(r) === stage).sort((a, b) => (toDate(b.date) || 0) - (toDate(a.date) || 0));
     $('.modal-body', m.el).innerHTML = rows.length
       ? '<div class="hint" style="margin-bottom:8px">' + esc(t('dash_status_n', { n: rows.length })) + '</div>' +
         '<div class="table-wrap" style="max-height:60vh;overflow:auto"><table class="table"><thead><tr><th>#</th><th>' + esc(t('date')) + '</th><th>' + esc(t('branch')) + '</th><th>' + esc(t('clinic')) + '</th><th>' + esc(t('doctor')) + '</th><th>' + esc(t('xl_nurse')) + '</th><th>' + esc(t('type')) + '</th></tr></thead><tbody>' +
@@ -5103,12 +5233,12 @@ function renderDash(silent) {
     '<div class="kpi-val" data-count="' + (Number(k.v) || 0) + '" data-dec="' + (k.dec || 0) + '"' + (k.suffix ? ' data-suffix="' + esc(k.suffix) + '"' : '') + '>0</div></' + (k.go ? 'button' : 'div') + '>').join('');
   countUp($('#dashKpis'), silent);
 
-  // كل حالة تظهر (بما فيها الملغاة وأي حالة غير معروفة في الشيت) حتى يساوي مجموع الأرقام «إجمالي الطلبات»
-  const order = [ST.REVIEW, ST.APPROVED, ST.NEW, ST.PREP, ST.VENDOR_WAIT, ST.VENDOR_RECV, ST.SENT, ST.RECEIVED, ST.REJECTED, ST.CANCELLED];
-  const present = order.filter(st => sc[st]).concat(Object.keys(sc).filter(st => sc[st] && order.indexOf(st) === -1));
+  // نفس مراحل شاشة التموين وأسمائها وألوانها (جديد · لم يُعتمد بعد، معتمد · بحاجة لتجهيز، …) — المجموع = إجمالي الطلبات
+  const gc = s.stageCounts || {};
+  const present = PROC_GROUPS.filter(g => g.id !== 'all' && gc[g.id]);
   $('#dashDist').innerHTML = total
-    ? '<div class="stackbar">' + present.map(st => '<span style="--tone:' + stMeta(st).tone + '" data-w="' + (sc[st] / total * 100) + '%" title="' + esc(statusLabel(st)) + ': ' + sc[st] + '" data-act="dashStatus" data-st="' + esc(st) + '" role="button"></span>').join('') + '</div>' +
-      '<div class="legend">' + present.map(st => '<button type="button" class="legend-btn" style="--tone:' + stMeta(st).tone + '" data-act="dashStatus" data-st="' + esc(st) + '"><i></i>' + esc(statusLabel(st)) + ' <b>' + sc[st] + '</b></button>').join('') + '</div>' +
+    ? '<div class="stackbar">' + present.map(g => '<span style="--tone:' + g.tone + '" data-w="' + (gc[g.id] / total * 100) + '%" title="' + esc(t(g.k)) + ': ' + gc[g.id] + '" data-act="dashStatus" data-stage="' + g.id + '" role="button"></span>').join('') + '</div>' +
+      '<div class="legend">' + present.map(g => '<button type="button" class="legend-btn" style="--tone:' + g.tone + '" data-act="dashStatus" data-stage="' + g.id + '"><i></i>' + esc(t(g.k)) + ' <b>' + gc[g.id] + '</b></button>').join('') + '</div>' +
       '<div class="hint" style="margin-top:8px">' + icon('info', 'i-sm') + ' ' + esc(t('dash_status_hint')) + '</div>'
     : emptyState('chart', t('no_data'));
   animateBars($('#dashDist'));
