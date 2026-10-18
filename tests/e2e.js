@@ -328,6 +328,13 @@ function log(msg) { console.log('  ✔ ' + msg); }
   if (otherDoc) { await page.selectOption('[data-change="procDoctor"]', otherDoc); expect(await page.locator(`#procList .req[data-rid="${newId}"]`).count() === 0, 'another doctor hides the request'); }
   await page.selectOption('[data-change="procDoctor"]', '');
   expect(await page.getAttribute(`#procList .req[data-rid="${newId}"]`, 'data-tone') !== null, 'procurement request cards are colored by status');
+  {
+    const card = `#procList .req[data-rid="${newId}"]`;
+    expect((await page.textContent(`${card} .req-who .who-by`)).includes('سارة'), 'procurement card: the requesting nurse is shown prominently');
+    expect(await page.locator(`${card} .jr .jr-step`).count() === 6 && await page.locator(`${card} .jr .jr-step.done`).count() >= 1, 'procurement card: 6-step journey with the done steps');
+    expect((await page.textContent(`${card} .jr-now`)).includes('المطلوب الآن'), 'procurement card: «needed now» box');
+    expect(await page.locator(`${card} .jr-items span`).count() >= 1, 'procurement card: items preview');
+  }
   // الطلب الجديد لدى الطبيب أولاً: التموين يراه لكن لا يستطيع تجهيزه
   expect(await page.isVisible('.alert.warning:has-text("لدى الطبيب")'), 'procurement is alerted that an emergency awaits doctor approval');
   expect((await page.textContent(`.req[data-rid="${newId}"] .badge`)).includes('جديد · لم يعتمده الطبيب بعد'), 'new request goes straight to doctor review');
@@ -368,6 +375,8 @@ function log(msg) { console.log('  ✔ ' + msg); }
   expect(true, 'the notice disappears after answering');
   await page.waitForSelector('#docList .req');
   await shot(page, 'doctor-reviews');
+  expect((await page.textContent(`#docList .req:has([data-id="${newId}"]) .who-by`)).includes('سارة'), 'doctor card: who requested it for the doctor');
+  expect((await page.textContent(`#docList .req:has([data-id="${newId}"]) .jr-now`)).includes('دورك الآن'), 'doctor card: it is the doctor\'s turn');
   await page.click(`#docList [data-id="${newId}"]`);
   await page.waitForSelector('#rvItems table');
   await page.click('#rvReject');
@@ -1131,6 +1140,21 @@ function log(msg) { console.log('  ✔ ' + msg); }
 
   // ---------- Quality dashboard ----------
   await login(page, 'منى', '5555');
+  // إغلاق بلاغ مفتوح بملاحظة
+  await page.click('.sidebar [data-view="complaints"]');
+  await page.waitForSelector('#cList [data-act="resolve"]');
+  await page.click('#cList [data-act="resolve"] >> nth=0');
+  await page.waitForSelector('.modal #rsNote');
+  await page.click('.modal #rsOk');
+  expect(!(await page.isHidden('.modal #rsErr')), 'closing a complaint needs a note');
+  await page.fill('.modal #rsNote', 'تم التواصل مع التموين وأُرسل الناقص');
+  await page.click('.modal #rsOk');
+  expect(await toastHas(page, 'تم إغلاق البلاغ'), 'complaint closed with the note');
+  await page.waitForTimeout(400);
+  await page.click('[data-act="cFilter"]:not([data-g="open"])');
+  await page.waitForSelector('#cList :text("تم التواصل مع التموين")');
+  expect((await page.textContent('#cList')).includes('ملاحظة الإغلاق'), 'closed complaints show their closing note');
+  await page.click('.sidebar [data-view="overview"]');
   await page.waitForSelector('#dashKpis .kpi-val');
   await page.waitForTimeout(1200);
   await shot(page, 'dashboard-light', true);
@@ -1659,6 +1683,16 @@ function log(msg) { console.log('  ✔ ' + msg); }
   await page.click('.sidebar [data-view="docitems"]');
   await page.waitForSelector('#diBox .card');
   expect((await page.textContent('#diBox')).includes('الأكثر طلباً:') && await page.locator('#diDoc option').count() > 2, 'items per doctor: top item per doctor this month, doctor filter');
+  expect(await page.getAttribute('#diMonth', 'type') === 'month', 'month and year picked from a calendar');
+  await page.click('[data-act="diStep"][data-d="-1"]');
+  await page.waitForTimeout(400);
+  const prevM = await page.inputValue('#diMonth');
+  await page.fill('#diMonth', '2024-01');
+  await page.waitForSelector('#diBox .empty, #diBox [class*="empty"]', { timeout: 5000 }).catch(() => {});
+  expect(prevM < new Date().toISOString().slice(0, 7) && (await page.textContent('#diBox')).includes('2024'), 'previous-month arrow and any past month/year: ' + prevM);
+  await page.click('[data-act="diStep"][data-d="1"]');
+  await page.fill('#diMonth', new Date(Date.now() + 3 * 36e5).toISOString().slice(0, 7));
+  await page.waitForSelector('#diBox .card');
   await page.selectOption('#diSort', 'name');
   await shot(page, 'doctor-items');
   // تصحيح الطلبات: الأدمن يفتح طلباً مستلماً ويحذف صنفاً بالسبب ثم يسترجعه
@@ -1704,6 +1738,7 @@ function log(msg) { console.log('  ✔ ' + msg); }
   expect(await toastHas(page, 'حُفظت القواعد'), 'rules saved by procurement');
   expect((await page.textContent('#rlBox .rule-bar')).includes('داخل نافذة الطلب الشهري'), 'rules page previews what nurses see');
   expect(!!(await page.$('#dlBody')) && (await page.textContent('#rlBox')).includes('حد خاص لطبيب'), 'rules page: doctor-specific limits table');
+  expect((await page.textContent('table:has(#dlBody) thead')).includes('أصناف الطارئ'), 'rules page: per-doctor emergency items column');
   await shot(page, 'order-rules');
   await logout(page);
   await login(page, 'سارة', '1111');

@@ -805,7 +805,7 @@ test('visibility: nurses and doctors only see their own requests', () => {
 });
 
 test('comments, item notes, complaints and notices', () => {
-  const { api, login, gas } = boot();
+  const { api, login, gas, ctx } = boot();
   const n = login('سارة', '1111'), p = login('علي', '3333'), q = login('منى', '5555');
   const id = api(n, 'createRequest', { clinic: 'عيادة الأسنان 1', doctor: 'د. خالد', type: 'شهري', items: [{ name: 'DENTAL FLOSS', qty: 1 }] }).id;
   const list = api(n, 'addComment', id, '<img src=x onerror=alert(1)>');
@@ -826,9 +826,29 @@ test('comments, item notes, complaints and notices', () => {
   assert.equal(api(q, 'getComplaints', true).length, 1);
   throwsCode(() => api(p, 'resolveComplaint', c.id), 'ERR_FORBIDDEN'); // التموين لا يغلق البلاغات
   assert.equal(api(p, 'getComplaints', true).length, 1, 'procurement still sees the issue');
-  api(q, 'resolveComplaint', c.id);
+  throwsCode(() => api(q, 'resolveComplaint', c.id, ' '), 'ERR_NOTE_REQUIRED');
+  gas.mails.length = 0;
+  api(q, 'resolveComplaint', c.id, 'تواصلنا مع التموين وأُرسل الطلب');
   assert.equal(api(q, 'getComplaints', true).length, 0);
-  assert.equal(api(q, 'getComplaints', false)[0].resolvedBy, 'منى');
+  const closed = api(q, 'getComplaints', false)[0];
+  assert.deepEqual([closed.resolvedBy, closed.resolveNote], ['منى', 'تواصلنا مع التموين وأُرسل الطلب'], 'closing note kept with the complaint');
+  assert.ok(api(n, 'getRequestDetail', id).comments.some(x => /أُغلق البلاغ.*تواصلنا مع التموين/.test(x.message)), 'note written on the request');
+  assert.ok(gas.mails.some(m => m.to === 'sara@example.com' && /أُغلق بلاغك/.test(m.subject)), 'the person who reported is told');
+  throwsCode(() => api(q, 'resolveComplaint', c.id, 'مرة ثانية'), 'ERR_ALREADY_RESOLVED');
+  // closed earlier without a note (before notes were required): the note can be added once, shown on the request
+  const id2 = api(n, 'createRequest', { clinic: 'عيادة الأسنان 1', doctor: 'د. نورة', type: 'شهري', items: [{ name: 'PROPHY PASTE', qty: 3 }] }).id;
+  api(n, 'addComplaint', id2, 'تأخير', 'متأخر');
+  const old = api(q, 'getComplaints', true)[0];
+  {
+    const t2 = gas.ss.getSheetByName('Complaints'), hd = t2._data[0], row = t2._data.find(r => r[0] === old.id);
+    row[hd.indexOf('Resolved')] = true; row[hd.indexOf('ResolvedBy')] = 'منى';
+    ctx.onEdit({ range: { getSheet: () => t2 } });
+  }
+  api(q, 'resolveComplaint', old.id, 'أُغلق بالغلط — تم إرسال الطلب');
+  const fixed = api(q, 'getComplaints', false).find(x => x.id === old.id);
+  assert.deepEqual([fixed.resolvedBy, fixed.resolveNote], ['منى', 'أُغلق بالغلط — تم إرسال الطلب']);
+  assert.ok(api(n, 'getRequestDetail', id2).comments.some(x => /ملاحظة إغلاق البلاغ.*أُغلق بالغلط/.test(x.message)), 'late note written on the request');
+  throwsCode(() => api(q, 'resolveComplaint', old.id, 'مرة ثانية'), 'ERR_ALREADY_RESOLVED');
 
   throwsCode(() => api(n, 'addNotice', 'تموين', 'x'), 'ERR_FORBIDDEN');
   throwsCode(() => api(q, 'addNotice', 'مجهول', 'x'), 'ERR_BAD_TARGET');
@@ -3188,6 +3208,39 @@ test('order limits belong to the doctor whoever orders; a doctor-specific limit 
   R = api(p, 'saveOrderRules', Object.assign({}, base, { docLimits: { 'د. خالد': { e: 2, m: 1 } } }));
   api(n, 'createRequest', { clinic: 'عيادة الأسنان 1', doctor: 'د. خالد', type: 'شهري', items: [{ name: 'PROPHY PASTE', qty: 1 }] });
   throwsCode(() => api(l, 'createRequest', { clinic: 'عيادة الأسنان 1', doctor: 'د. خالد', type: 'شهري', items: [{ name: 'DENTAL FLOSS', qty: 1 }] }), 'ERR_MONTHLY_LIMIT');
+});
+
+test('a doctor-specific emergency item count overrides the general one', () => {
+  const { api, login } = boot();
+  const n = login('سارة', '1111'), p = login('علي', '3333');
+  const base = { winStart: 1, winEnd: 31, dispatchDay: 1, monthlyMax: 0, emergencyMax: 0, emergencyHours: 48, emergencyMaxItems: 1, monthlyLock: 0, freeLocked: 0 };
+  api(p, 'saveOrderRules', base);
+  const two = d => ({ clinic: 'عيادة الأسنان 1', doctor: d, type: 'طارئ', items: [{ name: 'PROPHY PASTE', qty: 1 }, { name: 'DENTAL FLOSS', qty: 1 }] });
+  throwsCode(() => api(n, 'createRequest', two('د. خالد')), 'ERR_EMERGENCY_ITEMS');
+  throwsCode(() => api(p, 'saveOrderRules', Object.assign({}, base, { docLimits: { 'د. خالد': { i: 201 } } })), 'ERR_RULE_RANGE:docLimits');
+  const R = api(p, 'saveOrderRules', Object.assign({}, base, { docLimits: { 'د. خالد': { i: 3 } } }));
+  assert.deepEqual(R.docLimits, { 'د. خالد': { i: 3 } });
+  api(n, 'createRequest', two('د. خالد'));
+  throwsCode(() => api(n, 'createRequest', two('د. نورة')), 'ERR_EMERGENCY_ITEMS');
+  // 0 = no item limit for this doctor
+  api(p, 'saveOrderRules', Object.assign({}, base, { docLimits: { 'د. نورة': { i: 0 } } }));
+  api(n, 'createRequest', two('د. نورة'));
+});
+
+test('request cards: item preview, comment and open-report counts', () => {
+  const { api, login } = boot();
+  const n = login('سارة', '1111'), p = login('علي', '3333');
+  const items = ['MICRO BRUSH FINE', 'PROPHY PASTE', 'DENTAL FLOSS', 'Etchant Blue Tip', 'Ivoclar Tetric-N A2'].map((name, i) => ({ name, qty: i + 1 }));
+  const r = api(n, 'createRequest', { clinic: 'عيادة الأسنان 1', doctor: 'د. خالد', type: 'شهري', items });
+  const id = r.id || r.requestId;
+  api(n, 'addComment', id, 'ملاحظة');
+  api(n, 'addComplaint', id, 'نقص', 'ناقص صنف');
+  const row = api(p, 'getRequests', {}).find(x => x.id === id);
+  assert.equal(row.preview.length, 3);
+  assert.equal(row.previewMore, row.itemCount - 3);
+  assert.ok(row.preview.every(x => x.item && x.qty > 0));
+  assert.equal(row.comments >= 1, true);
+  assert.equal(row.openComplaints, 1);
 });
 
 test('catalog bulk add: rows pasted from Excel are checked first, then saved together', () => {
