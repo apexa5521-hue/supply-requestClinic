@@ -1005,7 +1005,7 @@ test('auto setup: the clinic sheet (Buraydah/Unayzah) becomes the approved 28 cl
 });
 
 test('custody: standard per clinic, issue with serial numbers, nurse report with photo, procurement inspect → repair/return or damaged → replacement; finance sees cost', () => {
-  const { api, login, gas } = boot(g => {
+  const { api, login, gas, ctx } = boot(g => {
     g.seed('ItemsCatalog', ['ItemName', 'CommercialName', 'Category', 'Price', 'Ownership', 'Serialized'], [
       ['DENTAL FLOSS', 'Oral-B', 'Hygiene', 12.5, '', ''],
       ['Handpiece Low Speed', 'NSK', 'Handpiece', 1500, 'عهدة', 'نعم'],
@@ -1072,6 +1072,22 @@ test('custody: standard per clinic, issue with serial numbers, nurse report with
   const t2 = api(n, 'reportAsset', { assetId: cl.id, problem: 'كفاءتها متدنية', description: 'الضوء ضعيف' });
   ca = api(n, 'getClinicAssets', { clinic: 'عيادة الأسنان 1' })[0];
   assert.deepEqual((x => [x.inClinic, x.away])(ca.items.find(i => i.item === 'Curing Light')), [1, 1]);
+  // who sees tickets and custody: the nurse who reported, the clinic's doctor, procurement / management — not every nurse
+  {
+    const ut = gas.ss.getSheetByName('Users'), uh = ut._data[0];
+    const mk = (name, pw, clinic) => { const r = uh.map(() => ''); r[uh.indexOf('Name')] = name; r[uh.indexOf('Password')] = pw; r[uh.indexOf('Role')] = 'ممرضة'; r[uh.indexOf('Clinic')] = clinic; ut._data.push(r); };
+    mk('هيا', '9191', 'عيادة الأسنان 1'); mk('نوف', '9292', '');
+    ctx.onEdit({ range: { getSheet: () => ut } });
+    const haya = login('هيا', '9191'), nouf = login('نوف', '9292');
+    assert.deepEqual(api(n, 'getAssetTickets', {}).map(x => x.id).sort(), [t1.id, t2.id].sort(), 'the reporting nurse sees her tickets');
+    assert.deepEqual(api(haya, 'getAssetTickets', {}), [], 'another nurse of the same clinic does not see them');
+    throwsCode(() => api(haya, 'getAssetTicket', t1.id), 'ERR_FORBIDDEN');
+    assert.equal(api(login('د. خالد', '4444'), 'getAssetTickets', {}).length, 2, 'the clinic doctor sees them');
+    assert.equal(api(p, 'getAssetTickets', {}).length, 2, 'procurement sees them');
+    assert.deepEqual(api(nouf, 'getClinicAssets', {}), [], 'a nurse with no clinic sees no custody (not every clinic)');
+    assert.deepEqual(api(nouf, 'getAssetConfig').clinics, []);
+    assert.deepEqual(api(haya, 'getClinicAssets', {}).map(c => c.clinic), ['عيادة الأسنان 1'], 'a nurse sees her own clinic only');
+  }
   // التموين: استلام بصورة الحالة ← قابلة للتصليح ← رجعت
   throwsCode(() => api(p, 'updateAssetTicket', t1.id, 'receive', {}), 'ERR_PHOTO_REQUIRED');
   throwsCode(() => api(p, 'updateAssetTicket', t1.id, 'repair', {}), 'ERR_BAD_TRANSITION');
