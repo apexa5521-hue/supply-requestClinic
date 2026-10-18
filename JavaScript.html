@@ -68,7 +68,7 @@ const I18N = {
     now_wait_prep: 'بدء التجهيز — عند التموين', now_you_prep: 'ابدأ التجهيز', now_prep: 'قيد التجهيز — عند التموين', now_you_send: 'أكمل التجهيز وأرسل للفرع', now_partial: 'إرسال الباقي ({n}) — عند التموين', now_you_rest: 'أرسل الباقي ({n})',
     now_driver: 'جاهز — بانتظار السواق ينقله للفرع', now_receive: 'استلام {n} وتوقيعها', now_you_receive: 'استلم الطلب ووقّع', now_rejected: 'تعديل {n} وإعادة الإرسال', now_you_fix: 'عدّل الطلب وأعد إرساله',
     sla_left: 'طارئ · باقي {h} س', sla_over: 'طارئ · متأخر {h} س', more_n: '+{n} صنف', tag_complaints: 'بلاغ ({n})', tag_complaints_h: 'بلاغات مفتوحة على الطلب', tag_comments_h: 'تعليقات على الطلب',
-    rl_dl_i: 'أصناف الطارئ (حد أقصى)', select_all: 'تحديد الكل', selected: 'محدد', clear_selection: 'إلغاء التحديد',
+    resolve_add_note: 'أضف ملاحظة الإغلاق', resolve_note_saved: 'حُفظت ملاحظة الإغلاق — تظهر على الطلب', rl_dl_i: 'أصناف الطارئ (حد أقصى)', select_all: 'تحديد الكل', selected: 'محدد', clear_selection: 'إلغاء التحديد',
     stk_app_url: 'رابط الموقع (لزر «افتح الطلب» في الإيميلات)', stk_app_url_h: 'الرابط الذي يدخل منه الفريق، يبدأ بـ https://', ERR_BAD_URL: 'الرابط غير صحيح — يجب أن يبدأ بـ https://',
     rl_monthly_lock: 'الطلب الشهري بعد نهاية النافذة', rl_monthly_lock_h: 'عند الإقفال لا يُقبل طلب شهري بعد يوم النهاية حتى تُفتح من جديد (الطارئ لا يتأثر)', ERR_MONTHLY_CLOSED: 'الطلب الشهري مقفل — نافذة الرفع من يوم {a} إلى {b}. للضرورة ارفعي طلباً طارئاً أو اطلبي من التموين فتح الشهري',
     rcv_reject: 'رفض', rcv_unreject: 'تراجع', rcv_rej_title: 'رفض صنف عند الاستلام', rcv_rej_reason: 'السبب — مثلاً: غير مطابق للطلب، تالف، غير مرغوب', rcv_rej_photo: 'صورة الصنف (إلزامية)', rcv_rej_ok: 'رفض الصنف', rcv_rej_tag: 'مرفوض عند الاستلام', rcv_rej_photo_link: 'الصورة', rcv_rej_hint: 'الصنف المرفوض يُسجَّل «لم يُستلم» ويصل السبب والصورة للتموين والطبيب',
@@ -196,7 +196,7 @@ const I18N = {
     now_wait_prep: 'start preparing — with procurement', now_you_prep: 'start preparing', now_prep: 'being prepared — with procurement', now_you_send: 'finish preparing and send to the branch', now_partial: 'send the rest ({n}) — with procurement', now_you_rest: 'send the rest ({n})',
     now_driver: 'ready — waiting for the driver', now_receive: '{n} to receive and sign', now_you_receive: 'receive the request and sign', now_rejected: '{n} to edit and resubmit', now_you_fix: 'edit the request and resubmit',
     sla_left: 'Emergency · {h}h left', sla_over: 'Emergency · {h}h late', more_n: '+{n} items', tag_complaints: 'Report ({n})', tag_complaints_h: 'Open reports on this request', tag_comments_h: 'Comments on this request',
-    rl_dl_i: 'Emergency items (max)', select_all: 'Select all', selected: 'selected', clear_selection: 'Clear',
+    resolve_add_note: 'Add closing note', resolve_note_saved: 'Closing note saved — shown on the request', rl_dl_i: 'Emergency items (max)', select_all: 'Select all', selected: 'selected', clear_selection: 'Clear',
     stk_app_url: 'Website link (for the «Open request» button in emails)', stk_app_url_h: 'The link your team signs in from, starting with https://', ERR_BAD_URL: 'The link is not valid — it must start with https://',
     rl_monthly_lock: 'Monthly requests after the window ends', rl_monthly_lock_h: 'When locked, no monthly request is accepted after the end day until it is opened again (emergencies are not affected)', ERR_MONTHLY_CLOSED: 'Monthly requests are closed — the window is day {a} to {b}. Raise an emergency request if needed, or ask procurement to reopen monthly requests',
     rcv_reject: 'Reject', rcv_unreject: 'Undo', rcv_rej_title: 'Reject an item at receipt', rcv_rej_reason: 'Reason — e.g. not what was ordered, damaged, not wanted', rcv_rej_photo: 'Photo of the item (required)', rcv_rej_ok: 'Reject item', rcv_rej_tag: 'Rejected at receipt', rcv_rej_photo_link: 'Photo', rcv_rej_hint: 'A rejected item is recorded as not received; procurement and the doctor get the reason and photo',
@@ -4967,23 +4967,25 @@ function renderComplaints(animate) {
       // الإغلاق للجودة والإدارة التنفيذية فقط؛ التموين يرى البلاغ ويعلّق على الطلب
       (!c.resolved ? (!hasPerm('complaints_close')
         ? '<span class="hint">' + icon('lock', 'i-sm') + ' ' + esc(t('close_mgmt_only')) + '</span>'
-        : '<button class="btn btn-soft btn-sm" data-act="resolve" data-id="' + esc(c.id) + '">' + icon('check', 'i-sm') + esc(t('resolve')) + '</button>') : '') +
+        : '<button class="btn btn-soft btn-sm" data-act="resolve" data-id="' + esc(c.id) + '">' + icon('check', 'i-sm') + esc(t('resolve')) + '</button>')
+        // أُغلق سابقاً بدون ملاحظة: تُضاف ملاحظته الآن وتظهر على الطلب للطبيب والممرضة والتموين
+        : !c.resolveNote && hasPerm('complaints_close') ? '<button class="btn btn-soft btn-sm" data-act="resolve" data-late="1" data-id="' + esc(c.id) + '">' + icon('msg', 'i-sm') + esc(t('resolve_add_note')) + '</button>' : '') +
     '</div></article>', i)).join(''), animate);
 }
 /* إغلاق البلاغ بملاحظة (ماذا تم): تُحفظ مع البلاغ وتُكتب على الطلب ويُبلَّغ صاحب البلاغ */
 ACT.resolve = el => {
-  const id = el.dataset.id, card = el.closest('.req');
-  const m = openModal({ title: esc(t('resolve_title')), icon: 'checkc', size: 'sm',
+  const id = el.dataset.id, late = !!el.dataset.late, card = late ? null : el.closest('.req');
+  const m = openModal({ title: esc(t(late ? 'resolve_add_note' : 'resolve_title')), icon: late ? 'msg' : 'checkc', size: 'sm',
     body: '<div class="field"><label for="rsNote">' + esc(t('resolve_note')) + '</label><textarea class="textarea" id="rsNote" maxlength="1000" placeholder="' + esc(t('resolve_note_ph')) + '"></textarea>' +
       '<div class="hint">' + esc(t('resolve_note_h')) + '</div></div><div class="field-error hidden" id="rsErr">' + icon('alert', 'i-sm') + '<span></span></div>',
-    foot: '<span class="spacer"></span><button class="btn" data-close>' + esc(t('cancel')) + '</button><button class="btn btn-primary" id="rsOk">' + icon('check', 'i-sm') + esc(t('resolve')) + '</button>' });
+    foot: '<span class="spacer"></span><button class="btn" data-close>' + esc(t('cancel')) + '</button><button class="btn btn-primary" id="rsOk">' + icon('check', 'i-sm') + esc(t(late ? 'save' : 'resolve')) + '</button>' });
   $('#rsOk', m.el).addEventListener('click', e => {
     const note = $('#rsNote', m.el).value.trim(), err = $('#rsErr', m.el);
     if (!note) { err.querySelector('span').textContent = t('ERR_NOTE_REQUIRED'); err.classList.remove('hidden'); $('#rsNote', m.el).focus(); return; }
     const b = e.currentTarget; busy(b, true);
     call('resolveComplaint', id, note).then(() => {
       closeModal(m);
-      toast(t('complaint_resolved'));
+      toast(t(late ? 'resolve_note_saved' : 'complaint_resolved'));
       const c = S.dash.complaints.find(x => x.id === id);
       if (c) { c.resolved = true; c.resolvedBy = S.user.name; c.resolveNote = note; }
       if (card) { card.style.transition = 'opacity .25s, transform .25s'; card.style.opacity = '0'; card.style.transform = 'translateX(12px)'; }

@@ -4588,18 +4588,21 @@ function resolveComplaint_(user, complaintId, note) {
     const t = tableWithCols_('Complaints');
     const row = t.rows.filter(function (r) { return str_(r.ComplaintID) === str_(complaintId); })[0];
     if (!row) throw new Error('ERR_NOT_FOUND');
-    if (row.Resolved === true || str_(row.Resolved).toUpperCase() === 'TRUE') throw new Error('ERR_ALREADY_RESOLVED');
+    const closed = row.Resolved === true || str_(row.Resolved).toUpperCase() === 'TRUE';
+    // بلاغ أُغلق سابقاً بدون ملاحظة: تُضاف ملاحظته لاحقاً (يبقى من أغلقه ووقته كما هو)
+    if (closed && str_(row.ResolveNote)) throw new Error('ERR_ALREADY_RESOLVED');
     const now = new Date();
-    setCells_(t, row, { Resolved: true, ResolvedBy: user.name, ResolvedAt: now, ResolveNote: note });
-    c = { id: str_(row.ComplaintID), req: str_(row.RequestID), author: str_(row.Author), type: str_(row.Type) };
-    append_('Comments', { Timestamp: now, RequestID: c.req, Author: user.name, Role: user.role, Message: '✅ أُغلق البلاغ (' + c.type + '): ' + note });
-    logAction_(c.req, 'إغلاق بلاغ ' + c.id + ' — ' + note, user.name);
+    setCells_(t, row, closed ? { ResolveNote: note } : { Resolved: true, ResolvedBy: user.name, ResolvedAt: now, ResolveNote: note });
+    c = { id: str_(row.ComplaintID), req: str_(row.RequestID), author: str_(row.Author), type: str_(row.Type), late: closed };
+    append_('Comments', { Timestamp: now, RequestID: c.req, Author: user.name, Role: user.role,
+      Message: (closed ? '📝 ملاحظة إغلاق البلاغ (' : '✅ أُغلق البلاغ (') + c.type + '): ' + note });
+    logAction_(c.req, (closed ? 'ملاحظة إغلاق بلاغ ' : 'إغلاق بلاغ ') + c.id + ' — ' + note, user.name);
   });
   if (c.author && c.author !== user.name) {
     const req = findRequestSafe_(c.req);
     notifyUser_(c.author, 'أُغلق بلاغك على الطلب ' + c.req + ' · Your complaint was closed', mailMsg_({ order: ['ar', 'en'], id: c.req, req: req,
-      ar: { title: 'أُغلق بلاغك (' + c.type + ')', lead: 'أغلقه ' + user.name + ' بالملاحظة:', lines: [note] },
-      en: { title: 'Your complaint was closed (' + c.type + ')', lead: 'Closed by ' + user.name + ' with the note:', lines: [note] } }));
+      ar: { title: 'أُغلق بلاغك (' + c.type + ')', lead: (c.late ? 'ملاحظة الإغلاق من ' : 'أغلقه ') + user.name + (c.late ? ':' : ' بالملاحظة:'), lines: [note] },
+      en: { title: 'Your complaint was closed (' + c.type + ')', lead: (c.late ? 'Closing note from ' : 'Closed by ') + user.name + (c.late ? ':' : ' with the note:'), lines: [note] } }));
   }
   return true;
 }

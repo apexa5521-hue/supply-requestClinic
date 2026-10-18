@@ -805,7 +805,7 @@ test('visibility: nurses and doctors only see their own requests', () => {
 });
 
 test('comments, item notes, complaints and notices', () => {
-  const { api, login, gas } = boot();
+  const { api, login, gas, ctx } = boot();
   const n = login('سارة', '1111'), p = login('علي', '3333'), q = login('منى', '5555');
   const id = api(n, 'createRequest', { clinic: 'عيادة الأسنان 1', doctor: 'د. خالد', type: 'شهري', items: [{ name: 'DENTAL FLOSS', qty: 1 }] }).id;
   const list = api(n, 'addComment', id, '<img src=x onerror=alert(1)>');
@@ -835,6 +835,20 @@ test('comments, item notes, complaints and notices', () => {
   assert.ok(api(n, 'getRequestDetail', id).comments.some(x => /أُغلق البلاغ.*تواصلنا مع التموين/.test(x.message)), 'note written on the request');
   assert.ok(gas.mails.some(m => m.to === 'sara@example.com' && /أُغلق بلاغك/.test(m.subject)), 'the person who reported is told');
   throwsCode(() => api(q, 'resolveComplaint', c.id, 'مرة ثانية'), 'ERR_ALREADY_RESOLVED');
+  // closed earlier without a note (before notes were required): the note can be added once, shown on the request
+  const id2 = api(n, 'createRequest', { clinic: 'عيادة الأسنان 1', doctor: 'د. نورة', type: 'شهري', items: [{ name: 'PROPHY PASTE', qty: 3 }] }).id;
+  api(n, 'addComplaint', id2, 'تأخير', 'متأخر');
+  const old = api(q, 'getComplaints', true)[0];
+  {
+    const t2 = gas.ss.getSheetByName('Complaints'), hd = t2._data[0], row = t2._data.find(r => r[0] === old.id);
+    row[hd.indexOf('Resolved')] = true; row[hd.indexOf('ResolvedBy')] = 'منى';
+    ctx.onEdit({ range: { getSheet: () => t2 } });
+  }
+  api(q, 'resolveComplaint', old.id, 'أُغلق بالغلط — تم إرسال الطلب');
+  const fixed = api(q, 'getComplaints', false).find(x => x.id === old.id);
+  assert.deepEqual([fixed.resolvedBy, fixed.resolveNote], ['منى', 'أُغلق بالغلط — تم إرسال الطلب']);
+  assert.ok(api(n, 'getRequestDetail', id2).comments.some(x => /ملاحظة إغلاق البلاغ.*أُغلق بالغلط/.test(x.message)), 'late note written on the request');
+  throwsCode(() => api(q, 'resolveComplaint', old.id, 'مرة ثانية'), 'ERR_ALREADY_RESOLVED');
 
   throwsCode(() => api(n, 'addNotice', 'تموين', 'x'), 'ERR_FORBIDDEN');
   throwsCode(() => api(q, 'addNotice', 'مجهول', 'x'), 'ERR_BAD_TARGET');
