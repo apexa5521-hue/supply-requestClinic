@@ -2716,16 +2716,21 @@ test('order rules: procurement/management set limits that apply at once; nurse s
   const ok = api(n, 'createRequest', em([{ name: 'PROPHY PASTE', qty: 5 }, { name: 'DENTAL FLOSS', qty: 9 }]));
   assert.equal(ok.rules.left.emergency, 0, 'submit returns what is left');
   throwsCode(() => api(n, 'createRequest', em([{ name: 'PROPHY PASTE', qty: 1 }])), 'ERR_EMERGENCY_LIMIT');
+  // sent by mistake: the nurse cancels it (still «not approved yet») and the count is free again
+  api(n, 'withdrawRequest', ok.id, 'رُفع بالغلط');
+  assert.equal(api(n, 'getOrderRules').left.emergency, 1, 'a cancelled request does not count');
+  const again = api(n, 'createRequest', em([{ name: 'PROPHY PASTE', qty: 1 }]));
+  assert.equal(again.rules.left.emergency, 0);
   // the emergency deadline follows the new hours
-  const mine = api(n, 'getMyRequests').find(r => r.id === ok.id);
+  const mine = api(n, 'getMyRequests').find(r => r.id === again.id);
   assert.equal(Math.round((new Date(mine.dueAt) - new Date(mine.submittedAt)) / 36e5), 3);
   // monthly limit
   api(n, 'createRequest', { doctor: 'د. خالد', type: 'شهري', items: [{ name: 'PROPHY PASTE', qty: 1 }] });
   throwsCode(() => api(n, 'createRequest', { doctor: 'د. خالد', type: 'شهري', items: [{ name: 'DENTAL FLOSS', qty: 1 }] }), 'ERR_MONTHLY_LIMIT');
   // per person: another nurse still has hers
   assert.equal(api(r2, 'getOrderRules').left.emergency, 1);
-  // a withdrawn/cancelled request gives the slot back
-  api(p, 'cancelRequests', [ok.id], 'تجربة');
+  // procurement cancelling it (after approval the nurse can't) gives the slot back too
+  api(p, 'cancelRequests', [again.id], 'تجربة');
   assert.equal(api(n, 'getOrderRules').left.emergency, 1);
   // procurement locks free items: nurses can't add an item that is not in the list
   api(p, 'saveOrderRules', Object.assign({}, base, { freeLocked: 1 }));
