@@ -1635,6 +1635,25 @@ function log(msg) { console.log('  ✔ ' + msg); }
   expect((await page.textContent('#stBox')).includes('عيادة الأسنان 7'), 'new clinic listed');
   expect(await page.isVisible('#stl_materials') && await page.isVisible('[data-act="stQ"]'), 'labs lists and survey questions are editable');
   await shot(page, 'admin-settings');
+  // تصحيح الطلبات: الأدمن يفتح طلباً مستلماً ويحذف صنفاً بالسبب ثم يسترجعه
+  await page.click('.sidebar [data-view="reqfix"]');
+  await page.fill('#rfId', 'REQ-H024');
+  await page.click('[data-act="rfLoad"]');
+  await page.waitForSelector('#rfBox table');
+  const rfItem = await page.getAttribute('#rfBox [data-act="rfRemove"]', 'data-item');
+  expect(!!rfItem, 'fix requests: the full request with a remove button per item');
+  await page.click(`#rfBox [data-act="rfRemove"][data-item="${rfItem}"]`);
+  await page.click('.modal #rfOk');
+  expect(!(await page.isHidden('.modal #rfErr')), 'a reason is required');
+  await page.fill('.modal #rfReason', 'صُرف بالخطأ');
+  await page.click('.modal #rfOk');
+  await page.waitForSelector(`#rfBox [data-act="rfRestore"][data-item="${rfItem}"]`);
+  expect((await page.textContent('#rfBox')).includes('حُذف إدارياً') && (await page.textContent('#rfBox')).includes('صُرف بالخطأ'), 'removed item is marked with the reason and logged');
+  await shot(page, 'admin-fix-request');
+  await page.click(`#rfBox [data-act="rfRestore"][data-item="${rfItem}"]`);
+  await page.click('.modal .btn-primary');
+  await page.waitForSelector(`#rfBox [data-act="rfRemove"][data-item="${rfItem}"]`);
+  expect(true, 'restored with its original quantities');
   await logout(page);
   await login(page, 'نواف', '7777');
   await page.click('.sidebar [data-view="settings"]');
@@ -1664,7 +1683,7 @@ function log(msg) { console.log('  ✔ ' + msg); }
   await page.click('.sidebar [data-view="new"]');
   await page.waitForSelector('.rule-slot .rule-bar.in');
   const bar = await page.textContent('.rule-slot .rule-bar');
-  expect(bar.includes('أنت داخل نافذة الطلب الشهري') && bar.includes('الطارئ المتبقي لك هذا الشهر') && bar.includes('6 ساعة') && bar.includes('1 أصناف'), 'nurse sees window, emergency left and limits — ' + bar);
+  expect(bar.includes('أنت داخل نافذة الطلب الشهري') && (bar.includes('الطارئ المتبقي لـ') || bar.includes('الحد لكل طبيب')) && bar.includes('6 ساعة') && bar.includes('1 أصناف'), 'nurse sees window, emergency left and limits — ' + bar);
   await page.click('[data-seg-name="reqKind"][data-v="doctor"]');
   await page.waitForSelector('#fDoctor option[value="د. خالد"]', { state: 'attached' });
   await page.click('[data-seg-name="reqType"][data-v="طارئ"]');
@@ -1675,7 +1694,7 @@ function log(msg) { console.log('  ✔ ' + msg); }
   for (const q of ['floss', 'prophy']) { await page.fill('#itemSearch', q); await page.waitForSelector('.combo-opt'); await page.keyboard.press('Enter'); await page.keyboard.press('Escape'); }
   await page.click('#submitBtn');
   const em = await page.textContent('#submitErr');
-  expect(em.includes('عدد المستهلكات للطلب الطارئ') && em.includes('التموين') && em.includes('المتبقي لك من الطلبات الطارئة'), 'too many items for an emergency: clear message + emergencies left — ' + em);
+  expect(em.includes('عدد المستهلكات للطلب الطارئ') && em.includes('التموين') && em.includes('المتبقي من الطلبات الطارئة لهذا الطبيب'), 'too many items for an emergency: clear message + emergencies left — ' + em);
   await shot(page, 'emergency-items-limit');
   await page.evaluate(() => { nurseDraft().items = []; saveDraft(); });
   await logout(page);

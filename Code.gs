@@ -632,6 +632,10 @@ const API_ = {
   receiveShipment:           { screens: ['nurse'], fn: receiveShipment_ },
   resubmitRequest:           { screens: ['nurse'], fn: resubmitRequest_ },
   withdrawRequest:           { screens: ['nurse'], fn: withdrawRequest_ },
+  removeMyItems:             { screens: ['nurse', 'lab'], fn: removeMyItems_ },
+  getRequestAudit:           { screens: ['admin'], fn: getRequestAudit_ },
+  adminRemoveItem:           { screens: ['admin'], fn: adminRemoveItem_ },
+  adminRestoreItem:          { screens: ['admin'], fn: adminRestoreItem_ },
   editRequestItems:          { screens: ['nurse'], fn: editRequestItems_ },
   getShipmentSignatures:     { screens: ['nurse'], fn: getShipmentSignatures_ },
   getRequests:               { screens: ['procurement'].concat(MGMT), fn: getRequestsApi_ },
@@ -2189,17 +2193,27 @@ function monthlyDue_(subMs, R) {
   return due;
 }
 /** طلبات هذا الشهر لمن يرفع (حسب النوع) */
+/**
+ * الحد الشهري/الطارئ لكل طبيب (أو لكل عيادة في طلب مستهلكات العيادة): الممرضة الموكلة بثلاثة أطباء
+ * لها حد كامل لكل طبيب. الملغي والمرفوض والأثر الرجعي لا يُحسب. يرجع { الطبيب أو العيادة: { monthly, emergency } }
+ */
+function orderTarget_(doctor, clinic) { return str_(doctor) || str_(clinic); }
 function orderUsage_(name) {
-  const month = riyadh_(Date.now()).slice(0, 7), out = { monthly: 0, emergency: 0 };
+  const month = riyadh_(Date.now()).slice(0, 7), out = {};
   read_('Requests').rows.forEach(function (r) {
     if (str_(r.Nurse) !== name || isOff_(str_(r.Status)) || isBackdated_(r)) return;
     if (monthOf_(r.SubmittedAt || r.Date) !== month) return;
-    if (str_(r.Type) === 'طارئ') out.emergency++; else out.monthly++;
+    const k = orderTarget_(r.Doctor, r.Clinic), u = out[k] || (out[k] = { monthly: 0, emergency: 0 });
+    if (str_(r.Type) === 'طارئ') u.emergency++; else u.monthly++;
   });
   return out;
 }
+function leftOf_(R, u) {
+  u = u || { monthly: 0, emergency: 0 };
+  return { monthly: R.monthlyMax ? Math.max(0, R.monthlyMax - u.monthly) : null, emergency: R.emergencyMax ? Math.max(0, R.emergencyMax - u.emergency) : null };
+}
 /** القواعد + حالة النافذة الآن + المستخدَم والمتبقي لمن يرفع الطلبات (الممرضة / المعمل) */
-function getOrderRules_(user) {
+function getOrderRules_(user, target) {
   const R = orderRules_(), now = Date.now();
   const day = Number(riyadh_(now).slice(8, 10));
   const out = Object.assign({}, R, {
@@ -2208,9 +2222,10 @@ function getOrderRules_(user) {
     canEdit: !!user && allowed_(API_.saveOrderRules, user)
   });
   if (user && (user.screen === 'nurse' || user.screen === 'lab')) {
+    // لكل طبيب/عيادة: الواجهة تعرض المتبقي للطبيب المختار في الطلب
     const u = orderUsage_(user.name);
-    out.used = u;
-    out.left = { monthly: R.monthlyMax ? Math.max(0, R.monthlyMax - u.monthly) : null, emergency: R.emergencyMax ? Math.max(0, R.emergencyMax - u.emergency) : null };
+    out.usedBy = u;
+    if (target !== undefined && target !== null) { out.used = u[str_(target)] || { monthly: 0, emergency: 0 }; out.left = leftOf_(R, out.used); }
   }
   return out;
 }
@@ -2238,8 +2253,8 @@ function saveOrderRules_(user, v) {
   return getOrderRules_(user);
 }
 /** فحص قواعد الطلب قبل الحفظ: عدد الطارئ / الشهري في الشهر، وعدد أصناف الطارئ */
-function checkOrderRules_(user, type, itemCount) {
-  const R = orderRules_(), u = orderUsage_(user.name);
+function checkOrderRules_(user, type, itemCount, target) {
+  const R = orderRules_(), u = orderUsage_(user.name)[str_(target)] || { monthly: 0, emergency: 0 };
   const emLeft = R.emergencyMax ? Math.max(0, R.emergencyMax - u.emergency) : '';
   if (type === 'طارئ') {
     if (R.emergencyMaxItems && itemCount > R.emergencyMaxItems) throw new Error('ERR_EMERGENCY_ITEMS:max=' + R.emergencyMaxItems + ';n=' + itemCount + ';left=' + emLeft);
@@ -2725,8 +2740,8 @@ function createRequest_(user, payload) {
   });
   if (items.length > 200) throw new Error('ERR_TOO_MANY_ITEMS');
   if (str_(payload.backdate) && !forLab) return createBackdated_(user, payload, { clinic: clinic, branch: branch, doctor: doctor, type: type, dept: dept, items: items });
-  checkOrderRules_(user, type, items.length);
-  const rules = getOrderRules_(user); // المتبقي بعد هذا الطلب يرجع للواجهة (تحديث فوري للتنبيه)
+  checkOrderRules_(user, type, items.length, orderTarget_(doctor, clinic));
+  const rules = getOrderRules_(user, orderTarget_(doctor, clinic)); // المتبقي بعد هذا الطلب يرجع للواجهة (تحديث فوري للتنبيه)
 
   // منع الإرسال المزدوج لنفس الطلب خلال دقيقتين
   const dupKey = requestDupKey_(user.name, clinic, branch, doctor, type, items);
@@ -3676,17 +3691,7 @@ function rejectItems_(user, requestId, items, note, undo) {
       : '⛔ رفض التموين: ' + names.join('، ') + ' — السبب: ' + note;
     append_('Comments', { Timestamp: now, RequestID: req.id, Author: user.name, Role: user.role, Message: msg });
     logAction_(req.id, msg, user.name);
-    let completed = false;
-    if (!undo) {
-      // آخر صنف متبقٍّ رُفض وباقي الطلب أُرسل: يكتمل الطلب كأنه أُرسل كاملاً
-      const after = shipState_(req, read_('RequestItems').rows.filter(function (r) { return str_(r.RequestID) === req.id; }));
-      if (after.allDispatched && cur !== ST.SENT) {
-        const lab = isLabSupply_(req);
-        setCells_(f.t, f.row, lab ? { Status: ST.RECEIVED, SentAt: now, ReceivedAt: now, ReceiverName: req.nurse } : { Status: ST.SENT, SentAt: now });
-        logAction_(req.id, 'تغيير الحالة: ' + cur + ' ← ' + (lab ? ST.RECEIVED : ST.SENT) + ' (بعد رفض المتبقي)', user.name);
-        completed = !lab;
-      }
-    }
+    const completed = !undo && settleRequest_(f, cur, user, 'بعد رفض المتبقي') === ST.SENT;
     res = { changed: ups.length, names: names, completed: completed, req: mapRequest_(f.row) };
   });
   if (res.changed && !undo) {
@@ -3699,6 +3704,189 @@ function rejectItems_(user, requestId, items, note, undo) {
   }
   delete res.req;
   return getRequestItemsFull_(user, requestId);
+}
+
+/**
+ * بعد حذف/رفض صنف لم يبقَ للطلب شيء يُرسل: إن استُلمت كل شحناته يكتمل «تم الاستلام»،
+ * وإلا «تم الإرسال» بانتظار استلام ما في الطريق (طلب المعمل يُسلَّم يداً بيد). يرجع الحالة الجديدة أو ''.
+ */
+function settleRequest_(f, cur, user, why) {
+  if ([ST.RECEIVED, ST.CANCELLED, ST.REJECTED].indexOf(cur) !== -1) return '';
+  const req = mapRequest_(f.row);
+  const after = shipState_(req, read_('RequestItems').rows.filter(function (r) { return str_(r.RequestID) === req.id; }));
+  if (!after.allDispatched) return '';
+  const now = new Date();
+  let to, upd;
+  if (isLabSupply_(req)) { to = ST.RECEIVED; upd = { Status: to, SentAt: req.sentAt || now, ReceivedAt: now, ReceiverName: req.nurse }; }
+  else if (after.ships.length && after.pending === 0) {
+    const names = [];
+    let last = 0;
+    after.ships.forEach(function (sh) { if (sh.receiver && names.indexOf(sh.receiver) === -1) names.push(sh.receiver); last = Math.max(last, toMs_(sh.receivedAt)); });
+    to = ST.RECEIVED; upd = { Status: to, SentAt: req.sentAt || now, ReceivedAt: last ? new Date(last) : now, ReceiverName: names.join('، ') };
+  } else if (cur !== ST.SENT) { to = ST.SENT; upd = { Status: to, SentAt: now }; }
+  if (!to) return '';
+  setCells_(f.t, f.row, upd);
+  logAction_(req.id, 'تغيير الحالة: ' + cur + ' ← ' + to + ' (' + why + ')', user.name);
+  return to;
+}
+
+/**
+ * الممرضة تحذف صنفاً خاطئاً من طلبها مع السبب — في أي مرحلة ما دام الصنف لم يُرسل كاملاً
+ * (حتى لو استُلمت أصناف أخرى من الطلب). الحذف «ناعم» للتدقيق: يبقى السطر بكميته المطلوبة،
+ * والمعتمد يصير ما أُرسل منه فعلاً (غالباً 0) — نفس طريقة رفض التموين، فالمالية لا تحسبه.
+ * الصنف المستلم لا يُحذف هنا (الأدمن فقط من «تصحيح الطلبات»).
+ */
+function removeMyItems_(user, requestId, items, note) {
+  requestId = str_(requestId);
+  note = clean_(note, 500);
+  items = (Array.isArray(items) ? items : [items]).map(str_).filter(String);
+  if (!items.length) throw new Error('ERR_NO_ITEMS');
+  if (!note) throw new Error('ERR_REASON_REQUIRED');
+  let res;
+  withLock_(function () {
+    resetMemo_();
+    const f = findRequest_(requestId);
+    if (str_(f.row.Nurse) !== user.name) throw new Error('ERR_FORBIDDEN');
+    const cur = str_(f.row.Status) || ST.NEW;
+    if ([ST.RECEIVED, ST.CANCELLED, ST.REJECTED].indexOf(cur) !== -1) throw new Error('ERR_BAD_TRANSITION');
+    const req = mapRequest_(f.row);
+    const ri = read_('RequestItems');
+    const rows = ri.rows.filter(function (r) { return str_(r.RequestID) === req.id; });
+    const st = shipState_(req, rows);
+    const byName = {};
+    st.items.forEach(function (i) { byName[i.item] = i; });
+    const now = new Date(), ups = [], gone = {};
+    items.forEach(function (name) {
+      const row = rows.filter(function (r) { return str_(r.ItemName) === name; })[0], it = byName[name];
+      if (!row || !it) throw new Error('ERR_NOT_FOUND');
+      if (row.RejectAt) return;
+      if (!(it.remainingQty > 0)) throw new Error('ERR_ITEM_SENT');
+      gone[name] = true;
+      ups.push({ row: row, obj: { ApprovedQty: it.sentQty, RejectNote: note, RejectBy: user.name, RejectAt: now, RejectQty: row.ApprovedQty === undefined ? '' : row.ApprovedQty } });
+    });
+    if (!ups.length) { res = { changed: 0 }; return; }
+    // لا يبقى شيء في الطلب ولم يُرسل شيء: هذا إلغاء للطلب كاملاً (زر «إلغاء الطلب»)
+    const left = st.items.reduce(function (a, i) { return a + (gone[i.item] ? i.sentQty : i.target); }, 0);
+    if (left <= 0) throw new Error('ERR_ALL_REJECTED');
+    setMany_(ri, ups);
+    delete MEMO_.sitems;
+    const names = Object.keys(gone);
+    const msg = '🗑️ حذفت الممرضة: ' + names.join('، ') + ' — السبب: ' + note;
+    append_('Comments', { Timestamp: now, RequestID: req.id, Author: user.name, Role: user.role, Message: msg });
+    logAction_(req.id, msg, user.name);
+    settleRequest_(f, cur, user, 'بعد حذف الممرضة للمتبقي');
+    res = { changed: ups.length, names: names, req: mapRequest_(f.row) };
+  });
+  // التموين قد يكون يجهّزه الآن
+  if (res.changed) notifyProcurement_(res.req.department, 'حذفت الممرضة صنفاً من الطلب - ' + requestId + ' · Item removed by the nurse',
+    mailMsg_({ order: ['ar', 'en'], id: requestId, req: res.req, step: 2,
+      ar: { title: 'حذفت الممرضة ' + (res.names.length > 1 ? res.names.length + ' أصناف' : 'صنفاً') + ' من الطلب', lead: 'السبب: ' + note, lines: res.names, action: 'لا تجهّز هذا الصنف ولا ترسله.', btn: 'افتح الطلب' },
+      en: { title: 'The nurse removed ' + (res.names.length > 1 ? res.names.length + ' items' : 'an item') + ' from the request', lead: 'Reason: ' + note, lines: res.names, action: 'Do not prepare or send this item.', btn: 'Open request' } }));
+  return { changed: res.changed };
+}
+
+/* =====================================================================
+ *  الأدمن: تصحيح طلب — حذف صنف حتى لو استُلم (للأخطاء فقط) مع حفظ القيم الأصلية في سجل التراجعات
+ *  التدقيق المالي: المطلوب يبقى كما رُفع، والمعتمد/المرسل/المستلم للصنف تصير 0 — فكل التقارير والمالية
+ *  تتفق تلقائياً، والقيم الأصلية والقيمة المالية والسبب ومن حذف في Reversals (ويمكن الاسترجاع).
+ * ===================================================================== */
+const ADMIN_RM_ = 'حذف صنف (أدمن)', ADMIN_RS_ = 'استرجاع صنف (أدمن)', ADMIN_RM_NOTE_ = 'حذف إداري: ';
+function catalogPrices_() {
+  const price = {};
+  getCatalog_(true).forEach(function (c) { price[c.name.toLowerCase()] = Number(c.price) || 0; });
+  return price;
+}
+/** الطلب كاملاً للأدمن: الأصناف بكمياتها وقيمتها، والشحنات، وسجل التراجعات */
+function getRequestAudit_(user, requestId) {
+  const req = getRequestDetail_(user, str_(requestId));
+  const price = catalogPrices_();
+  const rows = itemsOf_(req.id);
+  const assets = read_('Assets').rows.filter(function (a) { return str_(a.RequestID).split('#')[0] === req.id; });
+  req.items.forEach(function (it) {
+    const row = rows.filter(function (r) { return str_(r.ItemName) === it.item; })[0] || {};
+    it.price = price[it.item.toLowerCase()] || 0;
+    it.receivedQty = row.ReceivedQty === '' || row.ReceivedQty === undefined || row.ReceivedQty === null ? '' : num_(row.ReceivedQty) || 0;
+    it.value = round2_(it.target * it.price);
+    it.adminRemoved = str_(row.RejectNote).indexOf(ADMIN_RM_NOTE_) === 0;
+    it.hasAsset = assets.some(function (a) { return str_(a.Item) === it.item; });
+  });
+  req.total = round2_(req.items.reduce(function (a, i) { return a + i.value; }, 0));
+  return req;
+}
+function adminRemoveItem_(user, requestId, item, reason) {
+  requestId = str_(requestId); item = str_(item); reason = clean_(reason, 500);
+  if (!reason) throw new Error('ERR_REASON_REQUIRED');
+  withLock_(function () {
+    resetMemo_();
+    const f = findRequest_(requestId);
+    const cur = str_(f.row.Status) || ST.NEW;
+    if (cur === ST.CANCELLED) throw new Error('ERR_BAD_TRANSITION');
+    const ri = read_('RequestItems');
+    const rows = ri.rows.filter(function (r) { return str_(r.RequestID) === requestId; });
+    const row = rows.filter(function (r) { return str_(r.ItemName) === item; })[0];
+    if (!row) throw new Error('ERR_NOT_FOUND');
+    if (str_(row.RejectNote).indexOf(ADMIN_RM_NOTE_) === 0) return;
+    // عهدة صُرفت من هذا الصنف (أداة برقم تسلسلي): تُرجَع من شاشة العهدة أولاً
+    if (read_('Assets').rows.some(function (a) { return str_(a.RequestID).split('#')[0] === requestId && str_(a.Item) === item; })) throw new Error('ERR_ITEM_HAS_ASSET');
+    const req = mapRequest_(f.row);
+    const before = shipState_(req, rows);
+    const it = before.items.filter(function (i) { return i.item === item; })[0];
+    const others = before.items.reduce(function (a, i) { return a + (i.item === item ? 0 : i.target); }, 0);
+    if (others <= 0 && !before.ships.length) throw new Error('ERR_ALL_REJECTED');
+    const si = read_('ShipmentItems');
+    const sRows = si.rows.filter(function (r) { return str_(r.RequestID) === requestId && str_(r.ItemName) === item; });
+    const snap = { status: cur, approved: row.ApprovedQty, received: row.ReceivedQty, rejectNote: str_(row.RejectNote), rejectBy: str_(row.RejectBy),
+      rejectAt: row.RejectAt ? toMs_(row.RejectAt) : 0, rejectQty: row.RejectQty, ships: sRows.map(function (r) { return [Number(r.Batch), r.Qty, r.ReceivedQty]; }) };
+    const value = round2_((it ? it.target : 0) * (catalogPrices_()[item.toLowerCase()] || 0));
+    const now = new Date();
+    setMany_(ri, [{ row: row, obj: { ApprovedQty: 0, ReceivedQty: row.ReceivedQty === '' || row.ReceivedQty === null || row.ReceivedQty === undefined ? '' : 0,
+      RejectNote: ADMIN_RM_NOTE_ + reason, RejectBy: user.name, RejectAt: now, RejectQty: row.RejectAt ? row.RejectQty : (row.ApprovedQty === undefined ? '' : row.ApprovedQty) } }]);
+    if (sRows.length) setMany_(si, sRows.map(function (r) { return { row: r, obj: { Qty: 0, ReceivedQty: r.ReceivedQty === '' || r.ReceivedQty === null || r.ReceivedQty === undefined ? '' : 0 } }; }));
+    delete MEMO_.sitems; delete MEMO_.rcpt;
+    append_('Reversals', { Timestamp: now, RequestID: requestId, User: user.name, Role: user.role, Scope: ADMIN_RM_,
+      From: item + ' × ' + (it ? it.target : 0) + (it && it.sentQty ? ' (أُرسل ' + it.sentQty + ')' : '') + ' — ' + value, To: '0', Reason: reason, Details: JSON.stringify(snap).slice(0, 1800) });
+    const msg = '🗑️ حذف الأدمن الصنف: ' + item + ' (القيمة ' + value + ') — السبب: ' + reason;
+    append_('Comments', { Timestamp: now, RequestID: requestId, Author: user.name, Role: user.role, Message: msg });
+    logAction_(requestId, msg, user.name);
+    settleRequest_(f, cur, user, 'بعد حذف الأدمن للصنف');
+  });
+  return getRequestAudit_(user, requestId);
+}
+/** استرجاع صنف حذفه الأدمن بقيمه الأصلية (من سجل التراجعات) */
+function adminRestoreItem_(user, requestId, item) {
+  requestId = str_(requestId); item = str_(item);
+  withLock_(function () {
+    resetMemo_();
+    const f = findRequest_(requestId);
+    const ri = read_('RequestItems');
+    const row = ri.rows.filter(function (r) { return str_(r.RequestID) === requestId && str_(r.ItemName) === item; })[0];
+    if (!row || str_(row.RejectNote).indexOf(ADMIN_RM_NOTE_) !== 0) throw new Error('ERR_NOT_FOUND');
+    const rv = read_('Reversals').rows.filter(function (r) { return str_(r.RequestID) === requestId && str_(r.Scope) === ADMIN_RM_ && str_(r.From).indexOf(item + ' × ') === 0; }).pop();
+    let snap;
+    try { snap = JSON.parse(str_(rv && rv.Details)); } catch (e) { snap = null; }
+    if (!snap) throw new Error('ERR_NOT_FOUND');
+    const now = new Date();
+    setMany_(ri, [{ row: row, obj: { ApprovedQty: snap.approved === undefined ? '' : snap.approved, ReceivedQty: snap.received === undefined ? '' : snap.received,
+      RejectNote: snap.rejectNote || '', RejectBy: snap.rejectBy || '', RejectAt: snap.rejectAt ? new Date(snap.rejectAt) : '', RejectQty: snap.rejectQty === undefined ? '' : snap.rejectQty } }]);
+    const si = read_('ShipmentItems');
+    const ups = [];
+    (snap.ships || []).forEach(function (x) {
+      const r = si.rows.filter(function (y) { return str_(y.RequestID) === requestId && str_(y.ItemName) === item && Number(y.Batch) === x[0]; })[0];
+      if (r) ups.push({ row: r, obj: { Qty: x[1], ReceivedQty: x[2] === undefined || x[2] === null ? '' : x[2] } });
+    });
+    if (ups.length) setMany_(si, ups);
+    delete MEMO_.sitems; delete MEMO_.rcpt;
+    const cur = str_(f.row.Status);
+    if (snap.status && snap.status !== cur) {
+      setCells_(f.t, f.row, { Status: snap.status });
+      logAction_(requestId, 'تغيير الحالة: ' + cur + ' ← ' + snap.status + ' (استرجاع صنف)', user.name);
+    }
+    append_('Reversals', { Timestamp: now, RequestID: requestId, User: user.name, Role: user.role, Scope: ADMIN_RS_, From: '0', To: item, Reason: 'استرجاع', Details: '' });
+    const msg = '↩️ استرجع الأدمن الصنف: ' + item;
+    append_('Comments', { Timestamp: now, RequestID: requestId, Author: user.name, Role: user.role, Message: msg });
+    logAction_(requestId, msg, user.name);
+  });
+  return getRequestAudit_(user, requestId);
 }
 
 /** الحالة السابقة لطلب حسب أختامه الزمنية (للتراجع) */

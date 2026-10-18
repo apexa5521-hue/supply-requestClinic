@@ -2696,9 +2696,11 @@ test('order rules: procurement/management set limits that apply at once; nurse s
   const { api, login, gas } = boot();
   const n = login('سارة', '1111'), r2 = login('ريم', '2222'), p = login('علي', '3333'), q = login('منى', '5555');
   // defaults keep today's behaviour (no limits)
+  const leftFor = (tok, who) => { const x = api(tok, 'getOrderRules'), u = (x.usedBy || {})[who] || { monthly: 0, emergency: 0 };
+    return { monthly: x.monthlyMax ? x.monthlyMax - u.monthly : null, emergency: x.emergencyMax ? x.emergencyMax - u.emergency : null }; };
   let R = api(n, 'getOrderRules');
   assert.deepEqual([R.winStart, R.winEnd, R.dispatchDay, R.emergencyHours, R.emergencyMax, R.monthlyMax, R.emergencyMaxItems, R.canEdit], [15, 20, 1, 48, 0, 0, 0, false]);
-  assert.deepEqual(R.left, { monthly: null, emergency: null });
+  assert.deepEqual(leftFor(n, 'د. خالد'), { monthly: null, emergency: null });
   const base = { winStart: 1, winEnd: 31, dispatchDay: 1, monthlyMax: 1, emergencyMax: 1, emergencyHours: 3, emergencyMaxItems: 2 };
   throwsCode(() => api(n, 'saveOrderRules', base), 'ERR_FORBIDDEN');
   throwsCode(() => api(p, 'saveOrderRules', Object.assign({}, base, { emergencyHours: 2 })), 'ERR_RULE_RANGE:emergencyHours');
@@ -2710,23 +2712,34 @@ test('order rules: procurement/management set limits that apply at once; nurse s
   assert.ok(rows(gas, 'Settings').some(r => r.Key === 'EmergencyMaxPerMonth' && Number(r.Value) === 1), 'stored in Settings');
   // nurse: inside the window, one of each left
   R = api(n, 'getOrderRules');
-  assert.deepEqual([R.inWindow, R.left.emergency, R.left.monthly], [true, 1, 1]);
+  assert.deepEqual([R.inWindow, leftFor(n, 'د. خالد').emergency, leftFor(n, 'د. خالد').monthly], [true, 1, 1]);
   const em = items => ({ doctor: 'د. خالد', type: 'طارئ', items: items });
   throwsCode(() => api(n, 'createRequest', em([{ name: 'PROPHY PASTE', qty: 1 }, { name: 'DENTAL FLOSS', qty: 1 }, { name: 'MICRO BRUSH FINE', qty: 1 }])), 'ERR_EMERGENCY_ITEMS');
   const ok = api(n, 'createRequest', em([{ name: 'PROPHY PASTE', qty: 5 }, { name: 'DENTAL FLOSS', qty: 9 }]));
   assert.equal(ok.rules.left.emergency, 0, 'submit returns what is left');
   throwsCode(() => api(n, 'createRequest', em([{ name: 'PROPHY PASTE', qty: 1 }])), 'ERR_EMERGENCY_LIMIT');
+  // sent by mistake: the nurse cancels it (still «not approved yet») and the count is free again
+  api(n, 'withdrawRequest', ok.id, 'رُفع بالغلط');
+  assert.equal(leftFor(n, 'د. خالد').emergency, 1, 'a cancelled request does not count');
+  const again = api(n, 'createRequest', em([{ name: 'PROPHY PASTE', qty: 1 }]));
+  assert.equal(again.rules.left.emergency, 0);
   // the emergency deadline follows the new hours
-  const mine = api(n, 'getMyRequests').find(r => r.id === ok.id);
+  const mine = api(n, 'getMyRequests').find(r => r.id === again.id);
   assert.equal(Math.round((new Date(mine.dueAt) - new Date(mine.submittedAt)) / 36e5), 3);
   // monthly limit
   api(n, 'createRequest', { doctor: 'د. خالد', type: 'شهري', items: [{ name: 'PROPHY PASTE', qty: 1 }] });
   throwsCode(() => api(n, 'createRequest', { doctor: 'د. خالد', type: 'شهري', items: [{ name: 'DENTAL FLOSS', qty: 1 }] }), 'ERR_MONTHLY_LIMIT');
   // per person: another nurse still has hers
-  assert.equal(api(r2, 'getOrderRules').left.emergency, 1);
-  // a withdrawn/cancelled request gives the slot back
-  api(p, 'cancelRequests', [ok.id], 'تجربة');
-  assert.equal(api(n, 'getOrderRules').left.emergency, 1);
+  assert.equal(leftFor(r2, 'د. سعد').emergency, 1);
+  // one nurse ordering for several doctors: the limit is per doctor
+  const other = api(n, 'createRequest', { doctor: 'د. نورة', type: 'طارئ', items: [{ name: 'PROPHY PASTE', qty: 1 }] });
+  assert.equal(other.rules.left.emergency, 0, 'د. نورة has her own emergency request');
+  assert.equal(leftFor(n, 'د. خالد').emergency, 0, 'د. خالد still counts his own');
+  throwsCode(() => api(n, 'createRequest', { doctor: 'د. نورة', type: 'طارئ', items: [{ name: 'DENTAL FLOSS', qty: 1 }] }), 'ERR_EMERGENCY_LIMIT');
+  api(p, 'cancelRequests', [other.id], 'تجربة');
+  // procurement cancelling it (after approval the nurse can't) gives the slot back too
+  api(p, 'cancelRequests', [again.id], 'تجربة');
+  assert.equal(leftFor(n, 'د. خالد').emergency, 1);
   // procurement locks free items: nurses can't add an item that is not in the list
   api(p, 'saveOrderRules', Object.assign({}, base, { freeLocked: 1 }));
   assert.equal(api(n, 'getConfig').orderRules.freeLocked, 1);
@@ -3111,4 +3124,43 @@ test('push notifications (Render): a device subscribes, gets a short bilingual p
   const toReem = sent.find(s => s.subs.some(x => x.endpoint === 'https://push.example/reem'));
   assert.ok(toReem && /^[\x00-\x7F]+$/.test(toReem.p.title) && toReem.p.url === '/?req=' + rid, 'nurse without email: English push that opens the request');
   assert.equal(gas.mails.length, 0, 'no email address, no email');
+});
+
+test('item removal: the nurse removes a wrong item after another was received; admin fixes a received item; finance stays consistent', () => {
+  const { api, login, gas } = boot();
+  const n = login('سارة', '1111'), p = login('علي', '3333'), a = login('المدير', '1234');
+  // د. نورة has no account: the request goes straight to procurement
+  const id = api(n, 'createRequest', { doctor: 'د. نورة', type: 'شهري', items: [{ name: 'PROPHY PASTE', qty: 2 }, { name: 'DENTAL FLOSS', qty: 3 }] }).id;
+  api(p, 'bulkUpdateStatus', [id], 'قيد التجهيز');
+  api(p, 'dispatchItems', id, ['PROPHY PASTE']);
+  api(n, 'receiveShipment', id, 1, [{ name: 'PROPHY PASTE', qty: 2 }], 'سارة', PNG, PNG, PNG);
+  // the received item can't be removed by the nurse; a reason is required
+  throwsCode(() => api(n, 'removeMyItems', id, ['PROPHY PASTE'], 'خطأ'), 'ERR_ITEM_SENT');
+  throwsCode(() => api(n, 'removeMyItems', id, ['DENTAL FLOSS'], ' '), 'ERR_REASON_REQUIRED');
+  throwsCode(() => api(login('ريم', '2222'), 'removeMyItems', id, ['DENTAL FLOSS'], 'x'), 'ERR_FORBIDDEN');
+  gas.mails.length = 0;
+  assert.equal(api(n, 'removeMyItems', id, ['DENTAL FLOSS'], 'طلبته بالغلط').changed, 1);
+  const flo = rows(gas, 'RequestItems').find(r => r.RequestID === id && r.ItemName === 'DENTAL FLOSS');
+  assert.deepEqual([Number(flo.RequestedQty), Number(flo.ApprovedQty), flo.RejectBy, flo.RejectNote], [3, 0, 'سارة', 'طلبته بالغلط'], 'soft removal: requested kept, approved 0, who and why');
+  assert.equal(rows(gas, 'Requests').find(r => r.RequestID === id).Status, 'تم الاستلام', 'nothing left to send and all shipments received: the request completes');
+  assert.ok(gas.mails.some(m => m.to.includes('ali@example.com') && /حذفت الممرضة/.test(m.subject)), 'procurement told not to prepare it');
+
+  // admin: the full request with values; remove the received item (reason required), then restore it
+  let au = api(a, 'getRequestAudit', id);
+  assert.equal(au.items.length, 2);
+  throwsCode(() => api(n, 'getRequestAudit', id), 'ERR_FORBIDDEN');
+  throwsCode(() => api(a, 'adminRemoveItem', id, 'PROPHY PASTE', ''), 'ERR_REASON_REQUIRED');
+  au = api(a, 'adminRemoveItem', id, 'PROPHY PASTE', 'صُرف لطلب آخر بالخطأ');
+  const pp = au.items.find(i => i.item === 'PROPHY PASTE');
+  assert.ok(pp.adminRemoved && pp.target === 0 && pp.receivedQty === 0, 'removed: approved, sent and received are 0');
+  const ship = rows(gas, 'ShipmentItems').find(r => r.RequestID === id && r.ItemName === 'PROPHY PASTE');
+  assert.deepEqual([Number(ship.Qty), Number(ship.ReceivedQty)], [0, 0], 'the shipment line no longer counts as dispatched or received');
+  const rv = rows(gas, 'Reversals').filter(r => r.RequestID === id);
+  assert.ok(rv.some(r => r.Scope === 'حذف صنف (أدمن)' && r.User === 'المدير' && /PROPHY PASTE × 2/.test(r.From) && r.Reason === 'صُرف لطلب آخر بالخطأ'), 'audit trail: who, what, how many, why');
+  assert.equal(rows(gas, 'Requests').find(r => r.RequestID === id).Status, 'تم الاستلام');
+  au = api(a, 'adminRestoreItem', id, 'PROPHY PASTE');
+  const back = au.items.find(i => i.item === 'PROPHY PASTE');
+  assert.ok(!back.adminRemoved && back.target === 2 && back.receivedQty === 2, 'restored to the original quantities');
+  assert.deepEqual(rows(gas, 'ShipmentItems').filter(r => r.RequestID === id && r.ItemName === 'PROPHY PASTE').map(r => [Number(r.Qty), Number(r.ReceivedQty)]), [[2, 2]]);
+  assert.ok(rows(gas, 'Reversals').some(r => r.RequestID === id && r.Scope === 'استرجاع صنف (أدمن)'));
 });
