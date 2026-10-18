@@ -62,6 +62,7 @@ const I18N = {
     grp_my_docs: 'أطبائي', nurse_docs: 'الأطباء المسؤولة عنهم', nurse_docs_hint: 'تظهر لها «أطبائي» أولاً عند رفع الطلب — يمكن اختيار أكثر من طبيب',
     nav_doc_items: 'أصناف كل طبيب', sub_doc_items: 'الأصناف الأكثر طلباً لكل طبيب في الشهر', di_sort_req: 'الأكثر طلبات أولاً', di_sort_top: 'الأعلى تكراراً لصنف', di_sort_name: 'اسم الطبيب', di_search: 'ابحث عن صنف أو طبيب', di_all_docs: 'كل الأطباء', di_none: 'لا توجد طلبات للأطباء في {m}', di_h: '{n} طبيب · {m} — عدد المرات = عدد الطلبات التي فيها الصنف (الملغي والمرفوض لا يُحسب)', di_reqs: '{n} طلب', di_em: '{n} طارئ', di_best: 'الأكثر طلباً: {i} — {n} مرة في {m}', di_times: 'عدد المرات', di_qty: 'الكمية', di_more: '+ {n} صنف آخر — اختر الطبيب لعرض الكل',
     di_month: 'الشهر', di_prev: 'الشهر السابق', di_next: 'الشهر التالي',
+    resolve_title: 'إغلاق البلاغ', resolve_note: 'ملاحظة الإغلاق', resolve_note_ph: 'ماذا تم؟ مثال: أُرسل الصنف الناقص مع شحنة اليوم', resolve_note_h: 'تُحفظ مع البلاغ، وتظهر على الطلب، ويصل صاحب البلاغ إشعار بها.', ERR_NOTE_REQUIRED: 'اكتب ملاحظة الإغلاق', ERR_ALREADY_RESOLVED: 'البلاغ مُغلق مسبقاً',
     select_all: 'تحديد الكل', selected: 'محدد', clear_selection: 'إلغاء التحديد',
     stk_app_url: 'رابط الموقع (لزر «افتح الطلب» في الإيميلات)', stk_app_url_h: 'الرابط الذي يدخل منه الفريق، يبدأ بـ https://', ERR_BAD_URL: 'الرابط غير صحيح — يجب أن يبدأ بـ https://',
     rl_monthly_lock: 'الطلب الشهري بعد نهاية النافذة', rl_monthly_lock_h: 'عند الإقفال لا يُقبل طلب شهري بعد يوم النهاية حتى تُفتح من جديد (الطارئ لا يتأثر)', ERR_MONTHLY_CLOSED: 'الطلب الشهري مقفل — نافذة الرفع من يوم {a} إلى {b}. للضرورة ارفعي طلباً طارئاً أو اطلبي من التموين فتح الشهري',
@@ -184,6 +185,7 @@ const I18N = {
     grp_my_docs: 'My doctors', nurse_docs: 'Doctors she orders for', nurse_docs_hint: 'Shown first as “My doctors” when she raises a request — pick as many as needed',
     nav_doc_items: 'Items per doctor', sub_doc_items: 'Most requested items per doctor each month', di_sort_req: 'Most requests first', di_sort_top: 'Highest repeat of one item', di_sort_name: 'Doctor name', di_search: 'Search an item or doctor', di_all_docs: 'All doctors', di_none: 'No doctor requests in {m}', di_h: '{n} doctor(s) · {m} — times = number of requests with the item (cancelled and rejected not counted)', di_reqs: '{n} request(s)', di_em: '{n} emergency', di_best: 'Most requested: {i} — {n} time(s) in {m}', di_times: 'Times', di_qty: 'Quantity', di_more: '+ {n} more items — pick the doctor to see all',
     di_month: 'Month', di_prev: 'Previous month', di_next: 'Next month',
+    resolve_title: 'Close the complaint', resolve_note: 'Closing note', resolve_note_ph: 'What was done? e.g. the missing item went out with today’s shipment', resolve_note_h: 'Saved with the complaint, shown on the request, and sent to the person who reported it.', ERR_NOTE_REQUIRED: 'Write the closing note', ERR_ALREADY_RESOLVED: 'The complaint is already closed',
     select_all: 'Select all', selected: 'selected', clear_selection: 'Clear',
     stk_app_url: 'Website link (for the «Open request» button in emails)', stk_app_url_h: 'The link your team signs in from, starting with https://', ERR_BAD_URL: 'The link is not valid — it must start with https://',
     rl_monthly_lock: 'Monthly requests after the window ends', rl_monthly_lock_h: 'When locked, no monthly request is accepted after the end day until it is opened again (emergencies are not affected)', ERR_MONTHLY_CLOSED: 'Monthly requests are closed — the window is day {a} to {b}. Raise an emergency request if needed, or ask procurement to reopen monthly requests',
@@ -4861,24 +4863,35 @@ function renderComplaints(animate) {
       '<div class="grow"><div class="row-wrap"><b>' + esc(t(C_KEY[c.type] || 'c_other')) + '</b><button class="btn btn-ghost btn-sm mono" data-act="detail" data-id="' + esc(c.requestId) + '" style="min-height:26px;padding:2px 8px">' + esc(c.requestId) + '</button></div>' +
         '<div style="margin-top:4px;white-space:pre-wrap;overflow-wrap:anywhere">' + esc(c.message) + '</div>' +
         '<div class="req-sub"><span>' + icon('user') + esc(c.author) + ' · ' + esc(c.role) + '</span><span>' + icon('clock') + esc(relTime(c.time)) + '</span>' +
-          (c.resolved ? '<span>' + icon('checkc') + esc(t('resolved_by', { n: c.resolvedBy })) + '</span>' : '') + '</div></div>' +
+          (c.resolved ? '<span>' + icon('checkc') + esc(t('resolved_by', { n: c.resolvedBy })) + '</span>' : '') + '</div>' +
+          (c.resolved && c.resolveNote ? '<div class="hint" style="margin-top:6px;white-space:pre-wrap;overflow-wrap:anywhere;color:var(--t-green)">' + icon('msg', 'i-sm') + ' <b>' + esc(t('resolve_note')) + ':</b> ' + esc(c.resolveNote) + '</div>' : '') + '</div>' +
       // الإغلاق للجودة والإدارة التنفيذية فقط؛ التموين يرى البلاغ ويعلّق على الطلب
       (!c.resolved ? (!hasPerm('complaints_close')
         ? '<span class="hint">' + icon('lock', 'i-sm') + ' ' + esc(t('close_mgmt_only')) + '</span>'
         : '<button class="btn btn-soft btn-sm" data-act="resolve" data-id="' + esc(c.id) + '">' + icon('check', 'i-sm') + esc(t('resolve')) + '</button>') : '') +
     '</div></article>', i)).join(''), animate);
 }
+/* إغلاق البلاغ بملاحظة (ماذا تم): تُحفظ مع البلاغ وتُكتب على الطلب ويُبلَّغ صاحب البلاغ */
 ACT.resolve = el => {
-  busy(el, true);
-  call('resolveComplaint', el.dataset.id).then(() => {
-    toast(t('complaint_resolved'));
-    const c = S.dash.complaints.find(x => x.id === el.dataset.id);
-    if (c) { c.resolved = true; c.resolvedBy = S.user.name; }
-    const card = el.closest('.req');
-    card.style.transition = 'opacity .25s, transform .25s'; card.style.opacity = '0'; card.style.transform = 'translateX(12px)';
-    setTimeout(() => { renderComplaints(false); renderNav(); }, REDUCED ? 0 : 240);
-    loadAlerts();
-  }).catch(e => { busy(el, false); toast(errMsg(e), 'error'); });
+  const id = el.dataset.id, card = el.closest('.req');
+  const m = openModal({ title: esc(t('resolve_title')), icon: 'checkc', size: 'sm',
+    body: '<div class="field"><label for="rsNote">' + esc(t('resolve_note')) + '</label><textarea class="textarea" id="rsNote" maxlength="1000" placeholder="' + esc(t('resolve_note_ph')) + '"></textarea>' +
+      '<div class="hint">' + esc(t('resolve_note_h')) + '</div></div><div class="field-error hidden" id="rsErr">' + icon('alert', 'i-sm') + '<span></span></div>',
+    foot: '<span class="spacer"></span><button class="btn" data-close>' + esc(t('cancel')) + '</button><button class="btn btn-primary" id="rsOk">' + icon('check', 'i-sm') + esc(t('resolve')) + '</button>' });
+  $('#rsOk', m.el).addEventListener('click', e => {
+    const note = $('#rsNote', m.el).value.trim(), err = $('#rsErr', m.el);
+    if (!note) { err.querySelector('span').textContent = t('ERR_NOTE_REQUIRED'); err.classList.remove('hidden'); $('#rsNote', m.el).focus(); return; }
+    const b = e.currentTarget; busy(b, true);
+    call('resolveComplaint', id, note).then(() => {
+      closeModal(m);
+      toast(t('complaint_resolved'));
+      const c = S.dash.complaints.find(x => x.id === id);
+      if (c) { c.resolved = true; c.resolvedBy = S.user.name; c.resolveNote = note; }
+      if (card) { card.style.transition = 'opacity .25s, transform .25s'; card.style.opacity = '0'; card.style.transform = 'translateX(12px)'; }
+      setTimeout(() => { renderComplaints(false); renderNav(); }, REDUCED ? 0 : 240);
+      loadAlerts();
+    }).catch(er => { busy(b, false); err.querySelector('span').textContent = errMsg(er); err.classList.remove('hidden'); });
+  });
 };
 
 /* =====================================================================

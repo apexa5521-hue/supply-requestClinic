@@ -47,7 +47,7 @@ const SCHEMA = {
   Comments:     ['Timestamp', 'RequestID', 'Author', 'Role', 'Message'],
   Notices:      ['Timestamp', 'FromRole', 'FromName', 'ToRole', 'Message'],
   Complaints:   ['ComplaintID', 'Timestamp', 'RequestID', 'Author', 'Role', 'Type', 'Message',
-                 'Resolved', 'ResolvedBy', 'ResolvedAt'],
+                 'Resolved', 'ResolvedBy', 'ResolvedAt', 'ResolveNote'], // ResolveNote: ملاحظة الإغلاق (ماذا تم)
   // المعمل: المعامل وأنواع الأعمال تُعبّأ يدوياً؛ الإرساليات وأسطرها وملاحظاتها تُنشأ من النظام
   Labs:         ['LabName', 'Type', 'Email', 'Phone', 'Active', 'TurnaroundDays'],
   LabWorkTypes: ['WorkType'],
@@ -4551,19 +4551,36 @@ function getComplaints_(user, openOnly) {
         id: str_(r.ComplaintID), time: r.Timestamp, requestId: str_(r.RequestID), author: str_(r.Author),
         role: str_(r.Role), type: str_(r.Type), message: str_(r.Message),
         resolved: r.Resolved === true || str_(r.Resolved).toUpperCase() === 'TRUE',
-        resolvedBy: str_(r.ResolvedBy), resolvedAt: r.ResolvedAt
+        resolvedBy: str_(r.ResolvedBy), resolvedAt: r.ResolvedAt, resolveNote: str_(r.ResolveNote)
       };
     })
     .filter(function (c) { return !openOnly || !c.resolved; })
     .sort(function (a, b) { return toMs_(b.time) - toMs_(a.time); });
 }
 
-function resolveComplaint_(user, complaintId) {
-  const t = read_('Complaints');
-  const row = t.rows.filter(function (r) { return str_(r.ComplaintID) === str_(complaintId); })[0];
-  if (!row) throw new Error('ERR_NOT_FOUND');
-  setCells_(t, row, { Resolved: true, ResolvedBy: user.name, ResolvedAt: new Date() });
-  logAction_(str_(row.RequestID), 'إغلاق بلاغ ' + complaintId, user.name);
+/** إغلاق بلاغ مع ملاحظة (ماذا تم): تُحفظ مع البلاغ، وتُكتب تعليقاً على الطلب، ويُبلَّغ صاحب البلاغ */
+function resolveComplaint_(user, complaintId, note) {
+  note = clean_(note, 1000);
+  if (!note) throw new Error('ERR_NOTE_REQUIRED');
+  let c;
+  withLock_(function () {
+    resetMemo_();
+    const t = tableWithCols_('Complaints');
+    const row = t.rows.filter(function (r) { return str_(r.ComplaintID) === str_(complaintId); })[0];
+    if (!row) throw new Error('ERR_NOT_FOUND');
+    if (row.Resolved === true || str_(row.Resolved).toUpperCase() === 'TRUE') throw new Error('ERR_ALREADY_RESOLVED');
+    const now = new Date();
+    setCells_(t, row, { Resolved: true, ResolvedBy: user.name, ResolvedAt: now, ResolveNote: note });
+    c = { id: str_(row.ComplaintID), req: str_(row.RequestID), author: str_(row.Author), type: str_(row.Type) };
+    append_('Comments', { Timestamp: now, RequestID: c.req, Author: user.name, Role: user.role, Message: '✅ أُغلق البلاغ (' + c.type + '): ' + note });
+    logAction_(c.req, 'إغلاق بلاغ ' + c.id + ' — ' + note, user.name);
+  });
+  if (c.author && c.author !== user.name) {
+    const req = findRequestSafe_(c.req);
+    notifyUser_(c.author, 'أُغلق بلاغك على الطلب ' + c.req + ' · Your complaint was closed', mailMsg_({ order: ['ar', 'en'], id: c.req, req: req,
+      ar: { title: 'أُغلق بلاغك (' + c.type + ')', lead: 'أغلقه ' + user.name + ' بالملاحظة:', lines: [note] },
+      en: { title: 'Your complaint was closed (' + c.type + ')', lead: 'Closed by ' + user.name + ' with the note:', lines: [note] } }));
+  }
   return true;
 }
 

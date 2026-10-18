@@ -1131,6 +1131,21 @@ function log(msg) { console.log('  ✔ ' + msg); }
 
   // ---------- Quality dashboard ----------
   await login(page, 'منى', '5555');
+  // إغلاق بلاغ مفتوح بملاحظة
+  await page.click('.sidebar [data-view="complaints"]');
+  await page.waitForSelector('#cList [data-act="resolve"]');
+  await page.click('#cList [data-act="resolve"] >> nth=0');
+  await page.waitForSelector('.modal #rsNote');
+  await page.click('.modal #rsOk');
+  expect(!(await page.isHidden('.modal #rsErr')), 'closing a complaint needs a note');
+  await page.fill('.modal #rsNote', 'تم التواصل مع التموين وأُرسل الناقص');
+  await page.click('.modal #rsOk');
+  expect(await toastHas(page, 'تم إغلاق البلاغ'), 'complaint closed with the note');
+  await page.waitForTimeout(400);
+  await page.click('[data-act="cFilter"]:not([data-g="open"])');
+  await page.waitForSelector('#cList :text("تم التواصل مع التموين")');
+  expect((await page.textContent('#cList')).includes('ملاحظة الإغلاق'), 'closed complaints show their closing note');
+  await page.click('.sidebar [data-view="overview"]');
   await page.waitForSelector('#dashKpis .kpi-val');
   await page.waitForTimeout(1200);
   await shot(page, 'dashboard-light', true);

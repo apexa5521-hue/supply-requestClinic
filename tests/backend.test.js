@@ -826,9 +826,15 @@ test('comments, item notes, complaints and notices', () => {
   assert.equal(api(q, 'getComplaints', true).length, 1);
   throwsCode(() => api(p, 'resolveComplaint', c.id), 'ERR_FORBIDDEN'); // التموين لا يغلق البلاغات
   assert.equal(api(p, 'getComplaints', true).length, 1, 'procurement still sees the issue');
-  api(q, 'resolveComplaint', c.id);
+  throwsCode(() => api(q, 'resolveComplaint', c.id, ' '), 'ERR_NOTE_REQUIRED');
+  gas.mails.length = 0;
+  api(q, 'resolveComplaint', c.id, 'تواصلنا مع التموين وأُرسل الطلب');
   assert.equal(api(q, 'getComplaints', true).length, 0);
-  assert.equal(api(q, 'getComplaints', false)[0].resolvedBy, 'منى');
+  const closed = api(q, 'getComplaints', false)[0];
+  assert.deepEqual([closed.resolvedBy, closed.resolveNote], ['منى', 'تواصلنا مع التموين وأُرسل الطلب'], 'closing note kept with the complaint');
+  assert.ok(api(n, 'getRequestDetail', id).comments.some(x => /أُغلق البلاغ.*تواصلنا مع التموين/.test(x.message)), 'note written on the request');
+  assert.ok(gas.mails.some(m => m.to === 'sara@example.com' && /أُغلق بلاغك/.test(m.subject)), 'the person who reported is told');
+  throwsCode(() => api(q, 'resolveComplaint', c.id, 'مرة ثانية'), 'ERR_ALREADY_RESOLVED');
 
   throwsCode(() => api(n, 'addNotice', 'تموين', 'x'), 'ERR_FORBIDDEN');
   throwsCode(() => api(q, 'addNotice', 'مجهول', 'x'), 'ERR_BAD_TARGET');
