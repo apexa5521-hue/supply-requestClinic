@@ -79,6 +79,7 @@ app.post('/api', express.text({ type: '*/*', limit: '25mb' }), async (req, res) 
     if (bootError) throw bootError;
     const out = await serial(() => callApi(req.body || '{}'));
     res.type('application/json').send(out);
+    tick();
   } catch (err) {
     console.error('API Error:', err);
     // known refusals (e.g. ERR_STORAGE_FULL) reach the app as their code; anything else stays generic
@@ -224,10 +225,28 @@ app.post('/admin/import', express.raw({ type: '*/*', limit: '60mb' }), async (re
   }
 });
 
+/* ---------- scheduled work: monthly deadline reminders + the daily overdue digest (Code.gs cronTick_) ---------- */
+// every 10 min while the server is awake; Render's free plan sleeps when idle, so any use of the app (/api)
+// and the 15-min pg_cron call (/sync/run) also run it. Code.gs keeps a log, so nothing is sent twice.
+let lastTick = 0;
+function tick(force) {
+  if (!force && Date.now() - lastTick < 10 * 60e3) return null;
+  lastTick = Date.now();
+  return ready.then(() => bootError ? null : serial(async () => {
+    const r = JSON.parse(JSON.stringify(ctx.cronTick_()));
+    await store.flush(gas);
+    if (r.reminders || r.digest > 0) console.log('[cron]', JSON.stringify(r));
+    return r;
+  })).catch(e => { console.error('[cron]', e.message); return null; });
+}
+const tickTimer = setInterval(tick, 10 * 60e3);
+if (tickTimer.unref) tickTimer.unref();
+
 /* ---------- mirror to a Google Sheet (called every 15 min by Supabase pg_cron) ---------- */
 app.post('/sync/run', async (req, res) => {
   const want = process.env.SYNC_KEY || '', got = String(req.get('x-sync-key') || '');
   if (!(want.length >= 8 && got.length === want.length && crypto.timingSafeEqual(Buffer.from(got), Buffer.from(want)))) return res.sendStatus(403);
+  tick();
   if (!process.env.GOOGLE_SA_JSON || !process.env.SHEET_SYNC_ID) return res.status(400).json({ ok: false, error: 'sync not configured' });
   // off until the move: staff still work on the Google Sheet (Apps Script), so nothing may write over it.
   // On moving day set SYNC_ENABLED=yes in Render (after importing the sheet) — see the README.
