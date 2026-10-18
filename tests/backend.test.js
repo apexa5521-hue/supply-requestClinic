@@ -3243,6 +3243,38 @@ test('request cards: item preview, comment and open-report counts', () => {
   assert.equal(row.openComplaints, 1);
 });
 
+test('monthly deadline reminders: window opens for everyone, then only doctors without a monthly order (+ pending approvals), once each', () => {
+  const { api, login, ctx, gas } = boot();
+  const n = login('سارة', '1111'), p = login('علي', '3333');
+  api(p, 'saveOrderRules', { winStart: 15, winEnd: 20, dispatchDay: 1, monthlyMax: 0, emergencyMax: 0, emergencyHours: 48, emergencyMaxItems: 0, monthlyLock: 0, freeLocked: 0, remindOn: 1, remindDaysBefore: 1, remindHour: 9 });
+  const ym = todayISO().slice(0, 7), at = (d, h) => Date.UTC(Number(ym.slice(0, 4)), Number(ym.slice(5, 7)) - 1, d, h - 3);
+  const send = ms => JSON.parse(JSON.stringify(ctx.monthlyReminders_(ms)));
+  assert.deepEqual(send(at(14, 10)), [], 'outside the reminder days');
+  assert.deepEqual(send(at(15, 8)), [], 'before the reminder hour');
+  gas.mails.length = 0;
+  const open = send(at(15, 10));
+  assert.deepEqual(open.map(x => x.to).sort(), ['د. خالد', 'ريم', 'سارة'].sort(), 'window opens: doctors with accounts and their nurses');
+  assert.ok(gas.mails.some(m => m.to === 'sara@example.com' && /فتحت نافذة الطلب الشهري/.test(m.subject)));
+  assert.deepEqual(send(at(15, 11)), [], 'sent once only');
+  api(n, 'createRequest', { clinic: 'عيادة الأسنان 1', doctor: 'د. خالد', type: 'شهري', items: [{ name: 'PROPHY PASTE', qty: 1 }] });
+  gas.mails.length = 0;
+  const soon = send(at(19, 10));
+  const by = Object.fromEntries(soon.map(x => [x.to, x]));
+  assert.ok(soon.every(x => x.kind === 'soon'));
+  assert.deepEqual(by['سارة'].doctors.sort(), ['د. فهد', 'د. نورة'].sort(), 'the doctor who already ordered is left out');
+  assert.deepEqual(by['ريم'].doctors, ['د. سعد']);
+  assert.deepEqual([by['د. خالد'].doctors, by['د. خالد'].pending], [[], 1], 'the doctor is reminded of the request awaiting approval');
+  assert.ok(gas.mails.some(m => m.to === 'khaled@example.com' && /بانتظار اعتمادك/.test(m.subject)));
+  // turned off: nothing, even on the last day
+  api(p, 'saveOrderRules', { remindOn: 0 });
+  assert.deepEqual(send(at(20, 10)), []);
+  api(p, 'saveOrderRules', { remindOn: 1 });
+  assert.ok(send(at(20, 10)).every(x => x.kind === 'last'));
+  // Render tick: the daily overdue digest goes out once a day
+  assert.ok(ctx.cronTick_(at(21, 9)).digest >= 0);
+  assert.equal(ctx.cronTick_(at(21, 12)).digest, -1, 'digest not repeated the same day');
+});
+
 test('catalog bulk add: rows pasted from Excel are checked first, then saved together', () => {
   const { api, login, gas } = boot();
   const p = login('علي', '3333');
