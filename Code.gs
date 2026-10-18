@@ -5459,12 +5459,27 @@ function getQualityTrend_(monthsBack) {
   return out;
 }
 
+/**
+ * مرحلة الطلب كما في شاشة التموين (نفس procStage في الواجهة) — النظرة العامة تعرض نفس المراحل بنفس الأسماء
+ */
+function procStage_(r) {
+  if (r.status === ST.CANCELLED) return 'cancelled';
+  if (r.status === ST.REJECTED) return 'rejected';
+  if (r.status === ST.RECEIVED) return 'received';
+  if (r.awaitingDoctor) return 'review';
+  if (r.sentQty > 0 && r.remainingQty > 0) return 'partial';
+  if (r.status === ST.SENT) return r.atBranch ? 'arrived' : 'shipping';
+  if ([ST.PREP, ST.VENDOR_WAIT, ST.VENDOR_RECV].indexOf(r.status) !== -1) return 'prep';
+  return !r.doctorApproved ? 'review' : r.approver === 'branch' ? 'ready_bm' : 'ready';
+}
 function getExecutiveStats_(user, month) {
   const all = queryRequests_(month ? { month: month } : {});
-  const statusCounts = {};
+  const statusCounts = {}, stageCounts = {};
   const typeCounts = {};
   all.forEach(function (r) {
     statusCounts[r.status] = (statusCounts[r.status] || 0) + 1;
+    const sg = procStage_(r);
+    stageCounts[sg] = (stageCounts[sg] || 0) + 1;
     typeCounts[r.type] = (typeCounts[r.type] || 0) + 1;
   });
 
@@ -5497,7 +5512,7 @@ function getExecutiveStats_(user, month) {
 
   return {
     total: all.length, count: all.length,
-    statusCounts: statusCounts,
+    statusCounts: statusCounts, stageCounts: stageCounts,
     typeCounts: typeCounts,
     overallAvgHours: overallAvg,
     byClinic: qr.averages,
