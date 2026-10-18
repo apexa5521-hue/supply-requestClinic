@@ -1739,6 +1739,7 @@ function log(msg) { console.log('  ✔ ' + msg); }
   expect((await page.textContent('#rlBox .rule-bar')).includes('داخل نافذة الطلب الشهري'), 'rules page previews what nurses see');
   expect(!!(await page.$('#dlBody')) && (await page.textContent('#rlBox')).includes('حد خاص لطبيب'), 'rules page: doctor-specific limits table');
   expect((await page.textContent('table:has(#dlBody) thead')).includes('أصناف الطارئ'), 'rules page: per-doctor emergency items column');
+  expect(await page.isVisible('#rl_remindOn') && await page.isVisible('#rl_remindDaysBefore') && await page.isVisible('#rl_remindHour'), 'rules page: monthly deadline reminder settings');
   await shot(page, 'order-rules');
   await logout(page);
   await login(page, 'سارة', '1111');
