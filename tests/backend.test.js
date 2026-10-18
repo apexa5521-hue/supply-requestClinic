@@ -3164,3 +3164,28 @@ test('item removal: the nurse removes a wrong item after another was received; a
   assert.deepEqual(rows(gas, 'ShipmentItems').filter(r => r.RequestID === id && r.ItemName === 'PROPHY PASTE').map(r => [Number(r.Qty), Number(r.ReceivedQty)]), [[2, 2]]);
   assert.ok(rows(gas, 'Reversals').some(r => r.RequestID === id && r.Scope === 'استرجاع صنف (أدمن)'));
 });
+
+test('order limits belong to the doctor whoever orders; a doctor-specific limit raises or lowers it', () => {
+  const { api, login } = boot(g => g.seed('Users', ['Name', 'Password', 'Role', 'Clinic', 'Email', 'PriceView'], [
+    ['سارة', '1111', 'ممرضة', 'عيادة الأسنان 1', ''], ['لمى', '2222', 'ممرضة', 'عيادة الأسنان 1', ''],
+    ['علي', '3333', 'تموين', '', ''], ['د. خالد', '4444', 'طبيب', '', '', ''], ['المدير', '1234', 'أدمن', '', '']]));
+  const n = login('سارة', '1111'), l = login('لمى', '2222'), p = login('علي', '3333');
+  const base = { winStart: 1, winEnd: 31, dispatchDay: 1, monthlyMax: 1, emergencyMax: 1, emergencyHours: 48, emergencyMaxItems: 0, monthlyLock: 0, freeLocked: 0 };
+  api(p, 'saveOrderRules', base);
+  const em = { clinic: 'عيادة الأسنان 1', doctor: 'د. خالد', type: 'طارئ', items: [{ name: 'PROPHY PASTE', qty: 1 }] };
+  api(n, 'createRequest', em);
+  throwsCode(() => api(l, 'createRequest', Object.assign({}, em, { items: [{ name: 'DENTAL FLOSS', qty: 1 }] })), 'ERR_EMERGENCY_LIMIT');
+  // another doctor is not affected
+  api(l, 'createRequest', { clinic: 'عيادة الأسنان 1', doctor: 'د. نورة', type: 'طارئ', items: [{ name: 'PROPHY PASTE', qty: 1 }] });
+  // raise د. خالد to 2 emergencies; out-of-range refused; empty entries dropped
+  throwsCode(() => api(p, 'saveOrderRules', Object.assign({}, base, { docLimits: { 'د. خالد': { e: 120 } } })), 'ERR_RULE_RANGE:docLimits');
+  let R = api(p, 'saveOrderRules', Object.assign({}, base, { docLimits: { 'د. خالد': { e: 2 }, 'د. نورة': {} } }));
+  assert.deepEqual(R.docLimits, { 'د. خالد': { e: 2 } });
+  assert.ok(R.targets.includes('د. خالد') && R.usedBy['د. خالد'].emergency === 1, 'rules page: doctors list and this month usage');
+  const extra = api(l, 'createRequest', Object.assign({}, em, { items: [{ name: 'DENTAL FLOSS', qty: 1 }] }));
+  assert.equal(extra.rules.left.emergency, 0, 'the raised limit is now used up');
+  // lower: د. نورة gets 0 monthly = no limit; د. خالد monthly lowered stays at the general 1
+  R = api(p, 'saveOrderRules', Object.assign({}, base, { docLimits: { 'د. خالد': { e: 2, m: 1 } } }));
+  api(n, 'createRequest', { clinic: 'عيادة الأسنان 1', doctor: 'د. خالد', type: 'شهري', items: [{ name: 'PROPHY PASTE', qty: 1 }] });
+  throwsCode(() => api(l, 'createRequest', { clinic: 'عيادة الأسنان 1', doctor: 'د. خالد', type: 'شهري', items: [{ name: 'DENTAL FLOSS', qty: 1 }] }), 'ERR_MONTHLY_LIMIT');
+});

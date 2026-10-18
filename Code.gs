@@ -2161,9 +2161,9 @@ const ORDER_RULES_ = [
   ['winStart', 'MonthlyWindowStart', MONTHLY_WINDOW[0], 1, 31, 'بداية نافذة الطلب الشهري (يوم من الشهر)'],
   ['winEnd', 'MonthlyWindowEnd', MONTHLY_WINDOW[1], 1, 31, 'نهاية نافذة الطلب الشهري (يوم من الشهر)'],
   ['dispatchDay', 'MonthlyDispatchDay', 1, 1, 31, 'يوم صرف الطلب الشهري — بعد نهاية النافذة = نفس الشهر، وإلا الشهر التالي'],
-  ['monthlyMax', 'MonthlyMaxPerMonth', 0, 0, 99, 'عدد الطلبات الشهرية المسموحة لكل من يطلب في الشهر (0 = بلا حد)'],
+  ['monthlyMax', 'MonthlyMaxPerMonth', 0, 0, 99, 'عدد الطلبات الشهرية المسموحة لكل طبيب في الشهر أياً كانت الممرضة (0 = بلا حد) — حد خاص لطبيب في DoctorLimits'],
   ['monthlyLock', 'MonthlyLockedAfterWindow', 0, 0, 1, 'إقفال الطلب الشهري بعد نهاية النافذة: 1 = مقفل · 0 = مفتوح (يُرفع ويُعلَّم «متأخر»)'],
-  ['emergencyMax', 'EmergencyMaxPerMonth', 0, 0, 99, 'عدد الطلبات الطارئة المسموحة لكل من يطلب في الشهر (0 = بلا حد)'],
+  ['emergencyMax', 'EmergencyMaxPerMonth', 0, 0, 99, 'عدد الطلبات الطارئة المسموحة لكل طبيب في الشهر أياً كانت الممرضة (0 = بلا حد) — حد خاص لطبيب في DoctorLimits'],
   ['emergencyHours', 'EmergencyDueHours', EMERGENCY_DUE_HOURS, 3, 48, 'مهلة الطلب الطارئ بالساعات (من 3 إلى 48)'],
   ['emergencyMaxItems', 'EmergencyMaxItems', 0, 0, 200, 'أقصى عدد أصناف مختلفة (مستهلك أو ماتيريال) في الطلب الطارئ (0 = بلا حد)'],
   ['freeLocked', 'FreeItemsLocked', 0, 0, 1, 'إقفال إدخال صنف حر (مستهلك أو ماتيريال) للتمريض: 1 = مقفل · 0 = مسموح']
@@ -2194,23 +2194,39 @@ function monthlyDue_(subMs, R) {
 }
 /** طلبات هذا الشهر لمن يرفع (حسب النوع) */
 /**
- * الحد الشهري/الطارئ لكل طبيب (أو لكل عيادة في طلب مستهلكات العيادة): الممرضة الموكلة بثلاثة أطباء
- * لها حد كامل لكل طبيب. الملغي والمرفوض والأثر الرجعي لا يُحسب. يرجع { الطبيب أو العيادة: { monthly, emergency } }
+ * الحد الشهري/الطارئ للطبيب نفسه (أو للعيادة في طلب مستهلكات العيادة) أياً كانت الممرضة التي تطلب له.
+ * الملغي والمرفوض والأثر الرجعي لا يُحسب. يرجع { الطبيب أو العيادة: { monthly, emergency } }
  */
 function orderTarget_(doctor, clinic) { return str_(doctor) || str_(clinic); }
-function orderUsage_(name) {
+function orderUsage_() {
   const month = riyadh_(Date.now()).slice(0, 7), out = {};
   read_('Requests').rows.forEach(function (r) {
-    if (str_(r.Nurse) !== name || isOff_(str_(r.Status)) || isBackdated_(r)) return;
+    if (isOff_(str_(r.Status)) || isBackdated_(r)) return;
     if (monthOf_(r.SubmittedAt || r.Date) !== month) return;
     const k = orderTarget_(r.Doctor, r.Clinic), u = out[k] || (out[k] = { monthly: 0, emergency: 0 });
     if (str_(r.Type) === 'طارئ') u.emergency++; else u.monthly++;
   });
   return out;
 }
-function leftOf_(R, u) {
+/**
+ * حد خاص لطبيب (زيادة أو تقليل عن الحد العام) — Settings ← DoctorLimits = {"د. خالد": {"m": 2, "e": 1}}
+ * الفارغ = الحد العام · 0 = بلا حد (مثل الحد العام)
+ */
+const DOC_LIMITS_KEY_ = 'DoctorLimits';
+function docLimits_() {
+  if (MEMO_.docLimits) return MEMO_.docLimits;
+  let o = {};
+  try { o = JSON.parse(str_(getSetting_(DOC_LIMITS_KEY_, '')) || '{}') || {}; } catch (e) { o = {}; }
+  return (MEMO_.docLimits = o && typeof o === 'object' && !Array.isArray(o) ? o : {});
+}
+function limitsFor_(R, target) {
+  const o = docLimits_()[str_(target)] || {};
+  const pick = function (v, def) { return typeof v === 'number' && v >= 0 ? v : def; };
+  return { monthlyMax: pick(o.m, R.monthlyMax), emergencyMax: pick(o.e, R.emergencyMax) };
+}
+function leftOf_(L, u) {
   u = u || { monthly: 0, emergency: 0 };
-  return { monthly: R.monthlyMax ? Math.max(0, R.monthlyMax - u.monthly) : null, emergency: R.emergencyMax ? Math.max(0, R.emergencyMax - u.emergency) : null };
+  return { monthly: L.monthlyMax ? Math.max(0, L.monthlyMax - u.monthly) : null, emergency: L.emergencyMax ? Math.max(0, L.emergencyMax - u.emergency) : null };
 }
 /** القواعد + حالة النافذة الآن + المستخدَم والمتبقي لمن يرفع الطلبات (الممرضة / المعمل) */
 function getOrderRules_(user, target) {
@@ -2223,9 +2239,17 @@ function getOrderRules_(user, target) {
   });
   if (user && (user.screen === 'nurse' || user.screen === 'lab')) {
     // لكل طبيب/عيادة: الواجهة تعرض المتبقي للطبيب المختار في الطلب
-    const u = orderUsage_(user.name);
+    const u = orderUsage_();
     out.usedBy = u;
-    if (target !== undefined && target !== null) { out.used = u[str_(target)] || { monthly: 0, emergency: 0 }; out.left = leftOf_(R, out.used); }
+    if (target !== undefined && target !== null) { out.used = u[str_(target)] || { monthly: 0, emergency: 0 }; out.left = leftOf_(limitsFor_(R, target), out.used); }
+  }
+  out.docLimits = docLimits_();
+  if (out.canEdit) {
+    // شاشة القواعد: الحدود الخاصة مع استهلاك هذا الشهر، وأسماء الأطباء والعيادات للاختيار
+    out.usedBy = out.usedBy || orderUsage_();
+    const names = {};
+    read_('Doctors').rows.forEach(function (d) { if (str_(d.DoctorName)) names[str_(d.DoctorName)] = 1; });
+    out.targets = Object.keys(names).sort();
   }
   return out;
 }
@@ -2239,6 +2263,22 @@ function saveOrderRules_(user, v) {
     vals[d[0]] = n;
   });
   if (vals.winEnd < vals.winStart) throw new Error('ERR_RULE_WINDOW');
+  // الحدود الخاصة لكل طبيب: الفارغ = الحد العام، 0–99 (0 = بلا حد)
+  let dl = null;
+  if (v.docLimits !== undefined) {
+    if (!v.docLimits || typeof v.docLimits !== 'object' || Array.isArray(v.docLimits)) throw new Error('ERR_RULE_RANGE:docLimits');
+    dl = {};
+    Object.keys(v.docLimits).slice(0, 300).forEach(function (k) {
+      const name = clean_(k, 80), x = v.docLimits[k] || {}, o = {};
+      ['m', 'e'].forEach(function (f) {
+        if (x[f] === '' || x[f] === null || x[f] === undefined) return;
+        const n = Number(x[f]);
+        if (!(Math.floor(n) === n && n >= 0 && n <= 99)) throw new Error('ERR_RULE_RANGE:docLimits');
+        o[f] = n;
+      });
+      if (name && Object.keys(o).length) dl[name] = o;
+    });
+  }
   withLock_(function () {
     const t = freshTable_('Settings');
     const changes = [];
@@ -2247,6 +2287,11 @@ function saveOrderRules_(user, v) {
       if (!row) { append_('Settings', { Key: d[1], Value: vals[d[0]], Notes: d[5] }); changes.push(d[1] + '=' + vals[d[0]]); }
       else if (str_(row.Value) !== String(vals[d[0]])) { setCells_(t, row, { Value: vals[d[0]] }); changes.push(d[1] + '=' + vals[d[0]]); }
     });
+    if (dl) {
+      const js = JSON.stringify(dl), row = t.rows.filter(function (r) { return str_(r.Key) === DOC_LIMITS_KEY_; })[0];
+      if (!row) { append_('Settings', { Key: DOC_LIMITS_KEY_, Value: js, Notes: 'حد خاص لكل طبيب: m = الشهري، e = الطارئ (الفارغ = الحد العام، 0 = بلا حد)' }); changes.push(DOC_LIMITS_KEY_ + '=' + js); }
+      else if (str_(row.Value) !== js) { setCells_(t, row, { Value: js }); changes.push(DOC_LIMITS_KEY_ + '=' + js); }
+    }
     if (changes.length) logAction_('', 'تعديل قواعد الطلبات: ' + changes.join('، '), user.name);
   });
   resetMemo_();
@@ -2254,7 +2299,8 @@ function saveOrderRules_(user, v) {
 }
 /** فحص قواعد الطلب قبل الحفظ: عدد الطارئ / الشهري في الشهر، وعدد أصناف الطارئ */
 function checkOrderRules_(user, type, itemCount, target) {
-  const R = orderRules_(), u = orderUsage_(user.name)[str_(target)] || { monthly: 0, emergency: 0 };
+  const R0 = orderRules_(), u = orderUsage_()[str_(target)] || { monthly: 0, emergency: 0 };
+  const R = Object.assign({}, R0, limitsFor_(R0, target));
   const emLeft = R.emergencyMax ? Math.max(0, R.emergencyMax - u.emergency) : '';
   if (type === 'طارئ') {
     if (R.emergencyMaxItems && itemCount > R.emergencyMaxItems) throw new Error('ERR_EMERGENCY_ITEMS:max=' + R.emergencyMaxItems + ';n=' + itemCount + ';left=' + emLeft);
