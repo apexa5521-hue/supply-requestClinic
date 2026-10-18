@@ -1659,6 +1659,16 @@ function log(msg) { console.log('  ✔ ' + msg); }
   await page.click('.sidebar [data-view="docitems"]');
   await page.waitForSelector('#diBox .card');
   expect((await page.textContent('#diBox')).includes('الأكثر طلباً:') && await page.locator('#diDoc option').count() > 2, 'items per doctor: top item per doctor this month, doctor filter');
+  expect(await page.getAttribute('#diMonth', 'type') === 'month', 'month and year picked from a calendar');
+  await page.click('[data-act="diStep"][data-d="-1"]');
+  await page.waitForTimeout(400);
+  const prevM = await page.inputValue('#diMonth');
+  await page.fill('#diMonth', '2024-01');
+  await page.waitForSelector('#diBox .empty, #diBox [class*="empty"]', { timeout: 5000 }).catch(() => {});
+  expect(prevM < new Date().toISOString().slice(0, 7) && (await page.textContent('#diBox')).includes('2024'), 'previous-month arrow and any past month/year: ' + prevM);
+  await page.click('[data-act="diStep"][data-d="1"]');
+  await page.fill('#diMonth', new Date(Date.now() + 3 * 36e5).toISOString().slice(0, 7));
+  await page.waitForSelector('#diBox .card');
   await page.selectOption('#diSort', 'name');
   await shot(page, 'doctor-items');
   // تصحيح الطلبات: الأدمن يفتح طلباً مستلماً ويحذف صنفاً بالسبب ثم يسترجعه

@@ -61,6 +61,7 @@ const I18N = {
     cb_btn: 'إضافة أصناف دفعة واحدة', cb_title: 'إضافة أصناف دفعة واحدة', cb_sub: 'مثل Excel — انسخ الصفوف من Excel والصقها هنا', cb_h: 'ضع المؤشر في أول خانة (اسم الصنف) والصق (Ctrl+V). نفس خانات الصنف الفردي؛ الخانات بـ * إجبارية. لا يُحفظ شيء حتى تصح كل الصفوف.', cb_price: 'السعر', cb_asset: 'عهدة؟', cb_serial: 'رقم تسلسلي؟', cb_dept_h: 'أسنان / جلدية / فارغ = مشترك', cb_type_h: 'مستهلك / ماتيريال / أدوات', cb_yes_h: 'نعم / لا', cb_alias_h: 'افصل بينها بـ ،', cb_more: '10 صفوف أخرى', cb_copy_head: 'نسخ رؤوس الأعمدة لـ Excel', cb_head_ok: 'نُسخت رؤوس الأعمدة — الصقها في أول صف في Excel', cb_clear: 'مسح الجدول', cb_count: '{n} صنف', cb_save: 'حفظ {n} صنف', cb_empty: 'الجدول فارغ — الصق الأصناف أولاً', cb_row: 'السطر {n}', cb_done: 'أُضيف {n} صنف للكتالوج', ERR_BAD_DEPT: 'القسم غير معروف (أسنان / جلدية / فارغ)', ERR_BAD_TYPE: 'النوع غير معروف (مستهلك / ماتيريال / أدوات)', ERR_BAD_YESNO: 'اكتب نعم أو لا', ERR_ITEM_DUP: 'الاسم مكرر في الجدول',
     grp_my_docs: 'أطبائي', nurse_docs: 'الأطباء المسؤولة عنهم', nurse_docs_hint: 'تظهر لها «أطبائي» أولاً عند رفع الطلب — يمكن اختيار أكثر من طبيب',
     nav_doc_items: 'أصناف كل طبيب', sub_doc_items: 'الأصناف الأكثر طلباً لكل طبيب في الشهر', di_sort_req: 'الأكثر طلبات أولاً', di_sort_top: 'الأعلى تكراراً لصنف', di_sort_name: 'اسم الطبيب', di_search: 'ابحث عن صنف أو طبيب', di_all_docs: 'كل الأطباء', di_none: 'لا توجد طلبات للأطباء في {m}', di_h: '{n} طبيب · {m} — عدد المرات = عدد الطلبات التي فيها الصنف (الملغي والمرفوض لا يُحسب)', di_reqs: '{n} طلب', di_em: '{n} طارئ', di_best: 'الأكثر طلباً: {i} — {n} مرة في {m}', di_times: 'عدد المرات', di_qty: 'الكمية', di_more: '+ {n} صنف آخر — اختر الطبيب لعرض الكل',
+    di_month: 'الشهر', di_prev: 'الشهر السابق', di_next: 'الشهر التالي',
     select_all: 'تحديد الكل', selected: 'محدد', clear_selection: 'إلغاء التحديد',
     stk_app_url: 'رابط الموقع (لزر «افتح الطلب» في الإيميلات)', stk_app_url_h: 'الرابط الذي يدخل منه الفريق، يبدأ بـ https://', ERR_BAD_URL: 'الرابط غير صحيح — يجب أن يبدأ بـ https://',
     rl_monthly_lock: 'الطلب الشهري بعد نهاية النافذة', rl_monthly_lock_h: 'عند الإقفال لا يُقبل طلب شهري بعد يوم النهاية حتى تُفتح من جديد (الطارئ لا يتأثر)', ERR_MONTHLY_CLOSED: 'الطلب الشهري مقفل — نافذة الرفع من يوم {a} إلى {b}. للضرورة ارفعي طلباً طارئاً أو اطلبي من التموين فتح الشهري',
@@ -182,6 +183,7 @@ const I18N = {
     cb_btn: 'Add items in bulk', cb_title: 'Add items in bulk', cb_sub: 'Like Excel — copy rows from Excel and paste them here', cb_h: 'Put the cursor in the first cell (item name) and paste (Ctrl+V). Same fields as a single item; * is required. Nothing is saved until every row is valid.', cb_price: 'Price', cb_asset: 'Custody?', cb_serial: 'Serial no.?', cb_dept_h: 'Dental / Derma / empty = shared', cb_type_h: 'Consumable / Material / Tools', cb_yes_h: 'Yes / No', cb_alias_h: 'separate with ,', cb_more: '10 more rows', cb_copy_head: 'Copy column headers for Excel', cb_head_ok: 'Headers copied — paste them in the first Excel row', cb_clear: 'Clear', cb_count: '{n} item(s)', cb_save: 'Save {n} item(s)', cb_empty: 'The table is empty — paste the items first', cb_row: 'Row {n}', cb_done: '{n} item(s) added to the catalog', ERR_BAD_DEPT: 'Unknown department (Dental / Derma / empty)', ERR_BAD_TYPE: 'Unknown type (Consumable / Material / Tools)', ERR_BAD_YESNO: 'Write yes or no', ERR_ITEM_DUP: 'Name repeated in the table',
     grp_my_docs: 'My doctors', nurse_docs: 'Doctors she orders for', nurse_docs_hint: 'Shown first as “My doctors” when she raises a request — pick as many as needed',
     nav_doc_items: 'Items per doctor', sub_doc_items: 'Most requested items per doctor each month', di_sort_req: 'Most requests first', di_sort_top: 'Highest repeat of one item', di_sort_name: 'Doctor name', di_search: 'Search an item or doctor', di_all_docs: 'All doctors', di_none: 'No doctor requests in {m}', di_h: '{n} doctor(s) · {m} — times = number of requests with the item (cancelled and rejected not counted)', di_reqs: '{n} request(s)', di_em: '{n} emergency', di_best: 'Most requested: {i} — {n} time(s) in {m}', di_times: 'Times', di_qty: 'Quantity', di_more: '+ {n} more items — pick the doctor to see all',
+    di_month: 'Month', di_prev: 'Previous month', di_next: 'Next month',
     select_all: 'Select all', selected: 'selected', clear_selection: 'Clear',
     stk_app_url: 'Website link (for the «Open request» button in emails)', stk_app_url_h: 'The link your team signs in from, starting with https://', ERR_BAD_URL: 'The link is not valid — it must start with https://',
     rl_monthly_lock: 'Monthly requests after the window ends', rl_monthly_lock_h: 'When locked, no monthly request is accepted after the end day until it is opened again (emergencies are not affected)', ERR_MONTHLY_CLOSED: 'Monthly requests are closed — the window is day {a} to {b}. Raise an emergency request if needed, or ask procurement to reopen monthly requests',
@@ -334,6 +336,7 @@ const INTL_OPTS_ = {
   day: { timeZone: 'Asia/Riyadh', day: 'numeric' },
   monthLong: { month: 'long', year: 'numeric' },
   monthShortUtc: { month: 'short', timeZone: 'UTC' },
+  monthYearUtc: { month: 'long', year: 'numeric', timeZone: 'UTC' },
   stamp: { timeZone: 'Asia/Riyadh', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit' },
   rel: { numeric: 'auto' }
 };
@@ -1465,14 +1468,17 @@ VIEWS.docitems = {
   title: 'nav_doc_items', sub: 'sub_doc_items',
   render() {
     return '<section class="card card-pad"><div class="row-wrap" style="gap:10px">' +
-      '<select class="select" id="diMonth" style="max-width:180px"></select>' +
+      // تقويم لاختيار الشهر والسنة (أي شهر سابق) + أسهم الشهر السابق/التالي
+      '<div class="row-wrap" style="gap:4px;align-items:center"><button type="button" class="btn btn-ghost btn-icon btn-sm" data-act="diStep" data-d="-1" aria-label="' + esc(t('di_prev')) + '">' + icon('chevr', 'i-sm') + '</button>' +
+        '<input class="input" type="month" id="diMonth" dir="ltr" max="' + todayStr().slice(0, 7) + '" value="' + esc(DI.month || todayStr().slice(0, 7)) + '" style="max-width:170px" aria-label="' + esc(t('di_month')) + '">' +
+        '<button type="button" class="btn btn-ghost btn-icon btn-sm" data-act="diStep" data-d="1" aria-label="' + esc(t('di_next')) + '">' + icon('chevr', 'i-sm flip') + '</button></div>' +
       '<select class="select" id="diDoc" style="max-width:240px"></select>' +
       '<select class="select" id="diSort" style="max-width:220px">' + [['requests', 'di_sort_req'], ['top', 'di_sort_top'], ['name', 'di_sort_name']].map(o => '<option value="' + o[0] + '"' + (DI.sort === o[0] ? ' selected' : '') + '>' + esc(t(o[1])) + '</option>').join('') + '</select>' +
       '<div class="input-icon grow" style="min-width:180px">' + icon('search') + '<input class="input" id="diQ" placeholder="' + esc(t('di_search')) + '" value="' + esc(DI.q) + '"></div></div></section>' +
       '<div id="diBox" style="margin-top:16px">' + skeletonList(3) + '</div>';
   },
   mount() {
-    $('#diMonth').addEventListener('change', e => { DI.month = e.target.value; diLoad(); });
+    $('#diMonth').addEventListener('change', e => { const v = e.target.value; if (/^\d{4}-\d{2}$/.test(v)) { DI.month = v; diLoad(); } });
     $('#diDoc').addEventListener('change', e => { DI.doctor = e.target.value; diLoad(); });
     $('#diSort').addEventListener('change', e => { DI.sort = e.target.value; diRender(); });
     $('#diQ').addEventListener('input', debounce(e => { DI.q = e.target.value.trim().toLowerCase(); diRender(); }, 200));
@@ -1480,27 +1486,36 @@ VIEWS.docitems = {
   },
   refresh() { diLoad(); }
 };
+ACT.diStep = el => {
+  const cur = DI.month || todayStr().slice(0, 7);
+  let y = Number(cur.slice(0, 4)), m = Number(cur.slice(5, 7)) + Number(el.dataset.d);
+  if (m < 1) { m = 12; y--; } if (m > 12) { m = 1; y++; }
+  const v = y + '-' + ('0' + m).slice(-2);
+  if (v > todayStr().slice(0, 7)) return;
+  DI.month = v; $('#diMonth').value = v; diLoad();
+};
 function diLoad() {
   return call('getDoctorItemStats', { month: DI.month, doctor: DI.doctor }).then(d => { DI.data = d; DI.month = d.month; diRender(); })
     .catch(e => { const b = $('#diBox'); if (b) b.innerHTML = emptyState('alert', errMsg(e)); });
 }
+const monthYearLabel = m => m ? intl('d', 'monthYearUtc').format(new Date(m + '-15T12:00:00Z')) : '';
 function diRender() {
   const d = DI.data, box = $('#diBox'); if (!box || !d) return;
   const ms = $('#diMonth'), ds = $('#diDoc');
-  if (ms) ms.innerHTML = d.months.map(m => '<option value="' + m + '"' + (m === d.month ? ' selected' : '') + '>' + esc(monthLabel(m)) + '</option>').join('');
+  if (ms && ms.value !== d.month) ms.value = d.month;
   if (ds) ds.innerHTML = '<option value="">' + esc(t('di_all_docs')) + '</option>' + d.allDoctors.map(n => '<option' + (n === DI.doctor ? ' selected' : '') + '>' + esc(n) + '</option>').join('');
   const q = DI.q;
   let list = d.doctors.map(x => Object.assign({}, x, { items: q ? x.items.filter(i => i.item.toLowerCase().indexOf(q) !== -1) : x.items }))
     .filter(x => !q || x.items.length || x.doctor.toLowerCase().indexOf(q) !== -1);
   const top = x => (x.items[0] && x.items[0].times) || 0;
   list.sort((a, b) => DI.sort === 'name' ? a.doctor.localeCompare(b.doctor) : DI.sort === 'top' ? top(b) - top(a) || b.requests - a.requests : b.requests - a.requests || top(b) - top(a));
-  if (!list.length) { box.innerHTML = emptyState('chart', t('di_none', { m: monthLabel(d.month) })); return; }
+  if (!list.length) { box.innerHTML = emptyState('chart', t('di_none', { m: monthYearLabel(d.month) })); return; }
   const lim = DI.doctor ? 200 : 10;
-  box.innerHTML = '<div class="hint" style="margin-bottom:10px">' + esc(t('di_h', { n: list.length, m: monthLabel(d.month) })) + '</div><div class="grid-2">' + list.map(x => {
+  box.innerHTML = '<div class="hint" style="margin-bottom:10px">' + esc(t('di_h', { n: list.length, m: monthYearLabel(d.month) })) + '</div><div class="grid-2">' + list.map(x => {
     const best = x.items[0];
     return '<section class="card"><div class="card-head"><h3>' + icon('steth') + esc(x.doctor) + '</h3><span class="muted">' + esc(t('di_reqs', { n: x.requests })) + (x.emergency ? ' · ' + esc(t('di_em', { n: x.emergency })) : '') + '</span></div><div class="card-body">' +
       (x.clinics.length ? '<div class="hint" style="margin-bottom:8px">' + icon('building', 'i-sm') + ' ' + esc(x.clinics.join('، ')) + '</div>' : '') +
-      (best ? '<div class="alert info" style="margin:0 0 10px"><span class="alert-ic">' + icon('chart') + '</span><span>' + esc(t('di_best', { i: best.item, n: best.times, m: monthLabel(d.month) })) + '</span></div>' : '') +
+      (best ? '<div class="alert info" style="margin:0 0 10px"><span class="alert-ic">' + icon('chart') + '</span><span>' + esc(t('di_best', { i: best.item, n: best.times, m: monthYearLabel(d.month) })) + '</span></div>' : '') +
       '<div class="table-wrap"><table class="table"><thead><tr><th style="width:1%">#</th><th>' + esc(t('items')) + '</th><th class="num">' + esc(t('di_times')) + '</th><th class="num">' + esc(t('di_qty')) + '</th></tr></thead><tbody>' +
       x.items.slice(0, lim).map((it, i) => '<tr><td class="muted">' + (i + 1) + '</td><td><b>' + esc(it.item) + '</b></td><td class="num">' + fmtNum(it.times, 0) + '</td><td class="num">' + fmtNum(it.qty, 0) + '</td></tr>').join('') +
       '</tbody></table></div>' + (x.itemCount > lim && !q ? '<div class="hint" style="margin-top:6px">' + esc(t('di_more', { n: x.itemCount - lim })) + '</div>' : '') + '</div></section>';
