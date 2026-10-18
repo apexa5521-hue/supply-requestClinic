@@ -3196,6 +3196,39 @@ test('order limits belong to the doctor whoever orders; a doctor-specific limit 
   throwsCode(() => api(l, 'createRequest', { clinic: 'عيادة الأسنان 1', doctor: 'د. خالد', type: 'شهري', items: [{ name: 'DENTAL FLOSS', qty: 1 }] }), 'ERR_MONTHLY_LIMIT');
 });
 
+test('a doctor-specific emergency item count overrides the general one', () => {
+  const { api, login } = boot();
+  const n = login('سارة', '1111'), p = login('علي', '3333');
+  const base = { winStart: 1, winEnd: 31, dispatchDay: 1, monthlyMax: 0, emergencyMax: 0, emergencyHours: 48, emergencyMaxItems: 1, monthlyLock: 0, freeLocked: 0 };
+  api(p, 'saveOrderRules', base);
+  const two = d => ({ clinic: 'عيادة الأسنان 1', doctor: d, type: 'طارئ', items: [{ name: 'PROPHY PASTE', qty: 1 }, { name: 'DENTAL FLOSS', qty: 1 }] });
+  throwsCode(() => api(n, 'createRequest', two('د. خالد')), 'ERR_EMERGENCY_ITEMS');
+  throwsCode(() => api(p, 'saveOrderRules', Object.assign({}, base, { docLimits: { 'د. خالد': { i: 201 } } })), 'ERR_RULE_RANGE:docLimits');
+  const R = api(p, 'saveOrderRules', Object.assign({}, base, { docLimits: { 'د. خالد': { i: 3 } } }));
+  assert.deepEqual(R.docLimits, { 'د. خالد': { i: 3 } });
+  api(n, 'createRequest', two('د. خالد'));
+  throwsCode(() => api(n, 'createRequest', two('د. نورة')), 'ERR_EMERGENCY_ITEMS');
+  // 0 = no item limit for this doctor
+  api(p, 'saveOrderRules', Object.assign({}, base, { docLimits: { 'د. نورة': { i: 0 } } }));
+  api(n, 'createRequest', two('د. نورة'));
+});
+
+test('request cards: item preview, comment and open-report counts', () => {
+  const { api, login } = boot();
+  const n = login('سارة', '1111'), p = login('علي', '3333');
+  const items = ['MICRO BRUSH FINE', 'PROPHY PASTE', 'DENTAL FLOSS', 'Etchant Blue Tip', 'Ivoclar Tetric-N A2'].map((name, i) => ({ name, qty: i + 1 }));
+  const r = api(n, 'createRequest', { clinic: 'عيادة الأسنان 1', doctor: 'د. خالد', type: 'شهري', items });
+  const id = r.id || r.requestId;
+  api(n, 'addComment', id, 'ملاحظة');
+  api(n, 'addComplaint', id, 'نقص', 'ناقص صنف');
+  const row = api(p, 'getRequests', {}).find(x => x.id === id);
+  assert.equal(row.preview.length, 3);
+  assert.equal(row.previewMore, row.itemCount - 3);
+  assert.ok(row.preview.every(x => x.item && x.qty > 0));
+  assert.equal(row.comments >= 1, true);
+  assert.equal(row.openComplaints, 1);
+});
+
 test('catalog bulk add: rows pasted from Excel are checked first, then saved together', () => {
   const { api, login, gas } = boot();
   const p = login('علي', '3333');

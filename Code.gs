@@ -800,7 +800,7 @@ function bumpVersion_(name) {
 function markDirty_(name) {
   invalidate_(name);
   (MEMO_.dirty = MEMO_.dirty || {})[name] = true;
-  delete MEMO_.qr; // الحسابات المشتقة من الطلبات تُعاد بعد أي كتابة
+  delete MEMO_.qr; delete MEMO_.reqCounts; // الحسابات المشتقة من الطلبات تُعاد بعد أي كتابة
 }
 
 function flushDirty_() {
@@ -2146,6 +2146,13 @@ function queryRequests_(filters) {
     r.shipmentCount = st.ships.length;
     r.lastShipAt = st.ships.length ? st.ships.reduce(function (m, g) { return toMs_(g.sentAt) > toMs_(m) ? g.sentAt : m; }, '') : '';
     r.pendingShipments = st.pending;
+    // معاينة أول 3 أصناف في البطاقة + عدد التعليقات والبلاغات المفتوحة
+    const live = st.items.filter(function (i) { return i.target > 0 && !i.rejected; });
+    r.preview = live.slice(0, 3).map(function (i) { return { item: i.item, qty: i.target }; });
+    r.previewMore = Math.max(0, live.length - 3);
+    const rc = reqCounts_();
+    r.comments = rc.comments[r.id] || 0;
+    r.openComplaints = rc.open[r.id] || 0;
     Object.assign(r, arrivalOf_(r.id, st.ships));
     // شحنة وصل بوكسها الفرع ولم تُستلم بعد → «وصل الفرع»
     const waiting = st.ships.filter(function (g) { return !g.received && g.delivered; });
@@ -2168,6 +2175,18 @@ function queryRequests_(filters) {
     r._ms = toMs_(r.date);
     return r;
   }).sort(function (a, b) { return b._ms - a._ms; });
+}
+
+/** عدد التعليقات والبلاغات المفتوحة لكل طلب (مرة واحدة لكل استدعاء) */
+function reqCounts_() {
+  if (MEMO_.reqCounts) return MEMO_.reqCounts;
+  const o = { comments: {}, open: {} };
+  read_('Comments').rows.forEach(function (r) { const id = str_(r.RequestID); if (id) o.comments[id] = (o.comments[id] || 0) + 1; });
+  read_('Complaints').rows.forEach(function (r) {
+    const id = str_(r.RequestID);
+    if (id && !(r.Resolved === true || str_(r.Resolved).toUpperCase() === 'TRUE')) o.open[id] = (o.open[id] || 0) + 1;
+  });
+  return (MEMO_.reqCounts = o);
 }
 
 /* =====================================================================
@@ -2232,7 +2251,8 @@ function orderUsage_() {
   return out;
 }
 /**
- * حد خاص لطبيب (زيادة أو تقليل عن الحد العام) — Settings ← DoctorLimits = {"د. خالد": {"m": 2, "e": 1}}
+ * حد خاص لطبيب (زيادة أو تقليل عن الحد العام) — Settings ← DoctorLimits = {"د. خالد": {"m": 2, "e": 1, "i": 15}}
+ * m = الطلبات الشهرية، e = الطلبات الطارئة، i = أقصى عدد أصناف في الطلب الطارئ
  * الفارغ = الحد العام · 0 = بلا حد (مثل الحد العام)
  */
 const DOC_LIMITS_KEY_ = 'DoctorLimits';
@@ -2245,7 +2265,7 @@ function docLimits_() {
 function limitsFor_(R, target) {
   const o = docLimits_()[str_(target)] || {};
   const pick = function (v, def) { return typeof v === 'number' && v >= 0 ? v : def; };
-  return { monthlyMax: pick(o.m, R.monthlyMax), emergencyMax: pick(o.e, R.emergencyMax) };
+  return { monthlyMax: pick(o.m, R.monthlyMax), emergencyMax: pick(o.e, R.emergencyMax), emergencyMaxItems: pick(o.i, R.emergencyMaxItems) };
 }
 function leftOf_(L, u) {
   u = u || { monthly: 0, emergency: 0 };
@@ -2293,10 +2313,10 @@ function saveOrderRules_(user, v) {
     dl = {};
     Object.keys(v.docLimits).slice(0, 300).forEach(function (k) {
       const name = clean_(k, 80), x = v.docLimits[k] || {}, o = {};
-      ['m', 'e'].forEach(function (f) {
+      ['m', 'e', 'i'].forEach(function (f) {
         if (x[f] === '' || x[f] === null || x[f] === undefined) return;
         const n = Number(x[f]);
-        if (!(Math.floor(n) === n && n >= 0 && n <= 99)) throw new Error('ERR_RULE_RANGE:docLimits');
+        if (!(Math.floor(n) === n && n >= 0 && n <= (f === 'i' ? 200 : 99))) throw new Error('ERR_RULE_RANGE:docLimits');
         o[f] = n;
       });
       if (name && Object.keys(o).length) dl[name] = o;
@@ -2312,7 +2332,7 @@ function saveOrderRules_(user, v) {
     });
     if (dl) {
       const js = JSON.stringify(dl), row = t.rows.filter(function (r) { return str_(r.Key) === DOC_LIMITS_KEY_; })[0];
-      if (!row) { append_('Settings', { Key: DOC_LIMITS_KEY_, Value: js, Notes: 'حد خاص لكل طبيب: m = الشهري، e = الطارئ (الفارغ = الحد العام، 0 = بلا حد)' }); changes.push(DOC_LIMITS_KEY_ + '=' + js); }
+      if (!row) { append_('Settings', { Key: DOC_LIMITS_KEY_, Value: js, Notes: 'حد خاص لكل طبيب: m = الشهري، e = الطارئ، i = أصناف الطارئ (الفارغ = الحد العام، 0 = بلا حد)' }); changes.push(DOC_LIMITS_KEY_ + '=' + js); }
       else if (str_(row.Value) !== js) { setCells_(t, row, { Value: js }); changes.push(DOC_LIMITS_KEY_ + '=' + js); }
     }
     if (changes.length) logAction_('', 'تعديل قواعد الطلبات: ' + changes.join('، '), user.name);
