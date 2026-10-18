@@ -173,7 +173,7 @@ function log(msg) { console.log('  ✔ ' + msg); }
   const docClinicOpts = await page.$$eval('#fDocClinic option', os => os.map(o => o.textContent));
   expect(docClinicOpts.length >= 1 && !docClinicOpts.some(x => /Sterilization|فرز|Triage/i.test(x)), 'doctor request clinics exclude sterilization/triage: ' + docClinicOpts.join(' | '));
   const docGroups = await page.$$eval('#fDoctor optgroup', gs => gs.map(g => g.label));
-  expect(docGroups.length === 0 || (docGroups[0] === 'أطباء هذه العيادة' && docGroups[1] === 'باقي الأطباء'), 'doctors: this clinic first, then every other doctor — ' + docGroups.join(' | '));
+  expect(docGroups.length === 0 || (docGroups[0] === 'أطبائي' && docGroups[docGroups.length - 1] === 'باقي الأطباء'), 'doctors: her own doctors first, then this clinic, then every other doctor — ' + docGroups.join(' | '));
   await page.click('[data-seg-name="reqKind"][data-v="clinic"]');
   await page.waitForSelector('#fClinic');
   expect(!(await page.$('#fDoctor')), 'clinic consumables: clinic instead of doctor');
@@ -1439,6 +1439,26 @@ function log(msg) { console.log('  ✔ ' + msg); }
   await login(page, 'علي', '3333');
   await page.click('.sidebar [data-view="catalog"]');
   await page.waitForSelector('#caList table');
+  // إضافة أصناف دفعة واحدة: لصق صفوف من Excel (مع سطر رؤوس الأعمدة) في الجدول
+  await page.click('.card-head [data-act="caBulk"]');
+  await page.waitForSelector('.modal #cbBody');
+  expect((await page.textContent('.modal .cb-grid thead')).includes('السعر') && (await page.textContent('.modal .cb-grid thead')).includes('عهدة؟'), 'bulk grid: the single-item fields as column headers');
+  await page.click('.modal .cb-c[data-r="0"][data-c="0"]');
+  await page.evaluate(() => {
+    const tsv = 'اسم الصنف\tالاسم التجاري\tالتصنيف\tالسعر\nBulk Gauze\tSoft\tDisposables\t12.5\tأسنان\tمستهلك\tلا\t\tشاش\nBulk Mirror\t\t\t30\t\tأدوات\tنعم\tلا\nPROPHY PASTE\t\t\t9\r\n';
+    const dt = new DataTransfer(); dt.setData('text/plain', tsv);
+    document.querySelector('.modal .cb-c[data-r="0"][data-c="0"]').dispatchEvent(new ClipboardEvent('paste', { clipboardData: dt, bubbles: true, cancelable: true }));
+  });
+  expect(await page.inputValue('.modal .cb-c[data-r="1"][data-c="3"]') === '30' && (await page.textContent('#cbCount')).includes('3'), 'paste fills rows and columns, header row skipped');
+  await shot(page, 'catalog-bulk');
+  await page.click('.modal #cbOk');
+  await page.waitForSelector('.modal #cbErr:not(.hidden)');
+  expect((await page.textContent('.modal #cbErr')).includes('السطر 3') && await page.locator('.modal .cb-c.invalid').count() === 1, 'an existing item is flagged on its row; nothing saved');
+  await page.fill('.modal .cb-c[data-r="2"][data-c="0"]', '');
+  await page.fill('.modal .cb-c[data-r="2"][data-c="3"]', '');
+  await page.click('.modal #cbOk');
+  expect(await toastHas(page, 'أُضيف 2 صنف'), 'two items added in one go');
+  await page.waitForSelector('#caList tr:has-text("Bulk Mirror")');
   await page.click('.card-head [data-act="caEdit"]');
   await page.waitForSelector('.modal #caN');
   await page.fill('.modal #caN', 'Cotton Rolls');
@@ -1635,6 +1655,12 @@ function log(msg) { console.log('  ✔ ' + msg); }
   expect((await page.textContent('#stBox')).includes('عيادة الأسنان 7'), 'new clinic listed');
   expect(await page.isVisible('#stl_materials') && await page.isVisible('[data-act="stQ"]'), 'labs lists and survey questions are editable');
   await shot(page, 'admin-settings');
+  // الأصناف الأكثر طلباً لكل طبيب هذا الشهر
+  await page.click('.sidebar [data-view="docitems"]');
+  await page.waitForSelector('#diBox .card');
+  expect((await page.textContent('#diBox')).includes('الأكثر طلباً:') && await page.locator('#diDoc option').count() > 2, 'items per doctor: top item per doctor this month, doctor filter');
+  await page.selectOption('#diSort', 'name');
+  await shot(page, 'doctor-items');
   // تصحيح الطلبات: الأدمن يفتح طلباً مستلماً ويحذف صنفاً بالسبب ثم يسترجعه
   await page.click('.sidebar [data-view="reqfix"]');
   await page.fill('#rfId', 'REQ-H024');
