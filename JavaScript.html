@@ -68,7 +68,7 @@ const I18N = {
     now_wait_prep: 'بدء التجهيز — عند التموين', now_you_prep: 'ابدأ التجهيز', now_prep: 'قيد التجهيز — عند التموين', now_you_send: 'أكمل التجهيز وأرسل للفرع', now_partial: 'إرسال الباقي ({n}) — عند التموين', now_you_rest: 'أرسل الباقي ({n})',
     now_driver: 'جاهز — بانتظار السواق ينقله للفرع', now_receive: 'استلام {n} وتوقيعها', now_you_receive: 'استلم الطلب ووقّع', now_rejected: 'تعديل {n} وإعادة الإرسال', now_you_fix: 'عدّل الطلب وأعد إرساله',
     sla_left: 'طارئ · باقي {h} س', sla_over: 'طارئ · متأخر {h} س', more_n: '+{n} صنف', tag_complaints: 'بلاغ ({n})', tag_complaints_h: 'بلاغات مفتوحة على الطلب', tag_comments_h: 'تعليقات على الطلب',
-    resolve_add_note: 'أضف ملاحظة الإغلاق', resolve_note_saved: 'حُفظت ملاحظة الإغلاق — تظهر على الطلب', rl_dl_i: 'أصناف الطارئ (حد أقصى)', select_all: 'تحديد الكل', selected: 'محدد', clear_selection: 'إلغاء التحديد',
+    rl_remind: 'تذكير مهلة الطلب الشهري', rl_remind_on: 'التذكير', rl_on: 'يعمل', rl_off: 'متوقف', rl_remind_on_h: 'إيميل وإشعار جوال للأطباء وممرضاتهم: يوم فتح النافذة للجميع، ثم قبل نهايتها وآخر يوم لمن لم يُرفع طلبه الشهري (ومن عنده طلبات بانتظار اعتماده)', rl_remind_days: 'التذكير قبل النهاية بـ (أيام)', rl_remind_days_h: '0 = آخر يوم فقط', rl_remind_hour: 'ساعة الإرسال', rl_remind_hour_h: 'بتوقيت الرياض (0–23)', rl_days_left: 'باقي {n} يوم على آخر مهلة (يوم {b})', rl_last_day: 'اليوم آخر مهلة للطلب الشهري', resolve_add_note: 'أضف ملاحظة الإغلاق', resolve_note_saved: 'حُفظت ملاحظة الإغلاق — تظهر على الطلب', rl_dl_i: 'أصناف الطارئ (حد أقصى)', select_all: 'تحديد الكل', selected: 'محدد', clear_selection: 'إلغاء التحديد',
     stk_app_url: 'رابط الموقع (لزر «افتح الطلب» في الإيميلات)', stk_app_url_h: 'الرابط الذي يدخل منه الفريق، يبدأ بـ https://', ERR_BAD_URL: 'الرابط غير صحيح — يجب أن يبدأ بـ https://',
     rl_monthly_lock: 'الطلب الشهري بعد نهاية النافذة', rl_monthly_lock_h: 'عند الإقفال لا يُقبل طلب شهري بعد يوم النهاية حتى تُفتح من جديد (الطارئ لا يتأثر)', ERR_MONTHLY_CLOSED: 'الطلب الشهري مقفل — نافذة الرفع من يوم {a} إلى {b}. للضرورة ارفعي طلباً طارئاً أو اطلبي من التموين فتح الشهري',
     rcv_reject: 'رفض', rcv_unreject: 'تراجع', rcv_rej_title: 'رفض صنف عند الاستلام', rcv_rej_reason: 'السبب — مثلاً: غير مطابق للطلب، تالف، غير مرغوب', rcv_rej_photo: 'صورة الصنف (إلزامية)', rcv_rej_ok: 'رفض الصنف', rcv_rej_tag: 'مرفوض عند الاستلام', rcv_rej_photo_link: 'الصورة', rcv_rej_hint: 'الصنف المرفوض يُسجَّل «لم يُستلم» ويصل السبب والصورة للتموين والطبيب',
@@ -196,7 +196,7 @@ const I18N = {
     now_wait_prep: 'start preparing — with procurement', now_you_prep: 'start preparing', now_prep: 'being prepared — with procurement', now_you_send: 'finish preparing and send to the branch', now_partial: 'send the rest ({n}) — with procurement', now_you_rest: 'send the rest ({n})',
     now_driver: 'ready — waiting for the driver', now_receive: '{n} to receive and sign', now_you_receive: 'receive the request and sign', now_rejected: '{n} to edit and resubmit', now_you_fix: 'edit the request and resubmit',
     sla_left: 'Emergency · {h}h left', sla_over: 'Emergency · {h}h late', more_n: '+{n} items', tag_complaints: 'Report ({n})', tag_complaints_h: 'Open reports on this request', tag_comments_h: 'Comments on this request',
-    resolve_add_note: 'Add closing note', resolve_note_saved: 'Closing note saved — shown on the request', rl_dl_i: 'Emergency items (max)', select_all: 'Select all', selected: 'selected', clear_selection: 'Clear',
+    rl_remind: 'Monthly deadline reminders', rl_remind_on: 'Reminders', rl_on: 'On', rl_off: 'Off', rl_remind_on_h: 'Email and phone push to doctors and their nurses: when the window opens for everyone, then before the end and on the last day for those without a monthly order (and pending approvals)', rl_remind_days: 'Remind before the end (days)', rl_remind_days_h: '0 = last day only', rl_remind_hour: 'Send at hour', rl_remind_hour_h: 'Riyadh time (0–23)', rl_days_left: '{n} day(s) left until the deadline (day {b})', rl_last_day: 'Today is the monthly order deadline', resolve_add_note: 'Add closing note', resolve_note_saved: 'Closing note saved — shown on the request', rl_dl_i: 'Emergency items (max)', select_all: 'Select all', selected: 'selected', clear_selection: 'Clear',
     stk_app_url: 'Website link (for the «Open request» button in emails)', stk_app_url_h: 'The link your team signs in from, starting with https://', ERR_BAD_URL: 'The link is not valid — it must start with https://',
     rl_monthly_lock: 'Monthly requests after the window ends', rl_monthly_lock_h: 'When locked, no monthly request is accepted after the end day until it is opened again (emergencies are not affected)', ERR_MONTHLY_CLOSED: 'Monthly requests are closed — the window is day {a} to {b}. Raise an emergency request if needed, or ask procurement to reopen monthly requests',
     rcv_reject: 'Reject', rcv_unreject: 'Undo', rcv_rej_title: 'Reject an item at receipt', rcv_rej_reason: 'Reason — e.g. not what was ordered, damaged, not wanted', rcv_rej_photo: 'Photo of the item (required)', rcv_rej_ok: 'Reject item', rcv_rej_tag: 'Rejected at receipt', rcv_rej_photo_link: 'Photo', rcv_rej_hint: 'A rejected item is recorded as not received; procurement and the doctor get the reason and photo',
@@ -2157,7 +2157,7 @@ ACT.complaint = el => openComplaint(el.dataset.id);
    NURSE — new request
    ===================================================================== */
 /* قواعد الطلبات (من الخادم — يعدّلها التموين/المالية/التنفيذية/الجودة من «قواعد الطلبات»). القيم الافتراضية قبل وصولها */
-const RULES_DEF = { winStart: 15, winEnd: 20, dispatchDay: 1, emergencyHours: 48, emergencyMax: 0, monthlyMax: 0, emergencyMaxItems: 0 };
+const RULES_DEF = { winStart: 15, winEnd: 20, dispatchDay: 1, emergencyHours: 48, emergencyMax: 0, monthlyMax: 0, emergencyMaxItems: 0, remindOn: 1, remindDaysBefore: 1, remindHour: 9 };
 const rules = () => S.rules || RULES_DEF;
 /** نص فيه أيام النافذة {a}–{b} ويوم الصرف {d} ومهلة الطارئ {h} */
 function tr(k, p) { const R = rules(); return t(k, Object.assign({ a: R.winStart, b: R.winEnd, d: R.dispatchDay, h: R.emergencyHours }, p || {})); }
@@ -2173,6 +2173,8 @@ function ruleBarHtml() {
   const inW = R.inWindow;
   const lines = [];
   if (R.monthlyLock && pastMonthlyWindow()) lines.push(t('ERR_MONTHLY_CLOSED', { a: R.winStart, b: R.winEnd }));
+  // داخل النافذة: كم يوم باقي على آخر مهلة (آخر يوم يُكتب صراحة)
+  if (inW && R.today) lines.push(R.today === R.winEnd ? t('rl_last_day') : t('rl_days_left', { n: R.winEnd - R.today, b: R.winEnd }));
   // الحد لكل طبيب (أو عيادة): المتبقي للطبيب المختار في الطلب، وإلا الحد نفسه
   const tg = ruleTarget(), L = leftFor(tg);
   if (L && tg) {
@@ -4713,7 +4715,8 @@ function loadComplaints(silent) {
 const RULE_FIELDS = [
   { sec: 'rl_monthly', icon: 'calendar', fields: [['winStart', 'rl_win_start', 1, 31], ['winEnd', 'rl_win_end', 1, 31], ['dispatchDay', 'rl_dispatch', 1, 31, 'rl_dispatch_h'], ['monthlyMax', 'rl_monthly_max', 0, 99, 'rl_zero'], ['monthlyLock', 'rl_monthly_lock', 0, 1, 'rl_monthly_lock_h', 'toggle']] },
   { sec: 'rl_emergency', icon: 'zap', fields: [['emergencyMax', 'rl_em_max', 0, 99, 'rl_zero'], ['emergencyHours', 'rl_em_hours', 3, 48, 'rl_em_hours_h'], ['emergencyMaxItems', 'rl_em_items', 0, 200, 'rl_em_items_h']] },
-  { sec: 'rl_free', icon: 'lock', fields: [['freeLocked', 'rl_free_lock', 0, 1, 'rl_free_lock_h', 'toggle']] }
+  { sec: 'rl_free', icon: 'lock', fields: [['freeLocked', 'rl_free_lock', 0, 1, 'rl_free_lock_h', 'toggle']] },
+  { sec: 'rl_remind', icon: 'bell', fields: [['remindOn', 'rl_remind_on', 0, 1, 'rl_remind_on_h', 'toggle', ['rl_off', 'rl_on']], ['remindDaysBefore', 'rl_remind_days', 0, 10, 'rl_remind_days_h'], ['remindHour', 'rl_remind_hour', 0, 23, 'rl_remind_hour_h']] }
 ];
 VIEWS.rules = {
   title: 'nav_rules', sub: 'sub_rules',
@@ -4729,7 +4732,7 @@ function renderRulesForm() {
     '<div class="grid-2">' + RULE_FIELDS.map(g => '<section class="card"><div class="card-head"><h3>' + icon(g.icon) + esc(t(g.sec)) + '</h3></div><div class="card-body stack">' +
       g.fields.map(f => '<div class="field"><label for="rl_' + f[0] + '">' + esc(t(f[1])) + '</label>' +
         (f[5] === 'toggle'
-          ? '<select class="select rl-in" id="rl_' + f[0] + '" data-k="' + f[0] + '" min="0" max="1"' + (ro ? ' disabled' : '') + '><option value="0"' + (R[f[0]] ? '' : ' selected') + '>' + esc(t('rl_free_open')) + '</option><option value="1"' + (R[f[0]] ? ' selected' : '') + '>' + esc(t('rl_free_closed')) + '</option></select>'
+          ? '<select class="select rl-in" id="rl_' + f[0] + '" data-k="' + f[0] + '" min="0" max="1"' + (ro ? ' disabled' : '') + '><option value="0"' + (R[f[0]] ? '' : ' selected') + '>' + esc(t(f[6] ? f[6][0] : 'rl_free_open')) + '</option><option value="1"' + (R[f[0]] ? ' selected' : '') + '>' + esc(t(f[6] ? f[6][1] : 'rl_free_closed')) + '</option></select>'
           : '<input class="input rl-in" type="number" inputmode="numeric" id="rl_' + f[0] + '" data-k="' + f[0] + '" min="' + f[2] + '" max="' + f[3] + '" step="1" value="' + esc(R[f[0]]) + '"' + (ro ? ' disabled' : '') + '>') +
         (f[4] ? '<div class="hint">' + esc(t(f[4])) + '</div>' : '') + '</div>').join('') +
     '</div></section>').join('') + '</div>' +

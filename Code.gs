@@ -2208,7 +2208,10 @@ const ORDER_RULES_ = [
   ['emergencyMax', 'EmergencyMaxPerMonth', 0, 0, 99, 'عدد الطلبات الطارئة المسموحة لكل طبيب في الشهر أياً كانت الممرضة (0 = بلا حد) — حد خاص لطبيب في DoctorLimits'],
   ['emergencyHours', 'EmergencyDueHours', EMERGENCY_DUE_HOURS, 3, 48, 'مهلة الطلب الطارئ بالساعات (من 3 إلى 48)'],
   ['emergencyMaxItems', 'EmergencyMaxItems', 0, 0, 200, 'أقصى عدد أصناف مختلفة (مستهلك أو ماتيريال) في الطلب الطارئ (0 = بلا حد)'],
-  ['freeLocked', 'FreeItemsLocked', 0, 0, 1, 'إقفال إدخال صنف حر (مستهلك أو ماتيريال) للتمريض: 1 = مقفل · 0 = مسموح']
+  ['freeLocked', 'FreeItemsLocked', 0, 0, 1, 'إقفال إدخال صنف حر (مستهلك أو ماتيريال) للتمريض: 1 = مقفل · 0 = مسموح'],
+  ['remindOn', 'MonthlyRemindersOn', 1, 0, 1, 'تذكير الأطباء والممرضات بمهلة الطلب الشهري: 1 = يعمل · 0 = متوقف'],
+  ['remindDaysBefore', 'MonthlyRemindDaysBefore', 1, 0, 10, 'تذكير من لم يرفع طلبه الشهري قبل نهاية النافذة بكم يوم (0 = آخر يوم فقط)'],
+  ['remindHour', 'MonthlyRemindHour', 9, 0, 23, 'ساعة إرسال التذكير بتوقيت الرياض (0–23)']
 ];
 function orderRules_() {
   if (MEMO_.orderRules) return MEMO_.orderRules;
@@ -4878,6 +4881,116 @@ function deliver_(users, subject, body) {
   if (to.length) sendMail_(to.join(','), subject, body);
   pushNotify_(names, subject, body);
   return to.length > 0;
+}
+
+/* =====================================================================
+ *  تذكير مهلة الطلب الشهري (حسب «قواعد الطلبات»): يوم بداية النافذة للجميع، وقبل نهايتها وآخر يوم
+ *  لمن لم يُرفع طلب طبيبه الشهري بعد (الطبيب وممرضاته) + من عنده طلبات بانتظار اعتماده.
+ *  كل تذكير يُرسل مرة واحدة في الشهر (سجل في Settings ← MonthlyRemindersSent).
+ *  Render: يستدعيه الخادم دورياً (cronTick_) · Apps Script: فقط بعد تشغيل installReminders يدوياً
+ *  (حتى لا يرسل الرابط البديل تذكيراً مكرراً من بيانات قديمة).
+ * ===================================================================== */
+const REMIND_LOG_KEY_ = 'MonthlyRemindersSent';
+function remindKinds_(R, day) {
+  const k = [];
+  if (day === R.winStart) k.push('open');
+  const soon = R.winEnd - R.remindDaysBefore;
+  if (R.remindDaysBefore > 0 && soon > R.winStart && day === soon) k.push('soon');
+  if (day === R.winEnd && R.winEnd !== R.winStart) k.push('last');
+  return k;
+}
+function monthlyReminders_(nowMs) {
+  const now = nowMs || Date.now();
+  resetMemo_();
+  const R = orderRules_();
+  if (!R.remindOn) return [];
+  const ymd = riyadh_(now), day = Number(ymd.slice(8, 10)), month = ymd.slice(0, 7);
+  if (new Date(now + 3 * 36e5).getUTCHours() < R.remindHour) return [];
+  let kinds = remindKinds_(R, day);
+  if (!kinds.length) return [];
+  // يُسجَّل قبل الإرسال: لو تكرر الاستدعاء (أكثر من خادم/مشغّل) لا يتكرر التذكير
+  withLock_(function () {
+    resetMemo_();
+    const t = freshTable_('Settings');
+    const row = t.rows.filter(function (r) { return str_(r.Key) === REMIND_LOG_KEY_; })[0];
+    let log = {};
+    try { log = JSON.parse(str_(row && row.Value) || '{}') || {}; } catch (e) { log = {}; }
+    const sent = log.month === month ? (log.sent || []) : [];
+    kinds = kinds.filter(function (k) { return sent.indexOf(k) === -1; });
+    if (!kinds.length) return;
+    const js = JSON.stringify({ month: month, sent: sent.concat(kinds) });
+    if (row) setCells_(t, row, { Value: js });
+    else append_('Settings', { Key: REMIND_LOG_KEY_, Value: js, Notes: 'تذكيرات مهلة الطلب الشهري المرسلة هذا الشهر (لا تُعدَّل يدوياً)' });
+  });
+  if (!kinds.length) return [];
+  resetMemo_();
+  const usage = orderUsage_(), acc = doctorAccounts_();
+  const docs = read_('Doctors').rows.map(function (r) { return { name: str_(r.DoctorName), nurses: nurseList_(r.NurseName) }; })
+    .filter(function (d) { return d.name; });
+  const pending = {};
+  queryRequests_({}).forEach(function (r) {
+    if (r.awaitingDoctor && r.approver !== 'branch' && acc[r.doctor]) pending[acc[r.doctor]] = (pending[acc[r.doctor]] || 0) + 1;
+  });
+  const dueAr = 'يوم ' + R.winEnd, dueEn = 'day ' + R.winEnd, out = [];
+  kinds.forEach(function (kind) {
+    // لكل شخص: الأطباء الذين يخصونه (الطبيب نفسه، أو الممرضة لأطبائها)
+    const who = {};
+    const add = function (person, doc) { if (person) (who[person] = who[person] || []).indexOf(doc) === -1 && who[person].push(doc); };
+    docs.forEach(function (d) {
+      if (kind !== 'open' && ((usage[d.name] || {}).monthly || 0) > 0) return; // رُفع طلبه — لا تذكير
+      add(acc[d.name], d.name);
+      d.nurses.forEach(function (n) { add(n, d.name); });
+    });
+    if (kind !== 'open') Object.keys(pending).forEach(function (p) { if (!who[p]) who[p] = []; });
+    Object.keys(who).forEach(function (person) {
+      const list = who[person], pend = kind === 'open' ? 0 : pending[person] || 0;
+      if (!list.length && !pend) return;
+      const ar = kind === 'open' ? { t: 'فتحت نافذة الطلب الشهري', l: 'ارفع الطلب الشهري من ' + R.winStart + ' إلى ' + R.winEnd + ' — آخر مهلة ' + dueAr + '.' }
+        : kind === 'soon' ? { t: 'باقي ' + R.remindDaysBefore + ' يوم على مهلة الطلب الشهري', l: 'آخر مهلة ' + dueAr + ' ولم يُرفع الطلب الشهري بعد.' }
+        : { t: 'اليوم آخر مهلة للطلب الشهري', l: 'اليوم ' + dueAr + ' آخر يوم لرفع الطلب الشهري ولم يُرفع بعد.' };
+      const en = kind === 'open' ? { t: 'The monthly order window is open', l: 'Submit the monthly order from ' + R.winStart + ' to ' + R.winEnd + ' — deadline ' + dueEn + '.' }
+        : kind === 'soon' ? { t: R.remindDaysBefore + ' day(s) left for the monthly order', l: 'Deadline ' + dueEn + ' and the monthly order is not submitted yet.' }
+        : { t: 'Today is the monthly order deadline', l: 'Today (' + dueEn + ') is the last day and the monthly order is not submitted yet.' };
+      const linesAr = [], linesEn = [];
+      if (list.length && kind !== 'open') { linesAr.push('بدون طلب شهري: ' + list.join('، ')); linesEn.push('No monthly order: ' + list.join(', ')); }
+      if (pend) { linesAr.push('عندك ' + pend + ' طلب بانتظار اعتمادك قبل الصرف.'); linesEn.push(pend + ' request(s) awaiting your approval before dispatch.'); }
+      const onlyPend = !list.length;
+      const subject = '⏰ ' + (onlyPend ? 'طلبات بانتظار اعتمادك' : ar.t) + ' · ' + (onlyPend ? 'Requests awaiting your approval' : en.t);
+      notifyUser_(person, subject, mailMsg_({ order: ['ar', 'en'],
+        ar: { title: onlyPend ? 'طلبات بانتظار اعتمادك' : ar.t, lead: onlyPend ? '' : ar.l, lines: linesAr, btn: 'افتح النظام' },
+        en: { title: onlyPend ? 'Requests awaiting your approval' : en.t, lead: onlyPend ? '' : en.l, lines: linesEn, btn: 'Open the system' } }));
+      out.push({ to: person, kind: kind, doctors: list, pending: pend });
+    });
+  });
+  if (out.length) withLock_(function () { logAction_('', 'تذكير مهلة الطلب الشهري (' + kinds.join('، ') + '): ' + out.length + ' مستلم', 'النظام'); });
+  return out;
+}
+/** Render: كل ~10 دقائق — التذكيرات + الملخص اليومي للمتأخرات مرة واحدة يومياً بعد الساعة 8 */
+const DIGEST_DAY_KEY_ = 'DailyDigestSentOn';
+function cronTick_(nowMs) {
+  const now = nowMs || Date.now(), res = { reminders: monthlyReminders_(now).length, digest: -1 };
+  const today = riyadh_(now);
+  if (new Date(now + 3 * 36e5).getUTCHours() >= 8) {
+    let go = false;
+    withLock_(function () {
+      resetMemo_();
+      const t = freshTable_('Settings');
+      const row = t.rows.filter(function (r) { return str_(r.Key) === DIGEST_DAY_KEY_; })[0];
+      if (row && str_(row.Value) === today) return;
+      if (row) setCells_(t, row, { Value: today });
+      else append_('Settings', { Key: DIGEST_DAY_KEY_, Value: today, Notes: 'آخر يوم أُرسل فيه ملخص المتأخرات اليومي (لا يُعدَّل يدوياً)' });
+      go = true;
+    });
+    if (go) { resetMemo_(); res.digest = sendDigest_(); }
+  }
+  return res;
+}
+/** Apps Script (الرابط البديل): مشغّل كل ساعة للتذكيرات — يُثبَّت يدوياً فقط إذا صار هو النظام الأساسي */
+function reminderTick(e) { if (!e || !e.triggerUid) return 0; return monthlyReminders_(Date.now()).length; }
+function installReminders() {
+  const has = ScriptApp.getProjectTriggers().some(function (t) { return t.getHandlerFunction() === 'reminderTick'; });
+  if (!has) ScriptApp.newTrigger('reminderTick').timeBased().everyHours(1).create();
+  return !has;
 }
 
 /* =====================================================================
