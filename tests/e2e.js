@@ -173,7 +173,7 @@ function log(msg) { console.log('  ✔ ' + msg); }
   const docClinicOpts = await page.$$eval('#fDocClinic option', os => os.map(o => o.textContent));
   expect(docClinicOpts.length >= 1 && !docClinicOpts.some(x => /Sterilization|فرز|Triage/i.test(x)), 'doctor request clinics exclude sterilization/triage: ' + docClinicOpts.join(' | '));
   const docGroups = await page.$$eval('#fDoctor optgroup', gs => gs.map(g => g.label));
-  expect(docGroups.length === 0 || (docGroups[0] === 'أطباء هذه العيادة' && docGroups[1] === 'باقي الأطباء'), 'doctors: this clinic first, then every other doctor — ' + docGroups.join(' | '));
+  expect(docGroups.length === 0 || (docGroups[0] === 'أطبائي' && docGroups[docGroups.length - 1] === 'باقي الأطباء'), 'doctors: her own doctors first, then this clinic, then every other doctor — ' + docGroups.join(' | '));
   await page.click('[data-seg-name="reqKind"][data-v="clinic"]');
   await page.waitForSelector('#fClinic');
   expect(!(await page.$('#fDoctor')), 'clinic consumables: clinic instead of doctor');
@@ -1655,6 +1655,12 @@ function log(msg) { console.log('  ✔ ' + msg); }
   expect((await page.textContent('#stBox')).includes('عيادة الأسنان 7'), 'new clinic listed');
   expect(await page.isVisible('#stl_materials') && await page.isVisible('[data-act="stQ"]'), 'labs lists and survey questions are editable');
   await shot(page, 'admin-settings');
+  // الأصناف الأكثر طلباً لكل طبيب هذا الشهر
+  await page.click('.sidebar [data-view="docitems"]');
+  await page.waitForSelector('#diBox .card');
+  expect((await page.textContent('#diBox')).includes('الأكثر طلباً:') && await page.locator('#diDoc option').count() > 2, 'items per doctor: top item per doctor this month, doctor filter');
+  await page.selectOption('#diSort', 'name');
+  await shot(page, 'doctor-items');
   // تصحيح الطلبات: الأدمن يفتح طلباً مستلماً ويحذف صنفاً بالسبب ثم يسترجعه
   await page.click('.sidebar [data-view="reqfix"]');
   await page.fill('#rfId', 'REQ-H024');

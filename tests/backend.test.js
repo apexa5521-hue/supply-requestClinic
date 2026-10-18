@@ -3218,3 +3218,29 @@ test('catalog bulk add: rows pasted from Excel are checked first, then saved tog
   assert.ok(cat.some(x => x.ItemName === 'بوند' && x.AliasOf === 'Bond 7th gen'), 'aliases column works');
   throwsCode(() => api(login('سارة', '1111'), 'saveCatalogItems', [{ name: 'x', price: 1 }]), 'ERR_FORBIDDEN');
 });
+
+test('stats: top items per doctor per month (finance, quality, admin); a nurse can be responsible for several doctors', () => {
+  const { api, login, gas } = boot();
+  const n = login('سارة', '1111'), q = login('منى', '5555'), a = login('المدير', '1234'), fin = login('نواف', '7777');
+  for (let i = 0; i < 3; i++) api(n, 'createRequest', { doctor: 'د. نورة', type: 'شهري', items: [{ name: 'PROPHY PASTE', qty: 1 + i }, ...(i ? [{ name: 'DENTAL FLOSS', qty: i }] : [])] });
+  const st = api(q, 'getDoctorItemStats', {});
+  const nora = st.doctors.find(d => d.doctor === 'د. نورة');
+  assert.deepEqual(nora.items.slice(0, 2).map(x => [x.item, x.times, x.qty]), [['PROPHY PASTE', 3, 6], ['DENTAL FLOSS', 2, 3]], 'times requested + total quantity, most requested first');
+  assert.equal(nora.requests, 3);
+  assert.equal(st.months.length, 12);
+  assert.equal(api(fin, 'getDoctorItemStats', { doctor: 'د. نورة' }).doctors.length, 1, 'doctor filter');
+  assert.equal(api(a, 'getDoctorItemStats', { month: '2001-01' }).doctors.length, 0);
+  throwsCode(() => api(n, 'getDoctorItemStats', {}), 'ERR_FORBIDDEN');
+  // admin makes سارة responsible for د. نورة and د. فهد: they come first as «my doctors»
+  const sara = api(a, 'getUsers').find(u => u.name === 'سارة');
+  api(a, 'updateUser', 'سارة', Object.assign({}, sara, { doctors: ['د. نورة', 'د. فهد'] }));
+  assert.deepEqual(api(a, 'getUsers').find(u => u.name === 'سارة').doctors.sort(), ['د. فهد', 'د. نورة']);
+  const docs = api(n, 'getDoctors', '', { all: true });
+  assert.deepEqual(docs.filter(d => d.mine).map(d => d.name).sort(), ['د. فهد', 'د. نورة']);
+  // another nurse can share a doctor without removing سارة
+  const reem = api(a, 'getUsers').find(u => u.name === 'ريم');
+  api(a, 'updateUser', 'ريم', Object.assign({}, reem, { doctors: ['د. نورة'] }));
+  assert.equal(rows(gas, 'Doctors').find(r => r.DoctorName === 'د. نورة').NurseName, 'سارة, ريم');
+  api(a, 'updateUser', 'سارة', Object.assign({}, sara, { doctors: ['د. فهد'] }));
+  assert.equal(rows(gas, 'Doctors').find(r => r.DoctorName === 'د. نورة').NurseName, 'ريم', 'unticking removes only her');
+});
