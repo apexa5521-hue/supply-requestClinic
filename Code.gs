@@ -39,6 +39,8 @@ const SCHEMA = {
                  'RejectNote', 'RejectBy', 'RejectAt', 'RejectQty'], // رفض التموين لصنف: السبب يظهر للطبيب والممرضة، والكمية الأصلية للتراجع
   // سجل التراجعات: كل تراجع عن خطوة (شحنة أُرسلت بالغلط، حالة طلب، حالة صنف) مع السبب والوقت — تراه الجودة والإدارة
   Reversals:    ['Timestamp', 'RequestID', 'User', 'Role', 'Scope', 'From', 'To', 'Reason', 'Details'],
+  // منصة استبيان التمريض: نسخة من كل بلاغ (طلب/شحنة، عهدة) + ما يُرفع من الاستبيان نفسه (لا يذهب للتموين)
+  NurseIssues:  ['IssueID', 'Timestamp', 'Source', 'SourceID', 'RequestID', 'Author', 'Role', 'Clinic', 'Branch', 'Type', 'Message', 'Status', 'StatusNote', 'UpdatedAt', 'UpdatedBy'],
   // الطلبات الخارجية (للمورد/المندوب): رأس الطلبية + أصنافها، ونسخة طلب عرض السعر كما صُدّر وقتها
   ExtOrders:    ['OrderID', 'CreatedAt', 'CreatedBy', 'Supplier', 'Contact', 'Notes', 'Status', 'SentAt', 'SentBy', 'ExpectedAt', 'ArrivedAt', 'ArrivedBy',
                  'RfqAt', 'RfqSnapshot', 'RemindedOn', 'UpdatedAt'],
@@ -647,6 +649,9 @@ const API_ = {
   adminDeleteRequest:        { screens: ['admin'], fn: adminDeleteRequest_ },
   adminSetItemQty:           { screens: ['admin'], fn: adminSetItemQty_ },
   getExtOrders:              { screens: ['procurement', 'admin'], fn: getExtOrders_ },
+  getNurseIssues:            { screens: ['nurse'], perm: 'surveys', fn: getNurseIssues_ },
+  addNurseIssue:             { screens: ['nurse'], fn: addNurseIssue_ },
+  setNurseIssueStatus:       { screens: [], perm: 'surveys', fn: setNurseIssueStatus_ },
   saveExtOrder:              { screens: ['procurement'], fn: saveExtOrder_ },
   addExtOrderItems:          { screens: ['procurement'], fn: addExtOrderItems_ },
   deleteExtOrder:            { screens: ['procurement'], fn: deleteExtOrder_ },
@@ -4291,6 +4296,79 @@ function adminRestoreRequest_(user, requestId) {
 }
 
 /* =====================================================================
+ *  منصة استبيان التمريض: كل بلاغ يُسجَّل في النظام (بلاغ طلب/شحنة، بلاغ عهدة) تُحفظ منه نسخة هنا وتتبع حالته الأصلية.
+ *  وما يُرفع من الاستبيان نفسه يبقى في المنصة فقط — لا يُنشئ بلاغاً عند التموين (اتجاه واحد).
+ *  الممرضة ترى ما رفعته، والجودة/التنفيذية/الأدمن (صلاحية surveys) يرون الكل ويتابعون ما رُفع من الاستبيان.
+ * ===================================================================== */
+const NI_SRC_ = { REQ: 'بلاغ طلب/شحنة', ASSET: 'بلاغ عهدة', SURVEY: 'من الاستبيان' };
+const NI_ST_ = { NEW: 'جديد', WORK: 'قيد المتابعة', CLOSED: 'مغلق' };
+const NI_TYPES_ = ['تأخير الطلبات', 'نقص المستهلكات', 'جودة المستهلكات', 'التعامل والتواصل', 'العهدة والأدوات', 'اقتراح', 'أخرى'];
+function issueCopy_(o) {
+  try {
+    const id = 'NI-' + Utilities.formatDate(new Date(), TZ, 'yyMMddHHmmss') + '-' + Math.floor(Math.random() * 900 + 100);
+    const now = new Date();
+    append_('NurseIssues', Object.assign({ IssueID: id, Timestamp: now, Status: NI_ST_.NEW, StatusNote: '', UpdatedAt: now, UpdatedBy: '' }, o));
+    return id;
+  } catch (e) { console.error('issueCopy_', e); return ''; } // النسخة لا تُفشل البلاغ الأصلي
+}
+/** تحديث حالة النسخة من حالة الأصل (البلاغ أو بلاغ العهدة) */
+function issueSync_(sourceId, status, note, by) {
+  try {
+    const t = tableWithCols_('NurseIssues');
+    const row = t.rows.filter(function (r) { return str_(r.SourceID) === str_(sourceId); })[0];
+    if (row) setCells_(t, row, { Status: status, StatusNote: note || str_(row.StatusNote), UpdatedAt: new Date(), UpdatedBy: by || '' });
+  } catch (e) { console.error('issueSync_', e); }
+}
+function mapIssue_(r) {
+  return { id: str_(r.IssueID), time: r.Timestamp, source: str_(r.Source), sourceId: str_(r.SourceID), requestId: str_(r.RequestID), author: str_(r.Author),
+    role: str_(r.Role), clinic: str_(r.Clinic), branch: str_(r.Branch), type: str_(r.Type), message: str_(r.Message), status: str_(r.Status) || NI_ST_.NEW,
+    note: str_(r.StatusNote), updatedAt: r.UpdatedAt, updatedBy: str_(r.UpdatedBy), own: str_(r.Source) === NI_SRC_.SURVEY };
+}
+function getNurseIssues_(user) {
+  const all = (user.perms || []).indexOf('surveys') !== -1 || user.screen === 'admin';
+  const list = read_('NurseIssues').rows.filter(function (r) { return str_(r.IssueID); }).map(mapIssue_)
+    .filter(function (x) { return all ? (!SCOPE_BRANCH_ || !x.branch || inScope_(x.branch)) : x.author === user.name; })
+    .sort(function (a, b) { return toMs_(b.time) - toMs_(a.time); });
+  return { issues: list, types: NI_TYPES_, statuses: [NI_ST_.NEW, NI_ST_.WORK, NI_ST_.CLOSED], canManage: all, clinics: userClinics_(user) };
+}
+/** ما يُرفع من الاستبيان: يبقى في المنصة فقط (لا بلاغ عند التموين) */
+function addNurseIssue_(user, o) {
+  o = o || {};
+  const type = NI_TYPES_.indexOf(str_(o.type)) !== -1 ? str_(o.type) : 'أخرى';
+  const message = clean_(o.message, 2000);
+  if (!message) throw new Error('ERR_REQUIRED');
+  const clinic = clean_(o.clinic, 120);
+  let id;
+  withLock_(function () {
+    resetMemo_();
+    id = issueCopy_({ Source: NI_SRC_.SURVEY, SourceID: '', RequestID: '', Author: user.name, Role: user.role, Clinic: clinic, Branch: clinic ? clinicBranch_(clinic) : '', Type: type, Message: message });
+  });
+  notifyPerm_('surveys', '📝 ملاحظة جديدة من استبيان التمريض (' + type + ') · New nurse survey note', mailMsg_({ order: ['ar', 'en'],
+    ar: { title: 'ملاحظة من استبيان التمريض: ' + type, lead: 'من ' + user.name + (clinic ? ' — ' + clinic : '') + ':', lines: [message], btn: 'افتح استبيان التمريض' },
+    en: { title: 'Nurse survey note: ' + type, lead: 'From ' + user.name + (clinic ? ' — ' + clinic : '') + ':', lines: [message], btn: 'Open nurse survey' } }));
+  return getNurseIssues_(user);
+}
+/** الجودة/الإدارة تتابع ما رُفع من الاستبيان (النسخ تتبع أصلها فلا تُعدَّل هنا) */
+function setNurseIssueStatus_(user, id, status, note) {
+  if ([NI_ST_.NEW, NI_ST_.WORK, NI_ST_.CLOSED].indexOf(str_(status)) === -1) throw new Error('ERR_BAD_TRANSITION');
+  note = clean_(note, 1000);
+  if (status === NI_ST_.CLOSED && !note) throw new Error('ERR_NOTE_REQUIRED');
+  let author = '';
+  withLock_(function () {
+    resetMemo_();
+    const t = tableWithCols_('NurseIssues');
+    const row = t.rows.filter(function (r) { return str_(r.IssueID) === str_(id); })[0];
+    if (!row) throw new Error('ERR_NOT_FOUND');
+    if (str_(row.Source) !== NI_SRC_.SURVEY) throw new Error('ERR_ISSUE_COPY');
+    setCells_(t, row, { Status: status, StatusNote: note || str_(row.StatusNote), UpdatedAt: new Date(), UpdatedBy: user.name });
+    author = str_(row.Author);
+  });
+  if (author && author !== user.name && status === NI_ST_.CLOSED) notifyUser_(author, 'أُغلقت ملاحظتك في استبيان التمريض · Your survey note was closed', mailMsg_({ order: ['ar', 'en'],
+    ar: { title: 'أُغلقت ملاحظتك', lead: user.name + ':', lines: [note] }, en: { title: 'Your note was closed', lead: user.name + ':', lines: [note] } }));
+  return getNurseIssues_(user);
+}
+
+/* =====================================================================
  *  الطلبات الخارجية (التموين ← المورد/المندوب):
  *  التموين يختار من طلب ما يحتاجه بالضبط (الصنف والكمية، مع التعديل والحذف) ويجمع أصنافاً لنفس المورد في طلبية واحدة،
  *  ثم يصدّر «طلب عرض سعر» (تُحفظ نسخته كما صُدّرت) ← «تم الإرسال للمندوب» بتاريخ وصول متوقع ← تذكير يوم الموعد وبعده
@@ -5015,6 +5093,8 @@ function addComplaint_(user, requestId, type, message) {
     ComplaintID: id, Timestamp: new Date(), RequestID: str_(requestId), Author: user.name,
     Role: user.role, Type: type, Message: message, Resolved: false
   });
+  const cr0 = findRequestSafe_(requestId) || {};
+  issueCopy_({ Source: NI_SRC_.REQ, SourceID: id, RequestID: str_(requestId), Author: user.name, Role: user.role, Clinic: cr0.clinic || '', Branch: cr0.branch || '', Type: type, Message: message });
   logAction_(requestId, 'بلاغ (' + type + ')', user.name);
   // البلاغ (من الطبيب أو الممرضة): التموين + الأدمن + الجودة + كل من لديه صلاحية البلاغات — إيميل واحد بلا تكرار
   const creq = findRequestSafe_(requestId);
@@ -5063,6 +5143,7 @@ function resolveComplaint_(user, complaintId, note) {
     append_('Comments', { Timestamp: now, RequestID: c.req, Author: user.name, Role: user.role,
       Message: (closed ? '📝 ملاحظة إغلاق البلاغ (' : '✅ أُغلق البلاغ (') + c.type + '): ' + note });
     logAction_(c.req, (closed ? 'ملاحظة إغلاق بلاغ ' : 'إغلاق بلاغ ') + c.id + ' — ' + note, user.name);
+    issueSync_(c.id, NI_ST_.CLOSED, note, user.name);
   });
   if (c.author && c.author !== user.name) {
     const req = findRequestSafe_(c.req);
@@ -5100,6 +5181,7 @@ function complaintProgress_(user, complaintId, step, reply) {
     append_('Comments', { Timestamp: now, RequestID: c.req, Author: user.name, Role: user.role,
       Message: (to === CMP_DONE_ ? '✅ ' : '🛠️ ') + 'التموين — ' + to + ' (بلاغ ' + c.type + '): ' + reply });
     logAction_(c.req, 'بلاغ ' + c.id + ': ' + to + ' — ' + reply, user.name);
+    issueSync_(c.id, to, reply, user.name);
   });
   const req = findRequestSafe_(c.req);
   const subject = (to === CMP_DONE_ ? '✅ تمت معالجة البلاغ' : '🛠️ جاري معالجة البلاغ') + ' على الطلب ' + c.req + ' · ' + (to === CMP_DONE_ ? 'Complaint handled' : 'Complaint in progress');
@@ -7924,6 +8006,8 @@ function reportAsset_(user, payload) {
   append_('AssetTickets', { TicketID: res.id, Date: new Date(), AssetID: res.target, Item: a.item, Serial: a.serial, Clinic: a.clinic, Branch: a.branch,
     Nurse: user.name, Problem: problem, Description: desc, Photo: photoUrl, Status: TK_ST.NEW, ClientKey: clientKey });
   logAction_(res.id, 'بلاغ أداة: ' + a.item + (a.serial ? ' #' + a.serial : '') + ' — ' + problem, user.name);
+  issueCopy_({ Source: NI_SRC_.ASSET, SourceID: res.id, RequestID: '', Author: user.name, Role: user.role, Clinic: a.clinic, Branch: a.branch,
+    Type: problem + ' — ' + a.item + (a.serial ? ' #' + a.serial : ''), Message: desc || problem });
   notifyRole_('procurement', '🔧 بلاغ أداة - ' + res.id + ' — ' + a.item, 'العيادة: ' + a.clinic + (a.branch ? ' (' + a.branch + ')' : '') +
     '\nالأداة: ' + a.item + (a.serial ? '\nالرقم التسلسلي: ' + a.serial : '') + '\nالمشكلة: ' + problem + (desc ? '\nالوصف: ' + desc : '') +
     '\nالممرضة: ' + user.name + '\n\nيرجى استلام الأداة وتحديث حالتها من داخل النظام.');
@@ -8007,6 +8091,7 @@ function updateAssetTicket_(user, id, action, data) {
       assetStatus = action === 'damaged' ? AS_ST.DAMAGED : AS_ST.LOST;
     }
     setMany_(t, [{ row: row, obj: o }]);
+    if (o.Status && o.Status !== st) issueSync_(str_(id), o.Status, clean_(data.note, 300), user.name);
     if (assetStatus) {
       const at = read_('Assets');
       const ar = at.rows.filter(function (r) { return str_(r.AssetID) === str_(row.AssetID); })[0];

@@ -1098,6 +1098,8 @@ test('custody: standard per clinic, issue with serial numbers, nurse report with
     throwsCode(() => api(haya, 'getAssetTicket', t1.id), 'ERR_FORBIDDEN');
     assert.equal(api(login('د. خالد', '4444'), 'getAssetTickets', {}).length, 2, 'the clinic doctor sees them');
     assert.equal(api(p, 'getAssetTickets', {}).length, 2, 'procurement sees them');
+    const nc = api(login('منى', '5555'), 'getNurseIssues').issues.find(x => x.sourceId === t1.id);
+    assert.deepEqual([nc.source, nc.clinic, nc.status], ['بلاغ عهدة', 'عيادة الأسنان 1', 'جديد'], 'custody ticket copied to the nurse survey platform');
     assert.deepEqual(api(nouf, 'getClinicAssets', {}), [], 'a nurse with no clinic sees no custody (not every clinic)');
     assert.deepEqual(api(nouf, 'getAssetConfig').clinics, []);
     assert.deepEqual(api(haya, 'getClinicAssets', {}).map(c => c.clinic), ['عيادة الأسنان 1'], 'a nurse sees her own clinic only');
@@ -3416,6 +3418,37 @@ test('external orders: pick items from a request, group by supplier, RFQ snapsho
   // drafts can be deleted
   const d = api(p, 'addExtOrderItems', '', 'مورد آخر', [{ item: 'قفازات', qty: 2 }]).orders.find(x => x.supplier === 'مورد آخر');
   assert.ok(!api(p, 'deleteExtOrder', d.id).orders.some(x => x.id === d.id));
+});
+
+test('nurse survey platform: every complaint is copied there with its status; survey notes never reach procurement complaints', () => {
+  const { api, login } = boot();
+  const n = login('سارة', '1111'), p = login('علي', '3333'), q = login('منى', '5555'), r2 = login('ريم', '2222');
+  const id = api(n, 'createRequest', { clinic: 'عيادة الأسنان 1', doctor: 'د. نورة', type: 'شهري', items: [{ name: 'PROPHY PASTE', qty: 2 }] }).id;
+  const cmp = api(n, 'addComplaint', id, 'تأخير', 'الطلب متأخر');
+  let all = api(q, 'getNurseIssues').issues;
+  const copy = all.find(x => x.sourceId === cmp.id);
+  assert.deepEqual([copy.source, copy.requestId, copy.status, copy.clinic, copy.own], ['بلاغ طلب/شحنة', id, 'جديد', 'عيادة الأسنان 1', false]);
+  // status follows the original
+  api(p, 'complaintProgress', cmp.id, 'progress', 'نتابع');
+  assert.equal(api(q, 'getNurseIssues').issues.find(x => x.sourceId === cmp.id).status, 'جاري المعالجة');
+  api(p, 'complaintProgress', cmp.id, 'done', 'أُرسل');
+  api(q, 'resolveComplaint', cmp.id, 'تم');
+  assert.equal(api(q, 'getNurseIssues').issues.find(x => x.sourceId === cmp.id).status, 'مغلق');
+  // copies can't be changed from the survey side
+  throwsCode(() => api(q, 'setNurseIssueStatus', copy.id, 'مغلق', 'x'), 'ERR_ISSUE_COPY');
+  // a survey note stays in the survey only
+  const before = api(p, 'getComplaints', false).length;
+  throwsCode(() => api(n, 'addNurseIssue', { type: 'اقتراح', message: ' ' }), 'ERR_REQUIRED');
+  const mine = api(n, 'addNurseIssue', { type: 'جودة المستهلكات', clinic: 'عيادة الأسنان 1', message: 'القفازات تتمزق بسرعة' }).issues.find(x => x.own);
+  assert.equal(api(p, 'getComplaints', false).length, before, 'nothing reaches procurement complaints');
+  assert.ok(!api(p, 'getComplaints', false).some(c => /القفازات تتمزق/.test(c.message)));
+  // nurses see only their own; management sees all and follows up survey notes
+  assert.ok(api(n, 'getNurseIssues').issues.every(x => x.author === 'سارة'));
+  assert.equal(api(r2, 'getNurseIssues').issues.length, 0);
+  throwsCode(() => api(p, 'getNurseIssues'), 'ERR_FORBIDDEN');
+  throwsCode(() => api(q, 'setNurseIssueStatus', mine.id, 'مغلق', ''), 'ERR_NOTE_REQUIRED');
+  all = api(q, 'setNurseIssueStatus', mine.id, 'مغلق', 'تم تغيير المورد').issues;
+  assert.deepEqual((x => [x.status, x.note, x.updatedBy])(all.find(x => x.id === mine.id)), ['مغلق', 'تم تغيير المورد', 'منى']);
 });
 
 test('catalog bulk add: rows pasted from Excel are checked first, then saved together', () => {

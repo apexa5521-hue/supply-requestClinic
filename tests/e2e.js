@@ -305,6 +305,14 @@ function log(msg) { console.log('  ✔ ' + msg); }
   await shot(page, 'complaint-modal');
   await page.click('#cSend');
   expect(await toastHas(page, 'البلاغ'), 'complaint sent');
+  // استبيان التمريض: البلاغ وصل نسخة منه، وملاحظة الاستبيان تبقى فيه فقط
+  await page.click('.sidebar [data-view="nursevoice"]');
+  expect(await page.waitForFunction(() => (document.querySelector('#niList') || {}).textContent && document.querySelector('#niList').textContent.includes('نحتاج الطلب بسرعة'), null, { timeout: 15000 }).then(() => true, () => false),
+    'the complaint is copied to the nurse survey platform');
+  await page.fill('#niMsg', 'ملاحظة استبيان تجريبية');
+  await page.click('[data-act="niSend"]');
+  expect(await toastHas(page, 'أُرسلت ملاحظتك'), 'survey note sent');
+  await page.click('.sidebar [data-view="mine"]'); await page.waitForSelector('#mineList .req');
   await logout(page);
 
   // ---------- Procurement ----------

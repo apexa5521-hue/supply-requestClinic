@@ -69,6 +69,8 @@ const I18N = {
     now_driver: 'جاهز — بانتظار السواق ينقله للفرع', now_receive: 'استلام {n} وتوقيعها', now_you_receive: 'استلم الطلب ووقّع', now_rejected: 'تعديل {n} وإعادة الإرسال', now_you_fix: 'عدّل الطلب وأعد إرساله',
     sla_left: 'طارئ · باقي {h} س', sla_over: 'طارئ · متأخر {h} س', more_n: '+{n} صنف', tag_complaints: 'بلاغ ({n})', tag_complaints_h: 'بلاغات مفتوحة على الطلب', tag_comments_h: 'تعليقات على الطلب',
     sla_appr: 'الاعتماد', sla_prep: 'بدء التجهيز', sla_send: 'الإرسال للفرع', sla_arr: 'الوصول للفرع', sla_rcv: 'الاستلام', rl_sla_m: 'الوقت المستهدف لكل مرحلة — الشهري (ساعات)', rl_sla_e: 'الوقت المستهدف لكل مرحلة — الطارئ (ساعات)', rl_sla_h_appr: 'من الرفع حتى اعتماد الطبيب أو مدير الفرع', rl_sla_h_prep: 'من الاعتماد حتى «قيد التجهيز»', rl_sla_h_send: 'من بدء التجهيز حتى أول شحنة', rl_sla_h_arr: 'من الإرسال حتى وصول البوكس للفرع', rl_sla_h_rcv: 'من الوصول حتى توقيع الممرضة', sla_late: 'تجاوز وقت «{s}»: {h} س من {t} س', sla_late_h: 'المرحلة الحالية تجاوزت وقتها المستهدف في قواعد الطلبات', mon_sla_title: 'مؤشرات أداء المراحل', mon_sla_sub: 'نسبة المراحل المنتهية خلال وقتها المستهدف هذا الشهر، ومتوسط الوقت الفعلي مقابل المستهدف — الأوقات تُعدَّل من «قواعد الطلبات»', mon_sla_m_rate: 'الشهري: الالتزام', mon_sla_m_avg: 'الشهري: المتوسط / المستهدف', mon_sla_e_rate: 'الطارئ: الالتزام', mon_sla_e_avg: 'الطارئ: المتوسط / المستهدف', mon_sla_now: 'متجاوز الآن', mon_sla_late_list: 'طلبات تجاوزت وقت مرحلتها الآن', mon_sla_spent: 'المستغرق / المستهدف',
+    nav_nurse_voice: 'استبيان التمريض', sub_nurse_voice: 'ملاحظات التمريض ونسخة من كل بلاغ (طلب/شحنة وعهدة) بحالته', ni_new: 'ملاحظة جديدة', ni_new_h: 'تصل للجودة والإدارة فقط — لا تذهب لبلاغات التموين. لبلاغ على طلب أو أداة استخدمي زر «بلاغ» في الطلب أو العهدة.', ni_type: 'النوع', ni_msg: 'الملاحظة', ni_msg_ph: 'اكتبي ملاحظتك أو اقتراحك…', ni_sent: 'أُرسلت ملاحظتك', ni_all: 'الكل', ni_src_req: 'بلاغات الطلبات', ni_src_asset: 'بلاغات العهدة', ni_src_survey: 'من الاستبيان', ni_open: 'مفتوحة', ni_closed: 'مغلقة', ni_copy_h: 'نسخة من بلاغ في النظام — حالتها تتبع الأصل', ni_work: 'قيد المتابعة', ni_close: 'إغلاق بملاحظة', ni_note: 'ملاحظة المتابعة', ni_saved: 'تم التحديث', ni_none: 'لا توجد ملاحظات', ERR_ISSUE_COPY: 'هذه نسخة من بلاغ — تُتابع من مكانه الأصلي',
+    rl_dl_count: 'حد خاص لـ {n} طبيب',
     alert_ext_due: '<b>{n}</b> طلبية خارجية حان موعد وصولها أو تأخرت — تابع مع المندوب',
     nav_ext_orders: 'الطلبات الخارجية', sub_ext_orders: 'طلبيات الموردين والمناديب: الأصناف، عرض السعر، الإرسال وموعد الوصول', eo_new: 'طلبية جديدة', eo_edit: 'تعديل', eo_from_req: 'طلب خارجي', eo_supplier: 'المورد / المندوب', eo_contact: 'التواصل', eo_contact_ph: 'الاسم والجوال', eo_notes: 'معلومات الطلبية', eo_note: 'ملاحظة', eo_note_ph: 'المواصفات، الماركة…', eo_item_ph: 'اسم الصنف', eo_add_line: 'إضافة صنف', eo_need_items: 'اختر صنفاً واحداً على الأقل', eo_saved: 'حُفظت الطلبية', eo_to_order: 'أضف إلى', eo_new_order: 'طلبية جديدة لمورد', eo_add: 'إضافة للطلبية', eo_added: 'أُضيف {n} صنف للطلبية الخارجية', eo_qty_order: 'الكمية المطلوبة', eo_rfq: 'تصدير طلب عرض سعر', eo_rfq_view: 'عرض السعر المرسل', eo_rfq_title: 'طلب عرض سعر', eo_rfq_foot: 'نرجو تزويدنا بعرض سعر للأصناف أعلاه مع مدة التوريد.', eo_rfq_by: 'أعدّه (التموين)', eo_rfq_supplier_sign: 'المورد', eo_unit_price: 'سعر الوحدة', eo_total: 'الإجمالي', eo_send: 'تم الإرسال للمندوب', eo_change_date: 'تعديل موعد الوصول', eo_send_h: 'أُرسلت الطلبية لـ {s}؟ حدّد التاريخ المتوقع للوصول — يصلك تذكير يوم الموعد وكل يوم بعده حتى تضغط «وصلت».', eo_expected_lbl: 'التاريخ المتوقع للوصول', eo_sent_ok: 'أُرسلت — موعد الوصول {d}', eo_arrived: 'وصلت', eo_arrived_q: 'تأكيد وصول الطلبية {id}؟', eo_cancel: 'إلغاء الطلبية', eo_cancel_q: 'إلغاء الطلبية {id}؟', eo_delete_q: 'حذف المسودة {id}؟', eo_done: 'تم', eo_late: 'متأخرة', eo_late_days: 'متأخرة {n} يوم', eo_created: 'أُنشئت {d} · {u}', eo_sent_at: 'أُرسلت {d}', eo_expected: 'متوقع {d}', eo_arrived_at: 'وصلت {d}', eo_lines: '{n} صنف · {u} قطعة', eo_none: 'لا توجد طلبيات', eo_none_h: 'من بطاقة أي طلب اضغط «طلب خارجي»، أو «طلبية جديدة»', eo_f_open: 'مفتوحة', eo_f_late: 'متأخرة', eo_f_draft: 'مسودات', eo_f_arrived: 'وصلت', eo_f_all: 'الكل', eo_stats: 'إحصائية المناديب', eo_stats_h: 'عدد الطلبيات لكل مورد، المفتوح والمتأخر والواصل، والالتزام بالموعد', eo_orders: 'الطلبيات', eo_open: 'مفتوحة', eo_arrived: 'وصلت', eo_ontime: 'في الموعد', eo_avg_delay: 'متوسط التأخير', eo_last_sent: 'آخر إرسال', eo_days: '{n} يوم', ERR_SUPPLIER_REQUIRED: 'اكتب اسم المورد / المندوب', ERR_EXPECTED_DATE: 'حدّد التاريخ المتوقع للوصول', ERR_EXPECTED_PAST: 'التاريخ المتوقع لا يكون في الماضي',
     rr_title: 'رفض الاستلام', rr_sub: 'أصناف رفضتها الممرضة عند الاستلام هذا الشهر: متى، ومن، والسبب، وما كان مطلوباً', rr_when: 'التاريخ والوقت', rr_by: 'من رفض', rr_requested: 'المطلوب', rr_reason: 'سبب الرفض', rr_sub_sent: 'أُرسل بديل له', rr_none: 'لا يوجد رفض عند الاستلام هذا الشهر', rr_xlsx: 'تصدير Excel', cmp_new: 'جديد · بانتظار رد التموين', cmp_reply: 'رد التموين ({s})', cmp_btn_prog: 'جاري المعالجة', cmp_btn_done: 'تمت المعالجة', cmp_reply_lbl: 'ردّك على البلاغ', cmp_reply_ph_prog: 'مثال: نتواصل مع المورد، يُرسل خلال يومين', cmp_reply_ph_done: 'مثال: أُرسل الناقص اليوم مع السواق', cmp_reply_h: 'يُكتب ردك على الطلب ويصل لصاحب البلاغ والجودة والإدارة التنفيذية', cmp_wait_proc: 'بانتظار معالجة التموين — يُغلق بعد «تمت المعالجة»', cmp_prog_ok: 'البلاغ: جاري المعالجة', cmp_done_ok: 'البلاغ: تمت المعالجة — بانتظار إغلاق الجودة', ERR_REPLY_REQUIRED: 'اكتب ردك على البلاغ', ERR_NOT_HANDLED: 'لا يُغلق البلاغ قبل أن يضغط التموين «تمت المعالجة»', ERR_NOT_IN_PROGRESS: 'اضغط «جاري المعالجة» أولاً', rf_all_types: 'كل الأنواع', rf_qty: 'تعديل الكمية', rf_qty_new: 'الكمية الجديدة', rf_qty_h: 'المعتمد الآن {a} والمرسل {s}. الكمية الجديدة تصير المعتمد، والمرسل يتبعها (والمستلم إن كانت الشحنة مستلمة) — ويظهر التعديل للتموين والممرضة والطبيب.', rf_qty_done: 'عُدّلت كمية {n}: {a} ← {b}', rf_browse: 'فرز الطلبات', rf_q: 'رقم الطلب، الطبيب، العيادة، الممرضة…', rf_show: 'عرض', rf_found: '{n} طلب · {m} — اضغط الطلب لفتحه وضبطه', all_branches: 'كل الفروع', rf_delete: 'حذف الطلب كاملاً', rf_delete_note: 'يُحذف الطلب بكل أصنافه وشحناته وتعليقاته، وتُحفظ نسخة كاملة للتدقيق ويمكن استرجاعه', rf_delete_h: 'سيختفي الطلب من كل الشاشات والتقارير والمالية، ويُحرَّر من حد الطلبات. تُحفظ نسخة كاملة في «الطلبات المحذوفة» مع السبب، ويمكنك استرجاعه كما كان.', rf_delete_type: 'للتأكيد اكتب رقم الطلب: {id}', rf_delete_mismatch: 'رقم الطلب غير مطابق', rf_deleted_ok: 'حُذف الطلب {id} — محفوظ في «الطلبات المحذوفة»', rf_deleted: 'الطلبات المحذوفة', rf_deleted_none: 'لا توجد طلبات محذوفة', rf_deleted_by: 'حذفه {u} · {d} · القيمة {v}', rf_restored_by: 'استرجعه {u} · {d}', rf_undelete_q: 'استرجاع الطلب {id} كما كان بكل أصنافه وشحناته؟', rf_undeleted: 'استُرجع الطلب {id}', ERR_REQ_IN_BOX: 'الطلب داخل بوكس لم يُفرَّغ — فرّغ البوكس أولاً', ERR_TOO_LARGE: 'الطلب كبير جداً للحفظ', ERR_EXISTS: 'يوجد طلب بنفس الرقم', as_no_clinic: 'لم تُربط بعيادة بعد', as_no_clinic_sub: 'تظهر هنا عهدة عياداتك وعيادات أطبائك فقط — اطلب من الأدمن ربطك بعيادتك أو بأطبائك', rl_remind: 'تذكير مهلة الطلب الشهري', rl_remind_on: 'التذكير', rl_on: 'يعمل', rl_off: 'متوقف', rl_remind_on_h: 'إيميل وإشعار جوال للأطباء وممرضاتهم: يوم فتح النافذة للجميع، ثم قبل نهايتها وآخر يوم لمن لم يُرفع طلبه الشهري (ومن عنده طلبات بانتظار اعتماده)', rl_remind_days: 'التذكير قبل النهاية بـ (أيام)', rl_remind_days_h: '0 = آخر يوم فقط', rl_remind_hour: 'ساعة الإرسال', rl_remind_hour_h: 'بتوقيت الرياض (0–23)', rl_days_left: 'باقي {n} يوم على آخر مهلة (يوم {b})', rl_last_day: 'اليوم آخر مهلة للطلب الشهري', resolve_add_note: 'أضف ملاحظة الإغلاق', resolve_note_saved: 'حُفظت ملاحظة الإغلاق — تظهر على الطلب', rl_dl_i: 'أصناف الطارئ (حد أقصى)', select_all: 'تحديد الكل', selected: 'محدد', clear_selection: 'إلغاء التحديد',
@@ -200,6 +202,8 @@ const I18N = {
     now_driver: 'ready — waiting for the driver', now_receive: '{n} to receive and sign', now_you_receive: 'receive the request and sign', now_rejected: '{n} to edit and resubmit', now_you_fix: 'edit the request and resubmit',
     sla_left: 'Emergency · {h}h left', sla_over: 'Emergency · {h}h late', more_n: '+{n} items', tag_complaints: 'Report ({n})', tag_complaints_h: 'Open reports on this request', tag_comments_h: 'Comments on this request',
     sla_appr: 'Approval', sla_prep: 'Prep start', sla_send: 'Dispatch', sla_arr: 'Arrival at branch', sla_rcv: 'Receipt', rl_sla_m: 'Target time per stage — monthly (hours)', rl_sla_e: 'Target time per stage — emergency (hours)', rl_sla_h_appr: 'From submission to doctor / branch manager approval', rl_sla_h_prep: 'From approval to «preparing»', rl_sla_h_send: 'From prep start to the first shipment', rl_sla_h_arr: 'From dispatch to the box arriving at the branch', rl_sla_h_rcv: 'From arrival to the nurse signing', sla_late: '«{s}» over target: {h}h of {t}h', sla_late_h: 'The current stage is past its target time in the order rules', mon_sla_title: 'Stage performance indicators', mon_sla_sub: 'Share of stages finished within their target this month, and average actual time vs target — targets are set in «Order rules»', mon_sla_m_rate: 'Monthly: on time', mon_sla_m_avg: 'Monthly: average / target', mon_sla_e_rate: 'Emergency: on time', mon_sla_e_avg: 'Emergency: average / target', mon_sla_now: 'Over target now', mon_sla_late_list: 'Requests past their stage target now', mon_sla_spent: 'Spent / target',
+    nav_nurse_voice: 'Nurse survey', sub_nurse_voice: 'Nurse notes and a copy of every complaint (request/shipment and custody) with its status', ni_new: 'New note', ni_new_h: 'Goes to Quality and management only — not to Procurement complaints. For a complaint about a request or tool use the «Report» button there.', ni_type: 'Type', ni_msg: 'Note', ni_msg_ph: 'Write your note or suggestion…', ni_sent: 'Your note was sent', ni_all: 'All', ni_src_req: 'Request complaints', ni_src_asset: 'Custody tickets', ni_src_survey: 'From the survey', ni_open: 'Open', ni_closed: 'Closed', ni_copy_h: 'A copy of a complaint in the system — its status follows the original', ni_work: 'In follow-up', ni_close: 'Close with a note', ni_note: 'Follow-up note', ni_saved: 'Updated', ni_none: 'No notes', ERR_ISSUE_COPY: 'This is a copy of a complaint — follow it up where it was raised',
+    rl_dl_count: 'Special limit for {n} doctor(s)',
     alert_ext_due: '<b>{n}</b> external order(s) due or late — follow up with the rep',
     nav_ext_orders: 'External orders', sub_ext_orders: 'Supplier / rep orders: items, quote request, dispatch and expected arrival', eo_new: 'New order', eo_edit: 'Edit', eo_from_req: 'External order', eo_supplier: 'Supplier / rep', eo_contact: 'Contact', eo_contact_ph: 'Name and mobile', eo_notes: 'Order information', eo_note: 'Note', eo_note_ph: 'Specs, brand…', eo_item_ph: 'Item name', eo_add_line: 'Add item', eo_need_items: 'Pick at least one item', eo_saved: 'Order saved', eo_to_order: 'Add to', eo_new_order: 'New order for a supplier', eo_add: 'Add to order', eo_added: '{n} item(s) added to the external order', eo_qty_order: 'Quantity to order', eo_rfq: 'Export quote request', eo_rfq_view: 'Quote request sent', eo_rfq_title: 'Request for quotation', eo_rfq_foot: 'Please send us a quotation for the items above with the delivery time.', eo_rfq_by: 'Prepared by (Procurement)', eo_rfq_supplier_sign: 'Supplier', eo_unit_price: 'Unit price', eo_total: 'Total', eo_send: 'Sent to the rep', eo_change_date: 'Change arrival date', eo_send_h: 'Was the order sent to {s}? Set the expected arrival date — you get a reminder on that day and every day after until you press «Arrived».', eo_expected_lbl: 'Expected arrival date', eo_sent_ok: 'Sent — expected {d}', eo_arrived: 'Arrived', eo_arrived_q: 'Confirm order {id} arrived?', eo_cancel: 'Cancel order', eo_cancel_q: 'Cancel order {id}?', eo_delete_q: 'Delete draft {id}?', eo_done: 'Done', eo_late: 'Late', eo_late_days: '{n} day(s) late', eo_created: 'Created {d} · {u}', eo_sent_at: 'Sent {d}', eo_expected: 'Expected {d}', eo_arrived_at: 'Arrived {d}', eo_lines: '{n} item(s) · {u} unit(s)', eo_none: 'No orders', eo_none_h: 'From any request card press «External order», or «New order»', eo_f_open: 'Open', eo_f_late: 'Late', eo_f_draft: 'Drafts', eo_f_arrived: 'Arrived', eo_f_all: 'All', eo_stats: 'Reps statistics', eo_stats_h: 'Orders per supplier: open, late, arrived and on-time rate', eo_orders: 'Orders', eo_open: 'Open', eo_arrived: 'Arrived', eo_ontime: 'On time', eo_avg_delay: 'Average delay', eo_last_sent: 'Last sent', eo_days: '{n} day(s)', ERR_SUPPLIER_REQUIRED: 'Enter the supplier / rep name', ERR_EXPECTED_DATE: 'Set the expected arrival date', ERR_EXPECTED_PAST: 'The expected date can’t be in the past',
     rr_title: 'Rejected at receipt', rr_sub: 'Items the nurse rejected at receipt this month: when, who, why and what was requested', rr_when: 'Date & time', rr_by: 'Rejected by', rr_requested: 'Requested', rr_reason: 'Reason', rr_sub_sent: 'A substitute was sent', rr_none: 'No rejections at receipt this month', rr_xlsx: 'Export Excel', cmp_new: 'New · awaiting procurement reply', cmp_reply: 'Procurement reply ({s})', cmp_btn_prog: 'In progress', cmp_btn_done: 'Handled', cmp_reply_lbl: 'Your reply to the complaint', cmp_reply_ph_prog: 'e.g. contacting the supplier, sent within two days', cmp_reply_ph_done: 'e.g. the missing items went out today with the driver', cmp_reply_h: 'Your reply is written on the request and goes to the reporter, Quality and Executive management', cmp_wait_proc: 'Waiting for procurement — closes after «Handled»', cmp_prog_ok: 'Complaint: in progress', cmp_done_ok: 'Complaint: handled — waiting for Quality to close it', ERR_REPLY_REQUIRED: 'Write your reply to the complaint', ERR_NOT_HANDLED: 'The complaint can’t be closed before procurement marks it «Handled»', ERR_NOT_IN_PROGRESS: 'Press «In progress» first', rf_all_types: 'All types', rf_qty: 'Edit quantity', rf_qty_new: 'New quantity', rf_qty_h: 'Approved now {a}, sent {s}. The new quantity becomes the approved one and the sent quantity follows it (and the received one if the shipment was received) — procurement, the nurse and the doctor see the change.', rf_qty_done: '{n} quantity changed: {a} → {b}', rf_browse: 'Browse requests', rf_q: 'Request no., doctor, clinic, nurse…', rf_show: 'Show', rf_found: '{n} request(s) · {m} — tap a request to open and fix it', all_branches: 'All branches', rf_delete: 'Delete whole request', rf_delete_note: 'Deletes the request with all its items, shipments and comments; a full copy is kept for audit and it can be restored', rf_delete_h: 'The request disappears from every screen, report and finance, and frees the order limit. A full copy is kept under «Deleted requests» with the reason, and you can restore it as it was.', rf_delete_type: 'To confirm, type the request number: {id}', rf_delete_mismatch: 'Request number does not match', rf_deleted_ok: 'Request {id} deleted — kept under «Deleted requests»', rf_deleted: 'Deleted requests', rf_deleted_none: 'No deleted requests', rf_deleted_by: 'Deleted by {u} · {d} · value {v}', rf_restored_by: 'Restored by {u} · {d}', rf_undelete_q: 'Restore request {id} as it was, with all its items and shipments?', rf_undeleted: 'Request {id} restored', ERR_REQ_IN_BOX: 'The request is inside a box that was not unloaded — unload the box first', ERR_TOO_LARGE: 'The request is too large to keep', ERR_EXISTS: 'A request with this number exists', as_no_clinic: 'Not linked to a clinic yet', as_no_clinic_sub: 'Only the custody of your clinics and your doctors’ clinics shows here — ask the admin to link you to your clinic or doctors', rl_remind: 'Monthly deadline reminders', rl_remind_on: 'Reminders', rl_on: 'On', rl_off: 'Off', rl_remind_on_h: 'Email and phone push to doctors and their nurses: when the window opens for everyone, then before the end and on the last day for those without a monthly order (and pending approvals)', rl_remind_days: 'Remind before the end (days)', rl_remind_days_h: '0 = last day only', rl_remind_hour: 'Send at hour', rl_remind_hour_h: 'Riyadh time (0–23)', rl_days_left: '{n} day(s) left until the deadline (day {b})', rl_last_day: 'Today is the monthly order deadline', resolve_add_note: 'Add closing note', resolve_note_saved: 'Closing note saved — shown on the request', rl_dl_i: 'Emergency items (max)', select_all: 'Select all', selected: 'selected', clear_selection: 'Clear',
@@ -1329,7 +1333,7 @@ ACT.logout = () => {
    Shell & navigation
    ===================================================================== */
 const NAV = {
-  nurse:       [{ id: 'new', icon: 'plus', k: 'nav_new' }, { id: 'mine', icon: 'clipboard', k: 'nav_mine' }, { id: 'labmine', icon: 'flask', k: 'nav_lab' }, { id: 'assets', icon: 'tool', k: 'nav_assets' }],
+  nurse:       [{ id: 'new', icon: 'plus', k: 'nav_new' }, { id: 'mine', icon: 'clipboard', k: 'nav_mine' }, { id: 'labmine', icon: 'flask', k: 'nav_lab' }, { id: 'assets', icon: 'tool', k: 'nav_assets' }, { id: 'nursevoice', icon: 'msg', k: 'nav_nurse_voice' }],
   lab:         [{ id: 'labboard', icon: 'flask', k: 'nav_lab_board' }, { id: 'labkpi', icon: 'chart', k: 'nav_lab_kpi' }, { id: 'new', icon: 'plus', k: 'nav_lab_supply' }, { id: 'mine', icon: 'clipboard', k: 'nav_mine' }, { id: 'settings', icon: 'layers', k: 'nav_settings' }],
   procurement: [{ id: 'requests', icon: 'package', k: 'nav_requests' }, { id: 'boxes', icon: 'truck', k: 'nav_boxes' }, { id: 'freeitems', icon: 'edit', k: 'nav_free_items' }, { id: 'catalog', icon: 'tag', k: 'nav_catalog' }, { id: 'rules', icon: 'calendar', k: 'nav_rules' }, { id: 'assets', icon: 'tool', k: 'nav_assets' }, { id: 'complaints', icon: 'alert', k: 'nav_complaints' }, { id: 'extorders', icon: 'cart', k: 'nav_ext_orders' }],
   doctor:      [{ id: 'reviews', icon: 'steth', k: 'nav_reviews' }, { id: 'labdoc', icon: 'flask', k: 'nav_lab' }, { id: 'assets', icon: 'tool', k: 'nav_assets' }]
@@ -1343,6 +1347,8 @@ const PERM_NAV = [
   { id: 'monitor', icon: 'clock', k: 'nav_monitor', perm: ['monitor'] },
   { id: 'doctorslive', icon: 'steth', k: 'nav_doctors_live', perm: ['doctors_live'] },
   { id: 'surveys', icon: 'checkc', k: 'nav_surveys', perm: ['surveys'] },
+  // منصة استبيان التمريض: نسخة من كل البلاغات + ملاحظات التمريض (لا تصل للتموين)
+  { id: 'nursevoice', icon: 'msg', k: 'nav_nurse_voice', perm: ['surveys'] },
   { id: 'docprices', icon: 'cart', k: 'nav_doc_prices', perm: ['doctor_prices'] },
   { id: 'reports', icon: 'file', k: 'nav_reports', perm: ['reports'] },
   // الأصناف الأكثر طلباً لكل طبيب في الشهر
@@ -2196,9 +2202,13 @@ function ruleBarHtml() {
   } else if (L && (R.emergencyMax || R.monthlyMax)) lines.push(t('rl_per_doc', { e: R.emergencyMax || '∞', m: R.monthlyMax || '∞' }));
   const maxItems = L && tg && L.iMax !== undefined ? L.iMax : R.emergencyMaxItems;
   lines.push(t('rl_em_rule', { h: R.emergencyHours }) + (maxItems ? ' ' + t('rl_em_items_rule', { k: maxItems }) : ''));
+  // التموين: كم طبيب له حد خاص (زيادة/تقليل) — التفاصيل في «قواعد الطلبات»
+  const dlN = Object.keys(R.docLimits || {}).length;
+  if (S.user && S.user.screen === 'procurement' && dlN) lines.push(t('rl_dl_count', { n: dlN }));
   return '<div class="rule-bar' + (inW ? ' in' : ' out') + '" role="status">' + icon(inW ? 'checkc' : 'calendar', 'i-sm') +
     '<div class="grow"><b>' + esc(t(inW ? 'rl_in' : 'rl_out', { a: R.winStart, b: R.winEnd, d: fmtDate(R.dispatchAt) })) + '</b>' +
-    '<div class="rule-sub">' + lines.map(esc).join(' · ') + '</div></div></div>';
+    '<div class="rule-sub">' + lines.map(esc).join(' · ') + '</div></div>' +
+    (S.user && S.user.screen === 'procurement' ? '<button class="btn btn-ghost btn-sm" data-act="nav" data-view="rules">' + icon('calendar', 'i-sm') + esc(t('nav_rules')) + '</button>' : '') + '</div>';
 }
 /** لمن يُحسب الطلب: الطبيب المختار، أو العيادة في طلب مستهلكات العيادة، أو المعمل */
 function ruleTarget(d) {
@@ -3181,6 +3191,8 @@ VIEWS.requests = {
   render() {
     const p = S.proc;
     return '<div id="pNotices"></div>' +
+      // قواعد الطلبات كما حددتها الإدارة/الجودة/المالية: النافذة، الصرف، الطارئ، حدود الأطباء — للتموين أيضاً
+      '<div class="rule-slot">' + ruleBarHtml() + '</div>' +
       '<div id="procCycle"></div>' +
       '<div id="procChips"></div><div id="procHint"></div>' +
       '<div class="card card-pad" id="procFilters" style="padding:14px"><div class="form-grid proc-grid">' +
@@ -3199,8 +3211,8 @@ VIEWS.requests = {
       '<div class="list stagger" id="procList">' + (S.loaded.proc ? '' : skeletonList(4)) + '</div>' +
       '<div class="bulkbar" id="bulkbar"></div>';
   },
-  mount() { loadNotices('pNotices'); loadProcCycle(); if (S.loaded.proc) renderProcList(true); loadProc(S.loaded.proc); if (!S.loaded.complaints) loadComplaints(true); },
-  refresh() { loadProc(true); loadNotices('pNotices'); loadProcCycle(); }
+  mount() { loadNotices('pNotices'); if (!S.rules) loadRules(); loadProcCycle(); if (S.loaded.proc) renderProcList(true); loadProc(S.loaded.proc); if (!S.loaded.complaints) loadComplaints(true); },
+  refresh() { loadProc(true); loadNotices('pNotices'); loadRules(); loadProcCycle(); }
 };
 /* دورة الطلب الشهري أعلى صفحة التموين: قابلة للطي (تُحفظ حالة الطي على الجهاز) */
 function loadProcCycle() {
@@ -4911,6 +4923,77 @@ const eoAct = (action, q, ok) => el => confirmDialog(t(q, { id: el.dataset.id })
 ACT.eoArrived = eoAct('arrived', 'eo_arrived_q', 'eo_arrived');
 ACT.eoCancel = eoAct('cancel', 'eo_cancel_q', 'eo_cancel');
 ACT.eoDelete = eoAct('delete', 'eo_delete_q', 'delete');
+/* =====================================================================
+   منصة استبيان التمريض: نسخة من كل بلاغ (طلب/شحنة، عهدة) تتبع حالتها الأصلية + ملاحظات الاستبيان نفسه.
+   ما يُرفع هنا يبقى هنا فقط — لا يصل لبلاغات التموين (اتجاه واحد)
+   ===================================================================== */
+const NI = { data: null, src: 'all', st: 'open' };
+const NI_SRC = { req: 'بلاغ طلب/شحنة', asset: 'بلاغ عهدة', survey: 'من الاستبيان' };
+const NI_TONE = { 'جديد': 'var(--t-red)', 'قيد المتابعة': 'var(--t-amber)', 'مغلق': 'var(--t-green)' };
+const niClosed = x => x.status === 'مغلق' || ['تم الاستلام', 'رجعت للعيادة', 'تالفة', 'مفقودة'].indexOf(x.status) !== -1;
+VIEWS.nursevoice = {
+  title: 'nav_nurse_voice', sub: 'sub_nurse_voice',
+  render() {
+    return (S.user.screen === 'nurse' ? '<section class="card"><div class="card-head"><h3>' + icon('msg') + esc(t('ni_new')) + '</h3></div><div class="card-body stack">' +
+        '<div class="hint">' + icon('info', 'i-sm') + ' ' + esc(t('ni_new_h')) + '</div>' +
+        '<div class="grid-2" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px">' +
+          '<div class="field"><label for="niType">' + esc(t('ni_type')) + '</label><select class="select" id="niType"></select></div>' +
+          '<div class="field"><label for="niClinic">' + esc(t('clinic')) + '</label><select class="select" id="niClinic"><option value="">—</option>' + (S.myClinics || []).map(c => '<option>' + esc(c) + '</option>').join('') + '</select></div></div>' +
+        '<div class="field"><label for="niMsg">' + esc(t('ni_msg')) + '</label><textarea class="textarea" id="niMsg" maxlength="2000" placeholder="' + esc(t('ni_msg_ph')) + '"></textarea></div>' +
+        '<div class="field-error hidden" id="niErr">' + icon('alert', 'i-sm') + '<span></span></div>' +
+        '<div><button class="btn btn-primary" data-act="niSend">' + icon('send', 'i-sm flip') + esc(t('send')) + '</button></div></div></section>' : '') +
+      '<section class="card" style="margin-top:16px"><div class="card-head"><div class="chips" id="niChips"></div></div><div class="card-body"><div class="list" id="niList">' + skeletonList(3) + '</div></div></section>';
+  },
+  mount() { if (NI.data) niRender(); niLoad(); },
+  refresh() { niLoad(); }
+};
+function niLoad() { return call('getNurseIssues').then(d => { NI.data = d; niRender(); }).catch(e => { const b = $('#niList'); if (b) b.innerHTML = emptyState('alert', errMsg(e)); }); }
+ACT.niSrc = el => { NI.src = el.dataset.g; niRender(); };
+ACT.niSt = el => { NI.st = el.dataset.g; niRender(); };
+function niRender() {
+  const d = NI.data; if (!d || !$('#niList')) return;
+  const ty = $('#niType'); if (ty && !ty.options.length) ty.innerHTML = d.types.map(x => '<option>' + esc(x) + '</option>').join('');
+  const srcG = [['all', 'ni_all'], ['req', 'ni_src_req'], ['asset', 'ni_src_asset'], ['survey', 'ni_src_survey']];
+  const inSrc = (x, g) => g === 'all' || x.source === NI_SRC[g];
+  const stG = [['open', 'ni_open'], ['closed', 'ni_closed']];
+  const inSt = (x, g) => g === 'open' ? !niClosed(x) : niClosed(x);
+  $('#niChips').innerHTML = srcG.map(g => '<button class="chip" data-act="niSrc" data-g="' + g[0] + '" aria-pressed="' + (NI.src === g[0]) + '">' + esc(t(g[1])) + '<span class="count-pill">' + d.issues.filter(x => inSrc(x, g[0]) && inSt(x, NI.st)).length + '</span></button>').join('') +
+    '<span class="spacer" style="flex:1"></span>' + stG.map(g => '<button class="chip" data-act="niSt" data-g="' + g[0] + '" aria-pressed="' + (NI.st === g[0]) + '">' + esc(t(g[1])) + '</button>').join('');
+  const list = d.issues.filter(x => inSrc(x, NI.src) && inSt(x, NI.st));
+  $('#niList').innerHTML = list.length ? list.map(x =>
+    '<article class="req"><div class="req-main" style="align-items:flex-start"><div class="grow">' +
+      '<div class="row-wrap"><span class="tag">' + esc(x.source) + '</span><b>' + esc(x.type) + '</b>' + (x.requestId ? '<button class="btn btn-ghost btn-sm mono" data-act="detail" data-id="' + esc(x.requestId) + '" style="min-height:26px;padding:2px 8px">' + esc(x.requestId) + '</button>' : '') + (x.sourceId && !x.requestId ? '<span class="mono muted">' + esc(x.sourceId) + '</span>' : '') + '</div>' +
+      '<div style="margin-top:4px;white-space:pre-wrap;overflow-wrap:anywhere">' + esc(x.message) + '</div>' +
+      '<div class="req-sub"><span>' + icon('user') + esc(x.author) + (x.role ? ' · ' + esc(x.role) : '') + '</span>' + (x.clinic ? '<span>' + icon('building') + esc(x.clinic) + (x.branch ? ' · ' + esc(x.branch) : '') + '</span>' : '') + '<span>' + icon('clock') + esc(fmtDateTime(x.time)) + '</span></div>' +
+      (x.note ? '<div class="hint" style="margin-top:6px;white-space:pre-wrap">' + icon('msg', 'i-sm') + ' ' + esc(x.note) + (x.updatedBy ? ' <span class="muted">— ' + esc(x.updatedBy) + (x.updatedAt ? ' · ' + esc(fmtDateTime(x.updatedAt)) : '') + '</span>' : '') + '</div>' : '') +
+      (!x.own ? '<div class="hint" style="margin-top:4px">' + icon('link', 'i-sm') + ' ' + esc(t('ni_copy_h')) + '</div>' : '') +
+    '</div><div class="req-side"><span class="badge" style="--tone:' + (NI_TONE[x.status] || (niClosed(x) ? 'var(--t-green)' : 'var(--t-amber)')) + '"><i class="dot"></i>' + esc(x.status) + '</span></div></div>' +
+    (d.canManage && x.own && x.status !== 'مغلق' ? '<div class="req-actions">' +
+      (x.status === 'جديد' ? '<button class="btn btn-sm btn-soft" data-act="niSet" data-id="' + esc(x.id) + '" data-s="قيد المتابعة">' + icon('tool', 'i-sm') + esc(t('ni_work')) + '</button>' : '') +
+      '<button class="btn btn-sm btn-primary" data-act="niSet" data-id="' + esc(x.id) + '" data-s="مغلق">' + icon('check', 'i-sm') + esc(t('ni_close')) + '</button></div>' : '') +
+    '</article>').join('') : emptyState('checkc', t('ni_none'));
+}
+ACT.niSend = el => {
+  const msg = $('#niMsg').value.trim(), err = $('#niErr');
+  if (!msg) { err.querySelector('span').textContent = t('ERR_REQUIRED'); err.classList.remove('hidden'); $('#niMsg').focus(); return; }
+  err.classList.add('hidden'); busy(el, true);
+  call('addNurseIssue', { type: $('#niType').value, clinic: $('#niClinic').value, message: msg }).then(d => {
+    busy(el, false); NI.data = d; $('#niMsg').value = ''; NI.src = 'all'; NI.st = 'open'; niRender(); toast(t('ni_sent'), 'success');
+  }).catch(er => { busy(el, false); err.querySelector('span').textContent = errMsg(er); err.classList.remove('hidden'); });
+};
+ACT.niSet = el => {
+  const id = el.dataset.id, st = el.dataset.s;
+  const m = openModal({ title: esc(st === 'مغلق' ? t('ni_close') : t('ni_work')), icon: 'msg', size: 'sm',
+    body: '<div class="field"><label for="niNote">' + esc(t('ni_note')) + '</label><textarea class="textarea" id="niNote" maxlength="1000"></textarea></div><div class="field-error hidden" id="niErr2">' + icon('alert', 'i-sm') + '<span></span></div>',
+    foot: '<span class="spacer"></span><button class="btn" data-close>' + esc(t('cancel')) + '</button><button class="btn btn-primary" id="niOk">' + icon('check', 'i-sm') + esc(t('save')) + '</button>' });
+  $('#niOk', m.el).addEventListener('click', e => {
+    const note = $('#niNote', m.el).value.trim(), err = $('#niErr2', m.el);
+    if (st === 'مغلق' && !note) { err.querySelector('span').textContent = t('ERR_NOTE_REQUIRED'); err.classList.remove('hidden'); return; }
+    const b = e.currentTarget; busy(b, true);
+    call('setNurseIssueStatus', id, st, note).then(d => { closeModal(m); NI.data = d; niRender(); toast(t('ni_saved'), 'success'); })
+      .catch(er => { busy(b, false); err.querySelector('span').textContent = errMsg(er); err.classList.remove('hidden'); });
+  });
+};
 VIEWS.docadmin = {
   title: 'nav_doc_admin', sub: 'sub_doc_admin',
   render() {
