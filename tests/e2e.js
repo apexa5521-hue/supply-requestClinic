@@ -348,8 +348,20 @@ function log(msg) { console.log('  ✔ ' + msg); }
   await page.click('[data-act="clearSel"]');
   await page.click('.sidebar [data-view="complaints"]');
   await page.waitForSelector('#cList .req');
-  expect(await page.locator('#cList [data-act="resolve"]').count() === 0 && await page.isVisible('#cList .hint:has-text("الجودة")'),
-    'procurement cannot close issues (Quality/executive only)');
+  expect(await page.locator('#cList [data-act="resolve"]').count() === 0 && await page.locator('#cList [data-act="cProg"][data-step="progress"]').count() >= 1,
+    'procurement cannot close issues, it replies: «in progress» → «handled»');
+  // التموين يرد على البلاغ: «جاري المعالجة» (الرد إلزامي) ثم «تمت المعالجة»
+  await page.click('#cList [data-act="cProg"][data-step="progress"] >> nth=0');
+  await page.click('.modal #cpOk');
+  expect(!(await page.isHidden('.modal #cpErr')), 'a reply is required');
+  await page.fill('.modal #cpReply', 'نتواصل مع المورد');
+  await page.click('.modal #cpOk');
+  await page.waitForSelector('#cList [data-act="cProg"][data-step="done"]');
+  await page.click('#cList [data-act="cProg"][data-step="done"] >> nth=0');
+  await page.fill('.modal #cpReply', 'أُرسل الناقص مع السواق');
+  await page.click('.modal #cpOk');
+  await page.waitForFunction(() => document.querySelector('#cList').textContent.includes('أُرسل الناقص مع السواق'));
+  expect((await page.textContent('#cList')).includes('تمت المعالجة'), 'complaint marked handled with procurement reply');
   await shot(page, 'procurement-complaints');
   await logout(page);
 

@@ -827,6 +827,20 @@ test('comments, item notes, complaints and notices', () => {
   throwsCode(() => api(p, 'resolveComplaint', c.id), 'ERR_FORBIDDEN'); // التموين لا يغلق البلاغات
   assert.equal(api(p, 'getComplaints', true).length, 1, 'procurement still sees the issue');
   throwsCode(() => api(q, 'resolveComplaint', c.id, ' '), 'ERR_NOTE_REQUIRED');
+  // quality can't close before procurement replies: «in progress» then «handled»
+  throwsCode(() => api(q, 'resolveComplaint', c.id, 'x'), 'ERR_NOT_HANDLED');
+  throwsCode(() => api(p, 'complaintProgress', c.id, 'progress', ' '), 'ERR_REPLY_REQUIRED');
+  throwsCode(() => api(p, 'complaintProgress', c.id, 'done', 'أُرسل'), 'ERR_NOT_IN_PROGRESS');
+  throwsCode(() => api(n, 'complaintProgress', c.id, 'progress', 'x'), 'ERR_FORBIDDEN');
+  gas.mails.length = 0;
+  api(p, 'complaintProgress', c.id, 'progress', 'نتواصل مع المورد');
+  assert.ok(gas.mails.some(m => m.to === 'sara@example.com' && /جاري معالجة البلاغ/.test(m.subject)), 'reporter told it is in progress');
+  assert.equal(api(q, 'getComplaints', true)[0].progress, 'جاري المعالجة');
+  throwsCode(() => api(q, 'resolveComplaint', c.id, 'x'), 'ERR_NOT_HANDLED');
+  api(p, 'complaintProgress', c.id, 'done', 'أُرسل الناقص اليوم');
+  const pc = api(q, 'getComplaints', true)[0];
+  assert.deepEqual([pc.progress, pc.procReply, pc.procBy], ['تمت المعالجة', 'أُرسل الناقص اليوم', 'علي']);
+  assert.ok(api(n, 'getRequestDetail', id).comments.some(x => /التموين — تمت المعالجة.*أُرسل الناقص اليوم/.test(x.message)), 'reply written on the request');
   gas.mails.length = 0;
   api(q, 'resolveComplaint', c.id, 'تواصلنا مع التموين وأُرسل الطلب');
   assert.equal(api(q, 'getComplaints', true).length, 0);

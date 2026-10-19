@@ -49,7 +49,9 @@ const SCHEMA = {
   Comments:     ['Timestamp', 'RequestID', 'Author', 'Role', 'Message'],
   Notices:      ['Timestamp', 'FromRole', 'FromName', 'ToRole', 'Message'],
   Complaints:   ['ComplaintID', 'Timestamp', 'RequestID', 'Author', 'Role', 'Type', 'Message',
-                 'Resolved', 'ResolvedBy', 'ResolvedAt', 'ResolveNote'], // ResolveNote: ملاحظة الإغلاق (ماذا تم)
+                 'Resolved', 'ResolvedBy', 'ResolvedAt', 'ResolveNote', // ResolveNote: ملاحظة الإغلاق (ماذا تم)
+                 // معالجة التموين: Progress = «جاري المعالجة» ثم «تمت المعالجة» مع رد التموين — الجودة لا تغلق قبلها
+                 'Progress', 'ProcReply', 'ProcBy', 'ProcAt', 'DoneAt'],
   // المعمل: المعامل وأنواع الأعمال تُعبّأ يدوياً؛ الإرساليات وأسطرها وملاحظاتها تُنشأ من النظام
   Labs:         ['LabName', 'Type', 'Email', 'Phone', 'Active', 'TurnaroundDays'],
   LabWorkTypes: ['WorkType'],
@@ -674,6 +676,7 @@ const API_ = {
   getComplaints:             { screens: ['procurement'], perm: 'complaints', fn: getComplaints_ },
   // إغلاق البلاغات للجودة والإدارة التنفيذية فقط (التموين يطّلع ويعلّق)
   resolveComplaint:          { screens: [], perm: 'complaints_close', fn: resolveComplaint_ },
+  complaintProgress:         { screens: ['procurement'], fn: complaintProgress_ },
   getDoctorReport:           { screens: ['doctor'], perm: 'reports', fn: getDoctorReport_ },
   getReportDoctors:          { screens: [], perm: 'reports', fn: getReportDoctors_ },
   getStatsReport:            { screens: [], perm: 'reports', fn: getStatsReport_ },
@@ -4806,7 +4809,8 @@ function getComplaints_(user, openOnly) {
         id: str_(r.ComplaintID), time: r.Timestamp, requestId: str_(r.RequestID), author: str_(r.Author),
         role: str_(r.Role), type: str_(r.Type), message: str_(r.Message),
         resolved: r.Resolved === true || str_(r.Resolved).toUpperCase() === 'TRUE',
-        resolvedBy: str_(r.ResolvedBy), resolvedAt: r.ResolvedAt, resolveNote: str_(r.ResolveNote)
+        resolvedBy: str_(r.ResolvedBy), resolvedAt: r.ResolvedAt, resolveNote: str_(r.ResolveNote),
+        progress: str_(r.Progress), procReply: str_(r.ProcReply), procBy: str_(r.ProcBy), procAt: r.ProcAt, doneAt: r.DoneAt
       };
     })
     .filter(function (c) { return !openOnly || !c.resolved; })
@@ -4826,6 +4830,8 @@ function resolveComplaint_(user, complaintId, note) {
     const closed = row.Resolved === true || str_(row.Resolved).toUpperCase() === 'TRUE';
     // بلاغ أُغلق سابقاً بدون ملاحظة: تُضاف ملاحظته لاحقاً (يبقى من أغلقه ووقته كما هو)
     if (closed && str_(row.ResolveNote)) throw new Error('ERR_ALREADY_RESOLVED');
+    // الجودة تغلق فقط بعد أن يرد التموين ويضغط «جاري المعالجة» ثم «تمت المعالجة»
+    if (!closed && str_(row.Progress) !== CMP_DONE_) throw new Error('ERR_NOT_HANDLED');
     const now = new Date();
     setCells_(t, row, closed ? { ResolveNote: note } : { Resolved: true, ResolvedBy: user.name, ResolvedAt: now, ResolveNote: note });
     c = { id: str_(row.ComplaintID), req: str_(row.RequestID), author: str_(row.Author), type: str_(row.Type), late: closed };
@@ -4840,6 +4846,44 @@ function resolveComplaint_(user, complaintId, note) {
       en: { title: 'Your complaint was closed (' + c.type + ')', lead: (c.late ? 'Closing note from ' : 'Closed by ') + user.name + (c.late ? ':' : ' with the note:'), lines: [note] } }));
   }
   return true;
+}
+
+/*
+ * معالجة البلاغ من التموين: يدخل على البلاغ ويرد — «جاري المعالجة» أولاً ثم «تمت المعالجة» (الرد إلزامي في كل خطوة).
+ * يُكتب الرد على الطلب (يراه الطبيب والممرضة)، ويُبلَّغ صاحب البلاغ والجودة/التنفيذية/الأدمن. بعد «تمت المعالجة» تغلقه الجودة.
+ */
+const CMP_PROG_ = 'جاري المعالجة', CMP_DONE_ = 'تمت المعالجة';
+function complaintProgress_(user, complaintId, step, reply) {
+  reply = clean_(reply, 1000);
+  if (!reply) throw new Error('ERR_REPLY_REQUIRED');
+  const to = step === 'done' ? CMP_DONE_ : step === 'progress' ? CMP_PROG_ : '';
+  if (!to) throw new Error('ERR_BAD_TRANSITION');
+  let c;
+  withLock_(function () {
+    resetMemo_();
+    const t = tableWithCols_('Complaints');
+    const row = t.rows.filter(function (r) { return str_(r.ComplaintID) === str_(complaintId); })[0];
+    if (!row) throw new Error('ERR_NOT_FOUND');
+    if (row.Resolved === true || str_(row.Resolved).toUpperCase() === 'TRUE') throw new Error('ERR_ALREADY_RESOLVED');
+    const cur = str_(row.Progress);
+    if (to === CMP_PROG_ && cur) throw new Error('ERR_BAD_TRANSITION');
+    if (to === CMP_DONE_ && cur !== CMP_PROG_) throw new Error('ERR_NOT_IN_PROGRESS');
+    const now = new Date(), obj = { Progress: to, ProcReply: reply, ProcBy: user.name, ProcAt: now };
+    if (to === CMP_DONE_) obj.DoneAt = now;
+    setCells_(t, row, obj);
+    c = { id: str_(row.ComplaintID), req: str_(row.RequestID), author: str_(row.Author), type: str_(row.Type) };
+    append_('Comments', { Timestamp: now, RequestID: c.req, Author: user.name, Role: user.role,
+      Message: (to === CMP_DONE_ ? '✅ ' : '🛠️ ') + 'التموين — ' + to + ' (بلاغ ' + c.type + '): ' + reply });
+    logAction_(c.req, 'بلاغ ' + c.id + ': ' + to + ' — ' + reply, user.name);
+  });
+  const req = findRequestSafe_(c.req);
+  const subject = (to === CMP_DONE_ ? '✅ تمت معالجة البلاغ' : '🛠️ جاري معالجة البلاغ') + ' على الطلب ' + c.req + ' · ' + (to === CMP_DONE_ ? 'Complaint handled' : 'Complaint in progress');
+  const body = mailMsg_({ order: ['ar', 'en'], id: c.req, req: req,
+    ar: { title: to + ' (' + c.type + ')', lead: 'رد التموين (' + user.name + '):', lines: [reply], action: to === CMP_DONE_ ? 'الجودة: راجع المعالجة وأغلق البلاغ بملاحظة.' : '', btn: 'افتح البلاغات' },
+    en: { title: (to === CMP_DONE_ ? 'Handled' : 'In progress') + ' (' + c.type + ')', lead: 'Procurement reply (' + user.name + '):', lines: [reply], action: to === CMP_DONE_ ? 'Quality: review and close the complaint with a note.' : '', btn: 'Open complaints' } });
+  if (c.author && c.author !== user.name) notifyUser_(c.author, subject, body);
+  notifyPerm_('complaints_close', subject, body);
+  return { id: c.id, progress: to };
 }
 
 function addNotice_(user, toRole, message) {
