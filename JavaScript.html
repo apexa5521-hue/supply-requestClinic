@@ -3981,10 +3981,14 @@ function printReport(html) {
   const theme = document.documentElement.dataset.theme;
   document.documentElement.dataset.theme = 'light'; // الورق أبيض دائماً
   document.body.classList.add('printing');
+  // قفل التمرير أثناء فتح النافذة يقص الطباعة على صفحة واحدة في بعض المتصفحات: يُفك أثناء الطباعة ويرجع بعدها
+  const lock = document.body.style.overflow;
+  document.body.style.overflow = '';
   let finished = false;
   const done = () => {
     if (finished) return; finished = true;
     document.body.classList.remove('printing'); area.innerHTML = '';
+    document.body.style.overflow = lock;
     document.documentElement.dataset.theme = theme;
     window.removeEventListener('afterprint', done);
   };
