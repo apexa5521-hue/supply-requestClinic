@@ -3291,6 +3291,33 @@ test('monthly deadline reminders: window opens for everyone, then only doctors w
   assert.equal(ctx.cronTick_(at(21, 12)).digest, -1, 'digest not repeated the same day');
 });
 
+test('admin deletes a whole request with a reason (full copy kept for audit) and can restore it', () => {
+  const { api, login, gas } = boot();
+  const n = login('سارة', '1111'), p = login('علي', '3333'), a = login('المدير', '1234');
+  const id = api(n, 'createRequest', { clinic: 'عيادة الأسنان 1', doctor: 'د. نورة', type: 'شهري', items: [{ name: 'PROPHY PASTE', qty: 2 }, { name: 'DENTAL FLOSS', qty: 3 }] }).id;
+  api(n, 'addComment', id, 'ملاحظة');
+  api(n, 'addComplaint', id, 'تأخير', 'متأخر');
+  throwsCode(() => api(a, 'adminDeleteRequest', id, ' '), 'ERR_REASON_REQUIRED');
+  throwsCode(() => api(p, 'adminDeleteRequest', id, 'x'), 'ERR_FORBIDDEN');
+  const before = { items: rows(gas, 'RequestItems').filter(r => r.RequestID === id).length };
+  const res = api(a, 'adminDeleteRequest', id, 'طلب مكرر بالخطأ');
+  assert.ok(res.total > 0, 'value of the deleted request is reported');
+  for (const tab of ['Requests', 'RequestItems', 'Comments', 'Complaints']) assert.equal(rows(gas, tab).filter(r => r.RequestID === id).length, 0, tab + ' rows removed');
+  throwsCode(() => api(a, 'getRequestAudit', id), 'ERR_NOT_FOUND');
+  assert.ok(!api(p, 'getRequests', {}).some(r => r.id === id), 'gone from procurement');
+  const del = api(a, 'getDeletedRequests');
+  assert.deepEqual([del[0].id, del[0].reason, del[0].user, del[0].clinic], [id, 'طلب مكرر بالخطأ', 'المدير', 'عيادة الأسنان 1']);
+  assert.ok(rows(gas, 'Reversals').some(r => r.RequestID === id && /حذف طلب كامل/.test(r.Scope)), 'audit trail');
+  assert.ok(rows(gas, 'Log').some(r => r.RequestID === id && /حذف الأدمن الطلب كاملاً/.test(r.Action)), 'log kept');
+  // restore: everything back as it was
+  const back = api(a, 'adminRestoreRequest', id);
+  assert.equal(back.id, id);
+  assert.equal(rows(gas, 'RequestItems').filter(r => r.RequestID === id).length, before.items);
+  assert.ok(api(p, 'getRequests', {}).some(r => r.id === id && r.itemCount === 2 && r.openComplaints === 1), 'items and open report back');
+  assert.ok(api(a, 'getDeletedRequests')[0].restoredBy === 'المدير');
+  throwsCode(() => api(a, 'adminRestoreRequest', id), 'ERR_NOT_FOUND');
+});
+
 test('catalog bulk add: rows pasted from Excel are checked first, then saved together', () => {
   const { api, login, gas } = boot();
   const p = login('علي', '3333');

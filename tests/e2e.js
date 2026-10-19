@@ -1714,6 +1714,21 @@ function log(msg) { console.log('  ✔ ' + msg); }
   await page.click('.modal .btn-primary');
   await page.waitForSelector(`#rfBox [data-act="rfRemove"][data-item="${rfItem}"]`);
   expect(true, 'restored with its original quantities');
+  // حذف الطلب كاملاً: السبب + كتابة رقم الطلب للتأكيد ← «الطلبات المحذوفة» ← استرجاع
+  await page.click('#rfBox [data-act="rfDelete"]');
+  await page.fill('.modal #rfDelReason', 'طلب تجريبي مكرر');
+  await page.fill('.modal #rfDelId', 'REQ-H000');
+  await page.click('.modal #rfDelOk');
+  expect((await page.textContent('.modal #rfDelErr')).includes('غير مطابق'), 'delete needs the request number typed');
+  await page.fill('.modal #rfDelId', 'req-h024');
+  await page.click('.modal #rfDelOk');
+  await page.waitForSelector('#rfDeleted [data-act="rfUndelete"][data-id="REQ-H024"]');
+  expect((await page.textContent('#rfDeleted')).includes('طلب تجريبي مكرر') && !(await page.isVisible('#rfBox table')), 'deleted request listed with the reason');
+  await page.click('#rfDeleted [data-act="rfUndelete"][data-id="REQ-H024"]');
+  await page.click('.modal .btn-primary');
+  await page.waitForSelector('#rfBox table');
+  await page.waitForFunction(() => document.querySelector('#rfDeleted').textContent.includes('استرجعه'), null, { timeout: 15000 });
+  expect(!(await page.isVisible('#rfDeleted [data-act="rfUndelete"][data-id="REQ-H024"]')), 'restored request is back and marked restored');
   await logout(page);
   await login(page, 'نواف', '7777');
   await page.click('.sidebar [data-view="settings"]');

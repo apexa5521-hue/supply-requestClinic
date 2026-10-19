@@ -39,6 +39,8 @@ const SCHEMA = {
                  'RejectNote', 'RejectBy', 'RejectAt', 'RejectQty'], // رفض التموين لصنف: السبب يظهر للطبيب والممرضة، والكمية الأصلية للتراجع
   // سجل التراجعات: كل تراجع عن خطوة (شحنة أُرسلت بالغلط، حالة طلب، حالة صنف) مع السبب والوقت — تراه الجودة والإدارة
   Reversals:    ['Timestamp', 'RequestID', 'User', 'Role', 'Scope', 'From', 'To', 'Reason', 'Details'],
+  // طلبات حذفها الأدمن كاملة: نسخة كاملة (Snapshot) لكل سطورها — للتدقيق وللاسترجاع
+  DeletedRequests: ['Timestamp', 'RequestID', 'User', 'Reason', 'Clinic', 'Doctor', 'Nurse', 'Status', 'Total', 'Snapshot', 'RestoredAt', 'RestoredBy'],
   // كل سطر = كمية صنف واحد داخل شحنة واحدة (يسمح بإرسال جزء من كمية الصنف)
   ShipmentItems: ['RequestID', 'Batch', 'ItemName', 'Qty', 'DispatchedAt', 'DispatchedBy', 'ReceivedQty', 'RejectReason', 'RejectPhoto'], // رفض الممرضة لصنف عند الاستلام (السبب + صورة)
   Shipments:    ['RequestID', 'Batch', 'ReceivedAt', 'ReceiverName', 'ReceivedBy', 'SignatureURL', 'SignatureFileID', 'ReceiptURL'],
@@ -636,6 +638,9 @@ const API_ = {
   getRequestAudit:           { screens: ['admin'], fn: getRequestAudit_ },
   getDoctorItemStats:        { screens: ['finance', 'quality', 'admin'], fn: getDoctorItemStats_ },
   adminRemoveItem:           { screens: ['admin'], fn: adminRemoveItem_ },
+  adminDeleteRequest:        { screens: ['admin'], fn: adminDeleteRequest_ },
+  adminRestoreRequest:       { screens: ['admin'], fn: adminRestoreRequest_ },
+  getDeletedRequests:        { screens: ['admin'], fn: getDeletedRequests_ },
   adminRestoreItem:          { screens: ['admin'], fn: adminRestoreItem_ },
   editRequestItems:          { screens: ['nurse'], fn: editRequestItems_ },
   getShipmentSignatures:     { screens: ['nurse'], fn: getShipmentSignatures_ },
@@ -4018,6 +4023,82 @@ function adminRestoreItem_(user, requestId, item) {
     const msg = '↩️ استرجع الأدمن الصنف: ' + item;
     append_('Comments', { Timestamp: now, RequestID: requestId, Author: user.name, Role: user.role, Message: msg });
     logAction_(requestId, msg, user.name);
+  });
+  return getRequestAudit_(user, requestId);
+}
+
+/*
+ * حذف الطلب كاملاً (الأدمن، بسبب إلزامي): تُحذف سطوره من الطلبات والأصناف والشحنات والملاحظات والتعليقات والبلاغات،
+ * وتُحفظ قبلها نسخة كاملة في DeletedRequests (+ سطر في Reversals) — التدقيق المالي يعرف ماذا حُذف ومتى ومن وبكم،
+ * والطلب يُسترجع كما كان. السجل (Log) يبقى. لا يُحذف طلب صُرفت منه عهدة أو ما زالت شحنته داخل بوكس.
+ */
+const DEL_TABLES_ = ['Requests', 'RequestItems', 'ShipmentItems', 'Shipments', 'ItemNotes', 'Comments', 'Complaints'];
+const ADMIN_DEL_ = 'حذف طلب كامل (أدمن)', ADMIN_UNDEL_ = 'استرجاع طلب محذوف (أدمن)';
+function adminDeleteRequest_(user, requestId, reason) {
+  requestId = str_(requestId); reason = clean_(reason, 500);
+  if (!reason) throw new Error('ERR_REASON_REQUIRED');
+  let total = 0;
+  withLock_(function () {
+    resetMemo_();
+    const f = findRequest_(requestId);
+    if (read_('Assets').rows.some(function (a) { return str_(a.RequestID).split('#')[0] === requestId; })) throw new Error('ERR_ITEM_HAS_ASSET');
+    if (read_('Boxes').rows.some(function (b) { return boxLoads_(b.Loads).some(function (l) { return l.split('#')[0] === requestId; }); })) throw new Error('ERR_REQ_IN_BOX');
+    const req = mapRequest_(f.row);
+    const price = catalogPrices_();
+    total = round2_(shipState_(req, itemsOf_(requestId)).items.reduce(function (a, i) { return a + i.target * (price[i.item.toLowerCase()] || 0); }, 0));
+    const snap = {}, del = [];
+    DEL_TABLES_.forEach(function (name) {
+      const t = freshTable_(name);
+      const rows = t.rows.filter(function (r) { return str_(r.RequestID) === requestId; });
+      if (!rows.length) return;
+      snap[name] = rows.map(function (r) { const o = {}; t.headers.forEach(function (h) { if (h && r[h] !== '' && r[h] !== undefined && r[h] !== null) o[h] = r[h]; }); return o; });
+      del.push({ t: t, rows: rows });
+    });
+    const js = JSON.stringify(snap);
+    if (js.length > 49000) throw new Error('ERR_TOO_LARGE');
+    const now = new Date();
+    append_('DeletedRequests', { Timestamp: now, RequestID: requestId, User: user.name, Reason: reason, Clinic: req.clinic, Doctor: req.doctor, Nurse: req.nurse,
+      Status: req.status, Total: total, Snapshot: js, RestoredAt: '', RestoredBy: '' });
+    append_('Reversals', { Timestamp: now, RequestID: requestId, User: user.name, Role: user.role, Scope: ADMIN_DEL_,
+      From: req.status + ' · ' + (snap.RequestItems || []).length + ' صنف — ' + total, To: 'محذوف', Reason: reason, Details: '' });
+    // من الأسفل للأعلى حتى لا تتغير أرقام السطور الباقية
+    del.forEach(function (d) { d.rows.slice().sort(function (a, b) { return b._row - a._row; }).forEach(function (r) { deleteRow_(d.t, r); }); });
+    delete MEMO_.sitems; delete MEMO_.rcpt;
+    logAction_(requestId, '🗑️ حذف الأدمن الطلب كاملاً (القيمة ' + total + ') — السبب: ' + reason, user.name);
+  });
+  return { id: requestId, total: total, deleted: getDeletedRequests_(user) };
+}
+function getDeletedRequests_(user) {
+  return read_('DeletedRequests').rows.filter(function (r) { return str_(r.RequestID); }).map(function (r) {
+    return { id: str_(r.RequestID), time: r.Timestamp, user: str_(r.User), reason: str_(r.Reason), clinic: str_(r.Clinic), doctor: str_(r.Doctor),
+      nurse: str_(r.Nurse), status: str_(r.Status), total: price_(r.Total) || 0, restoredAt: r.RestoredAt, restoredBy: str_(r.RestoredBy) };
+  }).sort(function (a, b) { return toMs_(b.time) - toMs_(a.time); });
+}
+/** يرجع الطلب المحذوف كما كان بكل سطوره (من النسخة المحفوظة) */
+function adminRestoreRequest_(user, requestId) {
+  requestId = str_(requestId);
+  withLock_(function () {
+    resetMemo_();
+    const t = freshTable_('DeletedRequests');
+    const row = t.rows.filter(function (r) { return str_(r.RequestID) === requestId && !r.RestoredAt; }).pop();
+    if (!row) throw new Error('ERR_NOT_FOUND');
+    if (read_('Requests').rows.some(function (r) { return str_(r.RequestID) === requestId; })) throw new Error('ERR_EXISTS');
+    let snap;
+    try { snap = JSON.parse(str_(row.Snapshot)); } catch (e) { snap = null; }
+    if (!snap || !snap.Requests) throw new Error('ERR_NOT_FOUND');
+    const ISO = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?Z$/;
+    DEL_TABLES_.forEach(function (name) {
+      (snap[name] || []).forEach(function (o) {
+        const x = {};
+        Object.keys(o).forEach(function (k) { x[k] = typeof o[k] === 'string' && ISO.test(o[k]) ? new Date(o[k]) : o[k]; });
+        append_(name, x);
+      });
+    });
+    const now = new Date();
+    setCells_(t, row, { RestoredAt: now, RestoredBy: user.name });
+    append_('Reversals', { Timestamp: now, RequestID: requestId, User: user.name, Role: user.role, Scope: ADMIN_UNDEL_, From: 'محذوف', To: str_(row.Status), Reason: 'استرجاع', Details: '' });
+    delete MEMO_.sitems; delete MEMO_.rcpt;
+    logAction_(requestId, '↩️ استرجع الأدمن الطلب المحذوف', user.name);
   });
   return getRequestAudit_(user, requestId);
 }
