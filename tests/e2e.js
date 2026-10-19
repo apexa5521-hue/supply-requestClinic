@@ -1626,13 +1626,13 @@ function log(msg) { console.log('  ✔ ' + msg); }
   expect(!(await page.$(`.req:has-text("${wdId2}") .req-actions [data-act="withdraw"]`)), 'card loses the cancel button once cancelled');
   await logout(page);
 
-  // ---------- Housekeeper: nurse-like request for a place, only in her account, approved by the branch manager ----------
+  // ---------- Housekeeper: nurse-like request for a place, only in her account, straight to procurement ----------
   await page.evaluate(async () => { const tk = (await __api(null, 'login', ['المدير', '1234'])).token; await __api(tk, 'createUser', [{ name: 'هيفاء HK', password: '3030', role: 'هاوس كيبر', clinic: '', branch: 'جدة' }]); });
   await login(page, 'هيفاء HK', '3030');
   const hkNav = await page.$$eval('.sidebar .nav-item', els => els.map(e => e.dataset.view));
   expect(hkNav.join(',') === 'new,mine', 'housekeeper sees only New request and My requests: ' + hkNav.join(','));
   await page.click('.sidebar [data-view="new"]'); await page.waitForSelector('#fKind');
-  expect(await page.isHidden('[data-seg-name="reqKind"]') && (await page.textContent('#fKind')).includes('مدير الفرع'), 'no doctor option — the request is for a place, approved by the branch manager');
+  expect(await page.isHidden('[data-seg-name="reqKind"]') && (await page.textContent('#fKind')).includes('التموين مباشرة'), 'no doctor option — the request is for a place, straight to procurement');
   expect(!(await page.$('#fClinic')) && await page.isDisabled('#fBranch') && await page.inputValue('#fBranch') === 'جدة' && !(await page.$('#fBackdate')),
     'housekeeper form: her branch fixed (no clinic, no past requests)');
   await shot(page, 'housekeeper-new');
@@ -1644,18 +1644,9 @@ function log(msg) { console.log('  ✔ ' + msg); }
   await page.click('.sidebar [data-view="mine"]');
   await page.evaluate(() => loadMine(true)); // القائمة قد تُرسم قبل وصول الطلب الجديد
   await page.waitForSelector(`.req:has-text("${hkId}")`);
-  expect((await page.textContent(`.req:has-text("${hkId}") .badge`)).includes('جديد · لم يعتمده مدير الفرع بعد'), 'her card says it waits for the branch manager');
+  expect(!(await page.textContent(`.req:has-text("${hkId}") .badge`)).includes('مدير الفرع') && (await page.textContent(`.req:has-text("${hkId}") .jr-now`)).includes('التموين'), 'no branch manager step: it waits for procurement');
   await shot(page, 'housekeeper-mine');
-  await logout(page);
-  await login(page, 'مدير جدة', '4545');
-  await page.click('.sidebar [data-view="reviews"]');
-  await page.waitForSelector(`#docList [data-id="${hkId}"]`);
-  await page.click(`#docList [data-id="${hkId}"]`);
-  await page.waitForSelector('#rvApprove');
-  await page.click('#rvApprove');
-  await page.waitForTimeout(800);
-  expect(await page.evaluate(id => { const d = __gas.dump('Requests'); const h = d[0]; return d.find(r => r[0] === id)[h.indexOf('Status')]; }, hkId) === 'معتمد من الطبيب', 'branch manager approved the housekeeping request');
-  await shot(page, 'branch-approvals');
+  expect(await page.evaluate(id => { const d = __gas.dump('Requests'); const h = d[0]; const r = d.find(x => x[0] === id); return r[h.indexOf('Status')] === 'جديد' && !r[h.indexOf('Approver')]; }, hkId), 'saved as new for procurement, no approver');
   await logout(page);
   await login(page, 'سارة', '1111');
   await page.click('.sidebar [data-view="mine"]');

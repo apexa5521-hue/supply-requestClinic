@@ -639,6 +639,7 @@ const API_ = {
   getDoctorItemStats:        { screens: ['finance', 'quality', 'admin'], fn: getDoctorItemStats_ },
   adminRemoveItem:           { screens: ['admin'], fn: adminRemoveItem_ },
   adminDeleteRequest:        { screens: ['admin'], fn: adminDeleteRequest_ },
+  adminSetItemQty:           { screens: ['admin'], fn: adminSetItemQty_ },
   adminRestoreRequest:       { screens: ['admin'], fn: adminRestoreRequest_ },
   getDeletedRequests:        { screens: ['admin'], fn: getDeletedRequests_ },
   adminRestoreItem:          { screens: ['admin'], fn: adminRestoreItem_ },
@@ -2168,7 +2169,8 @@ function queryRequests_(filters) {
       const dl = waiting[waiting.length - 1].delivered;
       r.boxAt = { to: dl.to, photo: dl.photo, at: dl.at, box: dl.box };
     }
-    r.needsReview = r.approver === 'branch' ? branchManagers_(r.branch).length > 0 : !!reviewers[r.doctor];
+    r.needsReview = r.approver === 'branch' ? false : !!reviewers[r.doctor]; // اعتماد مدير الفرع أُلغي
+    if (!r.needsReview && r.approver === 'branch' && r.status === ST.REVIEW) r.status = ST.NEW;
     r.cleared = !r.needsReview || r.status === ST.APPROVED || !!r.approvedAt;
     r.awaitingDoctor = r.needsReview && !r.cleared && AWAITING_DOCTOR.indexOf(r.status) !== -1;
     if (r.awaitingDoctor && r.status === ST.NEW) r.status = ST.REVIEW; // طلب قديم «جديد» = لدى الطبيب
@@ -2971,7 +2973,8 @@ function createRequest_(user, payload) {
   const cache = CacheService.getScriptCache();
 
   // الطبيب الذي له حساب يراجع الطلب أولاً؛ غير ذلك يذهب للتموين مباشرة
-  const branchApproval = (!!user.hk || device) && !forLab;
+  // اعتماد مدير الفرع أُلغي: طلبات الهاوس كيبر وغرف الأجهزة ومستهلكات العيادة تذهب للتموين مباشرة
+  const branchApproval = false;
   const needsReview = branchApproval ? branchManagers_(branch).length > 0 : !clinicOnly && doctorHasAccount_(doctor);
   // مفتاح المسودة من الجهاز: إعادة إرسال نفس المسودة بعد انقطاع الاتصال لا تنشئ طلباً مكرراً أبداً
   const clientKey = /^[A-Za-z0-9-]{8,64}$/.test(str_(payload.clientKey)) ? str_(payload.clientKey) : '';
@@ -3619,7 +3622,8 @@ function branchManagers_(branch) {
 function isBranchApproval_(row) { return str_(row.Approver) === BRANCH_APPROVER_; }
 /** هل للطلب من يعتمده في النظام؟ (وإلا يذهب للتموين مباشرة) */
 function hasApprover_(row) {
-  return isBranchApproval_(row) ? branchManagers_(str_(row.Branch)).length > 0 : doctorHasAccount_(str_(row.Doctor));
+  // طلبات قديمة كانت بانتظار مدير الفرع: لا اعتماد بعد الآن — تذهب للتموين مباشرة
+  return isBranchApproval_(row) ? false : doctorHasAccount_(str_(row.Doctor));
 }
 /** هل هذا المستخدم هو من يعتمد هذا الطلب؟ */
 function canReview_(user, row) {
@@ -3643,7 +3647,9 @@ function awaitingDoctor_(row) {
 
 /** سبب منع الانتقال (أو '' إن كان مسموحاً) */
 function transitionError_(row, newStatus) {
-  const cur = str_(row.Status) || ST.NEW;
+  const cur0 = str_(row.Status) || ST.NEW;
+  // طلب كان «بانتظار الاعتماد» ولم يعد له من يعتمده (مدير الفرع أُلغي) = جديد عند التموين
+  const cur = cur0 === ST.REVIEW && !hasApprover_(row) ? ST.NEW : cur0;
   const tr = TRANSITIONS[newStatus];
   if (!tr || tr.from.indexOf(cur) === -1) return 'ERR_BAD_TRANSITION';
   if (newStatus === ST.REVIEW) {
@@ -4072,6 +4078,66 @@ function adminRemoveItem_(user, requestId, item, reason) {
     append_('Comments', { Timestamp: now, RequestID: requestId, Author: user.name, Role: user.role, Message: msg });
     logAction_(requestId, msg, user.name);
     settleRequest_(f, cur, user, 'بعد حذف الأدمن للصنف');
+  });
+  return getRequestAudit_(user, requestId);
+}
+/*
+ * تعديل كمية صنف (الأدمن، بسبب إلزامي) مع حالته المرسلة: المعتمد = الكمية الجديدة، والمرسل يتبعها
+ * (التخفيض يُخصم من آخر شحنة فالأقدم، والزيادة لصنف أُرسل كاملاً تُضاف لآخر شحنة) والمستلم كذلك إن كانت الشحنة مستلمة.
+ * يظهر للتموين والممرضة والطبيب فوراً، ويُسجَّل في سجل التراجعات بالقيم السابقة.
+ */
+const ADMIN_QTY_ = 'تعديل كمية (أدمن)';
+function adminSetItemQty_(user, requestId, item, qty, reason) {
+  requestId = str_(requestId); item = str_(item); reason = clean_(reason, 500);
+  const q = Number(qty);
+  if (!(Math.floor(q) === q && q >= 0 && q <= 100000)) throw new Error('ERR_BAD_QTY');
+  if (!reason) throw new Error('ERR_REASON_REQUIRED');
+  withLock_(function () {
+    resetMemo_();
+    const f = findRequest_(requestId);
+    const cur = str_(f.row.Status) || ST.NEW;
+    if (cur === ST.CANCELLED) throw new Error('ERR_BAD_TRANSITION');
+    const ri = read_('RequestItems');
+    const rows = ri.rows.filter(function (r) { return str_(r.RequestID) === requestId; });
+    const row = rows.filter(function (r) { return str_(r.ItemName) === item; })[0];
+    if (!row) throw new Error('ERR_NOT_FOUND');
+    if (row.RejectAt) throw new Error('ERR_ITEM_REJECTED');
+    if (read_('Assets').rows.some(function (a) { return str_(a.RequestID).split('#')[0] === requestId && str_(a.Item) === item; })) throw new Error('ERR_ITEM_HAS_ASSET');
+    const req = mapRequest_(f.row);
+    const st = shipState_(req, rows);
+    const it = st.items.filter(function (i) { return i.item === item; })[0];
+    const old = it ? it.target : 0, sent = it ? it.sentQty : 0;
+    if (q === old) return;
+    if (q === 0 && st.items.every(function (i) { return i.item === item || i.target === 0; })) throw new Error('ERR_ALL_ZERO');
+    const si = read_('ShipmentItems');
+    const sRows = si.rows.filter(function (r) { return str_(r.RequestID) === requestId && str_(r.ItemName) === item; })
+      .sort(function (a, b) { return Number(b.Batch) - Number(a.Batch); });
+    // المرسل الجديد: لا يزيد عن الكمية الجديدة؛ وإن كان الصنف أُرسل كاملاً يبقى كاملاً بالكمية الجديدة
+    const want = sent >= old && sent > 0 ? q : Math.min(sent, q);
+    const ups = [];
+    if (sRows.length && want !== sent) {
+      let diff = want - sent;
+      sRows.forEach(function (r) {
+        if (!diff) return;
+        const was = Number(r.Qty) || 0, now = diff > 0 ? was + diff : Math.max(0, was + diff);
+        diff -= now - was;
+        // شحنة مستلمة: المستلم كاملاً يتبع الكمية الجديدة، والمستلم جزئياً لا يزيد عنها
+        const rq = r.ReceivedQty, rcv = rq === '' || rq === null || rq === undefined ? '' : Number(rq) >= was ? now : Math.min(Number(rq) || 0, now);
+        ups.push({ row: r, obj: { Qty: now, ReceivedQty: rcv } });
+      });
+    }
+    const snap = { approved: row.ApprovedQty, received: row.ReceivedQty, ships: sRows.map(function (r) { return [Number(r.Batch), r.Qty, r.ReceivedQty]; }) };
+    const rcvRow = row.ReceivedQty === '' || row.ReceivedQty === null || row.ReceivedQty === undefined ? '' : (Number(row.ReceivedQty) >= old ? q : Math.min(Number(row.ReceivedQty) || 0, q));
+    setMany_(ri, [{ row: row, obj: { ApprovedQty: q, ReceivedQty: rcvRow } }]);
+    if (ups.length) setMany_(si, ups);
+    delete MEMO_.sitems; delete MEMO_.rcpt;
+    const now = new Date();
+    append_('Reversals', { Timestamp: now, RequestID: requestId, User: user.name, Role: user.role, Scope: ADMIN_QTY_,
+      From: item + ' × ' + old + (sent ? ' (أُرسل ' + sent + ')' : ''), To: String(q) + (want ? ' (أُرسل ' + want + ')' : ''), Reason: reason, Details: JSON.stringify(snap).slice(0, 1800) });
+    const msg = '✏️ عدّل الأدمن كمية ' + item + ': ' + old + ' ← ' + q + ' — السبب: ' + reason;
+    append_('Comments', { Timestamp: now, RequestID: requestId, Author: user.name, Role: user.role, Message: msg });
+    logAction_(requestId, msg, user.name);
+    settleRequest_(f, cur, user, 'بعد تعديل الأدمن للكمية');
   });
   return getRequestAudit_(user, requestId);
 }
@@ -5772,7 +5838,8 @@ function procStage_(r) {
   if (r.sentQty > 0 && r.remainingQty > 0) return 'partial';
   if (r.status === ST.SENT) return r.atBranch ? 'arrived' : 'shipping';
   if ([ST.PREP, ST.VENDOR_WAIT, ST.VENDOR_RECV].indexOf(r.status) !== -1) return 'prep';
-  return !r.doctorApproved ? 'review' : r.approver === 'branch' ? 'ready_bm' : 'ready';
+  if (!r.doctorApproved) return !r.doctor && r.clinic !== LAB_SUPPLY_ ? 'clinic' : 'review';
+  return 'ready';
 }
 function getExecutiveStats_(user, month) {
   const all = queryRequests_(month ? { month: month } : {});
