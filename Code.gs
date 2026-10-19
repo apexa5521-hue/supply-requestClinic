@@ -39,6 +39,10 @@ const SCHEMA = {
                  'RejectNote', 'RejectBy', 'RejectAt', 'RejectQty'], // رفض التموين لصنف: السبب يظهر للطبيب والممرضة، والكمية الأصلية للتراجع
   // سجل التراجعات: كل تراجع عن خطوة (شحنة أُرسلت بالغلط، حالة طلب، حالة صنف) مع السبب والوقت — تراه الجودة والإدارة
   Reversals:    ['Timestamp', 'RequestID', 'User', 'Role', 'Scope', 'From', 'To', 'Reason', 'Details'],
+  // الطلبات الخارجية (للمورد/المندوب): رأس الطلبية + أصنافها، ونسخة طلب عرض السعر كما صُدّر وقتها
+  ExtOrders:    ['OrderID', 'CreatedAt', 'CreatedBy', 'Supplier', 'Contact', 'Notes', 'Status', 'SentAt', 'SentBy', 'ExpectedAt', 'ArrivedAt', 'ArrivedBy',
+                 'RfqAt', 'RfqSnapshot', 'RemindedOn', 'UpdatedAt'],
+  ExtOrderItems: ['OrderID', 'RequestID', 'ItemName', 'Qty', 'Note'],
   // طلبات حذفها الأدمن كاملة: نسخة كاملة (Snapshot) لكل سطورها — للتدقيق وللاسترجاع
   DeletedRequests: ['Timestamp', 'RequestID', 'User', 'Reason', 'Clinic', 'Doctor', 'Nurse', 'Status', 'Total', 'Snapshot', 'RestoredAt', 'RestoredBy'],
   // كل سطر = كمية صنف واحد داخل شحنة واحدة (يسمح بإرسال جزء من كمية الصنف)
@@ -642,6 +646,12 @@ const API_ = {
   adminRemoveItem:           { screens: ['admin'], fn: adminRemoveItem_ },
   adminDeleteRequest:        { screens: ['admin'], fn: adminDeleteRequest_ },
   adminSetItemQty:           { screens: ['admin'], fn: adminSetItemQty_ },
+  getExtOrders:              { screens: ['procurement', 'admin'], fn: getExtOrders_ },
+  saveExtOrder:              { screens: ['procurement'], fn: saveExtOrder_ },
+  addExtOrderItems:          { screens: ['procurement'], fn: addExtOrderItems_ },
+  deleteExtOrder:            { screens: ['procurement'], fn: deleteExtOrder_ },
+  extOrderStatus:            { screens: ['procurement'], fn: extOrderStatus_ },
+  extOrderRfq:               { screens: ['procurement'], fn: extOrderRfq_ },
   adminRestoreRequest:       { screens: ['admin'], fn: adminRestoreRequest_ },
   getDeletedRequests:        { screens: ['admin'], fn: getDeletedRequests_ },
   adminRestoreItem:          { screens: ['admin'], fn: adminRestoreItem_ },
@@ -2244,6 +2254,28 @@ const ORDER_RULES_ = [
  * الوصول: أول شحنة ← وصول البوكس للفرع · الاستلام: الوصول (أو الإرسال) ← استلام الممرضة. الساعات متصلة (24 ساعة في اليوم).
  */
 const SLA_STAGES_ = ['appr', 'prep', 'send', 'arr', 'rcv'];
+/**
+ * رفض الاستلام في الشهر: متى (تاريخ ووقت)، من رفض، رقم الطلب، السبب، وما كان مطلوباً (الصنف الأصلي إن كان المرسل بديلاً)
+ * — من سطور الشحنات المرفوضة عند الاستلام (RejectReason) وتوقيع الشحنة.
+ */
+function receiptRejects_(month) {
+  const ids = scopedRequestIds_();
+  const ship = {};
+  read_('Shipments').rows.forEach(function (r) { ship[str_(r.RequestID) + '#' + Number(r.Batch)] = r; });
+  const items = {};
+  read_('RequestItems').rows.forEach(function (r) { items[str_(r.RequestID) + '|' + str_(r.ItemName)] = r; });
+  const reqs = {};
+  requestRows_().forEach(function (r) { reqs[str_(r.RequestID)] = r; });
+  return read_('ShipmentItems').rows.filter(function (r) { return str_(r.RejectReason) && (!ids || ids[str_(r.RequestID)]); }).map(function (r) {
+    const id = str_(r.RequestID), sh = ship[id + '#' + Number(r.Batch)] || {}, it = items[id + '|' + str_(r.ItemName)] || {}, q = reqs[id] || {};
+    const orig = str_(it.SubstituteOf), origRow = orig ? items[id + '|' + orig] || {} : it;
+    return { time: sh.ReceivedAt || r.DispatchedAt, by: str_(sh.ReceivedBy) || str_(sh.ReceiverName), receiver: str_(sh.ReceiverName), id: id, batch: Number(r.Batch),
+      reason: str_(r.RejectReason), photo: str_(r.RejectPhoto), item: str_(r.ItemName), qty: Number(r.Qty) || 0,
+      requested: orig || str_(r.ItemName), requestedQty: Number(origRow.RequestedQty) || 0, substitute: !!orig,
+      clinic: str_(q.Clinic), doctor: str_(q.Doctor), nurse: str_(q.Nurse), branch: str_(q.Branch), type: str_(q.Type) };
+  }).filter(function (x) { return !month || monthOf_(x.time) === month; })
+    .sort(function (a, b) { return toMs_(b.time) - toMs_(a.time); });
+}
 /** الطلبات المحمّلة الآن في بوكسات (لقياس مرحلة الوصول للفرع) */
 function boxedRequests_() {
   if (MEMO_.boxedReqs) return MEMO_.boxedReqs;
@@ -2565,7 +2597,7 @@ function getMonitor_(user, opts) {
     return o[a.state] - o[b.state] || a.doctor.localeCompare(b.doctor);
   });
   return {
-    now: new Date(now), late: late, atRisk: atRisk, kpis: kpis, sla: sla, slaLate: slaLate,
+    now: new Date(now), late: late, atRisk: atRisk, kpis: kpis, sla: sla, slaLate: slaLate, rcvRejects: receiptRejects_(month),
     cycle: { month: cycleMonth, window: [RULES.winStart, RULES.winEnd], today: today, open: today >= RULES.winStart && today <= RULES.winEnd,
       due: new Date(monthlyDue_(now, RULES) - 864e5 + 1), doctors: cycle, missing: cycle.filter(function (c) { return !c.count; }).length,
       lateSubmits: cycle.filter(function (c) { return c.state === 'late'; }).length, passed: passed },
@@ -2605,6 +2637,7 @@ function nudgeProcurement_(user, requestId, message) {
  */
 function dailyDigest(e) {
   if (!e || !e.triggerUid) return 0;
+  try { extOrderReminders_(Date.now()); } catch (err) { console.error(err); }
   return sendDigest_();
 }
 function sendDigest_() {
@@ -4257,6 +4290,198 @@ function adminRestoreRequest_(user, requestId) {
   return getRequestAudit_(user, requestId);
 }
 
+/* =====================================================================
+ *  الطلبات الخارجية (التموين ← المورد/المندوب):
+ *  التموين يختار من طلب ما يحتاجه بالضبط (الصنف والكمية، مع التعديل والحذف) ويجمع أصنافاً لنفس المورد في طلبية واحدة،
+ *  ثم يصدّر «طلب عرض سعر» (تُحفظ نسخته كما صُدّرت) ← «تم الإرسال للمندوب» بتاريخ وصول متوقع ← تذكير يوم الموعد وبعده
+ *  حتى يضغط «وصلت». الأدمن يرى إحصائية المناديب: عدد الطلبيات، المتأخر، الواصل، ونسخة عرض السعر المرسلة.
+ * ===================================================================== */
+const EO_ST = { DRAFT: 'مسودة', SENT: 'أُرسل للمندوب', ARRIVED: 'وصل', CANCELLED: 'ملغي' };
+function eoItems_(list) {
+  if (!Array.isArray(list)) throw new Error('ERR_REQUIRED');
+  const out = [];
+  list.slice(0, 200).forEach(function (x) {
+    x = x || {};
+    const item = clean_(x.item, 200), q = Number(x.qty);
+    if (!item) return;
+    if (!(Math.floor(q) === q && q >= 1 && q <= 100000)) throw new Error('ERR_BAD_QTY');
+    out.push({ requestId: clean_(x.requestId, 40), item: item, qty: q, note: clean_(x.note, 300) });
+  });
+  return out;
+}
+function mapExtOrder_(r, items, today) {
+  const st = str_(r.Status) || EO_ST.DRAFT, exp = str_(r.ExpectedAt) ? ymdStr_(r.ExpectedAt) : '';
+  const late = st === EO_ST.SENT && exp && exp < today;
+  let snap = null;
+  try { snap = str_(r.RfqSnapshot) ? JSON.parse(str_(r.RfqSnapshot)) : null; } catch (e) { snap = null; }
+  return { id: str_(r.OrderID), createdAt: r.CreatedAt, createdBy: str_(r.CreatedBy), supplier: str_(r.Supplier), contact: str_(r.Contact), notes: str_(r.Notes),
+    status: st, sentAt: r.SentAt, sentBy: str_(r.SentBy), expected: exp, arrivedAt: r.ArrivedAt, arrivedBy: str_(r.ArrivedBy), rfqAt: r.RfqAt, rfq: snap,
+    late: !!late, lateDays: late ? Math.round((parseDay_(today).getTime() - parseDay_(exp).getTime()) / 864e5) : 0,
+    onTime: st === EO_ST.ARRIVED && exp ? ymdStr_(r.ArrivedAt) <= exp : null,
+    items: items[str_(r.OrderID)] || [] };
+}
+/** «yyyy-MM-dd» بتوقيت الرياض لقيمة تاريخ أو نص */
+function ymdStr_(v) {
+  if (/^\d{4}-\d{2}-\d{2}$/.test(str_(v))) return str_(v);
+  const ms = toMs_(v);
+  return ms ? riyadh_(ms) : '';
+}
+function getExtOrders_(user) {
+  const items = {};
+  read_('ExtOrderItems').rows.forEach(function (r) {
+    if (!str_(r.OrderID)) return;
+    (items[str_(r.OrderID)] = items[str_(r.OrderID)] || []).push({ requestId: str_(r.RequestID), item: str_(r.ItemName), qty: Number(r.Qty) || 0, note: str_(r.Note) });
+  });
+  const today = riyadh_(Date.now());
+  const orders = read_('ExtOrders').rows.filter(function (r) { return str_(r.OrderID); }).map(function (r) { return mapExtOrder_(r, items, today); })
+    .sort(function (a, b) { return toMs_(b.createdAt) - toMs_(a.createdAt); });
+  // إحصائية المناديب/الموردين
+  const by = {};
+  orders.forEach(function (o) {
+    if (o.status === EO_ST.DRAFT || o.status === EO_ST.CANCELLED) return;
+    const k = o.supplier || '—', b = by[k] || (by[k] = { supplier: k, orders: 0, open: 0, late: 0, arrived: 0, onTime: 0, delaySum: 0, lastSent: '' });
+    b.orders++;
+    if (o.status === EO_ST.SENT) { b.open++; if (o.late) b.late++; }
+    if (o.status === EO_ST.ARRIVED) { b.arrived++; if (o.onTime) b.onTime++; else if (o.expected) b.delaySum += Math.max(0, Math.round((parseDay_(ymdStr_(o.arrivedAt)).getTime() - parseDay_(o.expected).getTime()) / 864e5)); }
+    if (!b.lastSent || toMs_(o.sentAt) > toMs_(b.lastSent)) b.lastSent = o.sentAt;
+  });
+  const stats = Object.keys(by).map(function (k) {
+    const b = by[k];
+    b.onTimeRate = b.arrived ? Math.round(b.onTime / b.arrived * 100) : null;
+    b.avgDelay = b.arrived - b.onTime > 0 ? Math.round(b.delaySum / (b.arrived - b.onTime) * 10) / 10 : 0;
+    delete b.delaySum;
+    return b;
+  }).sort(function (a, b) { return b.late - a.late || b.open - a.open || b.orders - a.orders; });
+  const suppliers = Array.from(new Set(orders.map(function (o) { return o.supplier; }).filter(String))).sort();
+  return { orders: orders, stats: stats, suppliers: suppliers, canEdit: user.screen === 'procurement' };
+}
+function eoRow_(t, id) {
+  const row = t.rows.filter(function (r) { return str_(r.OrderID) === str_(id); })[0];
+  if (!row) throw new Error('ERR_NOT_FOUND');
+  return row;
+}
+function eoWriteItems_(id, list) {
+  const ti = freshTable_('ExtOrderItems');
+  ti.rows.filter(function (r) { return str_(r.OrderID) === id; }).sort(function (a, b) { return b._row - a._row; }).forEach(function (r) { deleteRow_(ti, r); });
+  list.forEach(function (x) { append_('ExtOrderItems', { OrderID: id, RequestID: x.requestId, ItemName: x.item, Qty: x.qty, Note: x.note }); });
+}
+/** حفظ الطلبية كاملة (المورد، التواصل، الملاحظات، الأصناف بكمياتها) — قبل وصولها */
+function saveExtOrder_(user, o) {
+  o = o || {};
+  const supplier = clean_(o.supplier, 120);
+  if (!supplier) throw new Error('ERR_SUPPLIER_REQUIRED');
+  const list = eoItems_(o.items);
+  if (!list.length) throw new Error('ERR_REQUIRED');
+  let id = str_(o.id);
+  withLock_(function () {
+    resetMemo_();
+    const now = new Date();
+    if (id) {
+      const t = tableWithCols_('ExtOrders'), row = eoRow_(t, id);
+      if ([EO_ST.ARRIVED, EO_ST.CANCELLED].indexOf(str_(row.Status)) !== -1) throw new Error('ERR_BAD_TRANSITION');
+      setCells_(t, row, { Supplier: supplier, Contact: clean_(o.contact, 160), Notes: clean_(o.notes, 1000), UpdatedAt: now });
+    } else {
+      id = reserveId_('EXT-', function (prefix) { return maxSeq_(freshTable_('ExtOrders').rows, 'OrderID', prefix); }).id;
+      append_('ExtOrders', { OrderID: id, CreatedAt: now, CreatedBy: user.name, Supplier: supplier, Contact: clean_(o.contact, 160), Notes: clean_(o.notes, 1000), Status: EO_ST.DRAFT, UpdatedAt: now });
+    }
+    eoWriteItems_(id, list);
+    logAction_('', 'طلبية خارجية ' + id + ' (' + supplier + '): ' + list.length + ' صنف', user.name);
+  });
+  return getExtOrders_(user);
+}
+/** من بطاقة الطلب: إضافة أصناف لطلبية موجودة لنفس المورد (أو طلبية جديدة) — نفس الصنف من نفس الطلب تُجمع كميته */
+function addExtOrderItems_(user, orderId, supplier, items) {
+  const list = eoItems_(items);
+  if (!list.length) throw new Error('ERR_REQUIRED');
+  orderId = str_(orderId);
+  if (!orderId) return saveExtOrder_(user, { supplier: supplier, items: list });
+  const cur = getExtOrders_(user).orders.filter(function (x) { return x.id === orderId; })[0];
+  if (!cur) throw new Error('ERR_NOT_FOUND');
+  const merged = cur.items.slice();
+  list.forEach(function (x) {
+    const same = merged.filter(function (m) { return m.item === x.item && m.requestId === x.requestId; })[0];
+    if (same) same.qty += x.qty; else merged.push(x);
+  });
+  return saveExtOrder_(user, { id: orderId, supplier: cur.supplier, contact: cur.contact, notes: cur.notes, items: merged });
+}
+function deleteExtOrder_(user, id) {
+  withLock_(function () {
+    resetMemo_();
+    const t = freshTable_('ExtOrders'), row = eoRow_(t, id);
+    if (str_(row.Status) !== EO_ST.DRAFT) throw new Error('ERR_BAD_TRANSITION');
+    eoWriteItems_(str_(id), []);
+    deleteRow_(t, row);
+    logAction_('', 'حذف طلبية خارجية (مسودة) ' + id, user.name);
+  });
+  return getExtOrders_(user);
+}
+/** نسخة طلب عرض السعر كما صُدّرت (للأدمن لاحقاً): المورد والأصناف والكميات والوقت ومن صدّرها */
+function eoSnapshot_(t, row, user) {
+  const id = str_(row.OrderID);
+  const items = read_('ExtOrderItems').rows.filter(function (r) { return str_(r.OrderID) === id; })
+    .map(function (r) { return { requestId: str_(r.RequestID), item: str_(r.ItemName), qty: Number(r.Qty) || 0, note: str_(r.Note) }; });
+  const now = new Date();
+  const snap = { id: id, supplier: str_(row.Supplier), contact: str_(row.Contact), notes: str_(row.Notes), items: items, at: now.toISOString(), by: user.name };
+  setCells_(t, row, { RfqAt: now, RfqSnapshot: JSON.stringify(snap).slice(0, 45000) });
+  return snap;
+}
+function extOrderRfq_(user, id) {
+  let snap;
+  withLock_(function () { resetMemo_(); const t = tableWithCols_('ExtOrders'); snap = eoSnapshot_(t, eoRow_(t, id), user); });
+  return snap;
+}
+/** sent (expected = yyyy-MM-dd) · arrived · cancel */
+function extOrderStatus_(user, id, action, expected) {
+  withLock_(function () {
+    resetMemo_();
+    const t = tableWithCols_('ExtOrders'), row = eoRow_(t, id), cur = str_(row.Status) || EO_ST.DRAFT, now = new Date();
+    if (action === 'sent') {
+      if ([EO_ST.DRAFT, EO_ST.SENT].indexOf(cur) === -1) throw new Error('ERR_BAD_TRANSITION');
+      const exp = str_(expected);
+      if (!parseDay_(exp)) throw new Error('ERR_EXPECTED_DATE');
+      if (exp < riyadh_(Date.now())) throw new Error('ERR_EXPECTED_PAST');
+      if (!str_(row.RfqSnapshot)) eoSnapshot_(t, row, user);
+      setCells_(t, row, cur === EO_ST.SENT ? { ExpectedAt: exp, RemindedOn: '', UpdatedAt: now }
+        : { Status: EO_ST.SENT, SentAt: now, SentBy: user.name, ExpectedAt: exp, RemindedOn: '', UpdatedAt: now });
+      logAction_('', 'طلبية خارجية ' + id + ': ' + (cur === EO_ST.SENT ? 'تعديل موعد الوصول ' : 'أُرسلت للمندوب — الوصول المتوقع ') + exp, user.name);
+    } else if (action === 'arrived') {
+      if (cur !== EO_ST.SENT) throw new Error('ERR_BAD_TRANSITION');
+      setCells_(t, row, { Status: EO_ST.ARRIVED, ArrivedAt: now, ArrivedBy: user.name, UpdatedAt: now });
+      logAction_('', 'طلبية خارجية ' + id + ': وصلت', user.name);
+    } else if (action === 'cancel') {
+      if ([EO_ST.ARRIVED, EO_ST.CANCELLED].indexOf(cur) !== -1) throw new Error('ERR_BAD_TRANSITION');
+      setCells_(t, row, { Status: EO_ST.CANCELLED, UpdatedAt: now });
+      logAction_('', 'طلبية خارجية ' + id + ': أُلغيت', user.name);
+    } else throw new Error('ERR_BAD_TRANSITION');
+  });
+  return getExtOrders_(user);
+}
+/** تذكير التموين بالطلبيات التي حان موعد وصولها أو تأخرت (مرة يومياً لكل طلبية) */
+function extOrderReminders_(nowMs) {
+  const today = riyadh_(nowMs || Date.now());
+  const due = [];
+  withLock_(function () {
+    resetMemo_();
+    const t = tableWithCols_('ExtOrders');
+    t.rows.forEach(function (r) {
+      if (str_(r.Status) !== EO_ST.SENT) return;
+      const exp = ymdStr_(r.ExpectedAt);
+      if (!exp || exp > today || ymdStr_(r.RemindedOn) === today) return;
+      setCells_(t, r, { RemindedOn: today });
+      due.push({ id: str_(r.OrderID), supplier: str_(r.Supplier), exp: exp, late: exp < today, to: [str_(r.SentBy), str_(r.CreatedBy)].filter(String) });
+    });
+  });
+  due.forEach(function (o) {
+    const subject = (o.late ? '⏰ طلبية خارجية متأخرة: ' : '📦 موعد وصول طلبية خارجية اليوم: ') + o.id + ' (' + o.supplier + ') · External order ' + (o.late ? 'late' : 'due today');
+    const body = mailMsg_({ order: ['ar', 'en'],
+      ar: { title: o.late ? 'طلبية متأخرة عن موعدها' : 'موعد وصول طلبية اليوم', lead: o.id + ' — ' + o.supplier + ' · الموعد ' + o.exp, action: 'تابع مع المندوب، واضغط «وصلت» عند الاستلام أو عدّل الموعد.', btn: 'افتح الطلبات الخارجية' },
+      en: { title: o.late ? 'External order is late' : 'External order due today', lead: o.id + ' — ' + o.supplier + ' · due ' + o.exp, action: 'Follow up with the rep; press «Arrived» on receipt or change the date.', btn: 'Open external orders' } });
+    const names = o.to.filter(function (x, i, a) { return a.indexOf(x) === i; });
+    if (names.length) names.forEach(function (n) { notifyUser_(n, subject, body); }); else notifyRole_('procurement', subject, body);
+  });
+  return due.length;
+}
+
 /** الحالة السابقة لطلب حسب أختامه الزمنية (للتراجع) */
 function prevStatus_(row, from) {
   if (from === ST.SENT) return row.VendorReceivedAt ? ST.VENDOR_RECV : row.PrepAt ? ST.PREP : (row.ApprovedAt ? ST.APPROVED : ST.NEW);
@@ -4925,6 +5150,10 @@ function getAlerts_(user) {
     const myDept = userDept_(user);
     const tkNew = read_('AssetTickets').rows.filter(function (r) { return str_(r.TicketID) && (str_(r.Status) || TK_ST.NEW) === TK_ST.NEW; }).length;
     if (tkNew) alerts.push({ type: 'warning', code: 'alert_asset_new', n: tkNew });
+    // الطلبيات الخارجية التي حان موعد وصولها أو تأخرت — حتى لا تُنسى
+    const today = riyadh_(Date.now());
+    const eoDue = read_('ExtOrders').rows.filter(function (r) { return str_(r.Status) === EO_ST.SENT && ymdStr_(r.ExpectedAt) && ymdStr_(r.ExpectedAt) <= today; }).length;
+    if (eoDue) alerts.push({ type: 'danger', code: 'alert_ext_due', n: eoDue });
     const all = queryRequests_({}).filter(function (r) { return deptMatch_(myDept, r.department); });
     const ready = all.filter(function (r) { return r.cleared && (r.status === ST.APPROVED || r.status === ST.NEW); });
     const urgent = ready.filter(function (r) { return r.type === 'طارئ'; }).length;
@@ -5244,7 +5473,7 @@ function monthlyReminders_(nowMs) {
 /** Render: كل ~10 دقائق — التذكيرات + الملخص اليومي للمتأخرات مرة واحدة يومياً بعد الساعة 8 */
 const DIGEST_DAY_KEY_ = 'DailyDigestSentOn';
 function cronTick_(nowMs) {
-  const now = nowMs || Date.now(), res = { reminders: monthlyReminders_(now).length, digest: -1 };
+  const now = nowMs || Date.now(), res = { reminders: monthlyReminders_(now).length, digest: -1, extOrders: extOrderReminders_(now) };
   const today = riyadh_(now);
   if (new Date(now + 3 * 36e5).getUTCHours() >= 8) {
     let go = false;

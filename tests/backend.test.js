@@ -3062,6 +3062,10 @@ test('nurse rejects one item at receipt with a reason and photo: not received, p
   assert.equal(api(n, 'getRequestDetail', id).items.find(i => i.item === 'DENTAL FLOSS').receivedQty, 0, 'counted as not received');
   assert.ok(api(n, 'getComments', id).some(c => /رفضت الممرضة عند استلام الشحنة 1: DENTAL FLOSS/.test(c.message)));
   assert.ok(gas.mails.some(m => /رفضت الممرضة صنفاً عند الاستلام/.test(m.subject)), 'procurement emailed');
+  // report: when, who, request, reason, what was requested
+  const rr = api(login('منى', '5555'), 'getMonitor').rcvRejects.find(x => x.id === id);
+  assert.deepEqual([rr.requested, rr.requestedQty, rr.reason, rr.batch, rr.substitute], ['DENTAL FLOSS', 3, 'غير مطابق للطلب', 1, false]);
+  assert.ok(rr.time && rr.by, 'time and who rejected');
 });
 
 test('monthly requests can be locked after the window ends (procurement / finance / admin open or close it)', () => {
@@ -3363,6 +3367,55 @@ test('admin edits an item quantity with its sent (and received) quantity; procur
   assert.equal(rows(gas, 'ShipmentItems').find(r => r.RequestID === id && r.ItemName === 'DENTAL FLOSS').ReceivedQty, 9);
   assert.equal(api(p, 'getRequests', {}).find(r => r.id === id).status, 'تم الاستلام');
   assert.ok(rows(gas, 'Reversals').filter(r => r.RequestID === id && /تعديل كمية/.test(r.Scope)).length === 3, 'every change is in the audit log');
+});
+
+test('external orders: pick items from a request, group by supplier, RFQ snapshot, sent with expected date, reminders, admin rep stats', () => {
+  const { api, login, gas, ctx } = boot();
+  const n = login('سارة', '1111'), p = login('علي', '3333'), a = login('المدير', '1234');
+  const id = api(n, 'createRequest', { clinic: 'عيادة الأسنان 1', doctor: 'د. نورة', type: 'شهري', items: [{ name: 'PROPHY PASTE', qty: 20 }, { name: 'DENTAL FLOSS', qty: 10 }] }).id;
+  throwsCode(() => api(p, 'addExtOrderItems', '', '', [{ requestId: id, item: 'PROPHY PASTE', qty: 5 }]), 'ERR_SUPPLIER_REQUIRED');
+  throwsCode(() => api(p, 'addExtOrderItems', '', 'مؤسسة النهدي', [{ requestId: id, item: 'PROPHY PASTE', qty: 0 }]), 'ERR_BAD_QTY');
+  throwsCode(() => api(n, 'addExtOrderItems', '', 'x', [{ item: 'A', qty: 1 }]), 'ERR_FORBIDDEN');
+  let r = api(p, 'addExtOrderItems', '', 'مؤسسة النهدي', [{ requestId: id, item: 'PROPHY PASTE', qty: 5 }]);
+  const oid = r.orders[0].id;
+  assert.match(oid, /^EXT-/);
+  // same supplier: more items join the same order; the same item from the same request adds up
+  r = api(p, 'addExtOrderItems', oid, '', [{ requestId: id, item: 'PROPHY PASTE', qty: 3 }, { requestId: id, item: 'DENTAL FLOSS', qty: 4 }]);
+  let o = r.orders.find(x => x.id === oid);
+  assert.deepEqual(o.items.map(i => [i.item, i.qty]), [['PROPHY PASTE', 8], ['DENTAL FLOSS', 4]]);
+  // edit and delete lines
+  r = api(p, 'saveExtOrder', { id: oid, supplier: 'مؤسسة النهدي', contact: 'أبو خالد 0500000000', notes: 'عاجل', items: [{ requestId: id, item: 'PROPHY PASTE', qty: 6 }] });
+  o = r.orders.find(x => x.id === oid);
+  assert.deepEqual([o.items.length, o.items[0].qty, o.contact, o.status], [1, 6, 'أبو خالد 0500000000', 'مسودة']);
+  // RFQ snapshot kept as exported
+  const snap = api(p, 'extOrderRfq', oid);
+  assert.deepEqual([snap.supplier, snap.items[0].item, snap.items[0].qty, snap.by], ['مؤسسة النهدي', 'PROPHY PASTE', 6, 'علي']);
+  // sent with an expected date (not in the past)
+  throwsCode(() => api(p, 'extOrderStatus', oid, 'sent', ''), 'ERR_EXPECTED_DATE');
+  throwsCode(() => api(p, 'extOrderStatus', oid, 'sent', '2001-01-01'), 'ERR_EXPECTED_PAST');
+  const today = new Date(Date.now() + 3 * 36e5).toISOString().slice(0, 10);
+  r = api(p, 'extOrderStatus', oid, 'sent', today);
+  o = r.orders.find(x => x.id === oid);
+  assert.deepEqual([o.status, o.expected, o.late], ['أُرسل للمندوب', today, false]);
+  throwsCode(() => api(p, 'deleteExtOrder', oid), 'ERR_BAD_TRANSITION');
+  // reminder on the expected day — once a day
+  gas.mails.length = 0;
+  assert.equal(ctx.extOrderReminders_(Date.now()), 1);
+  assert.ok(gas.mails.some(m => m.to === 'ali@example.com' && /موعد وصول طلبية خارجية اليوم/.test(m.subject)));
+  assert.equal(ctx.extOrderReminders_(Date.now()), 0, 'not repeated the same day');
+  // tomorrow it is late and reminded again
+  assert.equal(ctx.extOrderReminders_(Date.now() + 864e5), 1);
+  // admin sees rep stats and the RFQ that was sent
+  let st = api(a, 'getExtOrders');
+  assert.deepEqual(st.stats.map(x => [x.supplier, x.orders, x.open]), [['مؤسسة النهدي', 1, 1]]);
+  assert.equal(st.orders[0].rfq.items[0].qty, 6);
+  assert.equal(st.canEdit, false);
+  api(p, 'extOrderStatus', oid, 'arrived');
+  st = api(a, 'getExtOrders');
+  assert.deepEqual([st.stats[0].arrived, st.stats[0].onTimeRate, st.orders[0].status], [1, 100, 'وصل']);
+  // drafts can be deleted
+  const d = api(p, 'addExtOrderItems', '', 'مورد آخر', [{ item: 'قفازات', qty: 2 }]).orders.find(x => x.supplier === 'مورد آخر');
+  assert.ok(!api(p, 'deleteExtOrder', d.id).orders.some(x => x.id === d.id));
 });
 
 test('catalog bulk add: rows pasted from Excel are checked first, then saved together', () => {

@@ -363,6 +363,28 @@ function log(msg) { console.log('  ✔ ' + msg); }
   await page.waitForFunction(() => document.querySelector('#cList').textContent.includes('أُرسل الناقص مع السواق'));
   expect((await page.textContent('#cList')).includes('تمت المعالجة'), 'complaint marked handled with procurement reply');
   await shot(page, 'procurement-complaints');
+  // الطلبات الخارجية: من بطاقة الطلب ← اختيار الصنف والكمية ← مورد ← طلب عرض سعر ← أُرسل للمندوب بتاريخ متوقع
+  await page.click('.sidebar [data-view="requests"]');
+  await page.click('.chip[data-g="all"]');
+  await page.waitForSelector(`#procList .req[data-rid="${newId}"] [data-act="eoFromReq"]`);
+  await page.click(`#procList .req[data-rid="${newId}"] [data-act="eoFromReq"]`);
+  await page.waitForSelector('.modal .eo-pick');
+  await page.fill('.modal #eoSup2', 'مؤسسة الاختبار');
+  await page.click('.modal #eoAdd');
+  expect(await toastHas(page, 'للطلبية الخارجية'), 'items added to an external order for a supplier');
+  await page.click('.sidebar [data-view="extorders"]');
+  await page.waitForSelector('#eoList .req:has-text("مؤسسة الاختبار")');
+  await page.click('#eoList .req:has-text("مؤسسة الاختبار") [data-act="eoRfq"]');
+  await page.waitForSelector('.modal .rep-table tbody tr');
+  expect((await page.textContent('.modal .rep')).includes('طلب عرض سعر') && (await page.textContent('.modal .rep')).includes('مؤسسة الاختبار'), 'quote request shows the supplier and items');
+  await page.keyboard.press('Escape'); await page.waitForTimeout(300);
+  await page.click('#eoList .req:has-text("مؤسسة الاختبار") [data-act="eoSend"]');
+  await page.fill('.modal #eoExp', new Date(Date.now() + 3 * 864e5 + 3 * 36e5).toISOString().slice(0, 10));
+  await page.click('.modal #eoSendOk');
+  await page.waitForSelector('#eoList .req:has-text("مؤسسة الاختبار") [data-act="eoArrived"]');
+  expect((await page.textContent('#eoStats')).includes('مؤسسة الاختبار'), 'sent to the rep with an expected date — counted in the reps statistics');
+  await shot(page, 'external-orders');
+  await page.click('.sidebar [data-view="complaints"]'); await page.waitForSelector('#cList .req');
   await logout(page);
 
   // ---------- Doctor ----------
