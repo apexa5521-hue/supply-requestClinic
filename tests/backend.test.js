@@ -3318,6 +3318,32 @@ test('admin deletes a whole request with a reason (full copy kept for audit) and
   throwsCode(() => api(a, 'adminRestoreRequest', id), 'ERR_NOT_FOUND');
 });
 
+test('stage target times: the current stage past its target is flagged, and the monitor shows on-time % per stage', () => {
+  const { api, login, gas, ctx } = boot();
+  const n = login('سارة', '1111'), p = login('علي', '3333'), d = login('د. خالد', '4444'), q = login('منى', '5555');
+  api(p, 'saveOrderRules', { slaApprE: 1, slaPrepE: 5 });
+  const id = api(n, 'createRequest', { clinic: 'عيادة الأسنان 1', doctor: 'د. خالد', type: 'طارئ', items: [{ name: 'PROPHY PASTE', qty: 1 }] }).id;
+  let r = api(p, 'getRequests', {}).find(x => x.id === id);
+  assert.equal(r.slaLate, null, 'just submitted: within the approval target');
+  // submitted 3 hours ago: approval (target 1h) is late
+  const t = gas.ss.getSheetByName('Requests'), h = t._data[0], row = t._data.find(x => x[0] === id);
+  const ago = new Date(Date.now() - 3 * 36e5);
+  row[h.indexOf('SubmittedAt')] = ago; row[h.indexOf('Date')] = ago;
+  ctx.onEdit({ range: { getSheet: () => t } });
+  r = api(p, 'getRequests', {}).find(x => x.id === id);
+  assert.deepEqual([r.slaLate.k, r.slaLate.target, r.slaLate.hrs >= 2.9], ['appr', 1, true]);
+  let m = api(q, 'getMonitor');
+  assert.ok(m.slaLate.some(x => x.id === id && x.stage === 'appr' && x.owner === 'doctor'), 'monitor lists who is holding it past the target');
+  api(d, 'doctorReview', id, 'اعتمد', '', [], []);
+  r = api(p, 'getRequests', {}).find(x => x.id === id);
+  assert.equal(r.slaLate, null, 'now in preparation, within its 5h target');
+  m = api(q, 'getMonitor');
+  const appr = m.sla.find(x => x.k === 'appr');
+  assert.deepEqual([appr.emergency.n, appr.emergency.rate, appr.emergency.target], [1, 0, 1], 'approval took 3h against 1h: 0% on time');
+  assert.ok(appr.emergency.avg >= 2.9);
+  assert.equal(m.sla.length, 5);
+});
+
 test('catalog bulk add: rows pasted from Excel are checked first, then saved together', () => {
   const { api, login, gas } = boot();
   const p = login('علي', '3333');

@@ -1240,6 +1240,7 @@ function log(msg) { console.log('  ✔ ' + msg); }
   await page.waitForSelector('#monBody .rp-tile');
   expect(await page.locator('#monBody .mon-doc').count() === 4, 'monthly cycle is tracked per doctor (not per clinic)');
   expect(await page.locator('#monBody [data-act="monNudge"]').count() >= 1, 'overdue requests are listed with a nudge button');
+  expect((await page.textContent('#monBody')).includes('مؤشرات أداء المراحل') && await page.locator('#monBody table:has-text("بدء التجهيز") tbody tr').count() === 5, 'stage performance indicators: 5 stages against their targets');
   await shot(page, 'quality-monitor', true);
   const nOwner = await page.getAttribute('#monBody [data-act="monNudge"] >> nth=0', 'data-owner');
   const nLabel = { nurse: 'التمريض', doctor: 'الطبيب', procurement: 'التموين' }[nOwner];
@@ -1755,6 +1756,7 @@ function log(msg) { console.log('  ✔ ' + msg); }
   expect(!!(await page.$('#dlBody')) && (await page.textContent('#rlBox')).includes('حد خاص لطبيب'), 'rules page: doctor-specific limits table');
   expect((await page.textContent('table:has(#dlBody) thead')).includes('أصناف الطارئ'), 'rules page: per-doctor emergency items column');
   expect(await page.isVisible('#rl_remindOn') && await page.isVisible('#rl_remindDaysBefore') && await page.isVisible('#rl_remindHour'), 'rules page: monthly deadline reminder settings');
+  expect(await page.isVisible('#rl_slaApprM') && await page.isVisible('#rl_slaRcvE'), 'rules page: target time per stage (monthly and emergency)');
   await shot(page, 'order-rules');
   await logout(page);
   await login(page, 'سارة', '1111');

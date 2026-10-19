@@ -805,7 +805,7 @@ function bumpVersion_(name) {
 function markDirty_(name) {
   invalidate_(name);
   (MEMO_.dirty = MEMO_.dirty || {})[name] = true;
-  delete MEMO_.qr; delete MEMO_.reqCounts; // الحسابات المشتقة من الطلبات تُعاد بعد أي كتابة
+  delete MEMO_.qr; delete MEMO_.reqCounts; delete MEMO_.boxedReqs; // الحسابات المشتقة من الطلبات تُعاد بعد أي كتابة
 }
 
 function flushDirty_() {
@@ -2151,6 +2151,7 @@ function queryRequests_(filters) {
     r.shipmentCount = st.ships.length;
     r.lastShipAt = st.ships.length ? st.ships.reduce(function (m, g) { return toMs_(g.sentAt) > toMs_(m) ? g.sentAt : m; }, '') : '';
     r.pendingShipments = st.pending;
+    r.firstShipAt = st.ships.length ? st.ships.reduce(function (m, g) { return !m || (toMs_(g.sentAt) && toMs_(g.sentAt) < toMs_(m)) ? g.sentAt : m; }, '') : '';
     // معاينة أول 3 أصناف في البطاقة + عدد التعليقات والبلاغات المفتوحة
     const live = st.items.filter(function (i) { return i.target > 0 && !i.rejected; });
     r.preview = live.slice(0, 3).map(function (i) { return { item: i.item, qty: i.target }; });
@@ -2177,6 +2178,9 @@ function queryRequests_(filters) {
     });
     r.pendingSubs = r.subs.filter(function (x) { return x.status === SUB_ST.PENDING; }).length;
     Object.assign(r, deadline_(r));
+    // المرحلة الحالية تجاوزت وقتها المستهدف؟ (للبطاقة والمتابعة)
+    const cur = slaOf_(r, orderRules_(), Date.now()).filter(function (x) { return !x.done; }).pop();
+    r.slaLate = cur && cur.late ? { k: cur.k, hrs: cur.hrs, target: cur.target } : null;
     r._ms = toMs_(r.date);
     return r;
   }).sort(function (a, b) { return b._ms - a._ms; });
@@ -2216,8 +2220,59 @@ const ORDER_RULES_ = [
   ['freeLocked', 'FreeItemsLocked', 0, 0, 1, 'إقفال إدخال صنف حر (مستهلك أو ماتيريال) للتمريض: 1 = مقفل · 0 = مسموح'],
   ['remindOn', 'MonthlyRemindersOn', 1, 0, 1, 'تذكير الأطباء والممرضات بمهلة الطلب الشهري: 1 = يعمل · 0 = متوقف'],
   ['remindDaysBefore', 'MonthlyRemindDaysBefore', 1, 0, 10, 'تذكير من لم يرفع طلبه الشهري قبل نهاية النافذة بكم يوم (0 = آخر يوم فقط)'],
-  ['remindHour', 'MonthlyRemindHour', 9, 0, 23, 'ساعة إرسال التذكير بتوقيت الرياض (0–23)']
+  ['remindHour', 'MonthlyRemindHour', 9, 0, 23, 'ساعة إرسال التذكير بتوقيت الرياض (0–23)'],
+  // الوقت المستهدف لكل مرحلة (ساعات) — مؤشرات الأداء في «متابعة المواعيد» وتنبيه «تجاوز وقت المرحلة» على البطاقة
+  ['slaApprM', 'SlaApproveMonthly', 24, 1, 720, 'الشهري: اعتماد الطبيب/مدير الفرع خلال (ساعة) من الرفع'],
+  ['slaPrepM', 'SlaPrepMonthly', 48, 1, 720, 'الشهري: بدء التجهيز خلال (ساعة) من الاعتماد'],
+  ['slaSendM', 'SlaSendMonthly', 48, 1, 720, 'الشهري: الإرسال للفرع خلال (ساعة) من بدء التجهيز'],
+  ['slaArrM', 'SlaArriveMonthly', 24, 1, 720, 'الشهري: الوصول للفرع خلال (ساعة) من الإرسال'],
+  ['slaRcvM', 'SlaReceiveMonthly', 24, 1, 720, 'الشهري: استلام الممرضة خلال (ساعة) من الوصول'],
+  ['slaApprE', 'SlaApproveEmergency', 2, 1, 720, 'الطارئ: اعتماد الطبيب/مدير الفرع خلال (ساعة) من الرفع'],
+  ['slaPrepE', 'SlaPrepEmergency', 2, 1, 720, 'الطارئ: بدء التجهيز خلال (ساعة) من الاعتماد'],
+  ['slaSendE', 'SlaSendEmergency', 4, 1, 720, 'الطارئ: الإرسال للفرع خلال (ساعة) من بدء التجهيز'],
+  ['slaArrE', 'SlaArriveEmergency', 4, 1, 720, 'الطارئ: الوصول للفرع خلال (ساعة) من الإرسال'],
+  ['slaRcvE', 'SlaReceiveEmergency', 4, 1, 720, 'الطارئ: استلام الممرضة خلال (ساعة) من الوصول']
 ];
+/*
+ * أوقات المراحل (مؤشرات الأداء): لكل طلب، كم استغرقت كل مرحلة مقارنة بالوقت المستهدف لها.
+ * الاعتماد: الرفع ← الاعتماد · التجهيز: الاعتماد ← بدء التجهيز · الإرسال: بدء التجهيز ← أول شحنة ·
+ * الوصول: أول شحنة ← وصول البوكس للفرع · الاستلام: الوصول (أو الإرسال) ← استلام الممرضة. الساعات متصلة (24 ساعة في اليوم).
+ */
+const SLA_STAGES_ = ['appr', 'prep', 'send', 'arr', 'rcv'];
+/** الطلبات المحمّلة الآن في بوكسات (لقياس مرحلة الوصول للفرع) */
+function boxedRequests_() {
+  if (MEMO_.boxedReqs) return MEMO_.boxedReqs;
+  const o = {};
+  read_('Boxes').rows.forEach(function (b) { boxLoads_(b.Loads).forEach(function (l) { o[l.split('#')[0]] = true; }); });
+  return (MEMO_.boxedReqs = o);
+}
+const SLA_KEY_ = { appr: 'slaAppr', prep: 'slaPrep', send: 'slaSend', arr: 'slaArr', rcv: 'slaRcv' };
+function slaTarget_(R, k, type) { return R[SLA_KEY_[k] + (type === 'طارئ' ? 'E' : 'M')]; }
+function slaOf_(r, R, now) {
+  const H = 36e5, sub = r.submittedAt || r.date, ms = toMs_;
+  const ship = r.firstShipAt || r.sentAt;
+  // طلب تجاوز المرحلة بدون ختم وقتها (بيانات قديمة): نهايتها = أول ختم لمرحلة بعدها
+  const after = r.prepAt || ship || r.arrivedAt || r.receivedAt;
+  const cleared = !r.needsReview ? sub : r.cleared ? (r.approvedAt || r.reviewedAt || after) : after || '';
+  const live = !isOff_(r.status) && r.status !== ST.RECEIVED;
+  const st = [];
+  const add = function (k, a, b) {
+    if (!ms(a)) return;
+    if (!ms(b) && !live) return; // طلب منتهٍ بلا ختم لهذه المرحلة: لا يُحسب
+    const end = ms(b) || now, h = Math.max(0, (end - ms(a)) / H), target = slaTarget_(R, k, r.type);
+    st.push({ k: k, hrs: round1_(h), target: target, done: !!ms(b), late: h > target });
+  };
+  if (r.needsReview) add('appr', sub, cleared || (r.status === ST.REJECTED ? r.reviewedAt : ''));
+  if (cleared && r.status !== ST.REJECTED) {
+    add('prep', cleared, r.prepAt || ship || r.arrivedAt || r.receivedAt);
+    if (r.prepAt || ship) add('send', r.prepAt || cleared, ship);
+    // الوصول للفرع يُقاس فقط لما تمشي الشحنة في بوكس (وصل، أو محمّلة الآن)؛ غير ذلك من الإرسال للاستلام مباشرة
+    const boxed = r.arrivedAt || (!r.receivedAt && boxedRequests_()[r.id]);
+    if (ship && boxed) add('arr', ship, r.arrivedAt);
+    if (ship && (r.arrivedAt || !boxed)) add('rcv', r.arrivedAt || ship, r.receivedAt);
+  }
+  return st;
+}
 function orderRules_() {
   if (MEMO_.orderRules) return MEMO_.orderRules;
   const o = {};
@@ -2443,6 +2498,36 @@ function getMonitor_(user, opts) {
     else { monthly++; if (r.lateSubmit) lateSubmits++; }
     if (r.status === ST.RECEIVED) { received++; if (!r.lateReceipt) onTime++; }
   });
+  // مؤشرات أداء المراحل للشهر: المكتمل، نسبة الالتزام بالوقت المستهدف، المتوسط — للشهري والطارئ
+  const sla = SLA_STAGES_.map(function (k) {
+    const o = { k: k, lateNow: 0 };
+    ['monthly', 'emergency'].forEach(function (ty) {
+      o[ty] = { n: 0, onTime: 0, sum: 0, target: slaTarget_(RULES, k, ty === 'emergency' ? 'طارئ' : 'شهري') };
+    });
+    return o;
+  });
+  const slaLate = [];
+  inMonth.forEach(function (r) {
+    slaOf_(r, RULES, now).forEach(function (x) {
+      if (!x.done) return;
+      const b = sla[SLA_STAGES_.indexOf(x.k)][r.type === 'طارئ' ? 'emergency' : 'monthly'];
+      b.n++; b.sum += x.hrs; if (!x.late) b.onTime++;
+    });
+  });
+  all.forEach(function (r) {
+    if (!r.slaLate) return;
+    sla[SLA_STAGES_.indexOf(r.slaLate.k)].lateNow++;
+    const s = stageOf_(r);
+    slaLate.push({ id: r.id, type: r.type, branch: r.branch, clinic: r.clinic, doctor: r.doctor, nurse: r.nurse, status: r.status, owner: s.owner,
+      stage: r.slaLate.k, hrs: r.slaLate.hrs, target: r.slaLate.target, over: round1_(r.slaLate.hrs - r.slaLate.target) });
+  });
+  sla.forEach(function (o) {
+    ['monthly', 'emergency'].forEach(function (ty) {
+      const b = o[ty];
+      b.rate = b.n ? Math.round(b.onTime / b.n * 100) : null; b.avg = b.n ? round1_(b.sum / b.n) : null; delete b.sum;
+    });
+  });
+  slaLate.sort(function (a, b) { return b.over - a.over; });
   const kpis = {
     month: month, requests: inMonth.length, monthly: monthly, emergency: emergency, received: received,
     onTimeRate: received ? Math.round(onTime / received * 100) : null,
@@ -2475,7 +2560,7 @@ function getMonitor_(user, opts) {
     return o[a.state] - o[b.state] || a.doctor.localeCompare(b.doctor);
   });
   return {
-    now: new Date(now), late: late, atRisk: atRisk, kpis: kpis,
+    now: new Date(now), late: late, atRisk: atRisk, kpis: kpis, sla: sla, slaLate: slaLate,
     cycle: { month: cycleMonth, window: [RULES.winStart, RULES.winEnd], today: today, open: today >= RULES.winStart && today <= RULES.winEnd,
       due: new Date(monthlyDue_(now, RULES) - 864e5 + 1), doctors: cycle, missing: cycle.filter(function (c) { return !c.count; }).length,
       lateSubmits: cycle.filter(function (c) { return c.state === 'late'; }).length, passed: passed },
