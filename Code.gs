@@ -6852,10 +6852,17 @@ function assetCatalog_() {
   getCatalog_(true).forEach(function (c) { if (c.asset) out[c.name] = { name: c.name, serialized: !!c.serialized, price: c.price || 0, category: c.category }; });
   return out;
 }
-/** العيادات التي يراها المستخدم: الممرضة عياداتها (أو الكل إن لم تُقيَّد)، الطبيب عيادات سجله، والبقية الكل */
+/**
+ * العيادات التي يرى المستخدم عهدتها: الممرضة عياداتها + عيادات أطبائها فقط (بدون ربط = لا شيء، لا كل العيادات)،
+ * الطبيب عيادات سجله، والتموين والجودة والتنفيذية والأدمن الكل
+ */
 function assetClinicsFor_(user) {
   const all = getClinics_().filter(function (c) { return inScope_(c.branch); }).map(function (c) { return c.name; });
-  if (user.screen === 'nurse') { const mine = userClinics_(user); return mine.length ? mine : all; }
+  if (user.screen === 'nurse') {
+    const mine = userClinics_(user).slice();
+    nurseDoctors_(user.name).forEach(function (n) { const c = doctorClinic_({ name: '', clinic: '' }, n); if (c && mine.indexOf(c) === -1) mine.push(c); });
+    return mine.filter(function (c) { return all.indexOf(c) !== -1; });
+  }
   if (user.screen === 'doctor') {
     const names = (doctorNamesFor_(user) || []);
     const out = [];
@@ -7342,10 +7349,12 @@ function mapTicket_(r) {
     lossValue: price_(r.LossValue) || 0, returnedAt: r.ReturnedAt, replacement: str_(r.ReplacementAssetID), closedAt: r.ClosedAt,
     open: TK_OPEN.indexOf(str_(r.Status) || TK_ST.NEW) !== -1 };
 }
+/** بلاغ العهدة: الممرضة بلاغها فقط، الطبيب بلاغات عياداته، والتموين والجودة والتنفيذية والأدمن الكل */
 function canSeeTicket_(user, tk) {
   if (SCOPE_BRANCH_ && !inScope_(tk.branch)) return false;
-  if (user.screen === 'procurement' || (user.perms || []).indexOf('assets') !== -1) return true;
-  return assetClinicsFor_(user).indexOf(tk.clinic) !== -1;
+  if (user.screen === 'nurse') return tk.nurse === user.name;
+  if (user.screen === 'doctor') return assetClinicsFor_(user).indexOf(tk.clinic) !== -1;
+  return true;
 }
 function getAssetTickets_(user, opts) {
   opts = opts || {};
