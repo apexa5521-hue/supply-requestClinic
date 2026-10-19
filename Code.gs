@@ -39,6 +39,12 @@ const SCHEMA = {
                  'RejectNote', 'RejectBy', 'RejectAt', 'RejectQty'], // رفض التموين لصنف: السبب يظهر للطبيب والممرضة، والكمية الأصلية للتراجع
   // سجل التراجعات: كل تراجع عن خطوة (شحنة أُرسلت بالغلط، حالة طلب، حالة صنف) مع السبب والوقت — تراه الجودة والإدارة
   Reversals:    ['Timestamp', 'RequestID', 'User', 'Role', 'Scope', 'From', 'To', 'Reason', 'Details'],
+  // الطلبات الخارجية (للمورد/المندوب): رأس الطلبية + أصنافها، ونسخة طلب عرض السعر كما صُدّر وقتها
+  ExtOrders:    ['OrderID', 'CreatedAt', 'CreatedBy', 'Supplier', 'Contact', 'Notes', 'Status', 'SentAt', 'SentBy', 'ExpectedAt', 'ArrivedAt', 'ArrivedBy',
+                 'RfqAt', 'RfqSnapshot', 'RemindedOn', 'UpdatedAt'],
+  ExtOrderItems: ['OrderID', 'RequestID', 'ItemName', 'Qty', 'Note'],
+  // طلبات حذفها الأدمن كاملة: نسخة كاملة (Snapshot) لكل سطورها — للتدقيق وللاسترجاع
+  DeletedRequests: ['Timestamp', 'RequestID', 'User', 'Reason', 'Clinic', 'Doctor', 'Nurse', 'Status', 'Total', 'Snapshot', 'RestoredAt', 'RestoredBy'],
   // كل سطر = كمية صنف واحد داخل شحنة واحدة (يسمح بإرسال جزء من كمية الصنف)
   ShipmentItems: ['RequestID', 'Batch', 'ItemName', 'Qty', 'DispatchedAt', 'DispatchedBy', 'ReceivedQty', 'RejectReason', 'RejectPhoto'], // رفض الممرضة لصنف عند الاستلام (السبب + صورة)
   Shipments:    ['RequestID', 'Batch', 'ReceivedAt', 'ReceiverName', 'ReceivedBy', 'SignatureURL', 'SignatureFileID', 'ReceiptURL'],
@@ -47,7 +53,9 @@ const SCHEMA = {
   Comments:     ['Timestamp', 'RequestID', 'Author', 'Role', 'Message'],
   Notices:      ['Timestamp', 'FromRole', 'FromName', 'ToRole', 'Message'],
   Complaints:   ['ComplaintID', 'Timestamp', 'RequestID', 'Author', 'Role', 'Type', 'Message',
-                 'Resolved', 'ResolvedBy', 'ResolvedAt', 'ResolveNote'], // ResolveNote: ملاحظة الإغلاق (ماذا تم)
+                 'Resolved', 'ResolvedBy', 'ResolvedAt', 'ResolveNote', // ResolveNote: ملاحظة الإغلاق (ماذا تم)
+                 // معالجة التموين: Progress = «جاري المعالجة» ثم «تمت المعالجة» مع رد التموين — الجودة لا تغلق قبلها
+                 'Progress', 'ProcReply', 'ProcBy', 'ProcAt', 'DoneAt'],
   // المعمل: المعامل وأنواع الأعمال تُعبّأ يدوياً؛ الإرساليات وأسطرها وملاحظاتها تُنشأ من النظام
   Labs:         ['LabName', 'Type', 'Email', 'Phone', 'Active', 'TurnaroundDays'],
   LabWorkTypes: ['WorkType'],
@@ -636,6 +644,16 @@ const API_ = {
   getRequestAudit:           { screens: ['admin'], fn: getRequestAudit_ },
   getDoctorItemStats:        { screens: ['finance', 'quality', 'admin'], fn: getDoctorItemStats_ },
   adminRemoveItem:           { screens: ['admin'], fn: adminRemoveItem_ },
+  adminDeleteRequest:        { screens: ['admin'], fn: adminDeleteRequest_ },
+  adminSetItemQty:           { screens: ['admin'], fn: adminSetItemQty_ },
+  getExtOrders:              { screens: ['procurement', 'admin'], fn: getExtOrders_ },
+  saveExtOrder:              { screens: ['procurement'], fn: saveExtOrder_ },
+  addExtOrderItems:          { screens: ['procurement'], fn: addExtOrderItems_ },
+  deleteExtOrder:            { screens: ['procurement'], fn: deleteExtOrder_ },
+  extOrderStatus:            { screens: ['procurement'], fn: extOrderStatus_ },
+  extOrderRfq:               { screens: ['procurement'], fn: extOrderRfq_ },
+  adminRestoreRequest:       { screens: ['admin'], fn: adminRestoreRequest_ },
+  getDeletedRequests:        { screens: ['admin'], fn: getDeletedRequests_ },
   adminRestoreItem:          { screens: ['admin'], fn: adminRestoreItem_ },
   editRequestItems:          { screens: ['nurse'], fn: editRequestItems_ },
   getShipmentSignatures:     { screens: ['nurse'], fn: getShipmentSignatures_ },
@@ -668,6 +686,7 @@ const API_ = {
   getComplaints:             { screens: ['procurement'], perm: 'complaints', fn: getComplaints_ },
   // إغلاق البلاغات للجودة والإدارة التنفيذية فقط (التموين يطّلع ويعلّق)
   resolveComplaint:          { screens: [], perm: 'complaints_close', fn: resolveComplaint_ },
+  complaintProgress:         { screens: ['procurement'], fn: complaintProgress_ },
   getDoctorReport:           { screens: ['doctor'], perm: 'reports', fn: getDoctorReport_ },
   getReportDoctors:          { screens: [], perm: 'reports', fn: getReportDoctors_ },
   getStatsReport:            { screens: [], perm: 'reports', fn: getStatsReport_ },
@@ -800,7 +819,7 @@ function bumpVersion_(name) {
 function markDirty_(name) {
   invalidate_(name);
   (MEMO_.dirty = MEMO_.dirty || {})[name] = true;
-  delete MEMO_.qr; delete MEMO_.reqCounts; // الحسابات المشتقة من الطلبات تُعاد بعد أي كتابة
+  delete MEMO_.qr; delete MEMO_.reqCounts; delete MEMO_.boxedReqs; // الحسابات المشتقة من الطلبات تُعاد بعد أي كتابة
 }
 
 function flushDirty_() {
@@ -2146,6 +2165,7 @@ function queryRequests_(filters) {
     r.shipmentCount = st.ships.length;
     r.lastShipAt = st.ships.length ? st.ships.reduce(function (m, g) { return toMs_(g.sentAt) > toMs_(m) ? g.sentAt : m; }, '') : '';
     r.pendingShipments = st.pending;
+    r.firstShipAt = st.ships.length ? st.ships.reduce(function (m, g) { return !m || (toMs_(g.sentAt) && toMs_(g.sentAt) < toMs_(m)) ? g.sentAt : m; }, '') : '';
     // معاينة أول 3 أصناف في البطاقة + عدد التعليقات والبلاغات المفتوحة
     const live = st.items.filter(function (i) { return i.target > 0 && !i.rejected; });
     r.preview = live.slice(0, 3).map(function (i) { return { item: i.item, qty: i.target }; });
@@ -2162,7 +2182,8 @@ function queryRequests_(filters) {
       const dl = waiting[waiting.length - 1].delivered;
       r.boxAt = { to: dl.to, photo: dl.photo, at: dl.at, box: dl.box };
     }
-    r.needsReview = r.approver === 'branch' ? branchManagers_(r.branch).length > 0 : !!reviewers[r.doctor];
+    r.needsReview = r.approver === 'branch' ? false : !!reviewers[r.doctor]; // اعتماد مدير الفرع أُلغي
+    if (!r.needsReview && r.approver === 'branch' && r.status === ST.REVIEW) r.status = ST.NEW;
     r.cleared = !r.needsReview || r.status === ST.APPROVED || !!r.approvedAt;
     r.awaitingDoctor = r.needsReview && !r.cleared && AWAITING_DOCTOR.indexOf(r.status) !== -1;
     if (r.awaitingDoctor && r.status === ST.NEW) r.status = ST.REVIEW; // طلب قديم «جديد» = لدى الطبيب
@@ -2172,6 +2193,9 @@ function queryRequests_(filters) {
     });
     r.pendingSubs = r.subs.filter(function (x) { return x.status === SUB_ST.PENDING; }).length;
     Object.assign(r, deadline_(r));
+    // المرحلة الحالية تجاوزت وقتها المستهدف؟ (للبطاقة والمتابعة)
+    const cur = slaOf_(r, orderRules_(), Date.now()).filter(function (x) { return !x.done; }).pop();
+    r.slaLate = cur && cur.late ? { k: cur.k, hrs: cur.hrs, target: cur.target } : null;
     r._ms = toMs_(r.date);
     return r;
   }).sort(function (a, b) { return b._ms - a._ms; });
@@ -2211,8 +2235,81 @@ const ORDER_RULES_ = [
   ['freeLocked', 'FreeItemsLocked', 0, 0, 1, 'إقفال إدخال صنف حر (مستهلك أو ماتيريال) للتمريض: 1 = مقفل · 0 = مسموح'],
   ['remindOn', 'MonthlyRemindersOn', 1, 0, 1, 'تذكير الأطباء والممرضات بمهلة الطلب الشهري: 1 = يعمل · 0 = متوقف'],
   ['remindDaysBefore', 'MonthlyRemindDaysBefore', 1, 0, 10, 'تذكير من لم يرفع طلبه الشهري قبل نهاية النافذة بكم يوم (0 = آخر يوم فقط)'],
-  ['remindHour', 'MonthlyRemindHour', 9, 0, 23, 'ساعة إرسال التذكير بتوقيت الرياض (0–23)']
+  ['remindHour', 'MonthlyRemindHour', 9, 0, 23, 'ساعة إرسال التذكير بتوقيت الرياض (0–23)'],
+  // الوقت المستهدف لكل مرحلة (ساعات) — مؤشرات الأداء في «متابعة المواعيد» وتنبيه «تجاوز وقت المرحلة» على البطاقة
+  ['slaApprM', 'SlaApproveMonthly', 24, 1, 720, 'الشهري: اعتماد الطبيب/مدير الفرع خلال (ساعة) من الرفع'],
+  ['slaPrepM', 'SlaPrepMonthly', 48, 1, 720, 'الشهري: بدء التجهيز خلال (ساعة) من الاعتماد'],
+  ['slaSendM', 'SlaSendMonthly', 48, 1, 720, 'الشهري: الإرسال للفرع خلال (ساعة) من بدء التجهيز'],
+  ['slaArrM', 'SlaArriveMonthly', 24, 1, 720, 'الشهري: الوصول للفرع خلال (ساعة) من الإرسال'],
+  ['slaRcvM', 'SlaReceiveMonthly', 24, 1, 720, 'الشهري: استلام الممرضة خلال (ساعة) من الوصول'],
+  ['slaApprE', 'SlaApproveEmergency', 2, 1, 720, 'الطارئ: اعتماد الطبيب/مدير الفرع خلال (ساعة) من الرفع'],
+  ['slaPrepE', 'SlaPrepEmergency', 2, 1, 720, 'الطارئ: بدء التجهيز خلال (ساعة) من الاعتماد'],
+  ['slaSendE', 'SlaSendEmergency', 4, 1, 720, 'الطارئ: الإرسال للفرع خلال (ساعة) من بدء التجهيز'],
+  ['slaArrE', 'SlaArriveEmergency', 4, 1, 720, 'الطارئ: الوصول للفرع خلال (ساعة) من الإرسال'],
+  ['slaRcvE', 'SlaReceiveEmergency', 4, 1, 720, 'الطارئ: استلام الممرضة خلال (ساعة) من الوصول']
 ];
+/*
+ * أوقات المراحل (مؤشرات الأداء): لكل طلب، كم استغرقت كل مرحلة مقارنة بالوقت المستهدف لها.
+ * الاعتماد: الرفع ← الاعتماد · التجهيز: الاعتماد ← بدء التجهيز · الإرسال: بدء التجهيز ← أول شحنة ·
+ * الوصول: أول شحنة ← وصول البوكس للفرع · الاستلام: الوصول (أو الإرسال) ← استلام الممرضة. الساعات متصلة (24 ساعة في اليوم).
+ */
+const SLA_STAGES_ = ['appr', 'prep', 'send', 'arr', 'rcv'];
+/**
+ * رفض الاستلام في الشهر: متى (تاريخ ووقت)، من رفض، رقم الطلب، السبب، وما كان مطلوباً (الصنف الأصلي إن كان المرسل بديلاً)
+ * — من سطور الشحنات المرفوضة عند الاستلام (RejectReason) وتوقيع الشحنة.
+ */
+function receiptRejects_(month) {
+  const ids = scopedRequestIds_();
+  const ship = {};
+  read_('Shipments').rows.forEach(function (r) { ship[str_(r.RequestID) + '#' + Number(r.Batch)] = r; });
+  const items = {};
+  read_('RequestItems').rows.forEach(function (r) { items[str_(r.RequestID) + '|' + str_(r.ItemName)] = r; });
+  const reqs = {};
+  requestRows_().forEach(function (r) { reqs[str_(r.RequestID)] = r; });
+  return read_('ShipmentItems').rows.filter(function (r) { return str_(r.RejectReason) && (!ids || ids[str_(r.RequestID)]); }).map(function (r) {
+    const id = str_(r.RequestID), sh = ship[id + '#' + Number(r.Batch)] || {}, it = items[id + '|' + str_(r.ItemName)] || {}, q = reqs[id] || {};
+    const orig = str_(it.SubstituteOf), origRow = orig ? items[id + '|' + orig] || {} : it;
+    return { time: sh.ReceivedAt || r.DispatchedAt, by: str_(sh.ReceivedBy) || str_(sh.ReceiverName), receiver: str_(sh.ReceiverName), id: id, batch: Number(r.Batch),
+      reason: str_(r.RejectReason), photo: str_(r.RejectPhoto), item: str_(r.ItemName), qty: Number(r.Qty) || 0,
+      requested: orig || str_(r.ItemName), requestedQty: Number(origRow.RequestedQty) || 0, substitute: !!orig,
+      clinic: str_(q.Clinic), doctor: str_(q.Doctor), nurse: str_(q.Nurse), branch: str_(q.Branch), type: str_(q.Type) };
+  }).filter(function (x) { return !month || monthOf_(x.time) === month; })
+    .sort(function (a, b) { return toMs_(b.time) - toMs_(a.time); });
+}
+/** الطلبات المحمّلة الآن في بوكسات (لقياس مرحلة الوصول للفرع) */
+function boxedRequests_() {
+  if (MEMO_.boxedReqs) return MEMO_.boxedReqs;
+  const o = {};
+  read_('Boxes').rows.forEach(function (b) { boxLoads_(b.Loads).forEach(function (l) { o[l.split('#')[0]] = true; }); });
+  return (MEMO_.boxedReqs = o);
+}
+const SLA_KEY_ = { appr: 'slaAppr', prep: 'slaPrep', send: 'slaSend', arr: 'slaArr', rcv: 'slaRcv' };
+function slaTarget_(R, k, type) { return R[SLA_KEY_[k] + (type === 'طارئ' ? 'E' : 'M')]; }
+function slaOf_(r, R, now) {
+  const H = 36e5, sub = r.submittedAt || r.date, ms = toMs_;
+  const ship = r.firstShipAt || r.sentAt;
+  // طلب تجاوز المرحلة بدون ختم وقتها (بيانات قديمة): نهايتها = أول ختم لمرحلة بعدها
+  const after = r.prepAt || ship || r.arrivedAt || r.receivedAt;
+  const cleared = !r.needsReview ? sub : r.cleared ? (r.approvedAt || r.reviewedAt || after) : after || '';
+  const live = !isOff_(r.status) && r.status !== ST.RECEIVED;
+  const st = [];
+  const add = function (k, a, b) {
+    if (!ms(a)) return;
+    if (!ms(b) && !live) return; // طلب منتهٍ بلا ختم لهذه المرحلة: لا يُحسب
+    const end = ms(b) || now, h = Math.max(0, (end - ms(a)) / H), target = slaTarget_(R, k, r.type);
+    st.push({ k: k, hrs: round1_(h), target: target, done: !!ms(b), late: h > target });
+  };
+  if (r.needsReview) add('appr', sub, cleared || (r.status === ST.REJECTED ? r.reviewedAt : ''));
+  if (cleared && r.status !== ST.REJECTED) {
+    add('prep', cleared, r.prepAt || ship || r.arrivedAt || r.receivedAt);
+    if (r.prepAt || ship) add('send', r.prepAt || cleared, ship);
+    // الوصول للفرع يُقاس فقط لما تمشي الشحنة في بوكس (وصل، أو محمّلة الآن)؛ غير ذلك من الإرسال للاستلام مباشرة
+    const boxed = r.arrivedAt || (!r.receivedAt && boxedRequests_()[r.id]);
+    if (ship && boxed) add('arr', ship, r.arrivedAt);
+    if (ship && (r.arrivedAt || !boxed)) add('rcv', r.arrivedAt || ship, r.receivedAt);
+  }
+  return st;
+}
 function orderRules_() {
   if (MEMO_.orderRules) return MEMO_.orderRules;
   const o = {};
@@ -2438,6 +2535,36 @@ function getMonitor_(user, opts) {
     else { monthly++; if (r.lateSubmit) lateSubmits++; }
     if (r.status === ST.RECEIVED) { received++; if (!r.lateReceipt) onTime++; }
   });
+  // مؤشرات أداء المراحل للشهر: المكتمل، نسبة الالتزام بالوقت المستهدف، المتوسط — للشهري والطارئ
+  const sla = SLA_STAGES_.map(function (k) {
+    const o = { k: k, lateNow: 0 };
+    ['monthly', 'emergency'].forEach(function (ty) {
+      o[ty] = { n: 0, onTime: 0, sum: 0, target: slaTarget_(RULES, k, ty === 'emergency' ? 'طارئ' : 'شهري') };
+    });
+    return o;
+  });
+  const slaLate = [];
+  inMonth.forEach(function (r) {
+    slaOf_(r, RULES, now).forEach(function (x) {
+      if (!x.done) return;
+      const b = sla[SLA_STAGES_.indexOf(x.k)][r.type === 'طارئ' ? 'emergency' : 'monthly'];
+      b.n++; b.sum += x.hrs; if (!x.late) b.onTime++;
+    });
+  });
+  all.forEach(function (r) {
+    if (!r.slaLate) return;
+    sla[SLA_STAGES_.indexOf(r.slaLate.k)].lateNow++;
+    const s = stageOf_(r);
+    slaLate.push({ id: r.id, type: r.type, branch: r.branch, clinic: r.clinic, doctor: r.doctor, nurse: r.nurse, status: r.status, owner: s.owner,
+      stage: r.slaLate.k, hrs: r.slaLate.hrs, target: r.slaLate.target, over: round1_(r.slaLate.hrs - r.slaLate.target) });
+  });
+  sla.forEach(function (o) {
+    ['monthly', 'emergency'].forEach(function (ty) {
+      const b = o[ty];
+      b.rate = b.n ? Math.round(b.onTime / b.n * 100) : null; b.avg = b.n ? round1_(b.sum / b.n) : null; delete b.sum;
+    });
+  });
+  slaLate.sort(function (a, b) { return b.over - a.over; });
   const kpis = {
     month: month, requests: inMonth.length, monthly: monthly, emergency: emergency, received: received,
     onTimeRate: received ? Math.round(onTime / received * 100) : null,
@@ -2470,7 +2597,7 @@ function getMonitor_(user, opts) {
     return o[a.state] - o[b.state] || a.doctor.localeCompare(b.doctor);
   });
   return {
-    now: new Date(now), late: late, atRisk: atRisk, kpis: kpis,
+    now: new Date(now), late: late, atRisk: atRisk, kpis: kpis, sla: sla, slaLate: slaLate, rcvRejects: receiptRejects_(month),
     cycle: { month: cycleMonth, window: [RULES.winStart, RULES.winEnd], today: today, open: today >= RULES.winStart && today <= RULES.winEnd,
       due: new Date(monthlyDue_(now, RULES) - 864e5 + 1), doctors: cycle, missing: cycle.filter(function (c) { return !c.count; }).length,
       lateSubmits: cycle.filter(function (c) { return c.state === 'late'; }).length, passed: passed },
@@ -2510,6 +2637,7 @@ function nudgeProcurement_(user, requestId, message) {
  */
 function dailyDigest(e) {
   if (!e || !e.triggerUid) return 0;
+  try { extOrderReminders_(Date.now()); } catch (err) { console.error(err); }
   return sendDigest_();
 }
 function sendDigest_() {
@@ -2881,7 +3009,8 @@ function createRequest_(user, payload) {
   const cache = CacheService.getScriptCache();
 
   // الطبيب الذي له حساب يراجع الطلب أولاً؛ غير ذلك يذهب للتموين مباشرة
-  const branchApproval = (!!user.hk || device) && !forLab;
+  // اعتماد مدير الفرع أُلغي: طلبات الهاوس كيبر وغرف الأجهزة ومستهلكات العيادة تذهب للتموين مباشرة
+  const branchApproval = false;
   const needsReview = branchApproval ? branchManagers_(branch).length > 0 : !clinicOnly && doctorHasAccount_(doctor);
   // مفتاح المسودة من الجهاز: إعادة إرسال نفس المسودة بعد انقطاع الاتصال لا تنشئ طلباً مكرراً أبداً
   const clientKey = /^[A-Za-z0-9-]{8,64}$/.test(str_(payload.clientKey)) ? str_(payload.clientKey) : '';
@@ -3529,7 +3658,8 @@ function branchManagers_(branch) {
 function isBranchApproval_(row) { return str_(row.Approver) === BRANCH_APPROVER_; }
 /** هل للطلب من يعتمده في النظام؟ (وإلا يذهب للتموين مباشرة) */
 function hasApprover_(row) {
-  return isBranchApproval_(row) ? branchManagers_(str_(row.Branch)).length > 0 : doctorHasAccount_(str_(row.Doctor));
+  // طلبات قديمة كانت بانتظار مدير الفرع: لا اعتماد بعد الآن — تذهب للتموين مباشرة
+  return isBranchApproval_(row) ? false : doctorHasAccount_(str_(row.Doctor));
 }
 /** هل هذا المستخدم هو من يعتمد هذا الطلب؟ */
 function canReview_(user, row) {
@@ -3553,7 +3683,9 @@ function awaitingDoctor_(row) {
 
 /** سبب منع الانتقال (أو '' إن كان مسموحاً) */
 function transitionError_(row, newStatus) {
-  const cur = str_(row.Status) || ST.NEW;
+  const cur0 = str_(row.Status) || ST.NEW;
+  // طلب كان «بانتظار الاعتماد» ولم يعد له من يعتمده (مدير الفرع أُلغي) = جديد عند التموين
+  const cur = cur0 === ST.REVIEW && !hasApprover_(row) ? ST.NEW : cur0;
   const tr = TRANSITIONS[newStatus];
   if (!tr || tr.from.indexOf(cur) === -1) return 'ERR_BAD_TRANSITION';
   if (newStatus === ST.REVIEW) {
@@ -3985,6 +4117,66 @@ function adminRemoveItem_(user, requestId, item, reason) {
   });
   return getRequestAudit_(user, requestId);
 }
+/*
+ * تعديل كمية صنف (الأدمن، بسبب إلزامي) مع حالته المرسلة: المعتمد = الكمية الجديدة، والمرسل يتبعها
+ * (التخفيض يُخصم من آخر شحنة فالأقدم، والزيادة لصنف أُرسل كاملاً تُضاف لآخر شحنة) والمستلم كذلك إن كانت الشحنة مستلمة.
+ * يظهر للتموين والممرضة والطبيب فوراً، ويُسجَّل في سجل التراجعات بالقيم السابقة.
+ */
+const ADMIN_QTY_ = 'تعديل كمية (أدمن)';
+function adminSetItemQty_(user, requestId, item, qty, reason) {
+  requestId = str_(requestId); item = str_(item); reason = clean_(reason, 500);
+  const q = Number(qty);
+  if (!(Math.floor(q) === q && q >= 0 && q <= 100000)) throw new Error('ERR_BAD_QTY');
+  if (!reason) throw new Error('ERR_REASON_REQUIRED');
+  withLock_(function () {
+    resetMemo_();
+    const f = findRequest_(requestId);
+    const cur = str_(f.row.Status) || ST.NEW;
+    if (cur === ST.CANCELLED) throw new Error('ERR_BAD_TRANSITION');
+    const ri = read_('RequestItems');
+    const rows = ri.rows.filter(function (r) { return str_(r.RequestID) === requestId; });
+    const row = rows.filter(function (r) { return str_(r.ItemName) === item; })[0];
+    if (!row) throw new Error('ERR_NOT_FOUND');
+    if (row.RejectAt) throw new Error('ERR_ITEM_REJECTED');
+    if (read_('Assets').rows.some(function (a) { return str_(a.RequestID).split('#')[0] === requestId && str_(a.Item) === item; })) throw new Error('ERR_ITEM_HAS_ASSET');
+    const req = mapRequest_(f.row);
+    const st = shipState_(req, rows);
+    const it = st.items.filter(function (i) { return i.item === item; })[0];
+    const old = it ? it.target : 0, sent = it ? it.sentQty : 0;
+    if (q === old) return;
+    if (q === 0 && st.items.every(function (i) { return i.item === item || i.target === 0; })) throw new Error('ERR_ALL_ZERO');
+    const si = read_('ShipmentItems');
+    const sRows = si.rows.filter(function (r) { return str_(r.RequestID) === requestId && str_(r.ItemName) === item; })
+      .sort(function (a, b) { return Number(b.Batch) - Number(a.Batch); });
+    // المرسل الجديد: لا يزيد عن الكمية الجديدة؛ وإن كان الصنف أُرسل كاملاً يبقى كاملاً بالكمية الجديدة
+    const want = sent >= old && sent > 0 ? q : Math.min(sent, q);
+    const ups = [];
+    if (sRows.length && want !== sent) {
+      let diff = want - sent;
+      sRows.forEach(function (r) {
+        if (!diff) return;
+        const was = Number(r.Qty) || 0, now = diff > 0 ? was + diff : Math.max(0, was + diff);
+        diff -= now - was;
+        // شحنة مستلمة: المستلم كاملاً يتبع الكمية الجديدة، والمستلم جزئياً لا يزيد عنها
+        const rq = r.ReceivedQty, rcv = rq === '' || rq === null || rq === undefined ? '' : Number(rq) >= was ? now : Math.min(Number(rq) || 0, now);
+        ups.push({ row: r, obj: { Qty: now, ReceivedQty: rcv } });
+      });
+    }
+    const snap = { approved: row.ApprovedQty, received: row.ReceivedQty, ships: sRows.map(function (r) { return [Number(r.Batch), r.Qty, r.ReceivedQty]; }) };
+    const rcvRow = row.ReceivedQty === '' || row.ReceivedQty === null || row.ReceivedQty === undefined ? '' : (Number(row.ReceivedQty) >= old ? q : Math.min(Number(row.ReceivedQty) || 0, q));
+    setMany_(ri, [{ row: row, obj: { ApprovedQty: q, ReceivedQty: rcvRow } }]);
+    if (ups.length) setMany_(si, ups);
+    delete MEMO_.sitems; delete MEMO_.rcpt;
+    const now = new Date();
+    append_('Reversals', { Timestamp: now, RequestID: requestId, User: user.name, Role: user.role, Scope: ADMIN_QTY_,
+      From: item + ' × ' + old + (sent ? ' (أُرسل ' + sent + ')' : ''), To: String(q) + (want ? ' (أُرسل ' + want + ')' : ''), Reason: reason, Details: JSON.stringify(snap).slice(0, 1800) });
+    const msg = '✏️ عدّل الأدمن كمية ' + item + ': ' + old + ' ← ' + q + ' — السبب: ' + reason;
+    append_('Comments', { Timestamp: now, RequestID: requestId, Author: user.name, Role: user.role, Message: msg });
+    logAction_(requestId, msg, user.name);
+    settleRequest_(f, cur, user, 'بعد تعديل الأدمن للكمية');
+  });
+  return getRequestAudit_(user, requestId);
+}
 /** استرجاع صنف حذفه الأدمن بقيمه الأصلية (من سجل التراجعات) */
 function adminRestoreItem_(user, requestId, item) {
   requestId = str_(requestId); item = str_(item);
@@ -4020,6 +4212,274 @@ function adminRestoreItem_(user, requestId, item) {
     logAction_(requestId, msg, user.name);
   });
   return getRequestAudit_(user, requestId);
+}
+
+/*
+ * حذف الطلب كاملاً (الأدمن، بسبب إلزامي): تُحذف سطوره من الطلبات والأصناف والشحنات والملاحظات والتعليقات والبلاغات،
+ * وتُحفظ قبلها نسخة كاملة في DeletedRequests (+ سطر في Reversals) — التدقيق المالي يعرف ماذا حُذف ومتى ومن وبكم،
+ * والطلب يُسترجع كما كان. السجل (Log) يبقى. لا يُحذف طلب صُرفت منه عهدة أو ما زالت شحنته داخل بوكس.
+ */
+const DEL_TABLES_ = ['Requests', 'RequestItems', 'ShipmentItems', 'Shipments', 'ItemNotes', 'Comments', 'Complaints'];
+const ADMIN_DEL_ = 'حذف طلب كامل (أدمن)', ADMIN_UNDEL_ = 'استرجاع طلب محذوف (أدمن)';
+function adminDeleteRequest_(user, requestId, reason) {
+  requestId = str_(requestId); reason = clean_(reason, 500);
+  if (!reason) throw new Error('ERR_REASON_REQUIRED');
+  let total = 0;
+  withLock_(function () {
+    resetMemo_();
+    const f = findRequest_(requestId);
+    if (read_('Assets').rows.some(function (a) { return str_(a.RequestID).split('#')[0] === requestId; })) throw new Error('ERR_ITEM_HAS_ASSET');
+    if (read_('Boxes').rows.some(function (b) { return boxLoads_(b.Loads).some(function (l) { return l.split('#')[0] === requestId; }); })) throw new Error('ERR_REQ_IN_BOX');
+    const req = mapRequest_(f.row);
+    const price = catalogPrices_();
+    total = round2_(shipState_(req, itemsOf_(requestId)).items.reduce(function (a, i) { return a + i.target * (price[i.item.toLowerCase()] || 0); }, 0));
+    const snap = {}, del = [];
+    DEL_TABLES_.forEach(function (name) {
+      const t = freshTable_(name);
+      const rows = t.rows.filter(function (r) { return str_(r.RequestID) === requestId; });
+      if (!rows.length) return;
+      snap[name] = rows.map(function (r) { const o = {}; t.headers.forEach(function (h) { if (h && r[h] !== '' && r[h] !== undefined && r[h] !== null) o[h] = r[h]; }); return o; });
+      del.push({ t: t, rows: rows });
+    });
+    const js = JSON.stringify(snap);
+    if (js.length > 49000) throw new Error('ERR_TOO_LARGE');
+    const now = new Date();
+    append_('DeletedRequests', { Timestamp: now, RequestID: requestId, User: user.name, Reason: reason, Clinic: req.clinic, Doctor: req.doctor, Nurse: req.nurse,
+      Status: req.status, Total: total, Snapshot: js, RestoredAt: '', RestoredBy: '' });
+    append_('Reversals', { Timestamp: now, RequestID: requestId, User: user.name, Role: user.role, Scope: ADMIN_DEL_,
+      From: req.status + ' · ' + (snap.RequestItems || []).length + ' صنف — ' + total, To: 'محذوف', Reason: reason, Details: '' });
+    // من الأسفل للأعلى حتى لا تتغير أرقام السطور الباقية
+    del.forEach(function (d) { d.rows.slice().sort(function (a, b) { return b._row - a._row; }).forEach(function (r) { deleteRow_(d.t, r); }); });
+    delete MEMO_.sitems; delete MEMO_.rcpt;
+    logAction_(requestId, '🗑️ حذف الأدمن الطلب كاملاً (القيمة ' + total + ') — السبب: ' + reason, user.name);
+  });
+  return { id: requestId, total: total, deleted: getDeletedRequests_(user) };
+}
+function getDeletedRequests_(user) {
+  return read_('DeletedRequests').rows.filter(function (r) { return str_(r.RequestID); }).map(function (r) {
+    return { id: str_(r.RequestID), time: r.Timestamp, user: str_(r.User), reason: str_(r.Reason), clinic: str_(r.Clinic), doctor: str_(r.Doctor),
+      nurse: str_(r.Nurse), status: str_(r.Status), total: price_(r.Total) || 0, restoredAt: r.RestoredAt, restoredBy: str_(r.RestoredBy) };
+  }).sort(function (a, b) { return toMs_(b.time) - toMs_(a.time); });
+}
+/** يرجع الطلب المحذوف كما كان بكل سطوره (من النسخة المحفوظة) */
+function adminRestoreRequest_(user, requestId) {
+  requestId = str_(requestId);
+  withLock_(function () {
+    resetMemo_();
+    const t = freshTable_('DeletedRequests');
+    const row = t.rows.filter(function (r) { return str_(r.RequestID) === requestId && !r.RestoredAt; }).pop();
+    if (!row) throw new Error('ERR_NOT_FOUND');
+    if (read_('Requests').rows.some(function (r) { return str_(r.RequestID) === requestId; })) throw new Error('ERR_EXISTS');
+    let snap;
+    try { snap = JSON.parse(str_(row.Snapshot)); } catch (e) { snap = null; }
+    if (!snap || !snap.Requests) throw new Error('ERR_NOT_FOUND');
+    const ISO = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?Z$/;
+    DEL_TABLES_.forEach(function (name) {
+      (snap[name] || []).forEach(function (o) {
+        const x = {};
+        Object.keys(o).forEach(function (k) { x[k] = typeof o[k] === 'string' && ISO.test(o[k]) ? new Date(o[k]) : o[k]; });
+        append_(name, x);
+      });
+    });
+    const now = new Date();
+    setCells_(t, row, { RestoredAt: now, RestoredBy: user.name });
+    append_('Reversals', { Timestamp: now, RequestID: requestId, User: user.name, Role: user.role, Scope: ADMIN_UNDEL_, From: 'محذوف', To: str_(row.Status), Reason: 'استرجاع', Details: '' });
+    delete MEMO_.sitems; delete MEMO_.rcpt;
+    logAction_(requestId, '↩️ استرجع الأدمن الطلب المحذوف', user.name);
+  });
+  return getRequestAudit_(user, requestId);
+}
+
+/* =====================================================================
+ *  الطلبات الخارجية (التموين ← المورد/المندوب):
+ *  التموين يختار من طلب ما يحتاجه بالضبط (الصنف والكمية، مع التعديل والحذف) ويجمع أصنافاً لنفس المورد في طلبية واحدة،
+ *  ثم يصدّر «طلب عرض سعر» (تُحفظ نسخته كما صُدّرت) ← «تم الإرسال للمندوب» بتاريخ وصول متوقع ← تذكير يوم الموعد وبعده
+ *  حتى يضغط «وصلت». الأدمن يرى إحصائية المناديب: عدد الطلبيات، المتأخر، الواصل، ونسخة عرض السعر المرسلة.
+ * ===================================================================== */
+const EO_ST = { DRAFT: 'مسودة', SENT: 'أُرسل للمندوب', ARRIVED: 'وصل', CANCELLED: 'ملغي' };
+function eoItems_(list) {
+  if (!Array.isArray(list)) throw new Error('ERR_REQUIRED');
+  const out = [];
+  list.slice(0, 200).forEach(function (x) {
+    x = x || {};
+    const item = clean_(x.item, 200), q = Number(x.qty);
+    if (!item) return;
+    if (!(Math.floor(q) === q && q >= 1 && q <= 100000)) throw new Error('ERR_BAD_QTY');
+    out.push({ requestId: clean_(x.requestId, 40), item: item, qty: q, note: clean_(x.note, 300) });
+  });
+  return out;
+}
+function mapExtOrder_(r, items, today) {
+  const st = str_(r.Status) || EO_ST.DRAFT, exp = str_(r.ExpectedAt) ? ymdStr_(r.ExpectedAt) : '';
+  const late = st === EO_ST.SENT && exp && exp < today;
+  let snap = null;
+  try { snap = str_(r.RfqSnapshot) ? JSON.parse(str_(r.RfqSnapshot)) : null; } catch (e) { snap = null; }
+  return { id: str_(r.OrderID), createdAt: r.CreatedAt, createdBy: str_(r.CreatedBy), supplier: str_(r.Supplier), contact: str_(r.Contact), notes: str_(r.Notes),
+    status: st, sentAt: r.SentAt, sentBy: str_(r.SentBy), expected: exp, arrivedAt: r.ArrivedAt, arrivedBy: str_(r.ArrivedBy), rfqAt: r.RfqAt, rfq: snap,
+    late: !!late, lateDays: late ? Math.round((parseDay_(today).getTime() - parseDay_(exp).getTime()) / 864e5) : 0,
+    onTime: st === EO_ST.ARRIVED && exp ? ymdStr_(r.ArrivedAt) <= exp : null,
+    items: items[str_(r.OrderID)] || [] };
+}
+/** «yyyy-MM-dd» بتوقيت الرياض لقيمة تاريخ أو نص */
+function ymdStr_(v) {
+  if (/^\d{4}-\d{2}-\d{2}$/.test(str_(v))) return str_(v);
+  const ms = toMs_(v);
+  return ms ? riyadh_(ms) : '';
+}
+function getExtOrders_(user) {
+  const items = {};
+  read_('ExtOrderItems').rows.forEach(function (r) {
+    if (!str_(r.OrderID)) return;
+    (items[str_(r.OrderID)] = items[str_(r.OrderID)] || []).push({ requestId: str_(r.RequestID), item: str_(r.ItemName), qty: Number(r.Qty) || 0, note: str_(r.Note) });
+  });
+  const today = riyadh_(Date.now());
+  const orders = read_('ExtOrders').rows.filter(function (r) { return str_(r.OrderID); }).map(function (r) { return mapExtOrder_(r, items, today); })
+    .sort(function (a, b) { return toMs_(b.createdAt) - toMs_(a.createdAt); });
+  // إحصائية المناديب/الموردين
+  const by = {};
+  orders.forEach(function (o) {
+    if (o.status === EO_ST.DRAFT || o.status === EO_ST.CANCELLED) return;
+    const k = o.supplier || '—', b = by[k] || (by[k] = { supplier: k, orders: 0, open: 0, late: 0, arrived: 0, onTime: 0, delaySum: 0, lastSent: '' });
+    b.orders++;
+    if (o.status === EO_ST.SENT) { b.open++; if (o.late) b.late++; }
+    if (o.status === EO_ST.ARRIVED) { b.arrived++; if (o.onTime) b.onTime++; else if (o.expected) b.delaySum += Math.max(0, Math.round((parseDay_(ymdStr_(o.arrivedAt)).getTime() - parseDay_(o.expected).getTime()) / 864e5)); }
+    if (!b.lastSent || toMs_(o.sentAt) > toMs_(b.lastSent)) b.lastSent = o.sentAt;
+  });
+  const stats = Object.keys(by).map(function (k) {
+    const b = by[k];
+    b.onTimeRate = b.arrived ? Math.round(b.onTime / b.arrived * 100) : null;
+    b.avgDelay = b.arrived - b.onTime > 0 ? Math.round(b.delaySum / (b.arrived - b.onTime) * 10) / 10 : 0;
+    delete b.delaySum;
+    return b;
+  }).sort(function (a, b) { return b.late - a.late || b.open - a.open || b.orders - a.orders; });
+  const suppliers = Array.from(new Set(orders.map(function (o) { return o.supplier; }).filter(String))).sort();
+  return { orders: orders, stats: stats, suppliers: suppliers, canEdit: user.screen === 'procurement' };
+}
+function eoRow_(t, id) {
+  const row = t.rows.filter(function (r) { return str_(r.OrderID) === str_(id); })[0];
+  if (!row) throw new Error('ERR_NOT_FOUND');
+  return row;
+}
+function eoWriteItems_(id, list) {
+  const ti = freshTable_('ExtOrderItems');
+  ti.rows.filter(function (r) { return str_(r.OrderID) === id; }).sort(function (a, b) { return b._row - a._row; }).forEach(function (r) { deleteRow_(ti, r); });
+  list.forEach(function (x) { append_('ExtOrderItems', { OrderID: id, RequestID: x.requestId, ItemName: x.item, Qty: x.qty, Note: x.note }); });
+}
+/** حفظ الطلبية كاملة (المورد، التواصل، الملاحظات، الأصناف بكمياتها) — قبل وصولها */
+function saveExtOrder_(user, o) {
+  o = o || {};
+  const supplier = clean_(o.supplier, 120);
+  if (!supplier) throw new Error('ERR_SUPPLIER_REQUIRED');
+  const list = eoItems_(o.items);
+  if (!list.length) throw new Error('ERR_REQUIRED');
+  let id = str_(o.id);
+  withLock_(function () {
+    resetMemo_();
+    const now = new Date();
+    if (id) {
+      const t = tableWithCols_('ExtOrders'), row = eoRow_(t, id);
+      if ([EO_ST.ARRIVED, EO_ST.CANCELLED].indexOf(str_(row.Status)) !== -1) throw new Error('ERR_BAD_TRANSITION');
+      setCells_(t, row, { Supplier: supplier, Contact: clean_(o.contact, 160), Notes: clean_(o.notes, 1000), UpdatedAt: now });
+    } else {
+      id = reserveId_('EXT-', function (prefix) { return maxSeq_(freshTable_('ExtOrders').rows, 'OrderID', prefix); }).id;
+      append_('ExtOrders', { OrderID: id, CreatedAt: now, CreatedBy: user.name, Supplier: supplier, Contact: clean_(o.contact, 160), Notes: clean_(o.notes, 1000), Status: EO_ST.DRAFT, UpdatedAt: now });
+    }
+    eoWriteItems_(id, list);
+    logAction_('', 'طلبية خارجية ' + id + ' (' + supplier + '): ' + list.length + ' صنف', user.name);
+  });
+  return getExtOrders_(user);
+}
+/** من بطاقة الطلب: إضافة أصناف لطلبية موجودة لنفس المورد (أو طلبية جديدة) — نفس الصنف من نفس الطلب تُجمع كميته */
+function addExtOrderItems_(user, orderId, supplier, items) {
+  const list = eoItems_(items);
+  if (!list.length) throw new Error('ERR_REQUIRED');
+  orderId = str_(orderId);
+  if (!orderId) return saveExtOrder_(user, { supplier: supplier, items: list });
+  const cur = getExtOrders_(user).orders.filter(function (x) { return x.id === orderId; })[0];
+  if (!cur) throw new Error('ERR_NOT_FOUND');
+  const merged = cur.items.slice();
+  list.forEach(function (x) {
+    const same = merged.filter(function (m) { return m.item === x.item && m.requestId === x.requestId; })[0];
+    if (same) same.qty += x.qty; else merged.push(x);
+  });
+  return saveExtOrder_(user, { id: orderId, supplier: cur.supplier, contact: cur.contact, notes: cur.notes, items: merged });
+}
+function deleteExtOrder_(user, id) {
+  withLock_(function () {
+    resetMemo_();
+    const t = freshTable_('ExtOrders'), row = eoRow_(t, id);
+    if (str_(row.Status) !== EO_ST.DRAFT) throw new Error('ERR_BAD_TRANSITION');
+    eoWriteItems_(str_(id), []);
+    deleteRow_(t, row);
+    logAction_('', 'حذف طلبية خارجية (مسودة) ' + id, user.name);
+  });
+  return getExtOrders_(user);
+}
+/** نسخة طلب عرض السعر كما صُدّرت (للأدمن لاحقاً): المورد والأصناف والكميات والوقت ومن صدّرها */
+function eoSnapshot_(t, row, user) {
+  const id = str_(row.OrderID);
+  const items = read_('ExtOrderItems').rows.filter(function (r) { return str_(r.OrderID) === id; })
+    .map(function (r) { return { requestId: str_(r.RequestID), item: str_(r.ItemName), qty: Number(r.Qty) || 0, note: str_(r.Note) }; });
+  const now = new Date();
+  const snap = { id: id, supplier: str_(row.Supplier), contact: str_(row.Contact), notes: str_(row.Notes), items: items, at: now.toISOString(), by: user.name };
+  setCells_(t, row, { RfqAt: now, RfqSnapshot: JSON.stringify(snap).slice(0, 45000) });
+  return snap;
+}
+function extOrderRfq_(user, id) {
+  let snap;
+  withLock_(function () { resetMemo_(); const t = tableWithCols_('ExtOrders'); snap = eoSnapshot_(t, eoRow_(t, id), user); });
+  return snap;
+}
+/** sent (expected = yyyy-MM-dd) · arrived · cancel */
+function extOrderStatus_(user, id, action, expected) {
+  withLock_(function () {
+    resetMemo_();
+    const t = tableWithCols_('ExtOrders'), row = eoRow_(t, id), cur = str_(row.Status) || EO_ST.DRAFT, now = new Date();
+    if (action === 'sent') {
+      if ([EO_ST.DRAFT, EO_ST.SENT].indexOf(cur) === -1) throw new Error('ERR_BAD_TRANSITION');
+      const exp = str_(expected);
+      if (!parseDay_(exp)) throw new Error('ERR_EXPECTED_DATE');
+      if (exp < riyadh_(Date.now())) throw new Error('ERR_EXPECTED_PAST');
+      if (!str_(row.RfqSnapshot)) eoSnapshot_(t, row, user);
+      setCells_(t, row, cur === EO_ST.SENT ? { ExpectedAt: exp, RemindedOn: '', UpdatedAt: now }
+        : { Status: EO_ST.SENT, SentAt: now, SentBy: user.name, ExpectedAt: exp, RemindedOn: '', UpdatedAt: now });
+      logAction_('', 'طلبية خارجية ' + id + ': ' + (cur === EO_ST.SENT ? 'تعديل موعد الوصول ' : 'أُرسلت للمندوب — الوصول المتوقع ') + exp, user.name);
+    } else if (action === 'arrived') {
+      if (cur !== EO_ST.SENT) throw new Error('ERR_BAD_TRANSITION');
+      setCells_(t, row, { Status: EO_ST.ARRIVED, ArrivedAt: now, ArrivedBy: user.name, UpdatedAt: now });
+      logAction_('', 'طلبية خارجية ' + id + ': وصلت', user.name);
+    } else if (action === 'cancel') {
+      if ([EO_ST.ARRIVED, EO_ST.CANCELLED].indexOf(cur) !== -1) throw new Error('ERR_BAD_TRANSITION');
+      setCells_(t, row, { Status: EO_ST.CANCELLED, UpdatedAt: now });
+      logAction_('', 'طلبية خارجية ' + id + ': أُلغيت', user.name);
+    } else throw new Error('ERR_BAD_TRANSITION');
+  });
+  return getExtOrders_(user);
+}
+/** تذكير التموين بالطلبيات التي حان موعد وصولها أو تأخرت (مرة يومياً لكل طلبية) */
+function extOrderReminders_(nowMs) {
+  const today = riyadh_(nowMs || Date.now());
+  const due = [];
+  withLock_(function () {
+    resetMemo_();
+    const t = tableWithCols_('ExtOrders');
+    t.rows.forEach(function (r) {
+      if (str_(r.Status) !== EO_ST.SENT) return;
+      const exp = ymdStr_(r.ExpectedAt);
+      if (!exp || exp > today || ymdStr_(r.RemindedOn) === today) return;
+      setCells_(t, r, { RemindedOn: today });
+      due.push({ id: str_(r.OrderID), supplier: str_(r.Supplier), exp: exp, late: exp < today, to: [str_(r.SentBy), str_(r.CreatedBy)].filter(String) });
+    });
+  });
+  due.forEach(function (o) {
+    const subject = (o.late ? '⏰ طلبية خارجية متأخرة: ' : '📦 موعد وصول طلبية خارجية اليوم: ') + o.id + ' (' + o.supplier + ') · External order ' + (o.late ? 'late' : 'due today');
+    const body = mailMsg_({ order: ['ar', 'en'],
+      ar: { title: o.late ? 'طلبية متأخرة عن موعدها' : 'موعد وصول طلبية اليوم', lead: o.id + ' — ' + o.supplier + ' · الموعد ' + o.exp, action: 'تابع مع المندوب، واضغط «وصلت» عند الاستلام أو عدّل الموعد.', btn: 'افتح الطلبات الخارجية' },
+      en: { title: o.late ? 'External order is late' : 'External order due today', lead: o.id + ' — ' + o.supplier + ' · due ' + o.exp, action: 'Follow up with the rep; press «Arrived» on receipt or change the date.', btn: 'Open external orders' } });
+    const names = o.to.filter(function (x, i, a) { return a.indexOf(x) === i; });
+    if (names.length) names.forEach(function (n) { notifyUser_(n, subject, body); }); else notifyRole_('procurement', subject, body);
+  });
+  return due.length;
 }
 
 /** الحالة السابقة لطلب حسب أختامه الزمنية (للتراجع) */
@@ -4574,7 +5034,8 @@ function getComplaints_(user, openOnly) {
         id: str_(r.ComplaintID), time: r.Timestamp, requestId: str_(r.RequestID), author: str_(r.Author),
         role: str_(r.Role), type: str_(r.Type), message: str_(r.Message),
         resolved: r.Resolved === true || str_(r.Resolved).toUpperCase() === 'TRUE',
-        resolvedBy: str_(r.ResolvedBy), resolvedAt: r.ResolvedAt, resolveNote: str_(r.ResolveNote)
+        resolvedBy: str_(r.ResolvedBy), resolvedAt: r.ResolvedAt, resolveNote: str_(r.ResolveNote),
+        progress: str_(r.Progress), procReply: str_(r.ProcReply), procBy: str_(r.ProcBy), procAt: r.ProcAt, doneAt: r.DoneAt
       };
     })
     .filter(function (c) { return !openOnly || !c.resolved; })
@@ -4594,6 +5055,8 @@ function resolveComplaint_(user, complaintId, note) {
     const closed = row.Resolved === true || str_(row.Resolved).toUpperCase() === 'TRUE';
     // بلاغ أُغلق سابقاً بدون ملاحظة: تُضاف ملاحظته لاحقاً (يبقى من أغلقه ووقته كما هو)
     if (closed && str_(row.ResolveNote)) throw new Error('ERR_ALREADY_RESOLVED');
+    // الجودة تغلق فقط بعد أن يرد التموين ويضغط «جاري المعالجة» ثم «تمت المعالجة»
+    if (!closed && str_(row.Progress) !== CMP_DONE_) throw new Error('ERR_NOT_HANDLED');
     const now = new Date();
     setCells_(t, row, closed ? { ResolveNote: note } : { Resolved: true, ResolvedBy: user.name, ResolvedAt: now, ResolveNote: note });
     c = { id: str_(row.ComplaintID), req: str_(row.RequestID), author: str_(row.Author), type: str_(row.Type), late: closed };
@@ -4608,6 +5071,44 @@ function resolveComplaint_(user, complaintId, note) {
       en: { title: 'Your complaint was closed (' + c.type + ')', lead: (c.late ? 'Closing note from ' : 'Closed by ') + user.name + (c.late ? ':' : ' with the note:'), lines: [note] } }));
   }
   return true;
+}
+
+/*
+ * معالجة البلاغ من التموين: يدخل على البلاغ ويرد — «جاري المعالجة» أولاً ثم «تمت المعالجة» (الرد إلزامي في كل خطوة).
+ * يُكتب الرد على الطلب (يراه الطبيب والممرضة)، ويُبلَّغ صاحب البلاغ والجودة/التنفيذية/الأدمن. بعد «تمت المعالجة» تغلقه الجودة.
+ */
+const CMP_PROG_ = 'جاري المعالجة', CMP_DONE_ = 'تمت المعالجة';
+function complaintProgress_(user, complaintId, step, reply) {
+  reply = clean_(reply, 1000);
+  if (!reply) throw new Error('ERR_REPLY_REQUIRED');
+  const to = step === 'done' ? CMP_DONE_ : step === 'progress' ? CMP_PROG_ : '';
+  if (!to) throw new Error('ERR_BAD_TRANSITION');
+  let c;
+  withLock_(function () {
+    resetMemo_();
+    const t = tableWithCols_('Complaints');
+    const row = t.rows.filter(function (r) { return str_(r.ComplaintID) === str_(complaintId); })[0];
+    if (!row) throw new Error('ERR_NOT_FOUND');
+    if (row.Resolved === true || str_(row.Resolved).toUpperCase() === 'TRUE') throw new Error('ERR_ALREADY_RESOLVED');
+    const cur = str_(row.Progress);
+    if (to === CMP_PROG_ && cur) throw new Error('ERR_BAD_TRANSITION');
+    if (to === CMP_DONE_ && cur !== CMP_PROG_) throw new Error('ERR_NOT_IN_PROGRESS');
+    const now = new Date(), obj = { Progress: to, ProcReply: reply, ProcBy: user.name, ProcAt: now };
+    if (to === CMP_DONE_) obj.DoneAt = now;
+    setCells_(t, row, obj);
+    c = { id: str_(row.ComplaintID), req: str_(row.RequestID), author: str_(row.Author), type: str_(row.Type) };
+    append_('Comments', { Timestamp: now, RequestID: c.req, Author: user.name, Role: user.role,
+      Message: (to === CMP_DONE_ ? '✅ ' : '🛠️ ') + 'التموين — ' + to + ' (بلاغ ' + c.type + '): ' + reply });
+    logAction_(c.req, 'بلاغ ' + c.id + ': ' + to + ' — ' + reply, user.name);
+  });
+  const req = findRequestSafe_(c.req);
+  const subject = (to === CMP_DONE_ ? '✅ تمت معالجة البلاغ' : '🛠️ جاري معالجة البلاغ') + ' على الطلب ' + c.req + ' · ' + (to === CMP_DONE_ ? 'Complaint handled' : 'Complaint in progress');
+  const body = mailMsg_({ order: ['ar', 'en'], id: c.req, req: req,
+    ar: { title: to + ' (' + c.type + ')', lead: 'رد التموين (' + user.name + '):', lines: [reply], action: to === CMP_DONE_ ? 'الجودة: راجع المعالجة وأغلق البلاغ بملاحظة.' : '', btn: 'افتح البلاغات' },
+    en: { title: (to === CMP_DONE_ ? 'Handled' : 'In progress') + ' (' + c.type + ')', lead: 'Procurement reply (' + user.name + '):', lines: [reply], action: to === CMP_DONE_ ? 'Quality: review and close the complaint with a note.' : '', btn: 'Open complaints' } });
+  if (c.author && c.author !== user.name) notifyUser_(c.author, subject, body);
+  notifyPerm_('complaints_close', subject, body);
+  return { id: c.id, progress: to };
 }
 
 function addNotice_(user, toRole, message) {
@@ -4649,6 +5150,10 @@ function getAlerts_(user) {
     const myDept = userDept_(user);
     const tkNew = read_('AssetTickets').rows.filter(function (r) { return str_(r.TicketID) && (str_(r.Status) || TK_ST.NEW) === TK_ST.NEW; }).length;
     if (tkNew) alerts.push({ type: 'warning', code: 'alert_asset_new', n: tkNew });
+    // الطلبيات الخارجية التي حان موعد وصولها أو تأخرت — حتى لا تُنسى
+    const today = riyadh_(Date.now());
+    const eoDue = read_('ExtOrders').rows.filter(function (r) { return str_(r.Status) === EO_ST.SENT && ymdStr_(r.ExpectedAt) && ymdStr_(r.ExpectedAt) <= today; }).length;
+    if (eoDue) alerts.push({ type: 'danger', code: 'alert_ext_due', n: eoDue });
     const all = queryRequests_({}).filter(function (r) { return deptMatch_(myDept, r.department); });
     const ready = all.filter(function (r) { return r.cleared && (r.status === ST.APPROVED || r.status === ST.NEW); });
     const urgent = ready.filter(function (r) { return r.type === 'طارئ'; }).length;
@@ -4968,7 +5473,7 @@ function monthlyReminders_(nowMs) {
 /** Render: كل ~10 دقائق — التذكيرات + الملخص اليومي للمتأخرات مرة واحدة يومياً بعد الساعة 8 */
 const DIGEST_DAY_KEY_ = 'DailyDigestSentOn';
 function cronTick_(nowMs) {
-  const now = nowMs || Date.now(), res = { reminders: monthlyReminders_(now).length, digest: -1 };
+  const now = nowMs || Date.now(), res = { reminders: monthlyReminders_(now).length, digest: -1, extOrders: extOrderReminders_(now) };
   const today = riyadh_(now);
   if (new Date(now + 3 * 36e5).getUTCHours() >= 8) {
     let go = false;
@@ -5606,7 +6111,8 @@ function procStage_(r) {
   if (r.sentQty > 0 && r.remainingQty > 0) return 'partial';
   if (r.status === ST.SENT) return r.atBranch ? 'arrived' : 'shipping';
   if ([ST.PREP, ST.VENDOR_WAIT, ST.VENDOR_RECV].indexOf(r.status) !== -1) return 'prep';
-  return !r.doctorApproved ? 'review' : r.approver === 'branch' ? 'ready_bm' : 'ready';
+  if (!r.doctorApproved) return !r.doctor && r.clinic !== LAB_SUPPLY_ ? 'clinic' : 'review';
+  return 'ready';
 }
 function getExecutiveStats_(user, month) {
   const all = queryRequests_(month ? { month: month } : {});

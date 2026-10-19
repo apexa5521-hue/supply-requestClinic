@@ -827,6 +827,20 @@ test('comments, item notes, complaints and notices', () => {
   throwsCode(() => api(p, 'resolveComplaint', c.id), 'ERR_FORBIDDEN'); // التموين لا يغلق البلاغات
   assert.equal(api(p, 'getComplaints', true).length, 1, 'procurement still sees the issue');
   throwsCode(() => api(q, 'resolveComplaint', c.id, ' '), 'ERR_NOTE_REQUIRED');
+  // quality can't close before procurement replies: «in progress» then «handled»
+  throwsCode(() => api(q, 'resolveComplaint', c.id, 'x'), 'ERR_NOT_HANDLED');
+  throwsCode(() => api(p, 'complaintProgress', c.id, 'progress', ' '), 'ERR_REPLY_REQUIRED');
+  throwsCode(() => api(p, 'complaintProgress', c.id, 'done', 'أُرسل'), 'ERR_NOT_IN_PROGRESS');
+  throwsCode(() => api(n, 'complaintProgress', c.id, 'progress', 'x'), 'ERR_FORBIDDEN');
+  gas.mails.length = 0;
+  api(p, 'complaintProgress', c.id, 'progress', 'نتواصل مع المورد');
+  assert.ok(gas.mails.some(m => m.to === 'sara@example.com' && /جاري معالجة البلاغ/.test(m.subject)), 'reporter told it is in progress');
+  assert.equal(api(q, 'getComplaints', true)[0].progress, 'جاري المعالجة');
+  throwsCode(() => api(q, 'resolveComplaint', c.id, 'x'), 'ERR_NOT_HANDLED');
+  api(p, 'complaintProgress', c.id, 'done', 'أُرسل الناقص اليوم');
+  const pc = api(q, 'getComplaints', true)[0];
+  assert.deepEqual([pc.progress, pc.procReply, pc.procBy], ['تمت المعالجة', 'أُرسل الناقص اليوم', 'علي']);
+  assert.ok(api(n, 'getRequestDetail', id).comments.some(x => /التموين — تمت المعالجة.*أُرسل الناقص اليوم/.test(x.message)), 'reply written on the request');
   gas.mails.length = 0;
   api(q, 'resolveComplaint', c.id, 'تواصلنا مع التموين وأُرسل الطلب');
   assert.equal(api(q, 'getComplaints', true).length, 0);
@@ -2905,63 +2919,42 @@ test('settings in the app: admin edits clinics, labs, lists, keys, survey; finan
   assert.equal(api(a, 'getDoctorsAdmin').doctors.find(d => d.name === 'د. نورة').billing, 'clinic');
 });
 
-test('housekeeper: nurse-like requests seen only by her, approved by her branch manager (not a doctor), then the normal cycle', () => {
+test('housekeeper: nurse-like requests seen only by her, straight to procurement (no branch manager approval), then the normal cycle', () => {
   const { api, login, gas } = boot();
   const a = login('المدير', '1234'), p = login('علي', '3333'), n = login('سارة', '1111');
   api(a, 'createUser', { name: 'مدير جدة', password: '9090', role: 'مدير فرع', branch: 'جدة' });
-  api(a, 'createUser', { name: 'مدير الرياض', password: '9191', role: 'مدير فرع', branch: 'الرياض' });
   api(a, 'createUser', { name: 'هند', password: '3030', role: 'هاوس كيبر', clinic: '', branch: 'جدة' });
-  const hk = login('هند', '3030'), mj = login('مدير جدة', '9090'), mr = login('مدير الرياض', '9191');
+  const hk = login('هند', '3030'), mj = login('مدير جدة', '9090');
   const cfg = api(hk, 'getConfig');
   assert.deepEqual([cfg.user.screen, cfg.user.hk, cfg.user.hkBranch, cfg.backdateUntil], ['nurse', true, 'جدة', ''], 'nurse screens, fixed branch, no past requests');
-  // asks for her branch, not for a doctor or a clinic; no backdated requests
   throwsCode(() => api(hk, 'createRequest', { doctor: 'د. خالد', type: 'شهري', items: [{ name: 'DENTAL FLOSS', qty: 1 }] }), 'ERR_FORBIDDEN');
   throwsCode(() => api(hk, 'createRequest', { type: 'شهري', backdate: '2026-01-01', items: [{ name: 'DENTAL FLOSS', qty: 1 }] }), 'ERR_FORBIDDEN');
   const id = api(hk, 'createRequest', { branch: 'الرياض', type: 'شهري', items: [{ name: 'DENTAL FLOSS', qty: 4 }] }).id;
-  let r = rows(gas, 'Requests').find(x => x.RequestID === id);
-  assert.deepEqual([r.Status, r.Approver, r.Branch, r.Clinic], ['مراجعة الطبيب', 'مدير الفرع', 'جدة', 'هاوس كيبر'], 'always her own branch, whatever was sent');
-  // only in her account
+  const r = rows(gas, 'Requests').find(x => x.RequestID === id);
+  assert.deepEqual([r.Status, r.Approver, r.Branch, r.Clinic], ['جديد', '', 'جدة', 'هاوس كيبر'], 'always her own branch; no branch manager approval');
   assert.ok(api(hk, 'getMyRequests').some(x => x.id === id));
   assert.ok(!api(n, 'getMyRequests').some(x => x.id === id), 'other nurses do not see it');
   throwsCode(() => api(n, 'getRequestDetail', id), 'ERR_FORBIDDEN');
-  // procurement can't prepare it before the branch manager approves
+  assert.ok(!api(mj, 'getDoctorRequests').some(x => x.id === id && x.awaitingDoctor), 'nothing waits for the branch manager');
+  // procurement prepares it straight away; she receives
   api(p, 'bulkUpdateStatus', [id], 'قيد التجهيز');
-  assert.equal(rows(gas, 'Requests').find(x => x.RequestID === id).Status, 'مراجعة الطبيب', 'stays with the branch manager');
-  throwsCode(() => api(p, 'dispatchItems', id, ['DENTAL FLOSS']), 'ERR_NEEDS_APPROVAL');
-  // only the manager of that branch sees and approves it
-  assert.ok(!api(mr, 'getDoctorRequests').some(x => x.id === id), 'another branch manager does not see it');
-  throwsCode(() => api(mr, 'doctorReview', id, 'اعتمد', '', []), 'ERR_NOT_FOUND'); // خارج نطاق فرعه أصلاً
-  const mine = api(mj, 'getDoctorRequests').find(x => x.id === id);
-  assert.ok(mine && mine.awaitingDoctor, 'waiting for the branch manager');
-  // reject → she resubmits → approve with a changed qty
-  api(mj, 'doctorReview', id, 'رفض', 'كمية كبيرة', []);
-  api(hk, 'resubmitRequest', id, 'خففتها');
-  api(mj, 'doctorReview', id, 'اعتمد', '', [], [{ item: 'DENTAL FLOSS', qty: 2 }]);
-  r = rows(gas, 'Requests').find(x => x.RequestID === id);
-  assert.equal(r.Status, 'معتمد من الطبيب'); // نفس قيمة الحالة؛ الواجهة تعرضها «اعتمده مدير الفرع»
-  // the normal cycle continues: procurement sends, she receives
-  api(p, 'bulkUpdateStatus', [id], 'قيد التجهيز');
-  assert.equal(api(p, 'dispatchItems', id, ['DENTAL FLOSS']).units, 2);
-  api(hk, 'receiveShipment', id, 1, [{ name: 'DENTAL FLOSS', qty: 2 }], 'هند', '', '', '');
+  assert.equal(api(p, 'dispatchItems', id, ['DENTAL FLOSS']).units, 4);
+  api(hk, 'receiveShipment', id, 1, [{ name: 'DENTAL FLOSS', qty: 4 }], 'هند', '', '', '');
   assert.equal(rows(gas, 'Requests').find(x => x.RequestID === id).Status, 'تم الاستلام');
-  // no branch manager for the branch → straight to procurement (like a doctor without an account)
-  api(a, 'deleteUser', 'مدير جدة');
-  const id2 = api(login('هند', '3030'), 'createRequest', { type: 'شهري', items: [{ name: 'PROPHY PASTE', qty: 1 }] }).id;
-  assert.equal(rows(gas, 'Requests').find(x => x.RequestID === id2).Status, 'جديد');
-  // sterilization and radiology officers: same flow, the request is named after the role
-  api(a, 'createUser', { name: 'مسؤول تعقيم جدة', password: '3232', role: 'مسؤول التعقيم', clinic: '', branch: 'الرياض' });
-  const st = login('مسؤول تعقيم جدة', '3232');
-  assert.equal(api(st, 'getConfig').user.hk, true);
-  const sid = api(st, 'createRequest', { type: 'شهري', items: [{ name: 'Etchant Blue Tip', qty: 2 }] }).id;
-  const sr = rows(gas, 'Requests').find(x => x.RequestID === sid);
-  assert.deepEqual([sr.Clinic, sr.Branch, sr.Approver, sr.Status], ['مسؤول التعقيم', 'الرياض', 'مدير الفرع', 'مراجعة الطبيب']);
-  assert.ok(api(mr, 'getDoctorRequests').some(x => x.id === sid), 'the Riyadh manager approves it');
+  // an old request still waiting for the branch manager goes to procurement now
+  const t = gas.ss.getSheetByName('Requests'), h = t._data[0];
+  const id2 = api(hk, 'createRequest', { type: 'شهري', items: [{ name: 'PROPHY PASTE', qty: 1 }] }).id;
+  const row = t._data.find(x => x[0] === id2); row[h.indexOf('Status')] = 'مراجعة الطبيب'; row[h.indexOf('Approver')] = 'مدير الفرع';
+  const old = api(p, 'getRequests', {}).find(x => x.id === id2);
+  assert.deepEqual([old.status, old.awaitingDoctor, old.cleared], ['جديد', false, true]);
+  api(p, 'bulkUpdateStatus', [id2], 'قيد التجهيز');
+  assert.equal(rows(gas, 'Requests').find(x => x.RequestID === id2).Status, 'قيد التجهيز');
   // no branch set by the admin → she picks the branch herself (required)
   api(a, 'createUser', { name: 'هيا', password: '3131', role: 'هاوس كيبر', clinic: '' });
   const hk2 = login('هيا', '3131');
   throwsCode(() => api(hk2, 'createRequest', { type: 'شهري', items: [{ name: 'PROPHY PASTE', qty: 1 }] }), 'ERR_BRANCH_REQUIRED');
   const id3 = api(hk2, 'createRequest', { branch: 'الرياض', type: 'شهري', items: [{ name: 'PROPHY PASTE', qty: 1 }] }).id;
-  assert.deepEqual([rows(gas, 'Requests').find(x => x.RequestID === id3).Branch, rows(gas, 'Requests').find(x => x.RequestID === id3).Status], ['الرياض', 'مراجعة الطبيب'], 'goes to the Riyadh manager');
+  assert.deepEqual([rows(gas, 'Requests').find(x => x.RequestID === id3).Branch, rows(gas, 'Requests').find(x => x.RequestID === id3).Status], ['الرياض', 'جديد']);
 });
 
 test('procurement rejects one item with a reason the doctor and nurse see; restore; last item rejected completes the request', () => {
@@ -3034,26 +3027,21 @@ test('doctor accounts must link to a doctor; "Dr.MohammedG" links by first name 
   api(a, 'createUser', { name: 'ممرضة جديدة', password: '1111', role: 'ممرضة', clinic: 'عيادة الأسنان 1' });
 });
 
-test('device rooms (GentleMax / Hydrafacial): clinic consumables only, approved by the branch manager before procurement', () => {
+test('device rooms (GentleMax / Hydrafacial): clinic consumables only, straight to procurement', () => {
   const { api, login, gas } = boot();
   gas.seed('Clinics', ['ClinicName', 'Branch', 'Type'], [
     ['عيادة الأسنان 1', 'الرياض', 'أسنان'], ['عيادة الجلدية 1', 'الرياض', 'جلدية'], ['Derma GentleMax', 'الرياض', 'Dermatology'], ['Sterilization', 'الرياض', 'تعقيم']
   ]);
   const a = login('المدير', '1234'), p = login('علي', '3333'), n = login('سارة', '1111');
   api(a, 'createUser', { name: 'مدير الرياض', password: '9191', role: 'مدير فرع', branch: 'الرياض' });
-  const mr = login('مدير الرياض', '9191');
-  // لا طبيب لغرفة الجهاز
   throwsCode(() => api(n, 'createRequest', { clinic: 'Derma GentleMax', doctor: 'د. فهد', type: 'شهري', items: [{ name: 'DENTAL FLOSS', qty: 1 }] }), 'ERR_DEVICE_NO_DOCTOR');
   const id = api(n, 'createRequest', { clinic: 'Derma GentleMax', type: 'شهري', items: [{ name: 'DENTAL FLOSS', qty: 2 }] }).id;
   const r = api(p, 'getRequests', {}).find(x => x.id === id);
-  assert.deepEqual([r.approver, r.awaitingDoctor, r.cleared], ['branch', true, false], 'waits for the branch manager, not a doctor');
-  throwsCode(() => api(p, 'dispatchItems', id, ['DENTAL FLOSS']), 'ERR_NEEDS_APPROVAL');
-  assert.ok(api(mr, 'getDoctorRequests').some(x => x.id === id), 'branch manager sees it to approve');
-  api(mr, 'doctorReview', id, 'اعتمد', '', []);
-  assert.equal(api(p, 'getRequests', {}).find(x => x.id === id).cleared, true, 'approved → procurement can prepare');
-  // التعقيم يبقى كما هو: مباشرة للتموين
-  const s = api(n, 'createRequest', { clinic: 'Sterilization', branch: 'الرياض', type: 'شهري', items: [{ name: 'DENTAL FLOSS', qty: 1 }] }).id;
-  const sr = api(p, 'getRequests', {}).find(x => x.id === s);
+  assert.deepEqual([r.approver, r.awaitingDoctor, r.cleared, r.status], ['', false, true, 'جديد'], 'no approval: procurement prepares it');
+  api(p, 'bulkUpdateStatus', [id], 'قيد التجهيز');
+  assert.equal(api(p, 'dispatchItems', id, ['DENTAL FLOSS']).units, 2);
+  const s2 = api(n, 'createRequest', { clinic: 'Sterilization', branch: 'الرياض', type: 'شهري', items: [{ name: 'DENTAL FLOSS', qty: 1 }] }).id;
+  const sr = api(p, 'getRequests', {}).find(x => x.id === s2);
   assert.deepEqual([sr.approver, sr.cleared], ['', true]);
 });
 
@@ -3074,6 +3062,10 @@ test('nurse rejects one item at receipt with a reason and photo: not received, p
   assert.equal(api(n, 'getRequestDetail', id).items.find(i => i.item === 'DENTAL FLOSS').receivedQty, 0, 'counted as not received');
   assert.ok(api(n, 'getComments', id).some(c => /رفضت الممرضة عند استلام الشحنة 1: DENTAL FLOSS/.test(c.message)));
   assert.ok(gas.mails.some(m => /رفضت الممرضة صنفاً عند الاستلام/.test(m.subject)), 'procurement emailed');
+  // report: when, who, request, reason, what was requested
+  const rr = api(login('منى', '5555'), 'getMonitor').rcvRejects.find(x => x.id === id);
+  assert.deepEqual([rr.requested, rr.requestedQty, rr.reason, rr.batch, rr.substitute], ['DENTAL FLOSS', 3, 'غير مطابق للطلب', 1, false]);
+  assert.ok(rr.time && rr.by, 'time and who rejected');
 });
 
 test('monthly requests can be locked after the window ends (procurement / finance / admin open or close it)', () => {
@@ -3289,6 +3281,141 @@ test('monthly deadline reminders: window opens for everyone, then only doctors w
   // Render tick: the daily overdue digest goes out once a day
   assert.ok(ctx.cronTick_(at(21, 9)).digest >= 0);
   assert.equal(ctx.cronTick_(at(21, 12)).digest, -1, 'digest not repeated the same day');
+});
+
+test('admin deletes a whole request with a reason (full copy kept for audit) and can restore it', () => {
+  const { api, login, gas } = boot();
+  const n = login('سارة', '1111'), p = login('علي', '3333'), a = login('المدير', '1234');
+  const id = api(n, 'createRequest', { clinic: 'عيادة الأسنان 1', doctor: 'د. نورة', type: 'شهري', items: [{ name: 'PROPHY PASTE', qty: 2 }, { name: 'DENTAL FLOSS', qty: 3 }] }).id;
+  api(n, 'addComment', id, 'ملاحظة');
+  api(n, 'addComplaint', id, 'تأخير', 'متأخر');
+  throwsCode(() => api(a, 'adminDeleteRequest', id, ' '), 'ERR_REASON_REQUIRED');
+  throwsCode(() => api(p, 'adminDeleteRequest', id, 'x'), 'ERR_FORBIDDEN');
+  const before = { items: rows(gas, 'RequestItems').filter(r => r.RequestID === id).length };
+  const res = api(a, 'adminDeleteRequest', id, 'طلب مكرر بالخطأ');
+  assert.ok(res.total > 0, 'value of the deleted request is reported');
+  for (const tab of ['Requests', 'RequestItems', 'Comments', 'Complaints']) assert.equal(rows(gas, tab).filter(r => r.RequestID === id).length, 0, tab + ' rows removed');
+  throwsCode(() => api(a, 'getRequestAudit', id), 'ERR_NOT_FOUND');
+  assert.ok(!api(p, 'getRequests', {}).some(r => r.id === id), 'gone from procurement');
+  const del = api(a, 'getDeletedRequests');
+  assert.deepEqual([del[0].id, del[0].reason, del[0].user, del[0].clinic], [id, 'طلب مكرر بالخطأ', 'المدير', 'عيادة الأسنان 1']);
+  assert.ok(rows(gas, 'Reversals').some(r => r.RequestID === id && /حذف طلب كامل/.test(r.Scope)), 'audit trail');
+  assert.ok(rows(gas, 'Log').some(r => r.RequestID === id && /حذف الأدمن الطلب كاملاً/.test(r.Action)), 'log kept');
+  // restore: everything back as it was
+  const back = api(a, 'adminRestoreRequest', id);
+  assert.equal(back.id, id);
+  assert.equal(rows(gas, 'RequestItems').filter(r => r.RequestID === id).length, before.items);
+  assert.ok(api(p, 'getRequests', {}).some(r => r.id === id && r.itemCount === 2 && r.openComplaints === 1), 'items and open report back');
+  assert.ok(api(a, 'getDeletedRequests')[0].restoredBy === 'المدير');
+  throwsCode(() => api(a, 'adminRestoreRequest', id), 'ERR_NOT_FOUND');
+});
+
+test('stage target times: the current stage past its target is flagged, and the monitor shows on-time % per stage', () => {
+  const { api, login, gas, ctx } = boot();
+  const n = login('سارة', '1111'), p = login('علي', '3333'), d = login('د. خالد', '4444'), q = login('منى', '5555');
+  api(p, 'saveOrderRules', { slaApprE: 1, slaPrepE: 5 });
+  const id = api(n, 'createRequest', { clinic: 'عيادة الأسنان 1', doctor: 'د. خالد', type: 'طارئ', items: [{ name: 'PROPHY PASTE', qty: 1 }] }).id;
+  let r = api(p, 'getRequests', {}).find(x => x.id === id);
+  assert.equal(r.slaLate, null, 'just submitted: within the approval target');
+  // submitted 3 hours ago: approval (target 1h) is late
+  const t = gas.ss.getSheetByName('Requests'), h = t._data[0], row = t._data.find(x => x[0] === id);
+  const ago = new Date(Date.now() - 3 * 36e5);
+  row[h.indexOf('SubmittedAt')] = ago; row[h.indexOf('Date')] = ago;
+  ctx.onEdit({ range: { getSheet: () => t } });
+  r = api(p, 'getRequests', {}).find(x => x.id === id);
+  assert.deepEqual([r.slaLate.k, r.slaLate.target, r.slaLate.hrs >= 2.9], ['appr', 1, true]);
+  let m = api(q, 'getMonitor');
+  assert.ok(m.slaLate.some(x => x.id === id && x.stage === 'appr' && x.owner === 'doctor'), 'monitor lists who is holding it past the target');
+  api(d, 'doctorReview', id, 'اعتمد', '', [], []);
+  r = api(p, 'getRequests', {}).find(x => x.id === id);
+  assert.equal(r.slaLate, null, 'now in preparation, within its 5h target');
+  m = api(q, 'getMonitor');
+  const appr = m.sla.find(x => x.k === 'appr');
+  assert.deepEqual([appr.emergency.n, appr.emergency.rate, appr.emergency.target], [1, 0, 1], 'approval took 3h against 1h: 0% on time');
+  assert.ok(appr.emergency.avg >= 2.9);
+  assert.equal(m.sla.length, 5);
+});
+
+test('admin edits an item quantity with its sent (and received) quantity; procurement, nurse and doctor see the new numbers', () => {
+  const { api, login, gas } = boot();
+  const n = login('سارة', '1111'), p = login('علي', '3333'), a = login('المدير', '1234'), d = login('د. خالد', '4444');
+  const id = api(n, 'createRequest', { clinic: 'عيادة الأسنان 1', doctor: 'د. خالد', type: 'شهري', items: [{ name: 'PROPHY PASTE', qty: 20 }, { name: 'DENTAL FLOSS', qty: 10 }] }).id;
+  api(d, 'doctorReview', id, 'اعتمد', '', [], []);
+  api(p, 'bulkUpdateStatus', [id], 'قيد التجهيز');
+  api(p, 'dispatchItems', id, ['PROPHY PASTE', 'DENTAL FLOSS']);
+  throwsCode(() => api(a, 'adminSetItemQty', id, 'PROPHY PASTE', 15, ''), 'ERR_REASON_REQUIRED');
+  throwsCode(() => api(a, 'adminSetItemQty', id, 'PROPHY PASTE', -1, 'x'), 'ERR_BAD_QTY');
+  throwsCode(() => api(p, 'adminSetItemQty', id, 'PROPHY PASTE', 15, 'x'), 'ERR_FORBIDDEN');
+  // lower a sent item: approved and sent both become 15
+  let au = api(a, 'adminSetItemQty', id, 'PROPHY PASTE', 15, 'أُرسل 15 فعلياً');
+  let it = au.items.find(i => i.item === 'PROPHY PASTE');
+  assert.deepEqual([it.target, it.sentQty, it.remainingQty], [15, 15, 0]);
+  assert.equal(rows(gas, 'ShipmentItems').find(r => r.RequestID === id && r.ItemName === 'PROPHY PASTE').Qty, 15);
+  // raise it: still fully sent at the new quantity
+  au = api(a, 'adminSetItemQty', id, 'DENTAL FLOSS', 12, 'أُضيف 2');
+  it = au.items.find(i => i.item === 'DENTAL FLOSS');
+  assert.deepEqual([it.target, it.sentQty], [12, 12]);
+  for (const who of [n, d]) {
+    const det = api(who, 'getRequestDetail', id);
+    assert.deepEqual(det.items.map(i => [i.item, i.target]).sort(), [['DENTAL FLOSS', 12], ['PROPHY PASTE', 15]], 'nurse and doctor see the new numbers');
+    assert.ok(det.comments.some(c => /عدّل الأدمن كمية PROPHY PASTE: 20 ← 15/.test(c.message)));
+  }
+  assert.equal(api(p, 'getRequests', {}).find(r => r.id === id).totalQty, 27, 'procurement sees the new total');
+  // after receipt: the received quantity follows
+  api(n, 'receiveShipment', id, 1, [{ name: 'PROPHY PASTE', qty: 15 }, { name: 'DENTAL FLOSS', qty: 12 }], 'سارة', '', '', '');
+  au = api(a, 'adminSetItemQty', id, 'DENTAL FLOSS', 9, 'تصحيح بعد الجرد');
+  assert.equal(rows(gas, 'ShipmentItems').find(r => r.RequestID === id && r.ItemName === 'DENTAL FLOSS').ReceivedQty, 9);
+  assert.equal(api(p, 'getRequests', {}).find(r => r.id === id).status, 'تم الاستلام');
+  assert.ok(rows(gas, 'Reversals').filter(r => r.RequestID === id && /تعديل كمية/.test(r.Scope)).length === 3, 'every change is in the audit log');
+});
+
+test('external orders: pick items from a request, group by supplier, RFQ snapshot, sent with expected date, reminders, admin rep stats', () => {
+  const { api, login, gas, ctx } = boot();
+  const n = login('سارة', '1111'), p = login('علي', '3333'), a = login('المدير', '1234');
+  const id = api(n, 'createRequest', { clinic: 'عيادة الأسنان 1', doctor: 'د. نورة', type: 'شهري', items: [{ name: 'PROPHY PASTE', qty: 20 }, { name: 'DENTAL FLOSS', qty: 10 }] }).id;
+  throwsCode(() => api(p, 'addExtOrderItems', '', '', [{ requestId: id, item: 'PROPHY PASTE', qty: 5 }]), 'ERR_SUPPLIER_REQUIRED');
+  throwsCode(() => api(p, 'addExtOrderItems', '', 'مؤسسة النهدي', [{ requestId: id, item: 'PROPHY PASTE', qty: 0 }]), 'ERR_BAD_QTY');
+  throwsCode(() => api(n, 'addExtOrderItems', '', 'x', [{ item: 'A', qty: 1 }]), 'ERR_FORBIDDEN');
+  let r = api(p, 'addExtOrderItems', '', 'مؤسسة النهدي', [{ requestId: id, item: 'PROPHY PASTE', qty: 5 }]);
+  const oid = r.orders[0].id;
+  assert.match(oid, /^EXT-/);
+  // same supplier: more items join the same order; the same item from the same request adds up
+  r = api(p, 'addExtOrderItems', oid, '', [{ requestId: id, item: 'PROPHY PASTE', qty: 3 }, { requestId: id, item: 'DENTAL FLOSS', qty: 4 }]);
+  let o = r.orders.find(x => x.id === oid);
+  assert.deepEqual(o.items.map(i => [i.item, i.qty]), [['PROPHY PASTE', 8], ['DENTAL FLOSS', 4]]);
+  // edit and delete lines
+  r = api(p, 'saveExtOrder', { id: oid, supplier: 'مؤسسة النهدي', contact: 'أبو خالد 0500000000', notes: 'عاجل', items: [{ requestId: id, item: 'PROPHY PASTE', qty: 6 }] });
+  o = r.orders.find(x => x.id === oid);
+  assert.deepEqual([o.items.length, o.items[0].qty, o.contact, o.status], [1, 6, 'أبو خالد 0500000000', 'مسودة']);
+  // RFQ snapshot kept as exported
+  const snap = api(p, 'extOrderRfq', oid);
+  assert.deepEqual([snap.supplier, snap.items[0].item, snap.items[0].qty, snap.by], ['مؤسسة النهدي', 'PROPHY PASTE', 6, 'علي']);
+  // sent with an expected date (not in the past)
+  throwsCode(() => api(p, 'extOrderStatus', oid, 'sent', ''), 'ERR_EXPECTED_DATE');
+  throwsCode(() => api(p, 'extOrderStatus', oid, 'sent', '2001-01-01'), 'ERR_EXPECTED_PAST');
+  const today = new Date(Date.now() + 3 * 36e5).toISOString().slice(0, 10);
+  r = api(p, 'extOrderStatus', oid, 'sent', today);
+  o = r.orders.find(x => x.id === oid);
+  assert.deepEqual([o.status, o.expected, o.late], ['أُرسل للمندوب', today, false]);
+  throwsCode(() => api(p, 'deleteExtOrder', oid), 'ERR_BAD_TRANSITION');
+  // reminder on the expected day — once a day
+  gas.mails.length = 0;
+  assert.equal(ctx.extOrderReminders_(Date.now()), 1);
+  assert.ok(gas.mails.some(m => m.to === 'ali@example.com' && /موعد وصول طلبية خارجية اليوم/.test(m.subject)));
+  assert.equal(ctx.extOrderReminders_(Date.now()), 0, 'not repeated the same day');
+  // tomorrow it is late and reminded again
+  assert.equal(ctx.extOrderReminders_(Date.now() + 864e5), 1);
+  // admin sees rep stats and the RFQ that was sent
+  let st = api(a, 'getExtOrders');
+  assert.deepEqual(st.stats.map(x => [x.supplier, x.orders, x.open]), [['مؤسسة النهدي', 1, 1]]);
+  assert.equal(st.orders[0].rfq.items[0].qty, 6);
+  assert.equal(st.canEdit, false);
+  api(p, 'extOrderStatus', oid, 'arrived');
+  st = api(a, 'getExtOrders');
+  assert.deepEqual([st.stats[0].arrived, st.stats[0].onTimeRate, st.orders[0].status], [1, 100, 'وصل']);
+  // drafts can be deleted
+  const d = api(p, 'addExtOrderItems', '', 'مورد آخر', [{ item: 'قفازات', qty: 2 }]).orders.find(x => x.supplier === 'مورد آخر');
+  assert.ok(!api(p, 'deleteExtOrder', d.id).orders.some(x => x.id === d.id));
 });
 
 test('catalog bulk add: rows pasted from Excel are checked first, then saved together', () => {
