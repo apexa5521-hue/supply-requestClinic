@@ -870,6 +870,16 @@ button.ship-open:hover { background: color-mix(in srgb, var(--t-indigo) 18%, tra
   body.printing > *:not(#printArea) { display: none !important; }
   body.printing #printArea { display: block; padding: 0; }
   body.printing { background: #fff !important; }
+  /* النافذة المفتوحة تقفل التمرير (overflow:hidden) — في سفاري/الآيفون يقص الطباعة على أول صفحة: كل الصفحات تُطبع */
+  html, body.printing { overflow: visible !important; height: auto !important; max-height: none !important; }
+  body.printing #printArea, body.printing #printArea * { overflow: visible !important; max-height: none !important; }
+  /* سفاري/فايرفوكس لا تقسم الشبكة (grid) ولا القسم «لا يُقسم» على الصفحات فتقص الجدول بعد أول صفحة (~10 أصناف):
+     التقرير كتل عادية، والجدول يكمل في الصفحة التالية مع تكرار رأسه */
+  body.printing #printArea .rep { display: block; }
+  body.printing #printArea .rep > * + * { margin-top: 14px; }
+  body.printing #printArea .rep-req { break-inside: auto; page-break-inside: auto; }
+  body.printing #printArea thead { display: table-header-group; }
+  body.printing #printArea tr { break-inside: avoid; page-break-inside: avoid; }
   body.printing .rep-grand { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
   body.printing .rep-logo { filter: none !important; }
   @page { margin: 14mm; }
