@@ -63,7 +63,10 @@ async function callApi(bodyText) {
     } catch (e) {
       console.error('[backup] failed:', e.message);
       if (prevBackup === undefined) delete gas.props['backup:last']; else gas.props['backup:last'] = prevBackup;
-      if (fn === 'backupNow') out = JSON.stringify({ ok: false, error: 'ERR_BACKUP_FAILED' });
+      // the old fake folder id (before backups went to Drive) must not stay as the «Backups folder» link
+      if (gas.props['backup:folder'] === 'folder1') delete gas.props['backup:folder'];
+      // the reason is shown to the admin (Google's message, no secrets in it)
+      if (fn === 'backupNow') out = JSON.stringify({ ok: false, error: 'ERR_BACKUP_FAILED:' + String(e.message || e).replace(/\s+/g, ' ').slice(0, 180) });
     }
   }
   await store.flush(gas);
@@ -350,6 +353,7 @@ ready = (async () => {
     const n = await store.load(gas, VmDate);
     console.log('Loaded from PostgreSQL:', n);
     // empty database: the same first-time setup as Apps Script (tabs, default roles, admin «المدير» / 1234)
+    if (gas.props['backup:folder'] === 'folder1') delete gas.props['backup:folder']; // left by the old fake backup
     if (!n.sheets) { ctx.setupSheets(); await store.flush(gas); console.log('New database: created', gas.order.length, 'tabs'); }
     try {
       // devices that turned notifications off are removed from PushSubs

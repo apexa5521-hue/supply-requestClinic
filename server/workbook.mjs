@@ -20,7 +20,9 @@ export function exportWorkbook(tables, timeZone = 'Asia/Riyadh') {
       if (isDate(v)) return isNaN(v.getTime()) ? null : { t: 'n', v: sheetSerial(v.getTime(), timeZone), z: 'yyyy-mm-dd hh:mm' };
       if (typeof v === 'number') return { t: 'n', v };
       if (typeof v === 'boolean') return { t: 'b', v };
-      return { t: 's', v: typeof v === 'object' ? JSON.stringify(v) : String(v) };
+      // Excel refuses a cell over 32,767 characters (the whole file would fail): very long text is cut there
+      const str = typeof v === 'object' ? JSON.stringify(v) : String(v);
+      return { t: 's', v: str.length > 32767 ? str.slice(0, 32767) : str };
     }));
     // array of arrays → sheet; empty cells stay empty
     const ws = XLSX.utils.aoa_to_sheet(rows.map(r => r.map(c => (c ? c.v : null))));

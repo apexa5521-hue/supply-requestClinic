@@ -26,3 +26,10 @@ assert.equal(back.find(t => t.name === 'ItemNotes').rows[1][0], '=HYPERLINK("x")
 // instantFromCell is independent of the server's own zone (test: current process zone)
 assert.equal(instantFromCell(new Date(2026, 0, 2, 10, 0, 0), 'Asia/Riyadh'), Date.parse('2026-01-02T07:00:00Z'));
 console.log('workbook tests OK');
+
+// a very long cell does not break the whole export
+{
+  const buf = exportWorkbook([{ name: 'Log', data: [['A'], ['x'.repeat(40000)]] }]);
+  const back = readWorkbook(buf);
+  assert.equal(back[0].rows[1][0].length, 32767, 'long cell cut to 32767');
+}
