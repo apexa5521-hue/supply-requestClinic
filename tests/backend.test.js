@@ -1531,7 +1531,7 @@ test('monitor: monthly window 15–20 and due on the 1st, emergency target 2h an
     g.seed('RequestItems', ['RequestID', 'ItemName', 'RequestedQty'], [['REQ-A', 'PROPHY PASTE', 2], ['REQ-B', 'DENTAL FLOSS', 1], ['REQ-C', 'DENTAL FLOSS', 1], ['REQ-D', 'DENTAL FLOSS', 1], ['REQ-E', 'DENTAL FLOSS', 1]]);
   });
   const q = login('منى', '5555');
-  const m = api(q, 'getMonitor');
+  const m = api(q, 'getMonitor', { all: true });
   assert.deepEqual(m.late.map(r => r.id).sort(), ['REQ-A', 'REQ-B']);
   assert.deepEqual(m.atRisk.map(r => r.id), ['REQ-C']);
   const A = m.late.find(r => r.id === 'REQ-A');
@@ -3472,6 +3472,72 @@ test('monthly cycle and doctor usage count only real monthly orders: not emergen
   t._data.find(x => x[0] === mo)[h.indexOf('Backdated')] = true;
   ctx.onEdit({ range: { getSheet: () => t } });
   assert.equal(api(q, 'getMonitor').cycle.doctors.find(d => d.doctor === 'د. نورة').count, 0);
+});
+
+test('doctor works in several branches: limits and the monthly cycle per branch whichever nurse orders; branches and nurses set from the doctor record; new branch', () => {
+  const { api, login, gas } = boot();
+  const a = login('المدير', '1234'), p = login('علي', '3333'), q = login('منى', '5555');
+  // a new branch from the settings
+  throwsCode(() => api(p, 'saveBranch', 'عنيزة'), 'ERR_FORBIDDEN');
+  assert.ok(api(a, 'saveBranch', 'عنيزة').includes('عنيزة'));
+  throwsCode(() => api(a, 'saveBranch', 'عنيزة'), 'ERR_EXISTS');
+  throwsCode(() => api(a, 'saveBranch', 'الرياض', true), 'ERR_BRANCH_IN_USE');
+  api(a, 'saveClinic', null, { name: 'عيادة عنيزة 1', branch: 'عنيزة', type: 'أسنان' });
+  // the doctor works in Riyadh and Unayzah; two nurses order for him
+  api(a, 'createUser', { name: 'هيا', password: '9191', role: 'ممرضة', clinic: 'عيادة عنيزة 1' });
+  const D = api(a, 'getDoctorsAdmin');
+  assert.ok(D.branches.includes('عنيزة') && D.nurses.includes('هيا'));
+  throwsCode(() => api(a, 'saveDoctor', 'د. نورة', { name: 'د. نورة', clinics: ['عيادة الأسنان 1', 'عيادة عنيزة 1'], branches: ['الرياض', 'مكة'], nurses: ['سارة'] }), 'ERR_BAD_BRANCH');
+  api(a, 'saveDoctor', 'د. نورة', { name: 'د. نورة', clinics: ['عيادة الأسنان 1', 'عيادة عنيزة 1'], branches: ['الرياض', 'عنيزة'], nurses: ['سارة', 'هيا'] });
+  const row = rows(gas, 'Doctors').find(r => r.DoctorName === 'د. نورة');
+  assert.deepEqual([row.Branches, row.NurseName], ['الرياض, عنيزة', 'سارة, هيا']);
+  api(p, 'saveOrderRules', { winStart: 1, winEnd: 31, monthlyMax: 1, emergencyMax: 1, monthlyLock: 0 });
+  const n = login('سارة', '1111'), h = login('هيا', '9191');
+  const mo = (who, clinic) => api(who, 'createRequest', { clinic: clinic, doctor: 'د. نورة', type: 'شهري', items: [{ name: 'PROPHY PASTE', qty: 1 }] });
+  mo(n, 'عيادة الأسنان 1');
+  // the other nurse: same doctor, same branch → limit reached; other branch → allowed
+  try { api(h, 'createRequest', { clinic: 'عيادة الأسنان 1', doctor: 'د. نورة', type: 'شهري', items: [{ name: 'DENTAL FLOSS', qty: 1 }] }); assert.fail('no error'); } catch (e) { assert.match(String(e.message), /ERR_MONTHLY_LIMIT/, e.message); }
+  const r2 = mo(h, 'عيادة عنيزة 1');
+  assert.equal(r2.rules.left.monthly, 0, 'the Unayzah monthly is used now');
+  throwsCode(() => mo(n, 'عيادة عنيزة 1'), 'ERR_MONTHLY_LIMIT');
+  // a branch he does not work in
+  throwsCode(() => api(n, 'createRequest', { clinic: 'Sterilization', branch: 'جدة', doctor: 'د. نورة', type: 'شهري', items: [{ name: 'PROPHY PASTE', qty: 1 }] }), 'ERR_DOCTOR_BRANCH');
+  // usage per branch and the cycle shows him once per branch
+  const R = api(p, 'getOrderRules');
+  assert.deepEqual([R.usedBy['د. نورة|الرياض'].monthly, R.usedBy['د. نورة|عنيزة'].monthly, R.usedBy['د. نورة'].monthly], [1, 1, 2]);
+  const cyc = api(q, 'getMonitor').cycle.doctors.filter(d => d.doctor === 'د. نورة');
+  assert.deepEqual(cyc.map(d => [d.branch, d.count]).sort(), [['الرياض', 1], ['عنيزة', 1]]);
+});
+
+test('catalog: classify many items at once (department, type, custody); untouched fields stay', () => {
+  const { api, login, gas } = boot();
+  const p = login('علي', '3333'), n = login('سارة', '1111');
+  throwsCode(() => api(n, 'classifyCatalogItems', ['PROPHY PASTE'], { dept: 'أسنان' }), 'ERR_FORBIDDEN');
+  throwsCode(() => api(p, 'classifyCatalogItems', ['PROPHY PASTE'], {}), 'ERR_REQUIRED');
+  throwsCode(() => api(p, 'classifyCatalogItems', ['PROPHY PASTE'], { type: 'شيء' }), 'ERR_FREE_ITEM_TYPE');
+  let r = api(p, 'classifyCatalogItems', ['PROPHY PASTE', 'dental floss'], { dept: 'أسنان', type: 'ماتيريال' });
+  assert.equal(r.updated, 2);
+  const row = x => rows(gas, 'ItemsCatalog').find(i => i.ItemName === x);
+  assert.deepEqual([row('PROPHY PASTE').Department, row('PROPHY PASTE').ItemType, row('DENTAL FLOSS').ItemType], ['أسنان', 'ماتيريال', 'ماتيريال']);
+  r = api(p, 'classifyCatalogItems', ['DENTAL FLOSS'], { dept: '', asset: true });
+  assert.deepEqual([row('DENTAL FLOSS').Department, row('DENTAL FLOSS').ItemType, row('DENTAL FLOSS').Ownership], ['', 'ماتيريال', 'عهدة'], 'shared, type kept, custody');
+  assert.ok(r.catalog.items.find(i => i.name === 'DENTAL FLOSS').asset);
+});
+
+test('monitor follows the chosen period: month, range or all — cycle, overdue lists, KPIs', () => {
+  const { api, login } = boot();
+  const q = login('منى', '5555');
+  const cur = api(q, 'getMonitor', {});
+  const ym = todayISO().slice(0, 7);
+  assert.deepEqual([cur.period.month, cur.cycle.month], [ym, ym]);
+  const old = api(q, 'getMonitor', { month: '2001-01' });
+  assert.deepEqual([old.cycle.month, old.cycle.passed, old.late.length, old.kpis.requests], ['2001-01', true, 0, 0], 'a past month: its own cycle, no overdue from other months');
+  assert.ok(old.cycle.doctors.every(d => d.state === 'missing'));
+  const all = api(q, 'getMonitor', { all: true });
+  assert.equal(all.period.all, true);
+  assert.ok(all.late.length >= cur.late.length && all.kpis.requests >= cur.kpis.requests, 'all = everything');
+  const rng = api(q, 'getMonitor', { from: ym, to: '2001-01' });
+  assert.deepEqual([rng.period.from, rng.period.to, rng.cycle.month], ['2001-01', ym, ym], 'range swapped into order; cycle = last month of the range');
 });
 
 test('catalog bulk add: rows pasted from Excel are checked first, then saved together', () => {
