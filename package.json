@@ -8,7 +8,7 @@
     "start": "node server.mjs",
     "test": "node --test tests/backend.test.js",
     "test:e2e": "node tests/e2e.js",
-    "test:server": "node server/notify.test.mjs && node server/sync.test.mjs && node server/drive.test.mjs && node server/workbook.test.mjs && node server/store.test.mjs"
+    "test:server": "node server/notify.test.mjs && node server/sync.test.mjs && node server/drive.test.mjs && node server/backup.test.mjs && node server/workbook.test.mjs && node server/store.test.mjs"
   },
   "dependencies": {
     "dotenv": "^16.3.1",

@@ -10,7 +10,8 @@ import crypto from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import * as XLSX from 'xlsx';
 import { createGas } from './server/gas.mjs';
-import { driveConfigFromEnv, driveViewUrl } from './server/drive.mjs';
+import { driveConfigFromEnv, driveViewUrl, driveAccessToken } from './server/drive.mjs';
+import { backupFolder, uploadBackup, folderUrl } from './server/backup.mjs';
 import { googleAccessToken, mirrorToSheet, runExclusive } from './server/sync.mjs';
 import { Store, storageState, encodeGrid } from './server/store.mjs';
 import { exportWorkbook, instantFromCell } from './server/workbook.mjs';
@@ -33,13 +34,15 @@ const store = new Store(pool, driveCfg ? { cfg: driveCfg, token: null } : null);
 /* ---------- Code.gs runtime ---------- */
 // email: SMTP_USER + SMTP_PASS in Render (without them the email is only written to the log)
 const mailer = createMailer(mailConfigFromEnv(process.env));
-const gas = createGas({ onMail: m => { mailer.send(m); } });
+const gas = createGas({ onMail: m => { mailer.send(m); }, backup: !!driveCfg });
 // phone push: Code.gs calls PushService.send (only defined once the keys are loaded at boot)
 let pusher = null;
 const PushService = { send(subs, payload) { if (pusher) pusher.send(JSON.parse(subs), payload).catch(e => console.error('[push]', e.message)); } };
 const ctx = vm.createContext(Object.assign({ console }, gas.globals));
 vm.runInContext(read('Code.gs'), ctx, { filename: 'Code.gs' });
 const VmDate = vm.runInContext('Date', ctx);
+// the nightly backup runs from tick() below (no Apps Script triggers here): the settings page shows it as on
+if (driveCfg) ctx.ScriptApp.getProjectTriggers = () => [{ getHandlerFunction: () => 'dailyBackup' }];
 let ready = null, bootError = null;
 
 // one request at a time (the Apps Script lock), and every change is saved before the reply
@@ -50,9 +53,35 @@ function serial(fn) {
   return run;
 }
 async function callApi(bodyText) {
-  const out = ctx.doPost({ postData: { contents: bodyText } }).getContent();
+  const prevBackup = gas.props['backup:last'];
+  let out = ctx.doPost({ postData: { contents: bodyText } }).getContent();
+  if (gas.pendingBackups.length) {
+    let fn = ''; try { fn = JSON.parse(bodyText).fn; } catch (e) { /* not JSON: doPost already refused it */ }
+    try {
+      await sendBackups();
+      if (fn === 'backupNow') out = JSON.stringify({ ok: true, data: JSON.parse(JSON.stringify(ctx.backupStatus_())) });
+    } catch (e) {
+      console.error('[backup] failed:', e.message);
+      if (prevBackup === undefined) delete gas.props['backup:last']; else gas.props['backup:last'] = prevBackup;
+      if (fn === 'backupNow') out = JSON.stringify({ ok: false, error: 'ERR_BACKUP_FAILED' });
+    }
+  }
   await store.flush(gas);
   return out;
+}
+/* the database as a Google Sheet in the owner's Drive (server/backup.mjs); the link saved by Code.gs becomes the real one */
+async function sendBackups() {
+  const names = gas.pendingBackups.splice(0);
+  if (!names.length) return null;
+  const token = await driveAccessToken(driveCfg);
+  const fid = await backupFolder({ token, folderId: gas.props['backup:folder'], parentId: driveCfg.folderId });
+  const xlsx = exportWorkbook(gas.order.map(n => ({ name: n, data: gas.sheets[n]._data })));
+  const up = await uploadBackup({ token, folderId: fid, name: names[names.length - 1], xlsx });
+  gas.props['backup:folder'] = fid;
+  let last = {}; try { last = JSON.parse(gas.props['backup:last'] || '{}') || {}; } catch (e) { last = {}; }
+  gas.props['backup:last'] = JSON.stringify(Object.assign(last, { url: up.url, kept: up.kept, folderUrl: folderUrl(fid) }));
+  console.log('[backup]', names[names.length - 1], up.url);
+  return up;
 }
 
 /* ---------- front end: Index.html + JavaScript.html, talking to /api ---------- */
@@ -234,8 +263,18 @@ function tick(force) {
   lastTick = Date.now();
   return ready.then(() => bootError ? null : serial(async () => {
     const r = JSON.parse(JSON.stringify(ctx.cronTick_()));
+    // nightly backup to Drive: once a day from 2 am (Riyadh), the first tick after that
+    if (driveCfg) {
+      const now = new Date(Date.now() + 3 * 36e5).toISOString(), last = (() => { try { return JSON.parse(gas.props['backup:last'] || 'null'); } catch (e) { return null; } })();
+      const lastDay = last && last.url && last.at ? new Date(Date.parse(last.at) + 3 * 36e5).toISOString().slice(0, 10) : '';
+      if (Number(now.slice(11, 13)) >= 2 && lastDay !== now.slice(0, 10)) {
+        const prev = gas.props['backup:last'];
+        try { ctx.runBackup_('النظام (تلقائي)'); await sendBackups(); r.backup = true; }
+        catch (e) { console.error('[backup] nightly failed:', e.message); gas.pendingBackups.length = 0; if (prev === undefined) delete gas.props['backup:last']; else gas.props['backup:last'] = prev; }
+      }
+    }
     await store.flush(gas);
-    if (r.reminders || r.digest > 0) console.log('[cron]', JSON.stringify(r));
+    if (r.reminders || r.digest > 0 || r.backup) console.log('[cron]', JSON.stringify(r));
     return r;
   })).catch(e => { console.error('[cron]', e.message); return null; });
 }

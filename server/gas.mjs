@@ -2,12 +2,14 @@
 // in-memory tables, so Code.gs runs unchanged in Node. Persistence lives in server/store.js.
 import crypto from 'node:crypto';
 
-export function createGas({ onMail } = {}) {
+export function createGas({ onMail, backup = false } = {}) {
   const sheets = {};
   const order = [];
   const files = new Map();       // id → { id, name, mime, bytes:Buffer, saved }
   const props = {};
   const cacheStore = {};
+  // backups Code.gs asked for (makeCopy of the spreadsheet): the server uploads them to Drive after the call (server/backup.mjs)
+  const pendingBackups = [];
 
   function Range(sh, row, col, nr = 1, nc = 1) {
     return {
@@ -125,7 +127,10 @@ export function createGas({ onMail } = {}) {
       getFolderById() { return folder; },
       createFolder() { return folder; },
       getFileById(id) {
-        if (id === 'ss1') return { makeCopy(name) { return folder.addCopy(name); } };
+        if (id === 'ss1') return { makeCopy(name) {
+          if (!backup) throw new Error('ERR_BACKUP_OFF'); // no Drive set up: say so instead of a backup that does not exist
+          pendingBackups.push(name); return folder.addCopy(name);
+        } };
         const f = files.get(id);
         if (!f) throw new Error('No item with the given ID could be found');
         return { getBlob() { return { getBytes() { return signed(f.bytes); }, getContentType() { return f.mime; } }; }, getUrl() { return '/files/' + id; } };
@@ -161,5 +166,5 @@ export function createGas({ onMail } = {}) {
     }
   };
 
-  return { globals, ss, sheets, order, files, props, cacheStore };
+  return { globals, ss, sheets, order, files, props, cacheStore, pendingBackups };
 }
