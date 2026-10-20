@@ -57,6 +57,8 @@ const I18N = {
     cancel: 'إلغاء', close: 'إغلاق', save: 'حفظ', delete: 'حذف', edit: 'تعديل', send: 'إرسال', confirm: 'تأكيد', back: 'رجوع',
     push_title: 'إشعارات الجوال', push_on: 'الإشعارات مفعّلة على هذا الجهاز', push_on_h: 'يوصلك إشعار فوري لكل طلب يحتاج إجراء منك، حتى لو كان الموقع مقفلاً. الضغط على الإشعار يفتح الطلب.', push_enable: 'فعّل الإشعارات', push_off_h: 'فعّل الإشعارات ليوصلك تنبيه فوري على جوالك عند أي طلب يحتاج إجراء منك — حتى لو كان الموقع مقفلاً.', push_disable: 'إيقاف على هذا الجهاز', push_test: 'إرسال إشعار تجريبي', push_test_ok: 'أُرسل — يوصلك خلال ثوانٍ', push_on_ok: 'تم تفعيل الإشعارات ✓', push_off_ok: 'أُوقفت الإشعارات على هذا الجهاز', push_denied: 'الإشعارات ممنوعة لهذا الموقع', push_denied_ios: 'افتح «الإعدادات» في الآيفون ← «الإشعارات» ← «مسار اكس» وفعّل «السماح بالإشعارات»، ثم ارجع هنا.', push_denied_web: 'اضغط القفل 🔒 بجانب رابط الموقع ← الإشعارات ← سماح، ثم أعد تحميل الصفحة.', push_unsupported: 'هذا المتصفح لا يدعم الإشعارات. على الآيفون استخدم Safari (iOS 16.4 أو أحدث).', push_not_ready: 'الإشعارات غير مفعّلة على الخادم بعد — راجع الأدمن', push_install_t: 'أضف «مسار اكس» إلى الشاشة الرئيسية', push_install_h: 'الآيفون يرسل الإشعارات فقط للمواقع المضافة للشاشة الرئيسية. خطوة واحدة مرة واحدة:', push_install_1: 'اضغط زر المشاركة {ic} أسفل Safari', push_install_2: 'اختر «إضافة إلى الشاشة الرئيسية» ثم «إضافة»', push_install_3: 'افتح «مسار اكس» من الأيقونة الجديدة، وسجّل دخولك', push_install_4: 'اضغط «فعّل الإشعارات» ثم «سماح»', push_ask_later: 'لاحقاً', ERR_PUSH_OFF: 'الإشعارات غير مفعّلة على الخادم بعد — راجع الأدمن',
     rej_tag_nurse: 'حذفته الممرضة', rej_tag_admin: 'حُذف إدارياً', rm_items: 'حذف صنف', rm_reason: 'السبب', rm_reason_ph: 'مثال: طلبته بالغلط', rm_items_h: 'يُحذف ما لم يُرسل من الصنف. الصنف المستلم لا يُحذف من هنا — تواصلي مع الإدارة.', rm_confirm: 'حذف', rm_none: 'كل الأصناف أُرسلت — لا يوجد صنف يمكن حذفه', rm_sent_h: 'أُرسلت ولا تُحذف من هنا:', rm_pick: 'اختاري الصنف', rm_done: 'حُذف {n} صنف من الطلب', nav_req_fix: 'تصحيح الطلبات', sub_req_fix: 'حذف صنف من طلب حتى لو استُلم — بالسبب، ومسجّل للتدقيق', rf_open: 'فتح الطلب', rf_h: 'اكتب رقم الطلب. الحذف يصفّر المعتمد والمرسل والمستلم للصنف (المطلوب يبقى كما رُفع)، فتتفق المالية والتقارير، والقيم الأصلية تُحفظ في سجل التراجعات ويمكن استرجاعها.', rf_total: 'القيمة المعتمدة', rf_sent: 'المرسل', rf_received: 'المستلم', rf_value: 'القيمة', rf_remove: 'حذف الصنف', rf_restore: 'استرجاع', rf_asset: 'عليه عهدة — أرجِعها أولاً', rf_log: 'سجل التصحيحات والتراجعات', rf_remove_h: 'الصنف يخرج من حساب الطلب (المعتمد والمرسل والمستلم = 0) ومن تقارير المالية. يُسجَّل السبب والقيمة واسمك.', rf_removed: 'حُذف الصنف وسُجّل في سجل التراجعات', rf_restored: 'استُرجع الصنف بكمياته الأصلية', rf_restore_q: 'استرجاع «{n}» بكمياته الأصلية؟', ERR_ITEM_HAS_ASSET: 'صُرفت من هذا الصنف عهدة (أداة برقم تسلسلي) — أرجِعها من شاشة العهدة أولاً',
+    dt_sort: 'الترتيب', dt_by_qty: 'الأكثر كمية', dt_by_times: 'الأكثر طلباً (عدد المرات)', dt_who: 'الطبيب أو العيادة', dt_all_who: 'كل الأطباء والعيادات', dt_times_n: '{n} مرة', dt_qty_n: 'كمية {n}',
+    ba_title: 'وقت الوصول لكل فرع (بالدقائق)', ba_h: 'المسافة من مكان التجهيز تختلف بين الفروع. الاقتراح: مدة الطريق + 30 دقيقة للتحميل والتسليم (مثلاً بريدة 10 د ← 40 د، عنيزة 55 د ← 90 د). الشهري ممكن يكون أطول إذا الرحلة مجدولة. الفارغ = الوقت العام لمرحلة «الوصول للفرع» ({m} س شهري · {e} س طارئ).', ba_m: 'الشهري (دقيقة)', ba_e: 'الطارئ (دقيقة)', ba_general: 'العام', ba_err: 'وقت الوصول بالدقائق من 5 إلى 43200',
     rl_dl_title: 'حد خاص لطبيب (زيادة أو تقليل)', rl_dl_h: 'الحد العام لكل طبيب في كل فرع هذا الشهر: شهري {m} · طارئ {e} · أصناف الطارئ {i}. أضف طبيباً لتزيد أو تقلل طلباته أو عدد أصناف طارئه كاستثناء — الخانة الفارغة = الحد العام، و0 = بلا حد.', rl_dl_m: 'الشهري', rl_dl_e: 'الطارئ', rl_dl_default: 'العام', rl_dl_used: 'هذا الشهر: شهري {m} · طارئ {e}', rl_dl_none: 'لا يوجد حد خاص — كل الأطباء على الحد العام.', rl_dl_pick: 'اسم الطبيب', rl_dl_add: 'إضافة',
     cb_btn: 'إضافة أصناف دفعة واحدة', cb_title: 'إضافة أصناف دفعة واحدة', cb_sub: 'مثل Excel — انسخ الصفوف من Excel والصقها هنا', cb_h: 'ضع المؤشر في أول خانة (اسم الصنف) والصق (Ctrl+V). نفس خانات الصنف الفردي؛ الخانات بـ * إجبارية. لا يُحفظ شيء حتى تصح كل الصفوف.', cb_price: 'السعر', cb_asset: 'عهدة؟', cb_serial: 'رقم تسلسلي؟', cb_dept_h: 'أسنان / جلدية / فارغ = مشترك', cb_type_h: 'مستهلك / ماتيريال / أدوات', cb_yes_h: 'نعم / لا', cb_alias_h: 'افصل بينها بـ ،', cb_more: '10 صفوف أخرى', cb_copy_head: 'نسخ رؤوس الأعمدة لـ Excel', cb_head_ok: 'نُسخت رؤوس الأعمدة — الصقها في أول صف في Excel', cb_clear: 'مسح الجدول', cb_count: '{n} صنف', cb_save: 'حفظ {n} صنف', cb_empty: 'الجدول فارغ — الصق الأصناف أولاً', cb_row: 'السطر {n}', cb_done: 'أُضيف {n} صنف للكتالوج', ERR_BAD_DEPT: 'القسم غير معروف (أسنان / جلدية / فارغ)', ERR_BAD_TYPE: 'النوع غير معروف (مستهلك / ماتيريال / أدوات)', ERR_BAD_YESNO: 'اكتب نعم أو لا', ERR_ITEM_DUP: 'الاسم مكرر في الجدول',
     grp_my_docs: 'أطبائي', nurse_docs: 'الأطباء المسؤولة عنهم', nurse_docs_hint: 'تظهر لها «أطبائي» أولاً عند رفع الطلب — يمكن اختيار أكثر من طبيب',
@@ -70,7 +72,7 @@ const I18N = {
     sla_left: 'طارئ · باقي {h} س', sla_over: 'طارئ · متأخر {h} س', more_n: '+{n} صنف', tag_complaints: 'بلاغ ({n})', tag_complaints_h: 'بلاغات مفتوحة على الطلب', tag_comments_h: 'تعليقات على الطلب',
     sla_appr: 'الاعتماد', sla_prep: 'بدء التجهيز', sla_send: 'الإرسال للفرع', sla_arr: 'الوصول للفرع', sla_rcv: 'الاستلام', rl_sla_m: 'الوقت المستهدف لكل مرحلة — الشهري (ساعات)', rl_sla_e: 'الوقت المستهدف لكل مرحلة — الطارئ (ساعات)', rl_sla_h_appr: 'من الرفع حتى اعتماد الطبيب أو مدير الفرع', rl_sla_h_prep: 'من الاعتماد حتى «قيد التجهيز»', rl_sla_h_send: 'من بدء التجهيز حتى أول شحنة', rl_sla_h_arr: 'من الإرسال حتى وصول البوكس للفرع', rl_sla_h_rcv: 'من الوصول حتى توقيع الممرضة', sla_late: 'تجاوز وقت «{s}»: {h} س من {t} س', sla_late_h: 'المرحلة الحالية تجاوزت وقتها المستهدف في قواعد الطلبات', mon_sla_title: 'مؤشرات أداء المراحل', mon_sla_sub: 'نسبة المراحل المنتهية خلال وقتها المستهدف هذا الشهر، ومتوسط الوقت الفعلي مقابل المستهدف — الأوقات تُعدَّل من «قواعد الطلبات»', mon_sla_m_rate: 'الشهري: الالتزام', mon_sla_m_avg: 'الشهري: المتوسط / المستهدف', mon_sla_e_rate: 'الطارئ: الالتزام', mon_sla_e_avg: 'الطارئ: المتوسط / المستهدف', mon_sla_now: 'متجاوز الآن', mon_sla_late_list: 'طلبات تجاوزت وقت مرحلتها الآن', mon_sla_spent: 'المستغرق / المستهدف',
     nav_nurse_voice: 'استبيان التمريض', sub_nurse_voice: 'ملاحظات التمريض ونسخة من كل بلاغ (طلب/شحنة وعهدة) بحالته', ni_new: 'ملاحظة جديدة', ni_new_h: 'تصل للجودة والإدارة فقط — لا تذهب لبلاغات التموين. لبلاغ على طلب أو أداة استخدمي زر «بلاغ» في الطلب أو العهدة.', ni_type: 'النوع', ni_msg: 'الملاحظة', ni_msg_ph: 'اكتبي ملاحظتك أو اقتراحك…', ni_sent: 'أُرسلت ملاحظتك', ni_all: 'الكل', ni_src_req: 'بلاغات الطلبات', ni_src_asset: 'بلاغات العهدة', ni_src_survey: 'من الاستبيان', ni_open: 'مفتوحة', ni_closed: 'مغلقة', ni_copy_h: 'نسخة من بلاغ في النظام — حالتها تتبع الأصل', ni_work: 'قيد المتابعة', ni_close: 'إغلاق بملاحظة', ni_note: 'ملاحظة المتابعة', ni_saved: 'تم التحديث', ni_none: 'لا توجد ملاحظات', ERR_ISSUE_COPY: 'هذه نسخة من بلاغ — تُتابع من مكانه الأصلي',
-    ds_all_nurses: 'كل الممرضات', ds_units: 'الكمية', ds_sent: 'المرسل', ds_left: 'المتبقي', stage: 'المرحلة',
+    ds_all_nurses: 'كل الممرضات', ds_pdf: 'PDF للمتابعة', ds_pdf_title: 'قائمة متابعة: {s}', ds_pdf_done: 'تم', ds_pdf_note: 'ملاحظة', ds_pdf_filter: 'الفرز', ds_units: 'الكمية', ds_sent: 'المرسل', ds_left: 'المتبقي', stage: 'المرحلة',
     mon_period: 'الفترة', mon_p_month: 'شهر', mon_p_range: 'من شهر إلى شهر', mon_p_all: 'الكل', mon_from: 'من', mon_to: 'إلى',
     free_type: 'النوع', ca_f_dept_all: 'كل الأقسام', ca_f_type_all: 'كل الأنواع', ca_f_asset_all: 'عهدة وغيرها', ca_f_asset_yes: 'عهدة', ca_f_asset_no: 'ليست عهدة', ca_f_dup: 'المكررة فقط', ca_dup_n: 'مكرر ×{n}', ca_dup_h: 'نفس الاسم تقريباً لصنف آخر — راجعه أو اجعله اسماً بديلاً', ca_class_sel: 'تصنيف المحدد ({n})', ca_keep: 'بدون تغيير', ca_asset: 'العهدة', ca_class_h: 'اختر ما تريد تغييره فقط — «بدون تغيير» تبقى كما هي. تحديد سريع: اسحب بالماوس على الصفوف، أو Shift + نقرة لتحديد مدى.', ca_class_none: 'اختر قسماً أو نوعاً أو عهدة', ca_classified: 'صُنّف {n} صنف',
     da_branches: 'الفروع التي يعمل بها', da_branches_h: 'لكل فرع طلب شهري وحد طلبات مستقل — بدون تحديد = فروع عياداته', da_nurses: 'الممرضات مع الطبيب', da_nurses_h: 'يطلبن له في عياداته وفروعه — الحد واحد لكل فرع مهما كانت الممرضة', ERR_DOCTOR_BRANCH: 'الطبيب لا يعمل في هذا الفرع. فروعه', ERR_BAD_BRANCH: 'فرع غير معروف', ERR_BRANCH_IN_USE: 'لا يُحذف فرع له عيادات', st_branches: 'الفروع', st_branch_add: 'إضافة فرع', st_branch_ph: 'اسم الفرع الجديد', st_branches_h: 'الفرع الجديد يظهر في كل القوائم (العيادات، الأطباء، المستخدمين، التقارير). أضف عياداته من «العيادات» بنفس اسم الفرع.', st_branch_del_q: 'حذف الفرع {b}؟',
@@ -195,6 +197,8 @@ const I18N = {
     cancel: 'Cancel', close: 'Close', save: 'Save', delete: 'Delete', edit: 'Edit', send: 'Send', confirm: 'Confirm', back: 'Back',
     push_title: 'Phone notifications', push_on: 'Notifications are on for this device', push_on_h: 'You get an instant alert for every request that needs you, even when the site is closed. Tap it to open the request.', push_enable: 'Turn on notifications', push_off_h: 'Turn on notifications to get an instant alert on your phone whenever a request needs you — even when the site is closed.', push_disable: 'Turn off on this device', push_test: 'Send a test notification', push_test_ok: 'Sent — it arrives in a few seconds', push_on_ok: 'Notifications are on ✓', push_off_ok: 'Notifications turned off on this device', push_denied: 'Notifications are blocked for this site', push_denied_ios: 'Open iPhone Settings → Notifications → MasarX and turn on Allow Notifications, then come back.', push_denied_web: 'Tap the lock 🔒 next to the site address → Notifications → Allow, then reload the page.', push_unsupported: 'This browser does not support notifications. On iPhone use Safari (iOS 16.4 or later).', push_not_ready: 'Notifications are not set up on the server yet — ask the admin', push_install_t: 'Add MasarX to your Home Screen', push_install_h: 'iPhone only sends notifications to sites added to the Home Screen. One step, once:', push_install_1: 'Tap the Share button {ic} at the bottom of Safari', push_install_2: 'Choose “Add to Home Screen”, then “Add”', push_install_3: 'Open MasarX from the new icon and sign in', push_install_4: 'Tap “Turn on notifications”, then “Allow”', push_ask_later: 'Later', ERR_PUSH_OFF: 'Notifications are not set up on the server yet — ask the admin',
     rej_tag_nurse: 'Removed by the nurse', rej_tag_admin: 'Removed by admin', rm_items: 'Remove item', rm_reason: 'Reason', rm_reason_ph: 'e.g. ordered by mistake', rm_items_h: 'Removes what has not been sent yet. A received item can’t be removed here — contact the admin.', rm_confirm: 'Remove', rm_none: 'Everything was sent — nothing left to remove', rm_sent_h: 'Already sent (not removable here):', rm_pick: 'Pick an item', rm_done: '{n} item(s) removed from the request', nav_req_fix: 'Fix requests', sub_req_fix: 'Remove an item even after receipt — with a reason, logged for audit', rf_open: 'Open request', rf_h: 'Type the request number. Removing sets the item’s approved, sent and received to 0 (requested stays as raised), so finance and reports agree; the original values are kept in the reversals log and can be restored.', rf_total: 'Approved value', rf_sent: 'Sent', rf_received: 'Received', rf_value: 'Value', rf_remove: 'Remove item', rf_restore: 'Restore', rf_asset: 'Has custody assets — return them first', rf_log: 'Fixes and reversals log', rf_remove_h: 'The item leaves the request totals (approved, sent, received = 0) and finance reports. The reason, value and your name are recorded.', rf_removed: 'Item removed and logged', rf_restored: 'Item restored with its original quantities', rf_restore_q: 'Restore “{n}” with its original quantities?', ERR_ITEM_HAS_ASSET: 'Custody assets were issued from this item — return them from Custody first',
+    dt_sort: 'Sort', dt_by_qty: 'Highest quantity', dt_by_times: 'Most ordered (times)', dt_who: 'Doctor or clinic', dt_all_who: 'All doctors & clinics', dt_times_n: '{n}×', dt_qty_n: 'qty {n}',
+    ba_title: 'Arrival time per branch (minutes)', ba_h: 'Distance from the prep site differs by branch. Suggestion: drive time + 30 min for loading and hand-over (e.g. 10 min → 40, 55 min → 90). Monthly can be longer if trips are scheduled. Empty = the general «arrival» target ({m} h monthly · {e} h emergency).', ba_m: 'Monthly (min)', ba_e: 'Emergency (min)', ba_general: 'General', ba_err: 'Arrival minutes must be 5 to 43200',
     rl_dl_title: 'Doctor-specific limit (raise or lower)', rl_dl_h: 'General limit per doctor per branch this month: monthly {m} · emergency {e} · emergency items {i}. Add a doctor to raise or lower their requests or emergency item count as an exception — empty = the general limit, 0 = no limit.', rl_dl_m: 'Monthly', rl_dl_e: 'Emergency', rl_dl_default: 'General', rl_dl_used: 'This month: monthly {m} · emergency {e}', rl_dl_none: 'No special limits — every doctor uses the general limit.', rl_dl_pick: 'Doctor name', rl_dl_add: 'Add',
     cb_btn: 'Add items in bulk', cb_title: 'Add items in bulk', cb_sub: 'Like Excel — copy rows from Excel and paste them here', cb_h: 'Put the cursor in the first cell (item name) and paste (Ctrl+V). Same fields as a single item; * is required. Nothing is saved until every row is valid.', cb_price: 'Price', cb_asset: 'Custody?', cb_serial: 'Serial no.?', cb_dept_h: 'Dental / Derma / empty = shared', cb_type_h: 'Consumable / Material / Tools', cb_yes_h: 'Yes / No', cb_alias_h: 'separate with ,', cb_more: '10 more rows', cb_copy_head: 'Copy column headers for Excel', cb_head_ok: 'Headers copied — paste them in the first Excel row', cb_clear: 'Clear', cb_count: '{n} item(s)', cb_save: 'Save {n} item(s)', cb_empty: 'The table is empty — paste the items first', cb_row: 'Row {n}', cb_done: '{n} item(s) added to the catalog', ERR_BAD_DEPT: 'Unknown department (Dental / Derma / empty)', ERR_BAD_TYPE: 'Unknown type (Consumable / Material / Tools)', ERR_BAD_YESNO: 'Write yes or no', ERR_ITEM_DUP: 'Name repeated in the table',
     grp_my_docs: 'My doctors', nurse_docs: 'Doctors she orders for', nurse_docs_hint: 'Shown first as “My doctors” when she raises a request — pick as many as needed',
@@ -208,7 +212,7 @@ const I18N = {
     sla_left: 'Emergency · {h}h left', sla_over: 'Emergency · {h}h late', more_n: '+{n} items', tag_complaints: 'Report ({n})', tag_complaints_h: 'Open reports on this request', tag_comments_h: 'Comments on this request',
     sla_appr: 'Approval', sla_prep: 'Prep start', sla_send: 'Dispatch', sla_arr: 'Arrival at branch', sla_rcv: 'Receipt', rl_sla_m: 'Target time per stage — monthly (hours)', rl_sla_e: 'Target time per stage — emergency (hours)', rl_sla_h_appr: 'From submission to doctor / branch manager approval', rl_sla_h_prep: 'From approval to «preparing»', rl_sla_h_send: 'From prep start to the first shipment', rl_sla_h_arr: 'From dispatch to the box arriving at the branch', rl_sla_h_rcv: 'From arrival to the nurse signing', sla_late: '«{s}» over target: {h}h of {t}h', sla_late_h: 'The current stage is past its target time in the order rules', mon_sla_title: 'Stage performance indicators', mon_sla_sub: 'Share of stages finished within their target this month, and average actual time vs target — targets are set in «Order rules»', mon_sla_m_rate: 'Monthly: on time', mon_sla_m_avg: 'Monthly: average / target', mon_sla_e_rate: 'Emergency: on time', mon_sla_e_avg: 'Emergency: average / target', mon_sla_now: 'Over target now', mon_sla_late_list: 'Requests past their stage target now', mon_sla_spent: 'Spent / target',
     nav_nurse_voice: 'Nurse survey', sub_nurse_voice: 'Nurse notes and a copy of every complaint (request/shipment and custody) with its status', ni_new: 'New note', ni_new_h: 'Goes to Quality and management only — not to Procurement complaints. For a complaint about a request or tool use the «Report» button there.', ni_type: 'Type', ni_msg: 'Note', ni_msg_ph: 'Write your note or suggestion…', ni_sent: 'Your note was sent', ni_all: 'All', ni_src_req: 'Request complaints', ni_src_asset: 'Custody tickets', ni_src_survey: 'From the survey', ni_open: 'Open', ni_closed: 'Closed', ni_copy_h: 'A copy of a complaint in the system — its status follows the original', ni_work: 'In follow-up', ni_close: 'Close with a note', ni_note: 'Follow-up note', ni_saved: 'Updated', ni_none: 'No notes', ERR_ISSUE_COPY: 'This is a copy of a complaint — follow it up where it was raised',
-    ds_all_nurses: 'All nurses', ds_units: 'Quantity', ds_sent: 'Sent', ds_left: 'Remaining', stage: 'Stage',
+    ds_all_nurses: 'All nurses', ds_pdf: 'PDF checklist', ds_pdf_title: 'Follow-up list: {s}', ds_pdf_done: 'Done', ds_pdf_note: 'Note', ds_pdf_filter: 'Filter', ds_units: 'Quantity', ds_sent: 'Sent', ds_left: 'Remaining', stage: 'Stage',
     mon_period: 'Period', mon_p_month: 'Month', mon_p_range: 'From month to month', mon_p_all: 'All', mon_from: 'From', mon_to: 'To',
     free_type: 'Type', ca_f_dept_all: 'All departments', ca_f_type_all: 'All types', ca_f_asset_all: 'Custody & others', ca_f_asset_yes: 'Custody', ca_f_asset_no: 'Not custody', ca_f_dup: 'Duplicates only', ca_dup_n: 'Duplicate ×{n}', ca_dup_h: 'Almost the same name as another item — review it or make it an alias', ca_class_sel: 'Classify selected ({n})', ca_keep: 'No change', ca_asset: 'Custody', ca_class_h: 'Pick only what to change — «No change» stays as is. Quick select: drag over rows with the mouse, or Shift + click for a range.', ca_class_none: 'Pick a department, type or custody', ca_classified: '{n} item(s) classified',
     da_branches: 'Branches he works in', da_branches_h: 'A monthly order and separate limits per branch — none ticked = his clinics’ branches', da_nurses: 'Nurses with the doctor', da_nurses_h: 'They order for him in his clinics and branches — one limit per branch whichever nurse', ERR_DOCTOR_BRANCH: 'The doctor does not work in this branch. His branches', ERR_BAD_BRANCH: 'Unknown branch', ERR_BRANCH_IN_USE: 'A branch with clinics can’t be deleted', st_branches: 'Branches', st_branch_add: 'Add branch', st_branch_ph: 'New branch name', st_branches_h: 'A new branch shows in every list (clinics, doctors, users, reports). Add its clinics under «Clinics» with the same branch name.', st_branch_del_q: 'Delete branch {b}?',
@@ -5216,12 +5220,23 @@ function renderRulesForm() {
           : '<input class="input rl-in" type="number" inputmode="numeric" id="rl_' + f[0] + '" data-k="' + f[0] + '" min="' + f[2] + '" max="' + f[3] + '" step="1" value="' + esc(R[f[0]]) + '"' + (ro ? ' disabled' : '') + '>') +
         (f[4] ? '<div class="hint">' + esc(t(f[4])) + '</div>' : '') + '</div>').join('') +
     '</div></section>').join('') + '</div>' +
-    docLimitsHtml(R, ro) +
+    docLimitsHtml(R, ro) + branchArrHtml(R, ro) +
     '<div class="field-error hidden" id="rlErr" style="margin-top:12px">' + icon('alert', 'i-sm') + '<span></span></div>' +
     (ro ? '' : '<div class="row" style="margin-top:14px"><button class="btn btn-primary" id="rlSave" data-act="rlSave">' + icon('save', 'i-sm') + esc(t('rl_save')) + '</button></div>') +
     '<section class="card" style="margin-top:16px"><div class="card-head"><h3>' + icon('eye') + esc(t('rl_preview')) + '</h3></div><div class="card-body">' + ruleBarHtml() + '</div></section>';
-  $$('.rl-in, .dl-in', box).forEach(i => i.addEventListener('input', () => i.classList.add('rl-dirty')));
+  $$('.rl-in, .dl-in, .ba-in', box).forEach(i => i.addEventListener('input', () => i.classList.add('rl-dirty')));
   box.addEventListener('input', e => { if (e.target.classList.contains('dl-in')) e.target.classList.add('rl-dirty'); });
+}
+/* وقت الوصول المستهدف لكل فرع بالدقائق (الفارغ = الوقت العام) */
+function branchArrHtml(R, ro) {
+  const ba = R.branchArr || {}, names = Array.from(new Set((R.branches || []).concat(Object.keys(ba)))).filter(Boolean);
+  if (!names.length) return '';
+  const inp = (f, v, n) => '<input class="input ba-in" type="number" inputmode="numeric" min="5" max="43200" step="5" data-f="' + f + '" value="' + (typeof v === 'number' ? v : '') + '" placeholder="' + esc(t('ba_general') + ' ' + n * 60) + '"' + (ro ? ' disabled' : '') + '>';
+  return '<section class="card" style="margin-top:16px"><div class="card-head"><h3>' + icon('pin') + esc(t('ba_title')) + '</h3></div><div class="card-body">' +
+    '<div class="hint" style="margin-bottom:10px">' + esc(t('ba_h', { m: R.slaArrM, e: R.slaArrE })) + '</div>' +
+    '<div class="table-wrap"><table class="table"><thead><tr><th>' + esc(t('branch')) + '</th><th>' + esc(t('ba_m')) + '</th><th>' + esc(t('ba_e')) + '</th></tr></thead><tbody id="baBody">' +
+    names.map(n => '<tr class="ba-row" data-name="' + esc(n) + '"><td><b>' + esc(n) + '</b></td><td>' + inp('m', (ba[n] || {}).m, R.slaArrM) + '</td><td>' + inp('e', (ba[n] || {}).e, R.slaArrE) + '</td></tr>').join('') +
+    '</tbody></table></div></div></section>';
 }
 /* حد خاص لطبيب: زيادة أو تقليل عدد الطلبات الشهرية/الطارئة عن الحد العام (الفارغ = الحد العام، 0 = بلا حد) */
 function docLimitRow(name, o, ro) {
@@ -5284,6 +5299,20 @@ ACT.rlSave = el => {
     v.docLimits[r.dataset.name] = o;
   });
   if (badDl) { fail(t('ERR_RULE_RANGE') + ' (0–99)'); badDl.focus(); return; }
+  if ($('#baBody')) {
+    v.branchArr = {};
+    let badBa = null;
+    $$('#baBody .ba-row').forEach(r => {
+      const o = {};
+      $$('.ba-in', r).forEach(i => {
+        if (i.value.trim() === '') return;
+        const n = Number(i.value);
+        if (!(Number.isInteger(n) && n >= 5 && n <= 43200)) badBa = badBa || i; else o[i.dataset.f] = n;
+      });
+      v.branchArr[r.dataset.name] = o;
+    });
+    if (badBa) { fail(t('ba_err')); badBa.focus(); return; }
+  }
   busy(el, true);
   call('saveOrderRules', v).then(r => { busy(el, false); S.rules = r; renderRulesForm(); paintRuleBar(); toast(t('rl_saved'), 'success'); })
     .catch(e => { busy(el, false); fail(errMsg(e)); });
@@ -5735,7 +5764,7 @@ ACT.dashStatus = el => {
         '<select class="select" id="dsB" aria-label="' + esc(t('branch')) + '"><option value="">' + esc(t('all_branches')) + '</option>' + opts('b', r => r.branch) + '</select>' +
         '<select class="select" id="dsD" aria-label="' + esc(t('doctor')) + '"><option value="">' + esc(t('all_doctors')) + '</option>' + opts('d', r => docLabel(r)) + '</select>' +
         '<select class="select" id="dsN" aria-label="' + esc(t('nurse')) + '"><option value="">' + esc(t('ds_all_nurses')) + '</option>' + opts('n', r => r.nurse) + '</select>' +
-        '<span class="spacer" style="flex:1"></span><button class="btn btn-soft btn-sm" id="dsXl">' + icon('file', 'i-sm') + esc(t('rr_xlsx')) + '</button></div>' +
+        '<span class="spacer" style="flex:1"></span><button class="btn btn-soft btn-sm" id="dsPdf">' + icon('file', 'i-sm') + esc(t('ds_pdf')) + '</button><button class="btn btn-soft btn-sm" id="dsXl">' + icon('file', 'i-sm') + esc(t('rr_xlsx')) + '</button></div>' +
       '<div id="dsOut" style="margin-top:10px"></div>';
     const pick = () => all.filter(r => (!f.b || r.branch === f.b) && (!f.d || docLabel(r) === f.d) && (!f.n || r.nurse === f.n));
     const draw = () => {
@@ -5749,6 +5778,7 @@ ACT.dashStatus = el => {
           '</tbody></table></div>' : emptyState('search', t('no_match')));
     };
     [['dsB', 'b'], ['dsD', 'd'], ['dsN', 'n']].forEach(x => $('#' + x[0], m.el).addEventListener('change', e => { f[x[1]] = e.target.value; draw(); }));
+    $('#dsPdf', m.el).addEventListener('click', () => printReport(statusListPrintHtml(stage, month, f, pick())));
     $('#dsXl', m.el).addEventListener('click', () => {
       const rows = pick();
       const head = [t('xl_req'), t('xl_date'), t('stage'), t('xl_status'), t('xl_type'), t('xl_branch'), t('xl_clinic'), t('xl_doctor'), t('xl_nurse'), t('items'), t('ds_units'), t('ds_sent'), t('ds_left')];
@@ -5762,6 +5792,63 @@ ACT.dashStatus = el => {
     draw();
   }).catch(e => { if (!m.closing) $('.modal-body', m.el).innerHTML = emptyState('alert', errMsg(e)); });
 };
+/** قائمة متابعة للطباعة / PDF: طلب (شحنة) في كل سطر مرتبة بالفرع ثم الطبيب، وأمام كل سطر مربع تأشير وخانة ملاحظة */
+function statusListPrintHtml(stage, month, f, list) {
+  const logo = ($('#companyLogo') && $('#companyLogo').getAttribute('src')) ? '<img class="rep-logo" src="' + $('#companyLogo').src + '" alt="Client company logo">' : '';
+  const rows = list.slice().sort((a, b) => (a.branch || '').localeCompare(b.branch || '') || docLabel(a).localeCompare(docLabel(b)) || (toDate(a.date) || 0) - (toDate(b.date) || 0));
+  const filt = [f.b, f.d, f.n].filter(Boolean).join(' · ');
+  const head = '<div class="rep-head">' + logo + '<div class="rep-meta"><h2>' + esc(t('ds_pdf_title', { s: t('stg_' + stage) })) + '</h2>' +
+    '<div><b>' + esc(t('month')) + ':</b> ' + esc(month ? monthLabel(month) : t('all_months')) + (filt ? ' · <b>' + esc(t('ds_pdf_filter')) + ':</b> ' + esc(filt) : '') + '</div>' +
+    '<div><b>' + esc(t('dash_status_n', { n: rows.length })) + '</b></div>' +
+    '<div class="muted">' + esc(t('rep_generated')) + ' ' + esc(fmtDateTime(new Date())) + ' · ' + esc(S.user.name) + '</div></div></div>';
+  let units = 0, sent = 0;
+  const body = rows.map((r, k) => {
+    units += r.totalQty || 0; sent += r.sentQty || 0;
+    return '<tr><td class="rep-check"><span class="rep-box"></span></td><td class="muted">' + (k + 1) + '</td><td class="mono" style="font-weight:700">' + esc(r.id) + '</td><td>' + esc(fmtDate(r.submittedAt || r.date)) + '</td>' +
+      '<td>' + esc(r.branch || '—') + '</td><td>' + esc(r.clinic || '—') + '</td><td>' + esc(docLabel(r)) + '</td><td>' + esc(r.nurse || '—') + '</td>' +
+      '<td>' + esc(t(r.type === 'طارئ' ? 'type_emergency' : 'type_monthly')) + '</td><td class="num">' + fmtNum(r.itemCount || 0, 0) + '</td><td class="num">' + fmtNum(r.totalQty || 0, 0) + '</td><td class="num">' + fmtNum(r.sentQty || 0, 0) + '</td><td class="rep-notecol"></td></tr>';
+  }).join('');
+  const table = '<section class="rep-req"><table class="table rep-table rep-list"><thead><tr><th>' + esc(t('ds_pdf_done')) + '</th><th>#</th><th>' + esc(t('xl_req')) + '</th><th>' + esc(t('date')) + '</th><th>' + esc(t('branch')) + '</th><th>' + esc(t('clinic')) + '</th><th>' + esc(t('doctor')) + '</th><th>' + esc(t('xl_nurse')) + '</th><th>' + esc(t('type')) + '</th>' +
+    '<th class="num">' + esc(t('items')) + '</th><th class="num">' + esc(t('ds_units')) + '</th><th class="num">' + esc(t('ds_sent')) + '</th><th>' + esc(t('ds_pdf_note')) + '</th></tr></thead><tbody>' + body + '</tbody>' +
+    '<tfoot><tr><td colspan="10">' + esc(t('rep_total')) + '</td><td class="num">' + fmtNum(units, 0) + '</td><td class="num">' + fmtNum(sent, 0) + '</td><td></td></tr></tfoot></table></section>';
+  const sign = '<div class="rep-sign">' + [t('req_print_prepared'), t('req_print_receiver')].map(x => '<div><b>' + esc(x) + '</b><span>' + esc(t('req_print_sign')) + '</span></div>').join('') + '</div>';
+  return '<div class="rep">' + head + table + sign + '</div>';
+}
+/* الأصناف الأكثر طلباً: ترتيب بالكمية أو بعدد مرات الطلب، وفرز بالفرع / الطبيب أو العيادة — ومن طلب كل صنف */
+const DT = { sort: 'qty', b: '', w: '' };
+const dtWho = x => x.d || x.c || '—';
+function renderDashTop() {
+  const box = $('#dashTop'), s = S.dash.stats;
+  if (!box || !s) return;
+  const by = s.topItemsBy || (s.topItems || []).map(x => ({ n: x.name, b: '', c: '', d: '', q: x.qty, k: x.requests || 0 }));
+  if (!by.length) { box.innerHTML = emptyState('package', t('no_data')); return; }
+  const uniq = f => Array.from(new Set(by.map(f).filter(v => v && v !== '—'))).sort((a, b) => a.localeCompare(b));
+  if (DT.b && !uniq(x => x.b).includes(DT.b)) DT.b = '';
+  if (DT.w && !uniq(dtWho).includes(DT.w)) DT.w = '';
+  const rows = by.filter(x => (!DT.b || x.b === DT.b) && (!DT.w || dtWho(x) === DT.w));
+  const items = {};
+  rows.forEach(x => {
+    const k = x.n.toLowerCase(), it = items[k] || (items[k] = { name: x.n, qty: 0, times: 0, who: {} });
+    it.qty += x.q; it.times += x.k;
+    const w = dtWho(x) + (x.b ? ' · ' + x.b : ''), o = it.who[w] || (it.who[w] = { q: 0, k: 0 }); o.q += x.q; o.k += x.k;
+  });
+  const key = DT.sort === 'times' ? 'times' : 'qty', alt = key === 'qty' ? 'times' : 'qty';
+  const list = Object.values(items).sort((a, b) => b[key] - a[key] || b[alt] - a[alt]).slice(0, 10);
+  const max = Math.max.apply(null, list.map(x => x[key]).concat([1]));
+  const opt = (v, cur) => '<option' + (v === cur ? ' selected' : '') + '>' + esc(v) + '</option>';
+  box.innerHTML = '<div class="row-wrap" style="gap:6px;margin-bottom:10px">' +
+      '<select class="select" id="dtSort" style="width:auto" aria-label="' + esc(t('dt_sort')) + '"><option value="qty"' + (key === 'qty' ? ' selected' : '') + '>' + esc(t('dt_by_qty')) + '</option><option value="times"' + (key === 'times' ? ' selected' : '') + '>' + esc(t('dt_by_times')) + '</option></select>' +
+      '<select class="select" id="dtB" style="width:auto" aria-label="' + esc(t('branch')) + '"><option value="">' + esc(t('all_branches')) + '</option>' + uniq(x => x.b).map(v => opt(v, DT.b)).join('') + '</select>' +
+      '<select class="select" id="dtW" style="width:auto;max-width:180px" aria-label="' + esc(t('dt_who')) + '"><option value="">' + esc(t('dt_all_who')) + '</option>' + uniq(dtWho).map(v => opt(v, DT.w)).join('') + '</select></div>' +
+    (list.length ? '<div class="hbars">' + list.map(x => {
+      const who = Object.keys(x.who).sort((a, b) => x.who[b][key === 'qty' ? 'q' : 'k'] - x.who[a][key === 'qty' ? 'q' : 'k']);
+      return '<div class="hbar dt-item"><span class="name">' + esc(x.name) + '</span><span class="val">' + fmtNum(x[key], 0) + ' <small class="muted">' + esc(key === 'qty' ? t('dt_times_n', { n: x.times }) : t('dt_qty_n', { n: fmtNum(x.qty, 0) })) + '</small></span>' +
+        '<div class="track"><div class="fill" data-w="' + (x[key] / max * 100) + '%"></div></div>' +
+        '<div class="hint dt-who" style="grid-column:1/-1;font-size:12px">' + who.slice(0, 3).map(w => esc(w) + ' <b>' + fmtNum(x.who[w].q, 0) + '</b> (' + x.who[w].k + '×)').join(' · ') + (who.length > 3 ? ' · +' + (who.length - 3) : '') + '</div></div>';
+    }).join('') + '</div>' : emptyState('search', t('no_match')));
+  [['dtSort', 'sort'], ['dtB', 'b'], ['dtW', 'w']].forEach(f => $('#' + f[0], box).addEventListener('change', e => { DT[f[1]] = e.target.value; renderDashTop(); }));
+  animateBars(box);
+}
 function loadDash(silent) {
   const m = S.dash.month;
   // عرض فوري من آخر زيارة (إن وُجدت) ثم تحديث
@@ -5802,12 +5889,7 @@ function renderDash(silent) {
     : emptyState('chart', t('no_data'));
   animateBars($('#dashDist'));
 
-  const top = s.topItems || [];
-  const maxQ = Math.max.apply(null, top.map(x => x.qty).concat([1]));
-  $('#dashTop').innerHTML = top.length
-    ? '<div class="hbars">' + top.map(x => '<div class="hbar"><span class="name">' + esc(x.name) + '</span><span class="val">' + fmtNum(x.qty, 0) + '</span><div class="track"><div class="fill" data-w="' + (x.qty / maxQ * 100) + '%"></div></div></div>').join('') + '</div>'
-    : emptyState('package', t('no_data'));
-  animateBars($('#dashTop'));
+  renderDashTop();
 
   const cm = s.recentComments || [];
   $('#dashComments').innerHTML = cm.length

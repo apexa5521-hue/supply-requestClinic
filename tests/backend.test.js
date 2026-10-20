@@ -884,6 +884,9 @@ test('dashboard reports', () => {
   assert.equal(s.typeCounts['طارئ'], 1);
   assert.equal(s.topItems[0].name, 'DENTAL FLOSS');
   assert.equal(s.topItems[0].qty, 5);
+  assert.equal(s.topItems[0].requests, 2, 'times ordered');
+  const fl = s.topItemsBy.filter(x => x.n === 'DENTAL FLOSS');
+  assert.deepEqual(fl.map(x => x.d + ':' + x.q + ':' + x.k).sort(), ['د. فهد:2:1', 'د. نورة:3:1'], 'per doctor (and branch/clinic) breakdown');
   const rep = api(q, 'getQualityReport', '');
   assert.equal(rep.rows.length, 1);
   assert.equal(rep.averages[0].clinic, 'عيادة الأسنان 1');
@@ -893,6 +896,10 @@ test('dashboard reports', () => {
   const month = trend[5].month;
   assert.equal(api(q, 'getExecutiveStats', month).total, 2);
   assert.equal(api(q, 'getExecutiveStats', '2001-01').total, 0);
+  // الطلب الملغي لا يدخل في الأكثر طلباً
+  const cx = api(n, 'createRequest', { clinic: 'عيادة الأسنان 1', doctor: 'د. نورة', type: 'طارئ', items: [{ name: 'PROPHY PASTE', qty: 50 }] }).id;
+  api(p, 'cancelRequests', [cx], 'بالغلط');
+  assert.equal(api(q, 'getExecutiveStats', '').topItems[0].name, 'DENTAL FLOSS', 'cancelled request not counted');
 });
 
 test('admin: users & roles management with safety rails', () => {
@@ -3593,4 +3600,19 @@ test('stats: top items per doctor per month (finance, quality, admin); a nurse c
   assert.equal(rows(gas, 'Doctors').find(r => r.DoctorName === 'د. نورة').NurseName, 'سارة, ريم');
   api(a, 'updateUser', 'سارة', Object.assign({}, sara, { doctors: ['د. فهد'] }));
   assert.equal(rows(gas, 'Doctors').find(r => r.DoctorName === 'د. نورة').NurseName, 'ريم', 'unticking removes only her');
+});
+
+test('arrival target per branch (minutes) overrides the general arrival target', () => {
+  const { api, login, ctx } = boot();
+  const p = login('علي', '3333');
+  throwsCode(() => api(p, 'saveOrderRules', { branchArr: { 'بريدة': { e: 2 } } }), 'ERR_RULE_RANGE:branchArr');
+  const R = api(p, 'saveOrderRules', { branchArr: { 'بريدة': { m: 120, e: 40 }, 'عنيزة': { e: 90 } } });
+  assert.deepEqual(R.branchArr, { 'بريدة': { m: 120, e: 40 }, 'عنيزة': { e: 90 } });
+  assert.ok(Array.isArray(R.branches) && R.branches.length >= 1);
+  ctx.resetMemo_();
+  const rules = ctx.orderRules_();
+  assert.equal(ctx.slaTarget_(rules, 'arr', 'طارئ', 'بريدة'), 0.67);
+  assert.equal(ctx.slaTarget_(rules, 'arr', 'طارئ', 'عنيزة'), 1.5);
+  assert.equal(ctx.slaTarget_(rules, 'arr', 'شهري', 'عنيزة'), rules.slaArrM, 'empty = general');
+  assert.equal(ctx.slaTarget_(rules, 'prep', 'طارئ', 'بريدة'), rules.slaPrepE, 'only the arrival stage');
 });
