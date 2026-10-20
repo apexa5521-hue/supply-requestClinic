@@ -1531,7 +1531,7 @@ test('monitor: monthly window 15–20 and due on the 1st, emergency target 2h an
     g.seed('RequestItems', ['RequestID', 'ItemName', 'RequestedQty'], [['REQ-A', 'PROPHY PASTE', 2], ['REQ-B', 'DENTAL FLOSS', 1], ['REQ-C', 'DENTAL FLOSS', 1], ['REQ-D', 'DENTAL FLOSS', 1], ['REQ-E', 'DENTAL FLOSS', 1]]);
   });
   const q = login('منى', '5555');
-  const m = api(q, 'getMonitor');
+  const m = api(q, 'getMonitor', { all: true });
   assert.deepEqual(m.late.map(r => r.id).sort(), ['REQ-A', 'REQ-B']);
   assert.deepEqual(m.atRisk.map(r => r.id), ['REQ-C']);
   const A = m.late.find(r => r.id === 'REQ-A');
@@ -3507,6 +3507,37 @@ test('doctor works in several branches: limits and the monthly cycle per branch 
   assert.deepEqual([R.usedBy['د. نورة|الرياض'].monthly, R.usedBy['د. نورة|عنيزة'].monthly, R.usedBy['د. نورة'].monthly], [1, 1, 2]);
   const cyc = api(q, 'getMonitor').cycle.doctors.filter(d => d.doctor === 'د. نورة');
   assert.deepEqual(cyc.map(d => [d.branch, d.count]).sort(), [['الرياض', 1], ['عنيزة', 1]]);
+});
+
+test('catalog: classify many items at once (department, type, custody); untouched fields stay', () => {
+  const { api, login, gas } = boot();
+  const p = login('علي', '3333'), n = login('سارة', '1111');
+  throwsCode(() => api(n, 'classifyCatalogItems', ['PROPHY PASTE'], { dept: 'أسنان' }), 'ERR_FORBIDDEN');
+  throwsCode(() => api(p, 'classifyCatalogItems', ['PROPHY PASTE'], {}), 'ERR_REQUIRED');
+  throwsCode(() => api(p, 'classifyCatalogItems', ['PROPHY PASTE'], { type: 'شيء' }), 'ERR_FREE_ITEM_TYPE');
+  let r = api(p, 'classifyCatalogItems', ['PROPHY PASTE', 'dental floss'], { dept: 'أسنان', type: 'ماتيريال' });
+  assert.equal(r.updated, 2);
+  const row = x => rows(gas, 'ItemsCatalog').find(i => i.ItemName === x);
+  assert.deepEqual([row('PROPHY PASTE').Department, row('PROPHY PASTE').ItemType, row('DENTAL FLOSS').ItemType], ['أسنان', 'ماتيريال', 'ماتيريال']);
+  r = api(p, 'classifyCatalogItems', ['DENTAL FLOSS'], { dept: '', asset: true });
+  assert.deepEqual([row('DENTAL FLOSS').Department, row('DENTAL FLOSS').ItemType, row('DENTAL FLOSS').Ownership], ['', 'ماتيريال', 'عهدة'], 'shared, type kept, custody');
+  assert.ok(r.catalog.items.find(i => i.name === 'DENTAL FLOSS').asset);
+});
+
+test('monitor follows the chosen period: month, range or all — cycle, overdue lists, KPIs', () => {
+  const { api, login } = boot();
+  const q = login('منى', '5555');
+  const cur = api(q, 'getMonitor', {});
+  const ym = todayISO().slice(0, 7);
+  assert.deepEqual([cur.period.month, cur.cycle.month], [ym, ym]);
+  const old = api(q, 'getMonitor', { month: '2001-01' });
+  assert.deepEqual([old.cycle.month, old.cycle.passed, old.late.length, old.kpis.requests], ['2001-01', true, 0, 0], 'a past month: its own cycle, no overdue from other months');
+  assert.ok(old.cycle.doctors.every(d => d.state === 'missing'));
+  const all = api(q, 'getMonitor', { all: true });
+  assert.equal(all.period.all, true);
+  assert.ok(all.late.length >= cur.late.length && all.kpis.requests >= cur.kpis.requests, 'all = everything');
+  const rng = api(q, 'getMonitor', { from: ym, to: '2001-01' });
+  assert.deepEqual([rng.period.from, rng.period.to, rng.cycle.month], ['2001-01', ym, ym], 'range swapped into order; cycle = last month of the range');
 });
 
 test('catalog bulk add: rows pasted from Excel are checked first, then saved together', () => {

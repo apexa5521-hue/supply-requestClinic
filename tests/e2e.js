@@ -1293,6 +1293,7 @@ function log(msg) { console.log('  ✔ ' + msg); }
   expect(await page.locator('#monBody [data-act="monNudge"]').count() >= 1, 'overdue requests are listed with a nudge button');
   expect((await page.textContent('#monBody')).includes('مؤشرات أداء المراحل') && await page.locator('#monBody table:has-text("بدء التجهيز") tbody tr').count() === 5, 'stage performance indicators: 5 stages against their targets');
   await shot(page, 'quality-monitor', true);
+  expect(await page.locator('#monMode').count() === 1 && await page.locator('#monMonth').count() === 1, 'monitor period selector (month by default)');
   const nOwner = await page.getAttribute('#monBody [data-act="monNudge"] >> nth=0', 'data-owner');
   const nLabel = { nurse: 'التمريض', doctor: 'الطبيب', procurement: 'التموين' }[nOwner];
   expect(!!nLabel && (await page.textContent('#monBody [data-act="monNudge"] >> nth=0')).includes(nLabel), 'nudge button names who the request waits on (' + nOwner + ')');
@@ -1535,6 +1536,22 @@ function log(msg) { console.log('  ✔ ' + msg); }
   await page.click('.modal #cbOk');
   expect(await toastHas(page, 'أُضيف 2 صنف'), 'two items added in one go');
   await page.waitForSelector('#caList tr:has-text("Bulk Mirror")');
+  // تحديد سريع بالسحب ثم تصنيف موحّد
+  await page.fill('#caQ', 'bulk');
+  await page.waitForFunction(() => document.querySelectorAll('#caList tr.ca-row').length === 2);
+  const r0 = await page.locator('#caList tr.ca-row >> nth=0').boundingBox(), r1 = await page.locator('#caList tr.ca-row >> nth=1').boundingBox();
+  await page.mouse.move(r0.x + r0.width / 2, r0.y + r0.height / 2); await page.mouse.down();
+  await page.mouse.move(r1.x + r1.width / 2, r1.y + r1.height / 2, { steps: 4 }); await page.mouse.up();
+  expect(await page.locator('#caList tr.ca-row input.check:checked').count() === 2, 'drag over rows selects them');
+  await page.click('#caClassSel');
+  await page.waitForSelector('.modal #ccT');
+  await page.selectOption('.modal #ccT', 'ماتيريال');
+  await page.click('.modal #ccOk');
+  expect(await toastHas(page, 'صُنّف 2'), 'selected items classified in one go');
+  await page.selectOption('#caType', 'ماتيريال');
+  await page.waitForFunction(() => document.querySelectorAll('#caList tr.ca-row').length === 2);
+  await page.selectOption('#caType', '');
+  await page.fill('#caQ', '');
   await page.click('.card-head [data-act="caEdit"]');
   await page.waitForSelector('.modal #caN');
   await page.fill('.modal #caN', 'Cotton Rolls');

@@ -772,6 +772,7 @@ const API_ = {
   getCatalogAdmin:           { screens: ['procurement', 'finance'], perm: 'users', fn: getCatalogAdmin_ },
   saveCatalogItem:           { screens: ['procurement', 'finance'], perm: 'users', fn: saveCatalogItem_ },
   saveCatalogItems:          { screens: ['procurement', 'finance'], perm: 'users', fn: saveCatalogItems_ },
+  classifyCatalogItems:      { screens: ['procurement', 'finance'], perm: 'users', fn: classifyCatalogItems_ },
   deleteCatalogItem:         { screens: ['procurement', 'finance'], perm: 'users', fn: deleteCatalogItem_ },
   deleteCatalogItems:        { screens: ['procurement', 'finance'], perm: 'users', fn: deleteCatalogItems_ },
   getDoctorsAdmin:           { screens: [], perm: 'users', fn: getDoctorsAdmin_ },
@@ -2304,7 +2305,7 @@ const SLA_STAGES_ = ['appr', 'prep', 'send', 'arr', 'rcv'];
  * رفض الاستلام في الشهر: متى (تاريخ ووقت)، من رفض، رقم الطلب، السبب، وما كان مطلوباً (الصنف الأصلي إن كان المرسل بديلاً)
  * — من سطور الشحنات المرفوضة عند الاستلام (RejectReason) وتوقيع الشحنة.
  */
-function receiptRejects_(month) {
+function receiptRejects_(inPeriod) {
   const ids = scopedRequestIds_();
   const ship = {};
   read_('Shipments').rows.forEach(function (r) { ship[str_(r.RequestID) + '#' + Number(r.Batch)] = r; });
@@ -2319,7 +2320,7 @@ function receiptRejects_(month) {
       reason: str_(r.RejectReason), photo: str_(r.RejectPhoto), item: str_(r.ItemName), qty: Number(r.Qty) || 0,
       requested: orig || str_(r.ItemName), requestedQty: Number(origRow.RequestedQty) || 0, substitute: !!orig,
       clinic: str_(q.Clinic), doctor: str_(q.Doctor), nurse: str_(q.Nurse), branch: str_(q.Branch), type: str_(q.Type) };
-  }).filter(function (x) { return !month || monthOf_(x.time) === month; })
+  }).filter(function (x) { return !inPeriod || inPeriod(x.time); })
     .sort(function (a, b) { return toMs_(b.time) - toMs_(a.time); });
 }
 /** الطلبات المحمّلة الآن في بوكسات (لقياس مرحلة الوصول للفرع) */
@@ -2560,8 +2561,16 @@ function stageOf_(r) {
 function getMonitor_(user, opts) {
   opts = opts || {};
   const now = Date.now();
-  const month = /^\d{4}-\d{2}$/.test(str_(opts.month)) ? str_(opts.month) : Utilities.formatDate(new Date(now), TZ, 'yyyy-MM');
+  // الفترة: شهر واحد (الافتراضي الشهر الحالي) · من شهر إلى شهر · الكل — الصفحة كلها تتبعها
+  const curMonth = Utilities.formatDate(new Date(now), TZ, 'yyyy-MM'), okM = function (v) { return /^\d{4}-\d{2}$/.test(str_(v)); };
+  let pFrom, pTo;
+  if (opts.all) { pFrom = ''; pTo = ''; }
+  else if (okM(opts.from) || okM(opts.to)) { pFrom = okM(opts.from) ? str_(opts.from) : ''; pTo = okM(opts.to) ? str_(opts.to) : ''; if (pFrom && pTo && pFrom > pTo) { const x = pFrom; pFrom = pTo; pTo = x; } }
+  else { pFrom = pTo = okM(opts.month) ? str_(opts.month) : curMonth; }
+  const month = pFrom && pFrom === pTo ? pFrom : '';
+  const inP = function (v) { const m = monthOf_(v); return !!m && (!pFrom || m >= pFrom) && (!pTo || m <= pTo); };
   const all = queryRequests_({}).filter(function (r) { return !isOff_(r.status); });
+  const inPeriodAll = all.filter(function (r) { return inP(r.submittedAt || r.date); });
   function row(r) {
     const s = stageOf_(r);
     return { id: r.id, type: r.type, branch: r.branch, clinic: r.clinic, doctor: r.doctor, nurse: r.nurse, status: r.status,
@@ -2570,14 +2579,15 @@ function getMonitor_(user, opts) {
       hoursLeft: !r.overdue ? round1_((toMs_(r.dueAt) - now) / 36e5) : 0,
       remainingQty: r.remainingQty, sentQty: r.sentQty };
   }
-  const late = all.filter(function (r) { return r.overdue; }).map(row).sort(function (a, b) { return b.hoursLate - a.hoursLate; });
-  const atRisk = all.filter(function (r) { return r.atRisk; }).map(row).sort(function (a, b) { return a.hoursLeft - b.hoursLeft; });
+  // المتأخر والقريب من الموعد: طلبات الفترة المختارة فقط
+  const late = inPeriodAll.filter(function (r) { return r.overdue; }).map(row).sort(function (a, b) { return b.hoursLate - a.hoursLate; });
+  const atRisk = inPeriodAll.filter(function (r) { return r.atRisk; }).map(row).sort(function (a, b) { return a.hoursLeft - b.hoursLeft; });
 
   // أداء التموين للشهر المختار (حسب شهر الرفع)
   const H = 36e5;
   function hrs(a, b) { const x = toMs_(a), y = toMs_(b); return x && y && y >= x ? (y - x) / H : null; }
   function avg(a) { return a.length ? round1_(a.reduce(function (x, y) { return x + y; }, 0) / a.length) : null; }
-  const inMonth = all.filter(function (r) { return !r.backdated && monthOf_(r.submittedAt || r.date) === month; });
+  const inMonth = inPeriodAll.filter(function (r) { return !r.backdated; });
   const RULES = orderRules_();
   const toPrep = [], toSend = [], toRecv = [], emergencyHrs = [];
   let received = 0, onTime = 0, lateSubmits = 0, monthly = 0, emergency = 0;
@@ -2607,7 +2617,7 @@ function getMonitor_(user, opts) {
       b.n++; b.sum += x.hrs; if (!x.late) b.onTime++;
     });
   });
-  all.forEach(function (r) {
+  inPeriodAll.forEach(function (r) {
     if (!r.slaLate) return;
     sla[SLA_STAGES_.indexOf(r.slaLate.k)].lateNow++;
     const s = stageOf_(r);
@@ -2633,10 +2643,11 @@ function getMonitor_(user, opts) {
     emergencyOnTimeRate: emergencyHrs.length ? Math.round(emergencyHrs.filter(function (h) { return h <= RULES.emergencyHours; }).length / emergencyHrs.length * 100) : null
   };
 
-  // دورة الطلب الشهري حسب الطبيب: هل رُفع طلبه الشهري لهذا الشهر؟ ومتى (في الفترة أو متأخراً)؟
-  const cycleMonth = Utilities.formatDate(new Date(now), TZ, 'yyyy-MM');
-  const today = Number(Utilities.formatDate(new Date(now), TZ, 'dd'));
+  // دورة الطلب الشهري حسب الطبيب لشهر الفترة (أو آخر شهر فيها؛ «الكل» = الشهر الحالي): هل رُفع طلبه الشهري؟ ومتى؟
+  const cycleMonth = month || pTo || curMonth;
+  const today = cycleMonth < curMonth ? 99 : cycleMonth > curMonth ? 0 : Number(Utilities.formatDate(new Date(now), TZ, 'dd'));
   const passed = today > RULES.winEnd;
+  const cycleRef = cycleMonth === curMonth ? now : new Date(cycleMonth + '-' + ('0' + RULES.winStart).slice(-2) + 'T12:00:00+03:00').getTime();
   const byDoc = {};
   all.forEach(function (r) {
     // الطلب الشهري فقط: لا الطارئ ولا الطلب السابق المُدخل بأثر رجعي (ليس رفعاً لهذا الشهر) — لكل طبيب في كل فرع
@@ -2665,9 +2676,10 @@ function getMonitor_(user, opts) {
     return o[a.state] - o[b.state] || a.doctor.localeCompare(b.doctor) || String(a.branch).localeCompare(String(b.branch));
   });
   return {
-    now: new Date(now), late: late, atRisk: atRisk, kpis: kpis, sla: sla, slaLate: slaLate, rcvRejects: receiptRejects_(month),
+    now: new Date(now), period: { month: month, from: pFrom, to: pTo, all: !pFrom && !pTo },
+    late: late, atRisk: atRisk, kpis: kpis, sla: sla, slaLate: slaLate, rcvRejects: receiptRejects_(inP),
     cycle: { month: cycleMonth, window: [RULES.winStart, RULES.winEnd], today: today, open: today >= RULES.winStart && today <= RULES.winEnd,
-      due: new Date(monthlyDue_(now, RULES) - 864e5 + 1), doctors: cycle, missing: cycle.filter(function (c) { return !c.count; }).length,
+      due: new Date(monthlyDue_(cycleRef, RULES) - 864e5 + 1), doctors: cycle, missing: cycle.filter(function (c) { return !c.count; }).length,
       lateSubmits: cycle.filter(function (c) { return c.state === 'late'; }).length, passed: passed },
     rules: { window: [RULES.winStart, RULES.winEnd], emergencyHours: RULES.emergencyHours, emergencyFastHours: Math.min(EMERGENCY_FAST_HOURS, RULES.emergencyHours), atRiskDays: AT_RISK_DAYS, dispatchDay: RULES.dispatchDay }
   };
@@ -2709,7 +2721,7 @@ function dailyDigest(e) {
   return sendDigest_();
 }
 function sendDigest_() {
-  const m = getMonitor_({}, {});
+  const m = getMonitor_({}, { all: true }); // الملخص اليومي: كل المتأخرات أياً كان شهرها
   if (!m.late.length && !m.atRisk.length) return 0;
   const line = function (r) {
     return '- ' + r.id + ' · ' + (r.doctor || r.clinic) + (r.branch ? ' · ' + r.branch : '') + ' · ' + r.type +
@@ -6585,6 +6597,33 @@ function saveCatalogItem_(user, orig, it) {
     resetMemo_();
   });
   return { ok: true, name: f.name, renamed: renamed, aliases: aliasOut };
+}
+
+/**
+ * تصنيف أصناف محددة دفعة واحدة: c = { dept: 'أسنان'|'جلدية'|'' (مشترك)، type: مستهلك|ماتيريال|أدوات، asset: true|false }
+ * — كل حقل غير مُرسل (undefined) يبقى كما هو. الأسماء البديلة لا تُمس.
+ */
+function classifyCatalogItems_(user, names, c) {
+  c = c || {};
+  if (!Array.isArray(names) || !names.length) throw new Error('ERR_REQUIRED');
+  const want = {};
+  names.slice(0, 2000).forEach(function (n) { want[str_(n).toLowerCase()] = true; });
+  const obj = {};
+  if (c.dept !== undefined) { if (c.dept !== '' && DEPTS.indexOf(str_(c.dept)) === -1) throw new Error('ERR_BAD_DEPT'); obj.Department = normDept_(c.dept); }
+  if (c.type !== undefined) { if (ITEM_TYPES_.indexOf(str_(c.type)) === -1) throw new Error('ERR_FREE_ITEM_TYPE'); obj.ItemType = str_(c.type); }
+  if (c.asset !== undefined) { obj.Ownership = c.asset ? 'عهدة' : ''; if (!c.asset) obj.Serialized = ''; }
+  if (!Object.keys(obj).length) throw new Error('ERR_REQUIRED');
+  let n = 0;
+  withLock_(function () {
+    resetMemo_();
+    const t = tableWithCols_('ItemsCatalog');
+    const ups = t.rows.filter(function (r) { return want[str_(r.ItemName).toLowerCase()] && !str_(r.AliasOf); }).map(function (r) { return { row: r, obj: obj }; });
+    if (ups.length) setMany_(t, ups);
+    n = ups.length;
+    logAction_('', 'تصنيف ' + n + ' صنف: ' + [obj.Department !== undefined ? 'القسم ' + (obj.Department || 'مشترك') : '', obj.ItemType || '', obj.Ownership !== undefined ? (obj.Ownership ? 'عهدة' : 'ليست عهدة') : ''].filter(String).join(' · '), user.name);
+  });
+  resetMemo_();
+  return { updated: n, catalog: getCatalogAdmin_(user) };
 }
 
 /**

@@ -71,6 +71,8 @@ const I18N = {
     sla_appr: 'الاعتماد', sla_prep: 'بدء التجهيز', sla_send: 'الإرسال للفرع', sla_arr: 'الوصول للفرع', sla_rcv: 'الاستلام', rl_sla_m: 'الوقت المستهدف لكل مرحلة — الشهري (ساعات)', rl_sla_e: 'الوقت المستهدف لكل مرحلة — الطارئ (ساعات)', rl_sla_h_appr: 'من الرفع حتى اعتماد الطبيب أو مدير الفرع', rl_sla_h_prep: 'من الاعتماد حتى «قيد التجهيز»', rl_sla_h_send: 'من بدء التجهيز حتى أول شحنة', rl_sla_h_arr: 'من الإرسال حتى وصول البوكس للفرع', rl_sla_h_rcv: 'من الوصول حتى توقيع الممرضة', sla_late: 'تجاوز وقت «{s}»: {h} س من {t} س', sla_late_h: 'المرحلة الحالية تجاوزت وقتها المستهدف في قواعد الطلبات', mon_sla_title: 'مؤشرات أداء المراحل', mon_sla_sub: 'نسبة المراحل المنتهية خلال وقتها المستهدف هذا الشهر، ومتوسط الوقت الفعلي مقابل المستهدف — الأوقات تُعدَّل من «قواعد الطلبات»', mon_sla_m_rate: 'الشهري: الالتزام', mon_sla_m_avg: 'الشهري: المتوسط / المستهدف', mon_sla_e_rate: 'الطارئ: الالتزام', mon_sla_e_avg: 'الطارئ: المتوسط / المستهدف', mon_sla_now: 'متجاوز الآن', mon_sla_late_list: 'طلبات تجاوزت وقت مرحلتها الآن', mon_sla_spent: 'المستغرق / المستهدف',
     nav_nurse_voice: 'استبيان التمريض', sub_nurse_voice: 'ملاحظات التمريض ونسخة من كل بلاغ (طلب/شحنة وعهدة) بحالته', ni_new: 'ملاحظة جديدة', ni_new_h: 'تصل للجودة والإدارة فقط — لا تذهب لبلاغات التموين. لبلاغ على طلب أو أداة استخدمي زر «بلاغ» في الطلب أو العهدة.', ni_type: 'النوع', ni_msg: 'الملاحظة', ni_msg_ph: 'اكتبي ملاحظتك أو اقتراحك…', ni_sent: 'أُرسلت ملاحظتك', ni_all: 'الكل', ni_src_req: 'بلاغات الطلبات', ni_src_asset: 'بلاغات العهدة', ni_src_survey: 'من الاستبيان', ni_open: 'مفتوحة', ni_closed: 'مغلقة', ni_copy_h: 'نسخة من بلاغ في النظام — حالتها تتبع الأصل', ni_work: 'قيد المتابعة', ni_close: 'إغلاق بملاحظة', ni_note: 'ملاحظة المتابعة', ni_saved: 'تم التحديث', ni_none: 'لا توجد ملاحظات', ERR_ISSUE_COPY: 'هذه نسخة من بلاغ — تُتابع من مكانه الأصلي',
     ds_all_nurses: 'كل الممرضات', ds_units: 'الكمية', ds_sent: 'المرسل', ds_left: 'المتبقي', stage: 'المرحلة',
+    mon_period: 'الفترة', mon_p_month: 'شهر', mon_p_range: 'من شهر إلى شهر', mon_p_all: 'الكل', mon_from: 'من', mon_to: 'إلى',
+    free_type: 'النوع', ca_f_dept_all: 'كل الأقسام', ca_f_type_all: 'كل الأنواع', ca_f_asset_all: 'عهدة وغيرها', ca_f_asset_yes: 'عهدة', ca_f_asset_no: 'ليست عهدة', ca_f_dup: 'المكررة فقط', ca_dup_n: 'مكرر ×{n}', ca_dup_h: 'نفس الاسم تقريباً لصنف آخر — راجعه أو اجعله اسماً بديلاً', ca_class_sel: 'تصنيف المحدد ({n})', ca_keep: 'بدون تغيير', ca_asset: 'العهدة', ca_class_h: 'اختر ما تريد تغييره فقط — «بدون تغيير» تبقى كما هي. تحديد سريع: اسحب بالماوس على الصفوف، أو Shift + نقرة لتحديد مدى.', ca_class_none: 'اختر قسماً أو نوعاً أو عهدة', ca_classified: 'صُنّف {n} صنف',
     da_branches: 'الفروع التي يعمل بها', da_branches_h: 'لكل فرع طلب شهري وحد طلبات مستقل — بدون تحديد = فروع عياداته', da_nurses: 'الممرضات مع الطبيب', da_nurses_h: 'يطلبن له في عياداته وفروعه — الحد واحد لكل فرع مهما كانت الممرضة', ERR_DOCTOR_BRANCH: 'الطبيب لا يعمل في هذا الفرع. فروعه', ERR_BAD_BRANCH: 'فرع غير معروف', ERR_BRANCH_IN_USE: 'لا يُحذف فرع له عيادات', st_branches: 'الفروع', st_branch_add: 'إضافة فرع', st_branch_ph: 'اسم الفرع الجديد', st_branches_h: 'الفرع الجديد يظهر في كل القوائم (العيادات، الأطباء، المستخدمين، التقارير). أضف عياداته من «العيادات» بنفس اسم الفرع.', st_branch_del_q: 'حذف الفرع {b}؟',
     rl_dl_used_b: 'شهري {m} · طارئ {e}', rl_dl_per_branch: 'الحد يُطبَّق على كل فرع على حدة',
     rl_dl_count: 'حد خاص لـ {n} طبيب', rl_dl_which: 'الطلبات المحسوبة',
@@ -207,6 +209,8 @@ const I18N = {
     sla_appr: 'Approval', sla_prep: 'Prep start', sla_send: 'Dispatch', sla_arr: 'Arrival at branch', sla_rcv: 'Receipt', rl_sla_m: 'Target time per stage — monthly (hours)', rl_sla_e: 'Target time per stage — emergency (hours)', rl_sla_h_appr: 'From submission to doctor / branch manager approval', rl_sla_h_prep: 'From approval to «preparing»', rl_sla_h_send: 'From prep start to the first shipment', rl_sla_h_arr: 'From dispatch to the box arriving at the branch', rl_sla_h_rcv: 'From arrival to the nurse signing', sla_late: '«{s}» over target: {h}h of {t}h', sla_late_h: 'The current stage is past its target time in the order rules', mon_sla_title: 'Stage performance indicators', mon_sla_sub: 'Share of stages finished within their target this month, and average actual time vs target — targets are set in «Order rules»', mon_sla_m_rate: 'Monthly: on time', mon_sla_m_avg: 'Monthly: average / target', mon_sla_e_rate: 'Emergency: on time', mon_sla_e_avg: 'Emergency: average / target', mon_sla_now: 'Over target now', mon_sla_late_list: 'Requests past their stage target now', mon_sla_spent: 'Spent / target',
     nav_nurse_voice: 'Nurse survey', sub_nurse_voice: 'Nurse notes and a copy of every complaint (request/shipment and custody) with its status', ni_new: 'New note', ni_new_h: 'Goes to Quality and management only — not to Procurement complaints. For a complaint about a request or tool use the «Report» button there.', ni_type: 'Type', ni_msg: 'Note', ni_msg_ph: 'Write your note or suggestion…', ni_sent: 'Your note was sent', ni_all: 'All', ni_src_req: 'Request complaints', ni_src_asset: 'Custody tickets', ni_src_survey: 'From the survey', ni_open: 'Open', ni_closed: 'Closed', ni_copy_h: 'A copy of a complaint in the system — its status follows the original', ni_work: 'In follow-up', ni_close: 'Close with a note', ni_note: 'Follow-up note', ni_saved: 'Updated', ni_none: 'No notes', ERR_ISSUE_COPY: 'This is a copy of a complaint — follow it up where it was raised',
     ds_all_nurses: 'All nurses', ds_units: 'Quantity', ds_sent: 'Sent', ds_left: 'Remaining', stage: 'Stage',
+    mon_period: 'Period', mon_p_month: 'Month', mon_p_range: 'From month to month', mon_p_all: 'All', mon_from: 'From', mon_to: 'To',
+    free_type: 'Type', ca_f_dept_all: 'All departments', ca_f_type_all: 'All types', ca_f_asset_all: 'Custody & others', ca_f_asset_yes: 'Custody', ca_f_asset_no: 'Not custody', ca_f_dup: 'Duplicates only', ca_dup_n: 'Duplicate ×{n}', ca_dup_h: 'Almost the same name as another item — review it or make it an alias', ca_class_sel: 'Classify selected ({n})', ca_keep: 'No change', ca_asset: 'Custody', ca_class_h: 'Pick only what to change — «No change» stays as is. Quick select: drag over rows with the mouse, or Shift + click for a range.', ca_class_none: 'Pick a department, type or custody', ca_classified: '{n} item(s) classified',
     da_branches: 'Branches he works in', da_branches_h: 'A monthly order and separate limits per branch — none ticked = his clinics’ branches', da_nurses: 'Nurses with the doctor', da_nurses_h: 'They order for him in his clinics and branches — one limit per branch whichever nurse', ERR_DOCTOR_BRANCH: 'The doctor does not work in this branch. His branches', ERR_BAD_BRANCH: 'Unknown branch', ERR_BRANCH_IN_USE: 'A branch with clinics can’t be deleted', st_branches: 'Branches', st_branch_add: 'Add branch', st_branch_ph: 'New branch name', st_branches_h: 'A new branch shows in every list (clinics, doctors, users, reports). Add its clinics under «Clinics» with the same branch name.', st_branch_del_q: 'Delete branch {b}?',
     rl_dl_used_b: 'monthly {m} · emergency {e}', rl_dl_per_branch: 'The limit applies to each branch separately',
     rl_dl_count: 'Special limit for {n} doctor(s)', rl_dl_which: 'Counted requests',
@@ -4369,7 +4373,7 @@ ACT.fiApprove = el => {
 /* =====================================================================
    CATALOG ADMIN (procurement + admin): إضافة الأصناف وتعديلها وحذفها وتصنيفها من الموقع
    ===================================================================== */
-const CA = { data: null, q: '', cat: '', sel: new Set() };
+const CA = { data: null, q: '', cat: '', sel: new Set(), dept: '', type: '', asset: '', dup: false, last: null };
 function refreshCatalog() { call('getConfig').then(c => { if (c && c.catalog) S.catalog = c.catalog; }).catch(() => {}); }
 function loadCatalogAdmin(silent) {
   return call('getCatalogAdmin').then(d => { CA.data = d; renderCatalogAdmin(); }).catch(e => { if (!silent) toast(errMsg(e), 'error'); });
@@ -4380,6 +4384,12 @@ VIEWS.catalog = {
     return '<section class="card"><div class="card-head row-wrap" style="gap:8px">' +
       '<div class="input-icon grow" style="min-width:180px">' + icon('search') + '<input class="input" id="caQ" placeholder="' + esc(t('ca_search')) + '" value="' + esc(CA.q) + '"></div>' +
       '<select class="input" id="caCat" style="max-width:200px"></select>' +
+      // فرز: القسم، النوع، العهدة، والمكررة بالاسم
+      '<select class="input" id="caDept" style="max-width:150px" aria-label="' + esc(t('user_dept')) + '">' + [['', 'ca_f_dept_all'], ['أسنان', 'dept_dental'], ['جلدية', 'dept_derma'], ['shared', 'dept_shared']].map(o => '<option value="' + o[0] + '"' + (CA.dept === o[0] ? ' selected' : '') + '>' + esc(t(o[1])) + '</option>').join('') + '</select>' +
+      '<select class="input" id="caType" style="max-width:150px" aria-label="' + esc(t('free_type')) + '">' + [['', 'ca_f_type_all'], ['مستهلك', 'free_type_cons'], ['ماتيريال', 'free_type_mat'], ['أدوات', 'free_type_tools']].map(o => '<option value="' + o[0] + '"' + (CA.type === o[0] ? ' selected' : '') + '>' + esc(t(o[1])) + '</option>').join('') + '</select>' +
+      '<select class="input" id="caAsset" style="max-width:150px">' + [['', 'ca_f_asset_all'], ['yes', 'ca_f_asset_yes'], ['no', 'ca_f_asset_no']].map(o => '<option value="' + o[0] + '"' + (CA.asset === o[0] ? ' selected' : '') + '>' + esc(t(o[1])) + '</option>').join('') + '</select>' +
+      '<label class="row-wrap" style="gap:4px;font-size:13px"><input type="checkbox" id="caDup"' + (CA.dup ? ' checked' : '') + '> ' + esc(t('ca_f_dup')) + '</label>' +
+      '<button class="btn btn-primary btn-sm hidden" id="caClassSel" data-act="caClassify">' + icon('tag', 'i-sm') + '<span></span></button>' +
       '<button class="btn btn-danger-soft btn-sm hidden" id="caDelSel" data-act="caDelSel">' + icon('trash', 'i-sm') + '<span></span></button>' +
       '<button class="btn btn-soft btn-sm" data-act="caBulk">' + icon('layers', 'i-sm') + esc(t('cb_btn')) + '</button>' +
       '<button class="btn btn-primary btn-sm" data-act="caEdit">' + icon('plus', 'i-sm') + esc(t('ca_add')) + '</button></div>' +
@@ -4388,6 +4398,9 @@ VIEWS.catalog = {
   mount(root) {
     $('#caQ', root).addEventListener('input', e => { CA.q = e.target.value.trim().toLowerCase(); renderCatalogAdmin(); });
     $('#caCat', root).addEventListener('change', e => { CA.cat = e.target.value; renderCatalogAdmin(); });
+    [['caDept', 'dept'], ['caType', 'type'], ['caAsset', 'asset']].forEach(x => $('#' + x[0], root).addEventListener('change', e => { CA[x[1]] = e.target.value; renderCatalogAdmin(); }));
+    $('#caDup', root).addEventListener('change', e => { CA.dup = e.target.checked; renderCatalogAdmin(); });
+    caDragSelect($('#caList', root));
     if (CA.data) renderCatalogAdmin(); loadCatalogAdmin(!!CA.data);
   },
   refresh() { loadCatalogAdmin(true); }
@@ -4397,8 +4410,16 @@ function renderCatalogAdmin() {
   const box = $('#caList'), sel = $('#caCat'); if (!box || !CA.data) return;
   const d = CA.data;
   sel.innerHTML = '<option value="">' + esc(t('ca_all_cats', { n: d.items.length })) + '</option>' + d.categories.map(c => '<option value="' + esc(c) + '"' + (c === CA.cat ? ' selected' : '') + '>' + esc(c) + ' (' + d.items.filter(i => i.category === c).length + ')</option>').join('');
-  const list = d.items.filter(i => (!CA.cat || i.category === CA.cat) &&
+  // المكررة: نفس الاسم بعد توحيد الحروف والمسافات والرموز (مثل «3M Z250» و«3m-z 250»)
+  const dupKey = n => String(n || '').toLowerCase().replace(/[\u064B-\u0652]/g, '').replace(/[أإآ]/g, 'ا').replace(/ة/g, 'ه').replace(/ى/g, 'ي').replace(/[^0-9a-z\u0600-\u06ff]+/g, '');
+  const dupN = {};
+  d.items.forEach(i => { const k = dupKey(i.name); dupN[k] = (dupN[k] || 0) + 1; });
+  let list = d.items.filter(i => (!CA.cat || i.category === CA.cat) &&
+    (!CA.dept || (CA.dept === 'shared' ? !i.dept : i.dept === CA.dept)) && (!CA.type || i.type === CA.type) &&
+    (!CA.asset || (CA.asset === 'yes') === !!i.asset) && (!CA.dup || dupN[dupKey(i.name)] > 1) &&
     (!CA.q || [i.name, i.commercial, i.category].concat(i.aliases).join(' ').toLowerCase().indexOf(CA.q) !== -1));
+  if (CA.dup) list = list.slice().sort((a, b) => dupKey(a.name).localeCompare(dupKey(b.name)));
+  CA.visible = list;
   // التحديد يبقى للأصناف الموجودة فقط (بعد الحذف أو إعادة التحميل)
   const names = new Set(d.items.map(i => i.name));
   CA.sel.forEach(n => { if (!names.has(n)) CA.sel.delete(n); });
@@ -4408,7 +4429,8 @@ function renderCatalogAdmin() {
   box.innerHTML = '<div class="table-wrap" style="max-height:620px;overflow:auto"><table class="table"><thead><tr><th style="width:36px"><input type="checkbox" class="check" id="caAll" data-change="caSelAll"' + (allOn ? ' checked' : '') + ' aria-label="' + esc(t('select_all')) + '"></th><th>' + esc(t('items')) + '</th><th>' + esc(t('ca_category')) + '</th><th>' + esc(t('ca_type')) + '</th><th class="num">' + esc(t('fn_price')) + '</th><th></th></tr></thead><tbody>' +
     list.map(i => {
       const k = d.items.indexOf(i);
-      return '<tr' + (CA.sel.has(i.name) ? ' class="selected"' : '') + '><td><input type="checkbox" class="check" data-change="caSel" data-i="' + k + '"' + (CA.sel.has(i.name) ? ' checked' : '') + ' aria-label="' + esc(i.name) + '"></td><td><b>' + esc(i.name) + '</b> ' + deptTag(i.dept) + (i.asset ? ' <span class="tag">' + esc(t(i.serialized ? 'ca_asset_serial' : 'ca_asset')) + '</span>' : '') +
+      const dn = dupN[dupKey(i.name)];
+      return '<tr class="ca-row' + (CA.sel.has(i.name) ? ' selected' : '') + '"><td><input type="checkbox" class="check" data-change="caSel" data-i="' + k + '"' + (CA.sel.has(i.name) ? ' checked' : '') + ' aria-label="' + esc(i.name) + '"></td><td><b>' + esc(i.name) + '</b> ' + (dn > 1 ? '<span class="tag late" title="' + esc(t('ca_dup_h')) + '">' + esc(t('ca_dup_n', { n: dn })) + '</span> ' : '') + deptTag(i.dept) + (i.asset ? ' <span class="tag">' + esc(t(i.serialized ? 'ca_asset_serial' : 'ca_asset')) + '</span>' : '') +
           (i.commercial ? '<div class="muted" style="font-size:12px">' + esc(i.commercial) + '</div>' : '') +
           (i.aliases.length ? '<div class="hint">' + i.aliases.map(a => '<span class="alias-nm">' + esc(a) + '</span>').join('، ') + '</div>' : '') + '</td>' +
         '<td>' + (i.category ? '<span class="tag">' + esc(i.category) + '</span>' : '<span class="muted">—</span>') + '</td>' +
@@ -4422,7 +4444,60 @@ function caSelBtn() {
   const b = $('#caDelSel'); if (!b) return;
   b.classList.toggle('hidden', !CA.sel.size);
   b.querySelector('span').textContent = t('ca_del_sel', { n: CA.sel.size });
+  const c = $('#caClassSel');
+  if (c) { c.classList.toggle('hidden', !CA.sel.size); c.querySelector('span').textContent = t('ca_class_sel', { n: CA.sel.size }); }
 }
+/* تحديد سريع: اسحب بالماوس على الصفوف لتحديدها (أو إلغائها)، أو Shift + نقرة لتحديد مدى من الصفوف */
+function caDragSelect(box) {
+  if (!box || box.dataset.drag) return;
+  box.dataset.drag = '1';
+  let drag = null;
+  const setRow = (tr, on) => {
+    const cb = tr && tr.querySelector('input[data-change="caSel"]'); if (!cb) return;
+    const it = CA.data.items[Number(cb.dataset.i)]; if (!it) return;
+    cb.checked = on; tr.classList.toggle('selected', on);
+    if (on) CA.sel.add(it.name); else CA.sel.delete(it.name);
+  };
+  const rows = () => $$('#caList tr.ca-row');
+  box.addEventListener('mousedown', e => {
+    const tr = e.target.closest('tr.ca-row');
+    if (!tr || e.button !== 0 || e.target.closest('button, a, input:not([data-change="caSel"])')) return;
+    const cb = tr.querySelector('input[data-change="caSel"]');
+    const idx = rows().indexOf(tr), on = !cb.checked;
+    if (e.shiftKey && CA.last !== null) {
+      const all = rows(), a = Math.min(CA.last, idx), b = Math.max(CA.last, idx);
+      for (let i = a; i <= b; i++) setRow(all[i], on);
+    } else setRow(tr, on);
+    CA.last = idx;
+    drag = { on: on };
+    e.preventDefault(); // بدون تحديد نص أثناء السحب
+    caSelBtn();
+  });
+  box.addEventListener('mouseover', e => { if (!drag) return; const tr = e.target.closest('tr.ca-row'); if (tr) { setRow(tr, drag.on); caSelBtn(); } });
+  document.addEventListener('mouseup', () => { drag = null; });
+  // النقر على المربع نفسه يُعالَج في mousedown (لا تبديل مزدوج)
+  box.addEventListener('click', e => { if (e.detail > 0 && e.target.matches('input[data-change="caSel"]')) e.preventDefault(); }); // لوحة المفاتيح (مسافة) تبقى تعمل عادي
+}
+/* تصنيف المحدد دفعة واحدة: القسم، النوع، العهدة (كل خانة «بدون تغيير» تبقى كما هي) */
+ACT.caClassify = () => {
+  const names = Array.from(CA.sel); if (!names.length) return;
+  const sel = (id, opts) => '<select class="select" id="' + id + '"><option value="__">' + esc(t('ca_keep')) + '</option>' + opts.map(o => '<option value="' + o[0] + '">' + esc(t(o[1])) + '</option>').join('') + '</select>';
+  const m = openModal({ title: esc(t('ca_class_sel', { n: names.length })), icon: 'tag', size: 'sm',
+    body: '<div class="field"><label for="ccD">' + esc(t('user_dept')) + '</label>' + sel('ccD', [['أسنان', 'dept_dental'], ['جلدية', 'dept_derma'], ['', 'dept_shared']]) + '</div>' +
+      '<div class="field"><label for="ccT">' + esc(t('free_type')) + '</label>' + sel('ccT', [['مستهلك', 'free_type_cons'], ['ماتيريال', 'free_type_mat'], ['أدوات', 'free_type_tools']]) + '</div>' +
+      '<div class="field"><label for="ccA">' + esc(t('ca_asset')) + '</label>' + sel('ccA', [['1', 'ca_f_asset_yes'], ['0', 'ca_f_asset_no']]) + '</div>' +
+      '<div class="hint">' + esc(t('ca_class_h')) + '</div><div class="field-error hidden" id="ccErr">' + icon('alert', 'i-sm') + '<span></span></div>',
+    foot: '<span class="spacer"></span><button class="btn" data-close>' + esc(t('cancel')) + '</button><button class="btn btn-primary" id="ccOk">' + icon('check', 'i-sm') + esc(t('save')) + '</button>' });
+  $('#ccOk', m.el).addEventListener('click', e => {
+    const c = {}, dv = $('#ccD', m.el).value, tv = $('#ccT', m.el).value, av = $('#ccA', m.el).value;
+    if (dv !== '__') c.dept = dv; if (tv !== '__') c.type = tv; if (av !== '__') c.asset = av === '1';
+    const err = $('#ccErr', m.el);
+    if (!Object.keys(c).length) { err.querySelector('span').textContent = t('ca_class_none'); err.classList.remove('hidden'); return; }
+    const b = e.currentTarget; busy(b, true);
+    call('classifyCatalogItems', names, c).then(r => { closeModal(m); CA.data = r.catalog; CA.sel.clear(); renderCatalogAdmin(); refreshCatalog(); toast(t('ca_classified', { n: r.updated }), 'success'); })
+      .catch(er => { busy(b, false); err.querySelector('span').textContent = errMsg(er); err.classList.remove('hidden'); });
+  });
+};
 ACT.caSel = el => { const it = CA.data.items[Number(el.dataset.i)]; if (!it) return; if (el.checked) CA.sel.add(it.name); else CA.sel.delete(it.name); el.closest('tr').classList.toggle('selected', el.checked); caSelBtn(); };
 ACT.caSelAll = el => {
   // تحديد الكل = الأصناف الظاهرة حسب البحث والتصنيف
@@ -5929,14 +6004,19 @@ ACT.sendNotice = el => {
    MONITOR — متابعة التموين والمواعيد (للجودة ومن لديه صلاحية المتابعة)
    الشهري: الرفع 15–20 والاستلام قبل نهاية يوم 1 من الشهر التالي · الطارئ: 48 ساعة (الهدف ساعتان)
    ===================================================================== */
-const MON = { month: '', data: null };
+const MON = { month: '', mode: 'month', from: '', to: '', data: null };
 const STAGE_TONE = { doctor: 'var(--t-violet)', prep: 'var(--t-amber)', dispatch: 'var(--t-orange)', partial: 'var(--t-indigo)', receipt: 'var(--t-blue)', done: 'var(--t-green)' };
 VIEWS.monitor = {
   title: 'nav_monitor', sub: 'sub_monitor',
   render() {
     if (!MON.month) MON.month = todayStr().slice(0, 7);
-    return '<div class="between"><div class="row-wrap"><span class="label">' + icon('calendar', 'i-sm') + ' ' + esc(t('mon_kpi_month')) + '</span>' +
-        '<input class="input" type="month" style="width:auto" id="monMonth" data-change="monMonth" value="' + esc(MON.month) + '"></div>' +
+    if (!MON.from) MON.from = MON.month; if (!MON.to) MON.to = MON.month;
+    // الفترة: شهر · من شهر إلى شهر · الكل — كل أقسام الصفحة تتبعها
+    return '<div class="between"><div class="row-wrap" style="gap:8px"><span class="label">' + icon('calendar', 'i-sm') + ' ' + esc(t('mon_period')) + '</span>' +
+        '<select class="select" id="monMode" data-change="monMode" style="width:auto">' + [['month', 'mon_p_month'], ['range', 'mon_p_range'], ['all', 'mon_p_all']].map(o => '<option value="' + o[0] + '"' + (MON.mode === o[0] ? ' selected' : '') + '>' + esc(t(o[1])) + '</option>').join('') + '</select>' +
+        (MON.mode === 'month' ? '<input class="input" type="month" style="width:auto" id="monMonth" data-change="monMonth" value="' + esc(MON.month) + '">' : '') +
+        (MON.mode === 'range' ? '<span class="muted">' + esc(t('mon_from')) + '</span><input class="input" type="month" style="width:auto" id="monFrom" data-change="monRange" value="' + esc(MON.from) + '">' +
+          '<span class="muted">' + esc(t('mon_to')) + '</span><input class="input" type="month" style="width:auto" id="monTo" data-change="monRange" value="' + esc(MON.to) + '">' : '') + '</div>' +
         '<div class="hint">' + icon('info', 'i-sm') + ' ' + esc(tr('mon_rules')) + '</div></div>' +
       '<div id="monBody" class="stack" style="gap:18px">' + skeletonList(3) + '</div>';
   },
@@ -5987,13 +6067,21 @@ ACT.dlOpen = el => {
     body: '<div class="stack" style="gap:6px">' + ids.map(id => '<button class="btn btn-soft btn-block mono" data-act="detail" data-id="' + esc(id) + '">' + esc(id) + '</button>').join('') + '</div>' });
 };
 ACT.monMonth = el => { MON.month = el.value || todayStr().slice(0, 7); monLoad(); };
+ACT.monMode = el => { MON.mode = el.value; go('monitor'); };
+ACT.monRange = () => { MON.from = $('#monFrom').value || MON.from; MON.to = $('#monTo').value || MON.to; monLoad(); };
+const monOpts = () => MON.mode === 'all' ? { all: true } : MON.mode === 'range' ? { from: MON.from, to: MON.to } : { month: MON.month };
+function monRevRange() {
+  if (MON.mode === 'all') return {};
+  if (MON.mode === 'range') { const a = MON.from <= MON.to ? MON.from : MON.to, b = MON.from <= MON.to ? MON.to : MON.from; return { from: monthRange(a).from, to: monthRange(b).to }; }
+  return monthRange(MON.month);
+}
 function monLoad(silent) {
   const box = $('#monBody'); if (!box) return;
-  swr('getMonitor', [{ month: MON.month }], m => {
+  swr('getMonitor', [monOpts()], m => {
     MON.data = m;
     if ($('#monBody')) { $('#monBody').innerHTML = monHtml(m) + '<div id="monRev"></div>'; renderReversals(); }
   }, e => { if (!silent && $('#monBody')) $('#monBody').innerHTML = emptyState('alert', errMsg(e)); });
-  swr('getReversals', [monthRange(MON.month)], list => { MON.rev = list || []; renderReversals(); }, () => {});
+  swr('getReversals', [monRevRange()], list => { MON.rev = list || []; renderReversals(); }, () => {});
 }
 /* سجل التراجعات: من تراجع، عن ماذا، إلى أين، ولماذا، ومتى */
 /* نصوص السجل محفوظة بالعربي في الشيت — تُعرض بلغة الواجهة */
