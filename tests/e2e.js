@@ -1601,6 +1601,7 @@ function log(msg) { console.log('  ✔ ' + msg); }
   await page.waitForSelector('#daList .da-row');
   await page.click('.card-head [data-act="daEdit"]');
   await page.waitForSelector('.modal #daN');
+  expect(await page.locator('.modal .da-br').count() >= 2 && await page.locator('.modal .da-nu').count() >= 1, 'doctor record: branches he works in + nurses with him');
   await page.fill('.modal #daN', 'د. ماجد');
   await page.fill('.modal #daS', 'Dentistry');
   await page.fill('.modal #daSub', 'Endodontics');

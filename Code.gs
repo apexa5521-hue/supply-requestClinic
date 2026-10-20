@@ -23,7 +23,8 @@ const SCHEMA = {
   Clinics:      ['ClinicName', 'Branch', 'Type'],
   // Specialty: Dentistry / Derma · LoginName: اسم دخول حساب الطبيب (للاطلاع؛ الربط الفعلي في Users.DoctorName)
   // ChargeTypes (تحدده المالية): ما يُحسب على الطبيب من طلباته — مستهلك / ماتيريال / فارغ = الاثنين
-  Doctors:      ['DoctorName', 'Clinic', 'NurseName', 'Subspecialty', 'Billing', 'Specialty', 'LoginName', 'ChargeTypes'],
+  // Branches: الفروع التي يعمل بها الطبيب (فارغ = فروع عياداته) — الحد الشهري/الطارئ لكل فرع على حدة
+  Doctors:      ['DoctorName', 'Clinic', 'NurseName', 'Subspecialty', 'Billing', 'Specialty', 'LoginName', 'ChargeTypes', 'Branches'],
   // Ownership: مستهلك (افتراضي) أو عهدة (على حساب الشركة) · Serialized: نعم للأدوات ذات الرقم التسلسلي (الهاندبيس…)
   // Department: أسنان / جلدية (فارغ = مشترك يظهر للقسمين) · ItemType: مستهلك أو ماتيريال (Category يبقى لتصنيف الصنف)
   ItemsCatalog: ['ItemName', 'CommercialName', 'Category', 'Price', 'Ownership', 'Serialized', 'Department', 'ItemType',
@@ -757,6 +758,7 @@ const API_ = {
   getSettingsAdmin:          { screens: ['lab', 'finance'], perm: 'users', fn: getSettingsAdmin_ },
   saveSettingKeys:           { screens: ['lab', 'finance'], perm: 'users', fn: saveSettingKeys_ },
   saveClinic:                { screens: [], perm: 'users', fn: saveClinic_ },
+  saveBranch:                { screens: [], perm: 'users', fn: saveBranch_ },
   deleteClinic:              { screens: [], perm: 'users', fn: deleteClinic_ },
   saveLab:                   { screens: [], perm: 'users', fn: saveLab_ },
   saveLabList:               { screens: [], perm: 'users', fn: saveLabList_ },
@@ -1754,10 +1756,49 @@ function getClinics_() {
 }
 
 /** كل الفروع المعرّفة في تبويب Clinics (بدون تكرار، بترتيب ظهورها) */
+/** الفروع: المضافة من الإعدادات (Settings ← Branches، لفرع جديد قبل عياداته) + فروع العيادات */
+const BRANCHES_KEY_ = 'Branches';
+function extraBranches_() { return str_(getSetting_(BRANCHES_KEY_, '')).split(/[,،]/).map(str_).filter(String); }
 function getBranches_() {
-  const out = [];
+  const out = extraBranches_().slice();
   getClinics_().forEach(function (c) { if (c.branch && out.indexOf(c.branch) === -1) out.push(c.branch); });
   return out;
+}
+/** إضافة/حذف فرع (الأدمن) — لا يُحذف فرع له عيادات */
+function saveBranch_(user, name, remove) {
+  name = clean_(name, 60);
+  if (!name || /[,،]/.test(name)) throw new Error('ERR_REQUIRED');
+  withLock_(function () {
+    resetMemo_();
+    const list = extraBranches_();
+    if (remove) {
+      if (getClinics_().some(function (c) { return c.branch === name; })) throw new Error('ERR_BRANCH_IN_USE');
+      const i = list.indexOf(name); if (i === -1) throw new Error('ERR_NOT_FOUND'); list.splice(i, 1);
+    } else {
+      if (getBranches_().indexOf(name) !== -1) throw new Error('ERR_EXISTS');
+      list.push(name);
+    }
+    const t = freshTable_('Settings'), row = t.rows.filter(function (r) { return str_(r.Key) === BRANCHES_KEY_; })[0];
+    if (row) setCells_(t, row, { Value: list.join(', ') });
+    else append_('Settings', { Key: BRANCHES_KEY_, Value: list.join(', '), Notes: 'فروع مضافة يدوياً (فرع جديد قبل تسجيل عياداته) — تُدار من الإعدادات' });
+    logAction_('', (remove ? 'حذف فرع: ' : 'إضافة فرع: ') + name, user.name);
+  });
+  resetMemo_();
+  return getBranches_();
+}
+/** فروع الطبيب: المحددة في سجله (Doctors ← Branches)، وإلا فروع عياداته */
+function doctorBranches_(name) {
+  if (!MEMO_.docBr) {
+    MEMO_.docBr = {};
+    read_('Doctors').rows.forEach(function (r) {
+      const n = str_(r.DoctorName); if (!n) return;
+      let list = str_(r.Branches).split(/[,،]/).map(str_).filter(String);
+      const explicit = list.length > 0;
+      if (!list.length) str_(r.Clinic).split(/[,،]/).map(str_).filter(String).forEach(function (c) { const b = clinicBranch_(c); if (b && list.indexOf(b) === -1) list.push(b); });
+      MEMO_.docBr[n] = { list: list, explicit: explicit };
+    });
+  }
+  return MEMO_.docBr[str_(name)] || { list: [], explicit: false };
 }
 
 /** اسم العرض في التقارير: العيادة المتكررة بنفس الاسم في أكثر من فرع تُميَّز بفرعها (مثل «Sterilization — بريدة») */
@@ -2352,9 +2393,13 @@ function orderUsage_() {
   read_('Requests').rows.forEach(function (r) {
     if (!str_(r.RequestID) || isOff_(str_(r.Status)) || isBackdated_(r)) return;
     if (monthOf_(r.SubmittedAt || r.Date) !== month) return;
-    const k = orderTarget_(r.Doctor, r.Clinic), u = out[k] || (out[k] = { monthly: 0, emergency: 0, ids: { m: [], e: [] } });
-    // أرقام الطلبات المحسوبة — تظهر في «قواعد الطلبات» للتحقق من العدد
-    if (isEmergencyType_(r.Type)) { u.emergency++; u.ids.e.push(str_(r.RequestID)); } else { u.monthly++; u.ids.m.push(str_(r.RequestID)); }
+    const k = orderTarget_(r.Doctor, r.Clinic), br = reqBranch_(r);
+    // لكل طبيب: المجموع + لكل فرع («الطبيب|الفرع») — الحد يُطبَّق على كل فرع على حدة (للطبيب بوكس في كل فرع)
+    [k, k + '|' + br].forEach(function (key) {
+      const u = out[key] || (out[key] = { monthly: 0, emergency: 0, ids: { m: [], e: [] } });
+      // أرقام الطلبات المحسوبة — تظهر في «قواعد الطلبات» للتحقق من العدد
+      if (isEmergencyType_(r.Type)) { u.emergency++; u.ids.e.push(str_(r.RequestID)); } else { u.monthly++; u.ids.m.push(str_(r.RequestID)); }
+    });
   });
   return out;
 }
@@ -2380,7 +2425,7 @@ function leftOf_(L, u) {
   return { monthly: L.monthlyMax ? Math.max(0, L.monthlyMax - u.monthly) : null, emergency: L.emergencyMax ? Math.max(0, L.emergencyMax - u.emergency) : null };
 }
 /** القواعد + حالة النافذة الآن + المستخدَم والمتبقي لمن يرفع الطلبات (الممرضة / المعمل) */
-function getOrderRules_(user, target) {
+function getOrderRules_(user, target, branch) {
   const R = orderRules_(), now = Date.now();
   const day = Number(riyadh_(now).slice(8, 10));
   const out = Object.assign({}, R, {
@@ -2392,7 +2437,10 @@ function getOrderRules_(user, target) {
     // لكل طبيب/عيادة: الواجهة تعرض المتبقي للطبيب المختار في الطلب
     const u = orderUsage_();
     out.usedBy = u;
-    if (target !== undefined && target !== null) { out.used = u[str_(target)] || { monthly: 0, emergency: 0 }; out.left = leftOf_(limitsFor_(R, target), out.used); }
+    if (target !== undefined && target !== null) {
+      const key = str_(target) + (branch !== undefined && branch !== null ? '|' + str_(branch) : '');
+      out.used = u[key] || { monthly: 0, emergency: 0 }; out.left = leftOf_(limitsFor_(R, target), out.used);
+    }
   }
   out.docLimits = docLimits_();
   if (out.canEdit) {
@@ -2449,8 +2497,8 @@ function saveOrderRules_(user, v) {
   return getOrderRules_(user);
 }
 /** فحص قواعد الطلب قبل الحفظ: عدد الطارئ / الشهري في الشهر، وعدد أصناف الطارئ */
-function checkOrderRules_(user, type, itemCount, target) {
-  const R0 = orderRules_(), u = orderUsage_()[str_(target)] || { monthly: 0, emergency: 0 };
+function checkOrderRules_(user, type, itemCount, target, branch) {
+  const R0 = orderRules_(), u = orderUsage_()[str_(target) + (branch !== undefined ? '|' + str_(branch) : '')] || { monthly: 0, emergency: 0 };
   const R = Object.assign({}, R0, limitsFor_(R0, target));
   const emLeft = R.emergencyMax ? Math.max(0, R.emergencyMax - u.emergency) : '';
   if (type === 'طارئ') {
@@ -2591,19 +2639,30 @@ function getMonitor_(user, opts) {
   const passed = today > RULES.winEnd;
   const byDoc = {};
   all.forEach(function (r) {
-    // الطلب الشهري فقط: لا الطارئ ولا الطلب السابق المُدخل بأثر رجعي (ليس رفعاً لهذا الشهر)
-    if (!isEmergencyType_(r.type) && !r.backdated && r.doctor && monthOf_(r.submittedAt || r.date) === cycleMonth) (byDoc[r.doctor] = byDoc[r.doctor] || []).push(r);
+    // الطلب الشهري فقط: لا الطارئ ولا الطلب السابق المُدخل بأثر رجعي (ليس رفعاً لهذا الشهر) — لكل طبيب في كل فرع
+    if (!isEmergencyType_(r.type) && !r.backdated && r.doctor && monthOf_(r.submittedAt || r.date) === cycleMonth) {
+      const k = r.doctor + '|' + (r.branch || '');
+      (byDoc[k] = byDoc[k] || []).push(r);
+    }
   });
-  // مدير الفرع: أطباء عيادات فرعه + من رفع طلباً من فرعه هذا الشهر (الطبيب المتنقل بين الفرعين)
-  const cycle = allDoctors_().filter(function (d) { return !SCOPE_BRANCH_ || inScope_(clinicBranch_(d.clinic)) || byDoc[d.name]; }).map(function (d) {
-    const rs = byDoc[d.name] || [];
+  // كل طبيب مرة لكل فرع يعمل به (فروعه المحددة، وإلا فروع عياداته + أي فرع رُفع له منه هذا الشهر)
+  const pairs = [];
+  allDoctors_().forEach(function (d) {
+    const db = doctorBranches_(d.name), brs = db.list.slice();
+    if (!db.explicit) Object.keys(byDoc).forEach(function (k) { const p = k.split('|'); if (p[0] === d.name && brs.indexOf(p[1]) === -1) brs.push(p[1]); });
+    if (!brs.length) brs.push(clinicBranch_(d.clinic) || '');
+    brs.forEach(function (b) { pairs.push({ d: d, branch: b }); });
+  });
+  // مدير الفرع: فرعه فقط
+  const cycle = pairs.filter(function (x) { return !SCOPE_BRANCH_ || !x.branch || inScope_(x.branch); }).map(function (x) {
+    const d = x.d, rs = byDoc[d.name + '|' + x.branch] || [];
     const first = rs[rs.length - 1];
-    return { doctor: d.name, clinic: d.clinic, nurse: d.nurse, count: rs.length,
+    return { doctor: d.name, branch: x.branch, clinic: d.clinic, nurse: d.nurse, count: rs.length,
       lateSubmit: !!first && first.lateSubmit, submittedAt: first ? first.submittedAt || first.date : '',
       state: rs.length ? (first.lateSubmit ? 'late' : 'ok') : (passed ? 'missing' : 'pending') };
   }).sort(function (a, b) {
     const o = { missing: 0, late: 1, pending: 2, ok: 3 };
-    return o[a.state] - o[b.state] || a.doctor.localeCompare(b.doctor);
+    return o[a.state] - o[b.state] || a.doctor.localeCompare(b.doctor) || String(a.branch).localeCompare(String(b.branch));
   });
   return {
     now: new Date(now), late: late, atRisk: atRisk, kpis: kpis, sla: sla, slaLate: slaLate, rcvRejects: receiptRejects_(month),
@@ -2943,7 +3002,13 @@ function createRequest_(user, payload) {
     // غرفة جهاز: «مستهلكات عيادة» فقط (بلا طبيب) — واعتمادها لمدير الفرع
     device = cRows.some(isDeviceRoom_);
     if (device && !clinicOnly) throw new Error('ERR_DEVICE_NO_DOCTOR');
-    if (!clinicOnly && mine.length && mine.indexOf(clinic) === -1) throw new Error('ERR_FORBIDDEN');
+    // الممرضة المحددة مع الطبيب (من سجله) تطلب له في أي عيادة من عياداته، ولو لم تكن من عياداتها
+    const forMyDoctor = !clinicOnly && str_(payload.doctor) && nurseDoctors_(user.name).indexOf(str_(payload.doctor)) !== -1 && (function () {
+      const dr = read_('Doctors').rows.filter(function (r) { return str_(r.DoctorName) === str_(payload.doctor); })[0];
+      const dClinics = dr ? str_(dr.Clinic).split(/[,،]/).map(str_) : [], db = doctorBranches_(payload.doctor);
+      return dClinics.indexOf(clinic) !== -1 || (db.explicit && cRows.some(function (c) { return db.list.indexOf(c.branch) !== -1; }));
+    })();
+    if (!clinicOnly && !forMyDoctor && mine.length && mine.indexOf(clinic) === -1) throw new Error('ERR_FORBIDDEN');
     if (!cRows.length) throw new Error('ERR_BAD_CLINIC');
     if (clinicOnly && !cRows.some(clinicConsumablesOk_)) throw new Error('ERR_CLINIC_SHARED_ONLY');
   }
@@ -3010,8 +3075,10 @@ function createRequest_(user, payload) {
   });
   if (items.length > 200) throw new Error('ERR_TOO_MANY_ITEMS');
   if (str_(payload.backdate) && !forLab) return createBackdated_(user, payload, { clinic: clinic, branch: branch, doctor: doctor, type: type, dept: dept, items: items });
-  checkOrderRules_(user, type, items.length, orderTarget_(doctor, clinic));
-  const rules = getOrderRules_(user, orderTarget_(doctor, clinic)); // المتبقي بعد هذا الطلب يرجع للواجهة (تحديث فوري للتنبيه)
+  // الطبيب المحدد بفروع: لا يُطلب له في فرع لا يعمل به
+  if (doctor) { const db = doctorBranches_(doctor); if (db.explicit && db.list.indexOf(branch) === -1) throw new Error('ERR_DOCTOR_BRANCH:' + db.list.join('، ')); }
+  checkOrderRules_(user, type, items.length, orderTarget_(doctor, clinic), branch);
+  const rules = getOrderRules_(user, orderTarget_(doctor, clinic), branch); // المتبقي بعد هذا الطلب يرجع للواجهة (تحديث فوري للتنبيه)
 
   // منع الإرسال المزدوج لنفس الطلب خلال دقيقتين
   const dupKey = requestDupKey_(user.name, clinic, branch, doctor, type, items);
@@ -5518,6 +5585,12 @@ function monthlyReminders_(nowMs) {
   const usage = orderUsage_(), acc = doctorAccounts_();
   const docs = read_('Doctors').rows.map(function (r) { return { name: str_(r.DoctorName), nurses: nurseList_(r.NurseName) }; })
     .filter(function (d) { return d.name; });
+  // طلب شهري لكل فرع يعمل به الطبيب: الناقص = فرع بلا طلب شهري هذا الشهر
+  const missingBranches = function (name) {
+    const brs = doctorBranches_(name).list;
+    if (!brs.length) return ((usage[name] || {}).monthly || 0) > 0 ? [] : [''];
+    return brs.filter(function (b) { return !(((usage[name + '|' + b] || {}).monthly || 0) > 0); });
+  };
   const pending = {};
   queryRequests_({}).forEach(function (r) {
     if (r.awaitingDoctor && r.approver !== 'branch' && acc[r.doctor]) pending[acc[r.doctor]] = (pending[acc[r.doctor]] || 0) + 1;
@@ -5528,9 +5601,13 @@ function monthlyReminders_(nowMs) {
     const who = {};
     const add = function (person, doc) { if (person) (who[person] = who[person] || []).indexOf(doc) === -1 && who[person].push(doc); };
     docs.forEach(function (d) {
-      if (kind !== 'open' && ((usage[d.name] || {}).monthly || 0) > 0) return; // رُفع طلبه — لا تذكير
-      add(acc[d.name], d.name);
-      d.nurses.forEach(function (n) { add(n, d.name); });
+      const miss = kind === 'open' ? [''] : missingBranches(d.name);
+      if (!miss.length) return; // رُفع طلبه الشهري في كل فروعه — لا تذكير
+      miss.forEach(function (b) {
+        const label = d.name + (b && doctorBranches_(d.name).list.length > 1 ? ' (' + b + ')' : '');
+        add(acc[d.name], label);
+        d.nurses.forEach(function (n) { add(n, label); });
+      });
     });
     if (kind !== 'open') Object.keys(pending).forEach(function (p) { if (!who[p]) who[p] = []; });
     Object.keys(who).forEach(function (person) {
@@ -6689,7 +6766,8 @@ function getDoctorsAdmin_(user) {
   const specs = {}, subs = {};
   const docs = read_('Doctors').rows.filter(function (r) { return str_(r.DoctorName); }).map(function (r) {
     const d = { name: str_(r.DoctorName), specialty: str_(r.Specialty || r.Type || r['التخصص']), subspecialty: str_(r.Subspecialty),
-      clinics: str_(r.Clinic).split(/[,،]/).map(str_).filter(String), nurse: str_(r.NurseName), login: doctorLogin_(str_(r.DoctorName)) || str_(r.LoginName),
+      clinics: str_(r.Clinic).split(/[,،]/).map(str_).filter(String), nurse: str_(r.NurseName), nurses: nurseList_(r.NurseName),
+      branches: str_(r.Branches).split(/[,،]/).map(str_).filter(String), login: doctorLogin_(str_(r.DoctorName)) || str_(r.LoginName),
       billing: /عياد|clinic/i.test(str_(r.Billing || r['طريقة الحسبة'])) ? 'clinic' : 'box' };
     if (d.specialty) specs[d.specialty] = true;
     if (d.subspecialty) subs[d.subspecialty] = true;
@@ -6700,7 +6778,8 @@ function getDoctorsAdmin_(user) {
   docs.forEach(function (d) { d.hasAccount = !!d.login && users[loginKey_(d.login)] === 'doctor'; });
   ['Dentistry', 'Derma'].forEach(function (x) { specs[x] = true; });
   return { doctors: docs, specialties: Object.keys(specs).sort(), subspecialties: Object.keys(subs).sort(),
-    clinics: getClinics_().map(function (c) { return { name: c.name, branch: c.branch, type: c.type }; }) };
+    clinics: getClinics_().map(function (c) { return { name: c.name, branch: c.branch, type: c.type }; }), branches: getBranches_(),
+    nurses: read_('Users').rows.filter(function (u) { return str_(u.Name) && roleScreen_(u.Role) === 'nurse'; }).map(function (u) { return str_(u.Name); }).sort() };
 }
 
 /** دور الطبيب الافتراضي للحسابات الجديدة (أول دور شاشته doctor) */
@@ -6734,8 +6813,17 @@ function saveDoctor_(user, orig, d) {
     const acct = login ? ut.rows.filter(function (u) { return loginKey_(u.Name) === loginKey_(login); })[0] : null;
     if (acct && roleScreen_(acct.Role) !== 'doctor') throw new Error('ERR_USER_EXISTS');
     if (login && !acct && !password) throw new Error('ERR_PASSWORD_REQUIRED');
+    const nurses = Array.isArray(d.nurses) ? d.nurses.map(function (x) { return clean_(x, 80); }).filter(String) : nurseList_(clean_(d.nurse, 300));
     const obj = { DoctorName: name, Specialty: clean_(d.specialty, 60), Subspecialty: clean_(d.subspecialty, 80), Clinic: clinics.join(', '),
-      NurseName: nurseList_(clean_(d.nurse, 300)).join(', '), LoginName: login };
+      NurseName: nurses.join(', '), LoginName: login };
+    // الفروع التي يعمل بها (فارغ = فروع عياداته)
+    if (Array.isArray(d.branches)) {
+      const all = getBranches_();
+      const br = d.branches.map(str_).filter(function (b, i, a) { return b && a.indexOf(b) === i; });
+      if (br.some(function (b) { return all.indexOf(b) === -1; })) throw new Error('ERR_BAD_BRANCH');
+      obj.Branches = br.join(', ');
+    }
+    tableWithCols_('Doctors');
     // طريقة الحسبة: «عيادة» = كل مستهلكات عيادته الأولى عليه · «بوكس» = ما يُطلب باسمه فقط
     if (d.billing === 'clinic' || d.billing === 'box') obj.Billing = d.billing === 'clinic' ? 'عيادة' : 'بوكس';
     if (!orig) append_('Doctors', obj);
@@ -7611,6 +7699,8 @@ function getSettingsAdmin_(user) {
   const out = { role: role, keys: keys, defaults: { LabTurnaroundDays: LAB_TURNAROUND_DEFAULT, SurveyEveryDays: 50, SurveyOpenDays: 10, BackdateUntil: BACKDATE_UNTIL_DEFAULT_ } };
   if ('IteroLab' in keys) out.labNames = getLabs_().map(function (l) { return l.name; });
   if (role !== 'admin') return out;
+  out.branches = getBranches_();
+  out.extraBranches = extraBranches_();
   out.clinics = read_('Clinics').rows.filter(function (r) { return str_(r.ClinicName); })
     .map(function (r) { return { name: str_(r.ClinicName), branch: str_(r.Branch), type: str_(r.Type) }; });
   out.labs = read_('Labs').rows.filter(function (r) { return str_(r.LabName); }).map(function (r) {

@@ -3474,6 +3474,41 @@ test('monthly cycle and doctor usage count only real monthly orders: not emergen
   assert.equal(api(q, 'getMonitor').cycle.doctors.find(d => d.doctor === 'د. نورة').count, 0);
 });
 
+test('doctor works in several branches: limits and the monthly cycle per branch whichever nurse orders; branches and nurses set from the doctor record; new branch', () => {
+  const { api, login, gas } = boot();
+  const a = login('المدير', '1234'), p = login('علي', '3333'), q = login('منى', '5555');
+  // a new branch from the settings
+  throwsCode(() => api(p, 'saveBranch', 'عنيزة'), 'ERR_FORBIDDEN');
+  assert.ok(api(a, 'saveBranch', 'عنيزة').includes('عنيزة'));
+  throwsCode(() => api(a, 'saveBranch', 'عنيزة'), 'ERR_EXISTS');
+  throwsCode(() => api(a, 'saveBranch', 'الرياض', true), 'ERR_BRANCH_IN_USE');
+  api(a, 'saveClinic', null, { name: 'عيادة عنيزة 1', branch: 'عنيزة', type: 'أسنان' });
+  // the doctor works in Riyadh and Unayzah; two nurses order for him
+  api(a, 'createUser', { name: 'هيا', password: '9191', role: 'ممرضة', clinic: 'عيادة عنيزة 1' });
+  const D = api(a, 'getDoctorsAdmin');
+  assert.ok(D.branches.includes('عنيزة') && D.nurses.includes('هيا'));
+  throwsCode(() => api(a, 'saveDoctor', 'د. نورة', { name: 'د. نورة', clinics: ['عيادة الأسنان 1', 'عيادة عنيزة 1'], branches: ['الرياض', 'مكة'], nurses: ['سارة'] }), 'ERR_BAD_BRANCH');
+  api(a, 'saveDoctor', 'د. نورة', { name: 'د. نورة', clinics: ['عيادة الأسنان 1', 'عيادة عنيزة 1'], branches: ['الرياض', 'عنيزة'], nurses: ['سارة', 'هيا'] });
+  const row = rows(gas, 'Doctors').find(r => r.DoctorName === 'د. نورة');
+  assert.deepEqual([row.Branches, row.NurseName], ['الرياض, عنيزة', 'سارة, هيا']);
+  api(p, 'saveOrderRules', { winStart: 1, winEnd: 31, monthlyMax: 1, emergencyMax: 1, monthlyLock: 0 });
+  const n = login('سارة', '1111'), h = login('هيا', '9191');
+  const mo = (who, clinic) => api(who, 'createRequest', { clinic: clinic, doctor: 'د. نورة', type: 'شهري', items: [{ name: 'PROPHY PASTE', qty: 1 }] });
+  mo(n, 'عيادة الأسنان 1');
+  // the other nurse: same doctor, same branch → limit reached; other branch → allowed
+  try { api(h, 'createRequest', { clinic: 'عيادة الأسنان 1', doctor: 'د. نورة', type: 'شهري', items: [{ name: 'DENTAL FLOSS', qty: 1 }] }); assert.fail('no error'); } catch (e) { assert.match(String(e.message), /ERR_MONTHLY_LIMIT/, e.message); }
+  const r2 = mo(h, 'عيادة عنيزة 1');
+  assert.equal(r2.rules.left.monthly, 0, 'the Unayzah monthly is used now');
+  throwsCode(() => mo(n, 'عيادة عنيزة 1'), 'ERR_MONTHLY_LIMIT');
+  // a branch he does not work in
+  throwsCode(() => api(n, 'createRequest', { clinic: 'Sterilization', branch: 'جدة', doctor: 'د. نورة', type: 'شهري', items: [{ name: 'PROPHY PASTE', qty: 1 }] }), 'ERR_DOCTOR_BRANCH');
+  // usage per branch and the cycle shows him once per branch
+  const R = api(p, 'getOrderRules');
+  assert.deepEqual([R.usedBy['د. نورة|الرياض'].monthly, R.usedBy['د. نورة|عنيزة'].monthly, R.usedBy['د. نورة'].monthly], [1, 1, 2]);
+  const cyc = api(q, 'getMonitor').cycle.doctors.filter(d => d.doctor === 'د. نورة');
+  assert.deepEqual(cyc.map(d => [d.branch, d.count]).sort(), [['الرياض', 1], ['عنيزة', 1]]);
+});
+
 test('catalog bulk add: rows pasted from Excel are checked first, then saved together', () => {
   const { api, login, gas } = boot();
   const p = login('علي', '3333');
