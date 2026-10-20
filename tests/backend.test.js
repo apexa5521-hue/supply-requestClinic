@@ -3451,6 +3451,29 @@ test('nurse survey platform: every complaint is copied there with its status; su
   assert.deepEqual((x => [x.status, x.note, x.updatedBy])(all.find(x => x.id === mine.id)), ['مغلق', 'تم تغيير المورد', 'منى']);
 });
 
+test('monthly cycle and doctor usage count only real monthly orders: not emergency (any spelling), not backdated, not cancelled; counted request numbers listed', () => {
+  const { api, login, gas, ctx } = boot();
+  const n = login('سارة', '1111'), p = login('علي', '3333'), q = login('منى', '5555');
+  const em = api(n, 'createRequest', { clinic: 'عيادة الأسنان 1', doctor: 'د. نورة', type: 'طارئ', items: [{ name: 'PROPHY PASTE', qty: 1 }] }).id;
+  let doc = api(q, 'getMonitor').cycle.doctors.find(d => d.doctor === 'د. نورة');
+  assert.equal(doc.count, 0, 'an emergency request does not tick the monthly cycle');
+  // an imported emergency written differently is still emergency
+  const mo = api(n, 'createRequest', { clinic: 'عيادة الأسنان 1', doctor: 'د. نورة', type: 'شهري', items: [{ name: 'DENTAL FLOSS', qty: 1 }] }).id;
+  const t = gas.ss.getSheetByName('Requests'), h = t._data[0];
+  t._data.find(x => x[0] === em)[h.indexOf('Type')] = 'Emergency';
+  ctx.onEdit({ range: { getSheet: () => t } });
+  const R = api(p, 'getOrderRules');
+  assert.deepEqual([R.usedBy['د. نورة'].monthly, R.usedBy['د. نورة'].emergency], [1, 1]);
+  assert.deepEqual(R.usedBy['د. نورة'].ids, { m: [mo], e: [em] }, 'the counted request numbers');
+  assert.equal(api(p, 'getRequests', {}).find(r => r.id === em).type, 'طارئ', 'type normalised everywhere');
+  doc = api(q, 'getMonitor').cycle.doctors.find(d => d.doctor === 'د. نورة');
+  assert.deepEqual([doc.count, doc.state === 'ok' || doc.state === 'late'], [1, true], 'the monthly order ticks it');
+  // a backdated (past) monthly order does not count as this month's submission
+  t._data.find(x => x[0] === mo)[h.indexOf('Backdated')] = true;
+  ctx.onEdit({ range: { getSheet: () => t } });
+  assert.equal(api(q, 'getMonitor').cycle.doctors.find(d => d.doctor === 'د. نورة').count, 0);
+});
+
 test('catalog bulk add: rows pasted from Excel are checked first, then saved together', () => {
   const { api, login, gas } = boot();
   const p = login('علي', '3333');

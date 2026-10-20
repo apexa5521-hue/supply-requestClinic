@@ -2120,7 +2120,7 @@ function mapRequest_(r) {
   return {
     id: str_(r.RequestID), date: r.Date, clinic: str_(r.Clinic), branch: str_(r.Branch) || clinicBranch_(r.Clinic), doctor: str_(r.Doctor),
     department: normDept_(r.Department) || clinicDept_(r.Clinic),
-    nurse: str_(r.Nurse), type: str_(r.Type), status: str_(r.Status) || ST.NEW, approver: str_(r.Approver) === BRANCH_APPROVER_ ? 'branch' : '',
+    nurse: str_(r.Nurse), type: str_(r.Type) ? (isEmergencyType_(r.Type) ? 'طارئ' : 'شهري') : '', status: str_(r.Status) || ST.NEW, approver: str_(r.Approver) === BRANCH_APPROVER_ ? 'branch' : '',
     submittedAt: r.SubmittedAt, prepAt: r.PrepAt, vendorWaitAt: r.VendorWaitAt,
     vendorReceivedAt: r.VendorReceivedAt, reviewAt: r.ReviewAt, reviewedAt: r.ReviewedAt,
     sentAt: r.SentAt, receivedAt: r.ReceivedAt, receiver: str_(r.ReceiverName), approvedAt: r.ApprovedAt,
@@ -2345,13 +2345,16 @@ function monthlyDue_(subMs, R) {
  * الملغي والمرفوض والأثر الرجعي لا يُحسب. يرجع { الطبيب أو العيادة: { monthly, emergency } }
  */
 function orderTarget_(doctor, clinic) { return str_(doctor) || str_(clinic); }
+/** طارئ؟ (يشمل صيغاً قديمة/مستوردة مثل «Emergency» أو «طارئ (عاجل)») — كل ما عداه شهري */
+function isEmergencyType_(v) { return /طار|emerg|urgent/i.test(str_(v)); }
 function orderUsage_() {
   const month = riyadh_(Date.now()).slice(0, 7), out = {};
   read_('Requests').rows.forEach(function (r) {
-    if (isOff_(str_(r.Status)) || isBackdated_(r)) return;
+    if (!str_(r.RequestID) || isOff_(str_(r.Status)) || isBackdated_(r)) return;
     if (monthOf_(r.SubmittedAt || r.Date) !== month) return;
-    const k = orderTarget_(r.Doctor, r.Clinic), u = out[k] || (out[k] = { monthly: 0, emergency: 0 });
-    if (str_(r.Type) === 'طارئ') u.emergency++; else u.monthly++;
+    const k = orderTarget_(r.Doctor, r.Clinic), u = out[k] || (out[k] = { monthly: 0, emergency: 0, ids: { m: [], e: [] } });
+    // أرقام الطلبات المحسوبة — تظهر في «قواعد الطلبات» للتحقق من العدد
+    if (isEmergencyType_(r.Type)) { u.emergency++; u.ids.e.push(str_(r.RequestID)); } else { u.monthly++; u.ids.m.push(str_(r.RequestID)); }
   });
   return out;
 }
@@ -2588,7 +2591,8 @@ function getMonitor_(user, opts) {
   const passed = today > RULES.winEnd;
   const byDoc = {};
   all.forEach(function (r) {
-    if (r.type !== 'طارئ' && r.doctor && monthOf_(r.submittedAt || r.date) === cycleMonth) (byDoc[r.doctor] = byDoc[r.doctor] || []).push(r);
+    // الطلب الشهري فقط: لا الطارئ ولا الطلب السابق المُدخل بأثر رجعي (ليس رفعاً لهذا الشهر)
+    if (!isEmergencyType_(r.type) && !r.backdated && r.doctor && monthOf_(r.submittedAt || r.date) === cycleMonth) (byDoc[r.doctor] = byDoc[r.doctor] || []).push(r);
   });
   // مدير الفرع: أطباء عيادات فرعه + من رفع طلباً من فرعه هذا الشهر (الطبيب المتنقل بين الفرعين)
   const cycle = allDoctors_().filter(function (d) { return !SCOPE_BRANCH_ || inScope_(clinicBranch_(d.clinic)) || byDoc[d.name]; }).map(function (d) {
