@@ -16,6 +16,20 @@ alter table gas_files add column if not exists drive_id text;
 alter table gas_files alter column bytes drop not null;
 `;
 
+const LOCKDOWN = `
+alter table gas_sheets enable row level security;
+alter table gas_kv enable row level security;
+alter table gas_files enable row level security;
+alter table gas_rows enable row level security;
+do $$ declare r text; begin
+  foreach r in array array['anon', 'authenticated'] loop
+    if exists (select 1 from pg_roles where rolname = r) then
+      execute format('revoke all on gas_sheets, gas_kv, gas_files, gas_rows from %I', r);
+    end if;
+  end loop;
+end $$;
+`;
+
 // ---- storage guard: the free database has a hard size limit (Supabase free: 500 MB) ----
 // Photos that cannot go to Drive stay in the database, so they stop at PHOTO_STOP of the limit;
 // text (requests, approvals) keeps working until TEXT_STOP. A save that is refused is never silently dropped:
@@ -50,7 +64,13 @@ export class Store {
     this.kv = { prop: new Map(), cache: new Map() }; // key → 'value|exp' as last written
   }
 
-  async init() { await this.pool.query(SCHEMA); }
+  async init() {
+    await this.pool.query(SCHEMA);
+    // Supabase also serves the public schema over its REST API (anon / authenticated keys).
+    // Only this server may touch these tables: RLS on with no policies + no grants closes that door.
+    // The server connects as the table owner, which RLS does not apply to, so nothing changes for the app.
+    try { await this.pool.query(LOCKDOWN); } catch (e) { console.error('RLS lockdown skipped:', e.message); }
+  }
 
   async load(gas, DateCtor) {
     const { rows } = await this.pool.query('select name, ord, rowstore, case when rowstore then null else data::text end as data from gas_sheets order by ord, name');
