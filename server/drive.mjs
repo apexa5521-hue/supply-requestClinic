@@ -7,9 +7,11 @@ const PERMS_URL = 'https://www.googleapis.com/drive/v3/files/';
 
 /** env → config, or null when Drive is not set up (the database keeps the bytes then) */
 export function driveConfigFromEnv(env) {
-  const clientId = env.GOOGLE_OAUTH_CLIENT_ID, clientSecret = env.GOOGLE_OAUTH_CLIENT_SECRET, refreshToken = env.GOOGLE_OAUTH_REFRESH_TOKEN;
+  // pasted values often carry a space, a line break or quotes: Google then answers «The OAuth client was not found»
+  const v = k => String(env[k] || '').trim().replace(/^["']+|["']+$/g, '').trim();
+  const clientId = v('GOOGLE_OAUTH_CLIENT_ID'), clientSecret = v('GOOGLE_OAUTH_CLIENT_SECRET'), refreshToken = v('GOOGLE_OAUTH_REFRESH_TOKEN');
   if (!clientId || !clientSecret || !refreshToken) return null;
-  return { clientId, clientSecret, refreshToken, folderId: env.DRIVE_FOLDER_ID || '' };
+  return { clientId, clientSecret, refreshToken, folderId: v('DRIVE_FOLDER_ID') };
 }
 
 export async function driveAccessToken(cfg, fetchFn = fetch) {

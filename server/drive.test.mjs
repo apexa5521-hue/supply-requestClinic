@@ -5,6 +5,8 @@ assert.equal(driveConfigFromEnv({}), null);
 assert.equal(driveConfigFromEnv({ GOOGLE_OAUTH_CLIENT_ID: 'a', GOOGLE_OAUTH_CLIENT_SECRET: 'b' }), null);
 assert.deepEqual(driveConfigFromEnv({ GOOGLE_OAUTH_CLIENT_ID: 'a', GOOGLE_OAUTH_CLIENT_SECRET: 'b', GOOGLE_OAUTH_REFRESH_TOKEN: 'c' }),
   { clientId: 'a', clientSecret: 'b', refreshToken: 'c', folderId: '' });
+assert.deepEqual(driveConfigFromEnv({ GOOGLE_OAUTH_CLIENT_ID: ' "a.apps.googleusercontent.com"\n', GOOGLE_OAUTH_CLIENT_SECRET: 'b ', GOOGLE_OAUTH_REFRESH_TOKEN: '\tc' }),
+  { clientId: 'a.apps.googleusercontent.com', clientSecret: 'b', refreshToken: 'c', folderId: '' }, 'spaces, line breaks and quotes are trimmed');
 
 const calls = [];
 const fake = async (url, opts = {}) => {
