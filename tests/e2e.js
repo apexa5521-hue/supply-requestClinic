@@ -1210,6 +1210,9 @@ function log(msg) { console.log('  ✔ ' + msg); }
   const lgN = Number(await page.textContent('#dashDist .legend-btn >> nth=0 >> b'));
   const sums = await page.evaluate(() => ({ legend: Array.from(document.querySelectorAll('#dashDist .legend-btn b')).reduce((x, b) => x + Number(b.textContent), 0), total: S.dash.stats.count }));
   expect(sums.legend === sums.total, 'status numbers add up to the total requests (' + sums.legend + ' / ' + sums.total + ')');
+  await page.waitForSelector('#dashTop #dtSort');
+  await page.selectOption('#dashTop #dtSort', 'times');
+  expect(await page.locator('#dashTop .dt-item').count() >= 1 && (await page.textContent('#dashTop .dt-who >> nth=0')).includes('×'), 'top items: sort by times, with who ordered (doctor/clinic · branch)');
   await page.click('#dashDist .legend-btn >> nth=0');
   await page.waitForSelector('.modal tbody tr');
   expect(await page.locator('.modal tbody tr').count() === lgN, 'clicking a status lists its ' + lgN + ' request(s)');
@@ -1820,6 +1823,7 @@ function log(msg) { console.log('  ✔ ' + msg); }
   expect((await page.textContent('#rlBox .rule-bar')).includes('داخل نافذة الطلب الشهري'), 'rules page previews what nurses see');
   expect(!!(await page.$('#dlBody')) && (await page.textContent('#rlBox')).includes('حد خاص لطبيب'), 'rules page: doctor-specific limits table');
   expect((await page.textContent('table:has(#dlBody) thead')).includes('أصناف الطارئ'), 'rules page: per-doctor emergency items column');
+  expect(await page.locator('#baBody .ba-row').count() >= 1, 'rules page: arrival minutes per branch');
   expect(await page.isVisible('#rl_remindOn') && await page.isVisible('#rl_remindDaysBefore') && await page.isVisible('#rl_remindHour'), 'rules page: monthly deadline reminder settings');
   expect(await page.isVisible('#rl_slaApprM') && await page.isVisible('#rl_slaRcvE'), 'rules page: target time per stage (monthly and emergency)');
   await shot(page, 'order-rules');
