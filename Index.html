@@ -860,6 +860,11 @@ button.ship-open:hover { background: color-mix(in srgb, var(--t-indigo) 18%, tra
 .steril-note { margin-top: 6px; color: var(--t-indigo, var(--primary)); font-weight: 600; }
 .rep-notes { display: grid; gap: 6px; padding: 10px 12px; font-size: 13px; }
 .rep-check { width: 34px; }
+.rep-box { display: inline-block; width: 16px; height: 16px; border: 1.6px solid #333; border-radius: 3px; vertical-align: middle; }
+.rep-list { font-size: 12px; }
+.rep-list td, .rep-list th { padding: 6px 7px; }
+.rep-list tbody tr:nth-child(even) td { background: var(--surface-2); }
+.rep-notecol { min-width: 90px; }
 .rep-sign { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin-top: 18px; }
 .rep-sign > div { display: grid; gap: 34px; padding-top: 8px; border-top: 1px dashed var(--border-strong, var(--border)); font-size: 13px; }
 .rep-sign span { color: var(--muted); font-size: 12px; border-top: 1px solid var(--border); padding-top: 4px; }
@@ -883,6 +888,8 @@ button.ship-open:hover { background: color-mix(in srgb, var(--t-indigo) 18%, tra
   body.printing .rep-grand { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
   body.printing .rep-logo { filter: none !important; }
   @page { margin: 14mm; }
+  @page wide { size: A4 landscape; margin: 10mm; }
+  body.printing #printArea .rep:has(.rep-list) { page: wide; }
 }
 .modal.sm { max-width: 420px; }
 .modal-head { display: flex; align-items: flex-start; gap: 12px; padding: 18px 20px 14px; border-bottom: 1px solid var(--border); }

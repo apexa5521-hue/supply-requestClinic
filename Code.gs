@@ -2331,7 +2331,25 @@ function boxedRequests_() {
   return (MEMO_.boxedReqs = o);
 }
 const SLA_KEY_ = { appr: 'slaAppr', prep: 'slaPrep', send: 'slaSend', arr: 'slaArr', rcv: 'slaRcv' };
-function slaTarget_(R, k, type) { return R[SLA_KEY_[k] + (type === 'طارئ' ? 'E' : 'M')]; }
+/**
+ * وقت الوصول المستهدف لكل فرع (بالدقائق) — المسافة من مكان التجهيز تختلف (مثلاً بريدة 10 دقائق، عنيزة 55 دقيقة)
+ * Settings ← BranchArrival = {"بريدة": {"m": 120, "e": 45}} · m = الشهري، e = الطارئ · الفارغ = الوقت العام لمرحلة الوصول
+ */
+const BRANCH_ARR_KEY_ = 'BranchArrival';
+function branchArrival_() {
+  if (MEMO_.branchArr) return MEMO_.branchArr;
+  let o = {};
+  try { o = JSON.parse(str_(getSetting_(BRANCH_ARR_KEY_, '')) || '{}') || {}; } catch (e) { o = {}; }
+  return (MEMO_.branchArr = o && typeof o === 'object' && !Array.isArray(o) ? o : {});
+}
+function slaTarget_(R, k, type, branch) {
+  const f = type === 'طارئ' ? 'e' : 'm';
+  if (k === 'arr' && branch) {
+    const b = branchArrival_()[str_(branch)];
+    if (b && typeof b[f] === 'number' && b[f] > 0) return Math.round(b[f] / 60 * 100) / 100;
+  }
+  return R[SLA_KEY_[k] + (type === 'طارئ' ? 'E' : 'M')];
+}
 function slaOf_(r, R, now) {
   const H = 36e5, sub = r.submittedAt || r.date, ms = toMs_;
   const ship = r.firstShipAt || r.sentAt;
@@ -2343,7 +2361,7 @@ function slaOf_(r, R, now) {
   const add = function (k, a, b) {
     if (!ms(a)) return;
     if (!ms(b) && !live) return; // طلب منتهٍ بلا ختم لهذه المرحلة: لا يُحسب
-    const end = ms(b) || now, h = Math.max(0, (end - ms(a)) / H), target = slaTarget_(R, k, r.type);
+    const end = ms(b) || now, h = Math.max(0, (end - ms(a)) / H), target = slaTarget_(R, k, r.type, r.branch);
     st.push({ k: k, hrs: round1_(h), target: target, done: !!ms(b), late: h > target });
   };
   if (r.needsReview) add('appr', sub, cleared || (r.status === ST.REJECTED ? r.reviewedAt : ''));
@@ -2444,7 +2462,9 @@ function getOrderRules_(user, target, branch) {
     }
   }
   out.docLimits = docLimits_();
+  out.branchArr = branchArrival_();
   if (out.canEdit) {
+    out.branches = getBranches_();
     // شاشة القواعد: الحدود الخاصة مع استهلاك هذا الشهر، وأسماء الأطباء والعيادات للاختيار
     out.usedBy = out.usedBy || orderUsage_();
     const names = {};
@@ -2479,9 +2499,30 @@ function saveOrderRules_(user, v) {
       if (name && Object.keys(o).length) dl[name] = o;
     });
   }
+  // وقت الوصول لكل فرع بالدقائق: الفارغ = الوقت العام، من 5 دقائق إلى 30 يوماً
+  let ba = null;
+  if (v.branchArr !== undefined) {
+    if (!v.branchArr || typeof v.branchArr !== 'object' || Array.isArray(v.branchArr)) throw new Error('ERR_RULE_RANGE:branchArr');
+    ba = {};
+    Object.keys(v.branchArr).slice(0, 50).forEach(function (k) {
+      const name = clean_(k, 60), x = v.branchArr[k] || {}, o = {};
+      ['m', 'e'].forEach(function (f) {
+        if (x[f] === '' || x[f] === null || x[f] === undefined) return;
+        const n = Number(x[f]);
+        if (!(Math.floor(n) === n && n >= 5 && n <= 43200)) throw new Error('ERR_RULE_RANGE:branchArr');
+        o[f] = n;
+      });
+      if (name && Object.keys(o).length) ba[name] = o;
+    });
+  }
   withLock_(function () {
     const t = freshTable_('Settings');
     const changes = [];
+    if (ba) {
+      const js = JSON.stringify(ba), row = t.rows.filter(function (r) { return str_(r.Key) === BRANCH_ARR_KEY_; })[0];
+      if (!row) { append_('Settings', { Key: BRANCH_ARR_KEY_, Value: js, Notes: 'وقت الوصول المستهدف لكل فرع بالدقائق: m = الشهري، e = الطارئ (الفارغ = الوقت العام)' }); changes.push(BRANCH_ARR_KEY_ + '=' + js); }
+      else if (str_(row.Value) !== js) { setCells_(t, row, { Value: js }); changes.push(BRANCH_ARR_KEY_ + '=' + js); }
+    }
     ORDER_RULES_.forEach(function (d) {
       const row = t.rows.filter(function (r) { return str_(r.Key) === d[1]; })[0];
       if (!row) { append_('Settings', { Key: d[1], Value: vals[d[0]], Notes: d[5] }); changes.push(d[1] + '=' + vals[d[0]]); }
@@ -6301,23 +6342,33 @@ function getExecutiveStats_(user, month) {
   });
 
   // الأصناف الأكثر طلباً (بديل تقريبي عن دوران المخزون - النظام لا يتتبع أرصدة المستودع)
-  const ids = {};
-  all.forEach(function (r) { ids[r.id] = true; });
-  const itemTotals = {};
+  // الكمية = المعتمدة (أو المطلوبة إن لم تُعدَّل) · لا يُحسب الطلب الملغي/المرفوض ولا الصنف المرفوض ولا البديل غير الموافق عليه
+  const reqOf = {};
+  all.forEach(function (r) { reqOf[r.id] = r; });
+  const itemTotals = {}, by = {};
   let shortages = 0;
   read_('RequestItems').rows.forEach(function (r) {
-    if (!ids[str_(r.RequestID)]) return;
-    const n = str_(r.ItemName);
-    itemTotals[n] = (itemTotals[n] || 0) + (Number(r.RequestedQty) || 0);
+    const q0 = reqOf[str_(r.RequestID)];
+    if (!q0) return;
     if (r.ReceivedQty !== '' && r.ReceivedQty !== null) {
       const expected = r.ApprovedQty !== '' && r.ApprovedQty !== null ? Number(r.ApprovedQty) : Number(r.RequestedQty);
       if (Number(r.ReceivedQty) < expected) shortages++;
     }
+    if (isOff_(q0.status)) return;
+    const q = targetQty_(r), n = str_(r.ItemName), k = n.toLowerCase();
+    if (!q || !n) return;
+    const it = itemTotals[k] || (itemTotals[k] = { name: n, qty: 0, requests: 0 });
+    it.qty += q; it.requests++;
+    // لكل صنف: من طلبه (الطبيب أو العيادة) وفي أي فرع — للفرز في لوحة الإدارة
+    const who = str_(q0.doctor), key = k + '|' + (q0.branch || '') + '|' + (q0.clinic || '') + '|' + who;
+    const c = by[key] || (by[key] = { n: n, b: q0.branch || '', c: q0.clinic || '', d: who, q: 0, k: 0 });
+    c.q += q; c.k++;
   });
   const topItems = Object.keys(itemTotals)
-    .map(function (name) { return { name: name, qty: itemTotals[name] }; })
-    .sort(function (a, b) { return b.qty - a.qty; })
+    .map(function (k) { return itemTotals[k]; })
+    .sort(function (a, b) { return b.qty - a.qty || b.requests - a.requests; })
     .slice(0, 8);
+  const topItemsBy = Object.keys(by).map(function (k) { return by[k]; });
 
   const qr = getQualityReport_(month);
   const overallAvg = qr.rows.length
@@ -6333,7 +6384,7 @@ function getExecutiveStats_(user, month) {
     typeCounts: typeCounts,
     overallAvgHours: overallAvg,
     byClinic: qr.averages,
-    topItems: topItems,
+    topItems: topItems, topItemsBy: topItemsBy,
     shortages: shortages,
     openComplaints: getComplaints_(user, true).length,
     recentComments: recentComments
