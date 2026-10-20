@@ -1214,6 +1214,11 @@ function log(msg) { console.log('  ✔ ' + msg); }
   await page.waitForSelector('.modal tbody tr');
   expect(await page.locator('.modal tbody tr').count() === lgN, 'clicking a status lists its ' + lgN + ' request(s)');
   expect(await page.isVisible('.modal #dsB') && await page.isVisible('.modal #dsD') && await page.isVisible('.modal #dsN') && await page.isVisible('.modal #dsXl'), 'status list: filter by branch, doctor, nurse + Excel export');
+  await page.evaluate(() => { window.print = () => {}; });
+  await page.click('.modal #dsPdf');
+  await page.waitForSelector('#printArea .rep-list', { state: 'attached' });
+  expect(await page.locator('#printArea .rep-list tbody .rep-box').count() === lgN, 'PDF checklist: one row with a tick box per request');
+  await page.evaluate(() => { document.body.classList.remove('printing'); document.getElementById('printArea').innerHTML = ''; });
   {
     const nurseOpt = await page.$eval('.modal #dsN', s => s.options.length > 1 ? s.options[1].value : '');
     if (nurseOpt) {
