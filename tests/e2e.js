@@ -1213,6 +1213,15 @@ function log(msg) { console.log('  ✔ ' + msg); }
   await page.click('#dashDist .legend-btn >> nth=0');
   await page.waitForSelector('.modal tbody tr');
   expect(await page.locator('.modal tbody tr').count() === lgN, 'clicking a status lists its ' + lgN + ' request(s)');
+  expect(await page.isVisible('.modal #dsB') && await page.isVisible('.modal #dsD') && await page.isVisible('.modal #dsN') && await page.isVisible('.modal #dsXl'), 'status list: filter by branch, doctor, nurse + Excel export');
+  {
+    const nurseOpt = await page.$eval('.modal #dsN', s => s.options.length > 1 ? s.options[1].value : '');
+    if (nurseOpt) {
+      await page.selectOption('.modal #dsN', nurseOpt);
+      expect(await page.$$eval('.modal tbody tr', trs => trs.every(tr => tr.children[5].textContent.trim() !== '')), 'nurse filter applied');
+      await page.selectOption('.modal #dsN', '');
+    }
+  }
   await shot(page, 'dashboard-status-list');
   await page.click('.modal tbody tr >> nth=0 >> [data-act="detail"]');
   await page.waitForSelector('.modal .stepper');
