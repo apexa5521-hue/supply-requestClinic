@@ -262,6 +262,14 @@ button, input, select, textarea { font: inherit; color: inherit; }
 .lab-stepper .step .s-lbl { font-size: 11.5px; }
 .lab-chain { display: grid; gap: 6px; }
 .as-clinic { display: grid; gap: 10px; }
+.as-br-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 10px; }
+.as-br { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding: 14px; text-align: start; border: 1.5px solid var(--border); border-radius: 14px; background: var(--surface); color: var(--text); font: inherit; cursor: pointer; transition: border-color .15s, background .15s, box-shadow .15s; }
+.as-br b { flex-basis: 100%; display: flex; align-items: center; gap: 6px; font-size: 16px; }
+.as-br > span:not(.tag) { color: var(--muted); font-size: 13px; }
+.as-br:hover { border-color: var(--primary); }
+.as-br.on { border-color: var(--primary); background: var(--primary-soft); box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary) 18%, transparent); }
+.tag.warn { color: var(--t-amber); background: color-mix(in srgb, var(--t-amber) 12%, transparent); }
+.tag.ok { color: var(--t-green); background: color-mix(in srgb, var(--t-green) 12%, transparent); }
 .as-row { display: grid; grid-template-columns: minmax(0, 1.6fr) repeat(4, minmax(56px, .5fr)) auto; gap: 8px; align-items: center; padding: 10px 12px; border: 1px solid var(--border); border-radius: 12px; background: var(--surface); }
 .as-row.short { border-color: color-mix(in srgb, var(--t-red) 45%, var(--border)); background: color-mix(in srgb, var(--t-red) 5%, var(--surface)); }
 .as-row .num { text-align: center; font-variant-numeric: tabular-nums; }
@@ -860,6 +868,10 @@ button.ship-open:hover { background: color-mix(in srgb, var(--t-indigo) 18%, tra
 .steril-note { margin-top: 6px; color: var(--t-indigo, var(--primary)); font-weight: 600; }
 .rep-notes { display: grid; gap: 6px; padding: 10px 12px; font-size: 13px; }
 .rep-check { width: 34px; }
+.nt-ck { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; cursor: pointer; white-space: nowrap; }
+.nt-row.nt-off td:first-child b { color: var(--muted); text-decoration: line-through; }
+.nt-roles summary { cursor: pointer; list-style: none; display: flex; flex-wrap: wrap; gap: 4px; }
+.nt-role-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 6px; padding: 8px 0; }
 .rep-box { display: inline-block; width: 16px; height: 16px; border: 1.6px solid #333; border-radius: 3px; vertical-align: middle; }
 .rep-list { font-size: 12px; }
 .rep-list td, .rep-list th { padding: 6px 7px; }

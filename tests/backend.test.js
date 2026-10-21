@@ -3622,3 +3622,29 @@ test('arrival target per branch (minutes) overrides the general arrival target',
   assert.equal(ctx.slaTarget_(rules, 'arr', 'شهري', 'عنيزة'), rules.slaArrM, 'empty = general');
   assert.equal(ctx.slaTarget_(rules, 'prep', 'طارئ', 'بريدة'), rules.slaPrepE, 'only the arrival stage');
 });
+
+test('notification types: admin turns a type off, drops a channel, or copies a role', () => {
+  const { api, login, gas } = boot();
+  const adm = login('المدير', '1234'), n = login('سارة', '1111'), q = login('منى', '5555');
+  throwsCode(() => api(q, 'saveNotifyConfig', []), 'ERR_FORBIDDEN');
+  const cfg0 = api(adm, 'getNotifyConfig');
+  assert.ok(cfg0.types.find(x => x.key === 'approval').on && cfg0.roles.includes('جودة'));
+  const set = (key, o) => api(adm, 'saveNotifyConfig', cfg0.types.map(x => (x.key === key ? Object.assign({}, x, o) : x)));
+  let qn = 0; // كل طلب بكمية مختلفة (الطلب المطابق خلال دقائق يُعامل كتكرار ولا يرسل إشعاراً)
+  const mk = () => api(n, 'createRequest', { clinic: 'عيادة الأسنان 1', doctor: 'د. خالد', type: 'شهري', items: [{ name: 'PROPHY PASTE', qty: ++qn }] }).id;
+  // off: the doctor gets no «awaiting approval» mail
+  let cfg = set('approval', { on: false });
+  assert.equal(cfg.types.find(x => x.key === 'approval').on, false);
+  gas.mails.length = 0; mk();
+  assert.ok(!gas.mails.some(m => /بانتظار مراجعتك/.test(m.subject)), 'approval mail is off');
+  // on again + a copy to the quality role
+  set('approval', { on: true, roles: ['جودة', 'دور غير موجود'] });
+  assert.deepEqual(api(adm, 'getNotifyConfig').types.find(x => x.key === 'approval').roles, ['جودة'], 'unknown roles dropped');
+  gas.mails.length = 0; mk();
+  const m = gas.mails.find(x => /بانتظار مراجعتك/.test(x.subject));
+  assert.ok(m && m.to.includes('khaled@example.com') && m.to.includes('mona@example.com'), 'doctor + the quality copy');
+  // email channel off: no mail at all for that type
+  set('approval', { email: false });
+  gas.mails.length = 0; mk();
+  assert.ok(!gas.mails.some(x => /بانتظار مراجعتك/.test(x.subject)), 'email channel off');
+});
