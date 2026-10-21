@@ -1393,6 +1393,12 @@ function log(msg) { console.log('  ✔ ' + msg); }
   await page.selectOption('#uRole', 'ممرضة');
   expect(!(await page.isVisible('#uPriceView')), 'price view applies to doctors only');
   await page.click('#uClinics .chip >> nth=1');
+  expect((await page.textContent('#uClinicN')).includes('1 محددة') && await page.locator('#uClinics .u-br').count() >= 2, 'nurse clinics grouped by branch, with a counter');
+  const brChips = page.locator('#uClinics .u-br >> nth=0').locator('.chip');
+  await page.click('#uClinics .u-br >> nth=0 >> .u-br-all');
+  expect(await brChips.count() === await page.locator('#uClinics .u-br >> nth=0').locator('.chip[aria-pressed="true"]').count(), '«All» picks every clinic of the branch');
+  await page.click('#uClinics .u-br >> nth=0 >> .u-br-all');
+  await page.click('#uClinics .chip >> nth=1');
   await shot(page, 'admin-new-user');
   await page.click('#uSave');
   const okUser = await toastHas(page, 'تم حفظ المستخدم');
