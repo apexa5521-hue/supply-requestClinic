@@ -7450,7 +7450,12 @@ function asIssueModal(clinic, preset) {
       $('#isQty', m.el).value = 1; $('#isNote', m.el).value = '';
       const f = $('#isSerW', m.el).classList.contains('hidden') ? $('#isItem', m.el) : rows.querySelector('.input');
       if (f) f.focus();
-    }).catch(er => { busy(b, false); err.querySelector('span').textContent = errMsg(er); err.classList.remove('hidden'); });
+    }).catch(er => {
+      // الخطأ تحت آخر حقل (خارج الشاشة في النافذة الطويلة): يظهر في الأسفل كتنبيه أيضاً، وتنزل النافذة له
+      busy(b, false); err.querySelector('span').textContent = errMsg(er); err.classList.remove('hidden');
+      try { err.scrollIntoView({ block: 'nearest', behavior: 'smooth' }); } catch (e2) { /* متصفح قديم */ }
+      toast(errMsg(er), 'error');
+    });
   };
   $('#isOk', m.el).addEventListener('click', e => save(e.currentTarget, false));
   if ($('#isMore', m.el)) $('#isMore', m.el).addEventListener('click', e => save(e.currentTarget, true));

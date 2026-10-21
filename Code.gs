@@ -8004,10 +8004,11 @@ function issueAssets_(user, payload) {
     if (cat.serialized) {
       const active = {};
       read_('Assets').rows.forEach(function (r) {
-        if (str_(r.Item) === item && str_(r.Serial) && [AS_ST.DAMAGED, AS_ST.LOST].indexOf(str_(r.Status)) === -1) active[str_(r.Serial).toLowerCase()] = true;
+        if (str_(r.Item) === item && str_(r.Serial) && [AS_ST.DAMAGED, AS_ST.LOST].indexOf(str_(r.Status)) === -1) active[str_(r.Serial).toLowerCase()] = str_(r.Clinic) || '—';
       });
+      // الرقم المسجل مسبقاً: مع العيادة اللي القطعة مسجلة عليها الآن (للتصحيح أو النقل من «تعديل العهدة»)
       const taken = serials.filter(function (x) { return active[x.toLowerCase()]; });
-      if (taken.length) throw new Error('ERR_SERIAL_EXISTS:' + taken.join('، '));
+      if (taken.length) throw new Error('ERR_SERIAL_EXISTS:' + taken.map(function (x) { return x + ' ← ' + active[x.toLowerCase()]; }).join('، '));
     }
     let tk = null;
     if (ticketId) {
