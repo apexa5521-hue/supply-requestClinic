@@ -3648,3 +3648,11 @@ test('notification types: admin turns a type off, drops a channel, or copies a r
   gas.mails.length = 0; mk();
   assert.ok(!gas.mails.some(x => /بانتظار مراجعتك/.test(x.subject)), 'email channel off');
 });
+
+test('admin changes a nurse\'s clinics: her open session follows at once (no re-login)', () => {
+  const { api, login } = boot();
+  const adm = login('المدير', '1234'), n = login('سارة', '1111');
+  assert.deepEqual(api(n, 'getAssetConfig').clinics.sort(), ['عيادة الأسنان 1', 'عيادة الجلدية 1'].sort());
+  api(adm, 'updateUser', 'سارة', { name: 'سارة', password: '', role: 'ممرضة', clinic: 'عيادة الأسنان 2', email: 'sara@example.com' });
+  assert.deepEqual(api(n, 'getAssetConfig').clinics, ['عيادة الأسنان 2'], 'same token, new clinics');
+});
