@@ -7623,14 +7623,15 @@ function assetCatalog_() {
   return out;
 }
 /**
- * العيادات التي يرى المستخدم عهدتها: الممرضة عياداتها + عيادات أطبائها فقط (بدون ربط = لا شيء، لا كل العيادات)،
+ * العيادات التي يرى المستخدم عهدتها: الممرضة عياداتها المحددة فقط (بدون تحديد = عيادات أطبائها، وبدون ربط = لا شيء)،
  * الطبيب عيادات سجله، والتموين والجودة والتنفيذية والأدمن الكل
  */
 function assetClinicsFor_(user) {
   const all = getClinics_().filter(function (c) { return inScope_(c.branch); }).map(function (c) { return c.name; });
   if (user.screen === 'nurse') {
+    // العيادات المحددة للممرضة في المستخدمين هي المرجع؛ عيادات أطبائها فقط إذا ما تحدد لها شيء
     const mine = userClinics_(user).slice();
-    nurseDoctors_(user.name).forEach(function (n) { const c = doctorClinic_({ name: '', clinic: '' }, n); if (c && mine.indexOf(c) === -1) mine.push(c); });
+    if (!mine.length) nurseDoctors_(user.name).forEach(function (n) { const c = doctorClinic_({ name: '', clinic: '' }, n); if (c && mine.indexOf(c) === -1) mine.push(c); });
     return mine.filter(function (c) { return all.indexOf(c) !== -1; });
   }
   if (user.screen === 'doctor') {
@@ -8004,10 +8005,11 @@ function issueAssets_(user, payload) {
     if (cat.serialized) {
       const active = {};
       read_('Assets').rows.forEach(function (r) {
-        if (str_(r.Item) === item && str_(r.Serial) && [AS_ST.DAMAGED, AS_ST.LOST].indexOf(str_(r.Status)) === -1) active[str_(r.Serial).toLowerCase()] = true;
+        if (str_(r.Item) === item && str_(r.Serial) && [AS_ST.DAMAGED, AS_ST.LOST].indexOf(str_(r.Status)) === -1) active[str_(r.Serial).toLowerCase()] = str_(r.Clinic) || '—';
       });
+      // الرقم المسجل مسبقاً: مع العيادة اللي القطعة مسجلة عليها الآن (للتصحيح أو النقل من «تعديل العهدة»)
       const taken = serials.filter(function (x) { return active[x.toLowerCase()]; });
-      if (taken.length) throw new Error('ERR_SERIAL_EXISTS:' + taken.join('، '));
+      if (taken.length) throw new Error('ERR_SERIAL_EXISTS:' + taken.map(function (x) { return x + ' ← ' + active[x.toLowerCase()]; }).join('، '));
     }
     let tk = null;
     if (ticketId) {
