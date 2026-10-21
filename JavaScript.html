@@ -50,7 +50,7 @@ const I18N = {
     emergency_note: 'الطلبات الطارئة تُنبَّه لها إدارة التموين فوراً', remove: 'حذف', qty: 'الكمية',
     receive_btn: 'استلام وتوقيع', details: 'التفاصيل', notes: 'الملاحظات', report: 'إبلاغ عن مشكلة',
     no_requests: 'لا توجد طلبات', no_requests_sub: 'ستظهر الطلبات هنا فور رفعها.', no_match: 'لا توجد نتائج مطابقة', no_match_sub: 'جرّب تغيير الفلاتر أو كلمة البحث.',
-    items_count: '{n} صنف', dispatched_of: '{a}/{b} أُرسل',
+    items_count: '{n} صنف', dispatched_of: '{a}/{b} أُرسل', more_actions: 'المزيد', journey_title: 'مراحل الطلب والشحن', step_details: 'بيانات الطلب', step_items: 'الأصناف والكميات', step_send: 'مراجعة وإرسال',
     receive_title: 'تأكيد الاستلام', receive_sub: 'راجع الكميات المستلمة فعلياً ووقّع', sent_qty: 'المرسل', received_qty: 'المستلم فعلياً',
     receiver_name: 'اسم المستلم', receiver_locked: 'يُسجَّل الاستلام باسم حسابك تلقائياً ولا يمكن تغييره', signature: 'التوقيع', signature_hint: 'وقّع هنا بالإصبع أو الفأرة', clear_sig: 'مسح',
     confirm_receive: 'تأكيد الاستلام', received_ok: 'تم تأكيد استلام {id}', receiver_required: 'اسم المستلم إلزامي',
@@ -184,7 +184,7 @@ const I18N = {
     emergency_note: 'Procurement is alerted immediately for emergency requests', remove: 'Remove', qty: 'Qty',
     receive_btn: 'Receive & sign', details: 'Details', notes: 'Notes', report: 'Report issue',
     no_requests: 'No requests', no_requests_sub: 'Requests will appear here once submitted.', no_match: 'No matching results', no_match_sub: 'Try changing filters or search.',
-    items_count: '{n} items', dispatched_of: '{a}/{b} sent',
+    items_count: '{n} items', dispatched_of: '{a}/{b} sent', more_actions: 'More', journey_title: 'Request progress & shipping', step_details: 'Request details', step_items: 'Items & quantities', step_send: 'Review & send',
     receive_title: 'Confirm receipt', receive_sub: 'Check the actually received quantities and sign', sent_qty: 'Sent', received_qty: 'Actually received',
     receiver_name: 'Receiver name', receiver_locked: 'Receipt is recorded under your account name and cannot be changed', signature: 'Signature', signature_hint: 'Sign here with finger or mouse', clear_sig: 'Clear',
     confirm_receive: 'Confirm receipt', received_ok: 'Receipt of {id} confirmed', receiver_required: 'Receiver name is required',
@@ -754,6 +754,20 @@ function cancelBox(r) {
   return r && r.status === ST.CANCELLED ? '<div class="reject-box cancel-box">' + icon('xc') + '<div><b>' + esc(t('cancel_reason')) + ':</b> ' + esc(r.cancelReason || '—') +
     (r.cancelledBy ? '<div class="hint">' + esc(r.cancelledBy) + (r.cancelledAt ? ' · ' + esc(fmtDateTime(r.cancelledAt)) : '') + '</div>' : '') + '</div></div>' : '';
 }
+/* قائمة «المزيد» للإجراءات الثانوية في البطاقات */
+function moreMenu(btns) {
+  return '<details class="req-more"><summary class="btn btn-sm btn-ghost">' + icon('dots', 'i-sm') + esc(t('more_actions')) + '</summary><div class="req-more-list">' + btns.join('') + '</div></details>';
+}
+/* شريط إجراءات البطاقة: المعتادة ظاهرة، والنادرة أو الحساسة (إلغاء، حذف، بلاغ) تحت «المزيد» */
+function actionsBar(main, more) {
+  main = main.filter(Boolean); more = (more || []).filter(Boolean);
+  if (!main.length && !more.length) return '';
+  return '<div class="req-actions">' + main.join('') + (more.length ? moreMenu(more) : '') + '</div>';
+}
+// تُغلق قائمة «المزيد» عند الضغط خارجها أو بعد اختيار إجراء منها
+document.addEventListener('click', e => {
+  $$('details.req-more[open]').forEach(d => { if (!d.contains(e.target) || e.target.closest('.req-more-list .btn')) d.open = false; });
+});
 function stMeta(s) { return STATUS[s] || { k: s, tone: 'var(--t-gray)', step: 0 }; }
 function statusLabel(s) { const m = STATUS[s]; return m ? t(m.k) : s; }
 function badge(s, r) {
@@ -2310,6 +2324,7 @@ VIEWS.new = {
     }
     if (!d.branch || S.branches.indexOf(d.branch) === -1) d.branch = (isHk() ? '' : clinicBranch(byClinic ? d.clinic : d.docClinic)) || S.branches[0] || '';
     return '<div id="nNotices"></div><div class="rule-slot">' + ruleBarHtml() + '</div>' +
+      '<ol class="new-steps" id="newSteps" aria-label="' + esc(t('nav_new')) + '"></ol>' +
       '<div class="new-layout">' +
         '<div class="stack" style="gap:18px">' +
           (isLabUser() ? '<section class="card"><div class="card-head"><h2>' + icon('flask') + esc(t('lab_supply_title')) + '</h2></div><div class="card-body stack">' +
@@ -2317,7 +2332,7 @@ VIEWS.new = {
             '<div class="field"><span class="label">' + esc(t('type')) + '</span><div>' +
               segmented('reqType', [{ v: 'شهري', label: t('type_monthly'), icon: 'calendar' }, { v: 'طارئ', label: t('type_emergency'), icon: 'zap' }], d.type, d.type === 'طارئ' ? 'emergency' : '') +
               '</div><div class="hint hidden" id="emgHint"></div><div class="hint hidden" id="winHint"></div></div></div></section>' :
-          '<section class="card"><div class="card-head"><h2>' + icon('building') + esc(t('req_details')) + '</h2></div><div class="card-body stack">' +
+          '<section class="card req-form"><div class="card-head"><h2>' + icon('building') + esc(t('req_details')) + '</h2></div><div class="card-body stack">' +
             '<div class="field" id="fKind"><span class="label">' + esc(t('req_kind')) + '</span><div>' +
               (isHk() ? '<div class="hint">' + icon('info', 'i-sm') + ' ' + esc(t('hk_kind_hint')) + '</div>' : kindSeg(d.kind)) +
               '</div>' + (byClinic ? '' : '<div class="hint">' + icon('info', 'i-sm') + ' ' + esc(t('kind_doctor_hint')) + '</div>') + '</div>' +
@@ -2338,12 +2353,14 @@ VIEWS.new = {
               '<div class="' + (d.backdate ? '' : 'hidden') + '" id="fBdBox"><label for="fBdDate">' + esc(t('bd_date')) + '</label><input class="input" type="date" id="fBdDate" data-change="nBdDate" max="' + esc(bdMax()) + '" value="' + esc(d.bdDate || '') + '"></div>' +
               '</div>' : '') +
           '</div></section>') +
-          '<section class="card hidden" id="pkgCard"><div class="card-head"><h3>' + icon('layers') + esc(t('pkg_title')) + ' <span class="hint" style="font-weight:500">' + esc(t('pkg_hint')) + '</span></h3>' +
-            '<button class="btn btn-soft btn-sm" data-act="pkgAll">' + icon('plus', 'i-sm') + esc(t('pkg_add_all')) + '</button></div><div class="card-body"><div class="pkg-chips" id="pkgChips"></div></div></section>' +
-          '<section class="card"><div class="card-head"><h2>' + icon('package') + esc(t('items')) + '</h2><span class="count-pill" id="itemsCount">0</span></div><div class="card-body stack">' +
+          // الأصناف: البحث أولاً، ثم البكج المعتاد للطبيب داخل نفس البطاقة، ثم أسطر الطلب
+          '<section class="card" id="itemsCard"><div class="card-head"><h2>' + icon('package') + esc(t('items')) + '</h2><span class="count-pill" id="itemsCount">0</span></div><div class="card-body stack">' +
             '<div class="combo" id="combo"><div class="input-icon">' + icon('search') +
-              '<input class="input" id="itemSearch" role="combobox" aria-expanded="false" aria-controls="comboList" aria-autocomplete="list" autocomplete="off" placeholder="' + esc(t('item_search_ph')) + '"></div>' +
+              '<input class="input" id="itemSearch" role="combobox" aria-expanded="false" aria-controls="comboList" aria-autocomplete="list" autocomplete="off" placeholder="' + esc(t('item_search_ph')) + '">' +
+              '<kbd class="input-end kbd-hint desktop-only" aria-hidden="true">/</kbd></div>' +
               '<div class="combo-list hidden" id="comboList" role="listbox"></div></div>' +
+            '<div class="pkg-inline hidden" id="pkgCard"><div class="pkg-head"><span>' + icon('layers', 'i-sm') + esc(t('pkg_title')) + ' <span class="hint" style="font-weight:500">' + esc(t('pkg_hint')) + '</span></span>' +
+              '<button class="btn btn-soft btn-sm" data-act="pkgAll">' + icon('plus', 'i-sm') + esc(t('pkg_add_all')) + '</button></div><div class="pkg-chips" id="pkgChips"></div></div>' +
             '<div class="items-list" id="itemsList"></div>' +
           '</div></section>' +
         '</div>' +
@@ -2499,7 +2516,7 @@ function renderItems() {
     box.innerHTML = d.items.map((it, i) => {
       const c = catalogInfo(it.name);
       const cls = it._new ? '' : (it._bump ? ' bump' : '');
-      const html = '<div class="item-line' + cls + '" data-row="' + i + '"' + (it._new ? '' : ' style="animation:none"') + '>' +
+      const html = '<div class="item-line' + cls + '" data-row="' + i + '"' + (it._new || it._bump ? '' : ' style="animation:none"') + '>' +
         '<span class="idx">' + (i + 1) + '</span>' +
         '<div class="grow"><div class="nm">' + esc(it.name) + (c && c.aliases && c.aliases.length ? ' <span class="aka">' + esc(t('aka', { n: c.aliases.join('، ') })) + '</span>' : '') + (c && c.asset && nurseDraft().kind === 'doctor' ? ' <span class="tag as-doc">' + icon('steth', 'i-sm') + esc(t('item_custody_doc')) + '</span>' : '') + '</div>' + (c && (c.commercial || c.category) ? '<div class="mt">' + esc([c.commercial, c.category].filter(Boolean).join(' · ')) + '</div>' : (!c && it.free ? '<div class="mt">' + esc(t('free_tag', { ty: it.type })) + '</div>' : (!c ? '<div class="mt" style="color:var(--t-red)">' + esc(t('not_in_catalog')) + '</div>' : ''))) +
           '<div class="qty-err hidden" role="alert">' + icon('alert', 'i-sm') + '<span>' + esc(t('ERR_QTY_MIN1')) + '</span></div></div>' +
@@ -2531,7 +2548,31 @@ function renderSummary() {
     '<div class="sum-row"><span class="muted">' + esc(t('sum_items')) + '</span><b>' + d.items.length + '</b></div>' +
     '<div class="sum-row"><span class="muted">' + esc(t('sum_units')) + '</span><b>' + fmtNum(units, 0) + '</b></div>';
   $('#clearBtn').classList.toggle('hidden', !d.items.length);
+  renderSteps();
 }
+/* شريط المراحل أعلى «طلب جديد»: بيانات الطلب ← الأصناف ← الإرسال، والضغط على مرحلة ينقل لقسمها */
+function renderSteps() {
+  const box = $('#newSteps'); if (!box) return;
+  const d = nurseDraft();
+  const done = [isLabUser() || (d.kind === 'clinic' ? !!d.clinic : !!d.doctor), d.items.length > 0, false];
+  const cur = !done[0] ? 0 : !done[1] ? 1 : 2;
+  box.innerHTML = [['step_details', 'fKind'], ['step_items', 'itemsCard'], ['step_send', 'submitBtn']].map((s, i) =>
+    '<li><button type="button" class="new-step' + (done[i] ? ' done' : '') + (i === cur ? ' cur' : '') + '" data-act="newStep" data-to="' + s[1] + '"' + (i === cur ? ' aria-current="step"' : '') + '>' +
+      '<b>' + (done[i] ? icon('check', 'i-sm') : i + 1) + '</b><span>' + esc(t(s[0])) + '</span></button></li>').join('');
+}
+ACT.newStep = el => {
+  const to = document.getElementById(el.dataset.to) || $('.new-layout .card');
+  if (!to) return;
+  (to.closest('.card') || to).scrollIntoView({ behavior: REDUCED ? 'auto' : 'smooth', block: 'start' });
+  if (el.dataset.to === 'itemsCard') setTimeout(() => { const s = $('#itemSearch'); if (s) s.focus({ preventScroll: true }); }, REDUCED ? 0 : 350);
+};
+// «/» يفتح البحث عن صنف من أي مكان في الشاشة (Slash بالكود: في لوحة المفاتيح العربية يكتب «ظ»)
+document.addEventListener('keydown', e => {
+  if ((e.key !== '/' && e.code !== 'Slash') || e.ctrlKey || e.metaKey || e.altKey) return;
+  const s = $('#itemSearch');
+  if (!s || !s.offsetParent || (e.target.closest && e.target.closest('input,textarea,select,[contenteditable="true"]'))) return;
+  e.preventDefault(); s.focus();
+});
 ACT.qtyStep = el => {
   const it = nurseDraft().items[Number(el.dataset.i)]; if (!it) return;
   it.qty = Math.max(1, Math.min(100000, (Number(it.qty) || 1) + Number(el.dataset.d)));
@@ -2772,7 +2813,7 @@ VIEWS.mine = {
   title: 'nav_mine', sub: 'sub_mine',
   render() {
     return '<div id="mNotices"></div><div class="rule-slot">' + ruleBarHtml() + '</div>' +
-      '<div class="stack" style="gap:10px"><div class="row-wrap mine-filters"><div class="input-icon grow">' + icon('search') + '<input class="input" id="mineQ" data-input="mineQ" value="' + esc(S.nurse.q) + '" placeholder="' + esc(t('search_requests')) + '"></div><span id="mineDocW"></span></div>' +
+      '<div class="stack" style="gap:10px"><div class="row-wrap mine-filters"><div class="input-icon grow">' + icon('search') + '<input class="input" id="mineQ" data-input="mineQ" value="' + esc(S.nurse.q) + '" placeholder="' + esc(t('search_requests')) + '"></div><span id="mineDocW"></span><span class="count-line" id="mineCount"></span></div>' +
       '<div id="mineChips"></div></div>' +
       '<div class="list stagger" id="mineList">' + (S.loaded.mine ? '' : skeletonList(3)) + '</div>';
   },
@@ -2791,26 +2832,35 @@ function renderMineList(animate) {
   const g = NURSE_GROUPS.find(x => x.id === S.nurse.group) || NURSE_GROUPS[0];
   const list = all.filter(r => matchGroup(g, r) && reqSearch(r, S.nurse.q) && (!multiDoc || !S.nurse.doctor || r.doctor === S.nurse.doctor));
   const box = $('#mineList');
+  // عدّاد النتائج: «4 / 12» عند التصفية، والعدد الكامل بدونها
+  $('#mineCount').textContent = list.length === all.length ? String(all.length) : list.length + ' / ' + all.length;
   if (!all.length) { box.innerHTML = emptyState('clipboard', t('no_requests'), t('no_requests_sub')); return; }
   if (!list.length) { box.innerHTML = emptyState('search', t('no_match'), t('no_match_sub')); return; }
-  setList(box, pageOf('mine', list).map((r, i) => stagger(
+  setList(box, pageOf('mine', list).map((r, i) => {
+    // الإجراء الأساسي: استلام إن وجد، وإلا التفاصيل
+    const rcv = r.pendingShipments > 0;
+    const acts = actionsBar([
+      rcv ? '<button class="btn btn-primary btn-sm" data-act="receive" data-id="' + esc(r.id) + '">' + icon('pen', 'i-sm') + esc(t('receive_btn')) + (r.pendingShipments > 1 ? '<span class="count-pill">' + r.pendingShipments + '</span>' : '') + '</button>' : '',
+      '<button class="btn btn-sm' + (rcv ? '' : ' btn-primary') + '" data-act="detail" data-id="' + esc(r.id) + '">' + icon('eye', 'i-sm') + esc(t('details')) + '</button>',
+      r.status === ST.REJECTED ? '<button class="btn btn-sm btn-tone" style="--tone:var(--t-violet)" data-act="resubmit" data-id="' + esc(r.id) + '">' + icon('refresh', 'i-sm') + esc(t(bmKey('resubmit'))) + '</button>' : '',
+      canWithdraw(r) ? '<button class="btn btn-sm btn-soft" data-act="editItems" data-id="' + esc(r.id) + '">' + icon('edit', 'i-sm') + esc(t('edit_items')) + '</button>' : ''
+    ], [
+      canRemoveItems(r) ? '<button class="btn btn-sm btn-soft" data-act="removeItems" data-id="' + esc(r.id) + '">' + icon('trash', 'i-sm') + esc(t('rm_items')) + '</button>' : '',
+      canWithdraw(r) ? '<button class="btn btn-sm btn-danger-soft" data-act="withdraw" data-id="' + esc(r.id) + '">' + icon('x', 'i-sm') + esc(t('withdraw')) + '</button>' : '',
+      '<button class="btn btn-sm btn-ghost" data-act="complaint" data-id="' + esc(r.id) + '">' + icon('alert', 'i-sm') + esc(t('report')) + '</button>'
+    ]);
+    return stagger(
     '<article class="req' + (r.type === 'طارئ' ? ' urgent' : '') + '"' + reqTone(r) + '>' +
       '<div class="req-main clickable" data-act="detail" data-id="' + esc(r.id) + '">' +
         '<div class="grow"><div class="row-wrap"><span class="req-id">' + esc(r.id) + '</span>' + typeTag(r.type) + bdTag(r) + branchTag(r.branch) + arrivedTag(r) + noteTags(r) + '</div>' + whoLine(r) +
-          '<div class="req-sub">' + stageStamp(r) + '<span>' + icon('package') + esc(t('items_count', { n: r.itemCount || 0 })) + '</span></div>' + journeyHtml(r) + slaBar(r) + nowBox(r) + itemsPreview(r) + shipTrack(r) + boxAtHtml(r.boxAt) +
+          '<div class="req-sub">' + stageStamp(r) + '<span>' + icon('package') + esc(t('items_count', { n: r.itemCount || 0 })) + '</span></div>' + slaBar(r) + nowBox(r) + shipTrack(r) + boxAtHtml(r.boxAt) +
           cancelBox(r) + (r.status === ST.REJECTED && r.rejectionReason ? '<div class="reject-box" style="margin-top:8px">' + icon('xc') + '<div><b>' + esc(t('rejection_reason')) + ':</b> ' + esc(r.rejectionReason) + '</div></div>' : '') + '</div>' +
         '<div class="req-side">' + badge(r.status, r) + '</div>' +
       '</div>' +
-      '<div class="req-actions">' +
-        (r.pendingShipments > 0 ? '<button class="btn btn-primary btn-sm" data-act="receive" data-id="' + esc(r.id) + '">' + icon('pen', 'i-sm') + esc(t('receive_btn')) + (r.pendingShipments > 1 ? '<span class="count-pill">' + r.pendingShipments + '</span>' : '') + '</button>' : '') +
-        '<button class="btn btn-sm" data-act="detail" data-id="' + esc(r.id) + '">' + icon('eye', 'i-sm') + esc(t('details')) + '</button>' +
-        (r.status === ST.REJECTED ? '<button class="btn btn-sm btn-tone" style="--tone:var(--t-violet)" data-act="resubmit" data-id="' + esc(r.id) + '">' + icon('refresh', 'i-sm') + esc(t(bmKey('resubmit'))) + '</button>' : '') +
-        (canWithdraw(r) ? '<button class="btn btn-sm btn-soft" data-act="editItems" data-id="' + esc(r.id) + '">' + icon('edit', 'i-sm') + esc(t('edit_items')) + '</button>' : '') +
-        (canWithdraw(r) ? '<button class="btn btn-sm btn-danger-soft" data-act="withdraw" data-id="' + esc(r.id) + '">' + icon('x', 'i-sm') + esc(t('withdraw')) + '</button>' : '') +
-        (canRemoveItems(r) ? '<button class="btn btn-sm btn-soft" data-act="removeItems" data-id="' + esc(r.id) + '">' + icon('trash', 'i-sm') + esc(t('rm_items')) + '</button>' : '') +
-        '<button class="btn btn-sm btn-ghost" data-act="complaint" data-id="' + esc(r.id) + '">' + icon('alert', 'i-sm') + esc(t('report')) + '</button>' +
-      '</div>' +
-    '</article>', i)).join('') + moreBtn('mine', list.length) + archiveBtn('mine', S.nurse.archive), animate);
+      '<details class="req-journey"><summary>' + icon('chevd', 'i-sm') + esc(t('journey_title')) + '</summary>' + journeyHtml(r) + itemsPreview(r) + '</details>' +
+      acts +
+    '</article>', i);
+  }).join('') + moreBtn('mine', list.length) + archiveBtn('mine', S.nurse.archive), animate);
   animateBars(box);
 }
 
@@ -3365,15 +3415,17 @@ function procCard(r) {
       '<input type="checkbox" class="check" data-change="procSel" data-id="' + esc(r.id) + '"' + (sel ? ' checked' : '') + ' aria-label="' + esc(r.id) + '">' +
       '<div class="grow clickable" data-act="procToggle" data-id="' + esc(r.id) + '" style="cursor:pointer"><div class="row-wrap"><span class="req-id">' + esc(r.id) + '</span>' + typeTag(r.type) + bdTag(r) + branchTag(r.branch) + deptTag(r.department, true) + arrivedTag(r) + noteTags(r) +
         '</div>' + whoLine(r) +
-        '<div class="req-sub">' + stageStamp(r) + '<span>' + icon('package') + esc(t('items_count', { n: r.itemCount || 0 })) + '</span></div>' + journeyHtml(r) + slaBar(r) + nowBox(r) + itemsPreview(r) + shipTrack(r) + cancelBox(r) + '</div>' +
+        '<div class="req-sub">' + stageStamp(r) + '<span>' + icon('package') + esc(t('items_count', { n: r.itemCount || 0 })) + '</span></div>' + slaBar(r) + nowBox(r) + shipTrack(r) + cancelBox(r) + '</div>' +
       '<div class="req-side">' + badge(r.status, r) + '</div>' +
     '</div>' +
-    '<div class="req-actions">' +
-      '<button class="btn btn-sm' + (open ? ' btn-soft' : '') + '" data-act="procToggle" data-id="' + esc(r.id) + '">' + icon('package', 'i-sm') + esc(t('view_items')) + icon('chevd', 'i-sm chev' + (open ? ' open' : '')) + '</button>' +
-      '<button class="btn btn-sm btn-ghost" data-act="detail" data-id="' + esc(r.id) + '">' + icon('eye', 'i-sm') + esc(t('details')) + '</button>' +
-      (canRevert(r) ? '<button class="btn btn-sm btn-ghost revert-btn" data-act="revertStep" data-id="' + esc(r.id) + '">' + icon('refresh', 'i-sm') + esc(t('revert_step')) + '</button>' : '') +
-      (S.user.screen === 'procurement' && [ST.RECEIVED, ST.CANCELLED, ST.REJECTED].indexOf(r.status) === -1 ? '<button class="btn btn-sm btn-ghost" data-act="eoFromReq" data-id="' + esc(r.id) + '">' + icon('cart', 'i-sm') + esc(t('eo_from_req')) + '</button>' : '') +
-    '</div>' +
+    '<details class="req-journey"><summary>' + icon('chevd', 'i-sm') + esc(t('journey_title')) + '</summary>' + journeyHtml(r) + itemsPreview(r) + '</details>' +
+    actionsBar([
+      '<button class="btn btn-sm' + (open ? ' btn-soft' : ' btn-primary') + '" data-act="procToggle" data-id="' + esc(r.id) + '">' + icon('package', 'i-sm') + esc(t('view_items')) + icon('chevd', 'i-sm chev' + (open ? ' open' : '')) + '</button>',
+      '<button class="btn btn-sm btn-ghost" data-act="detail" data-id="' + esc(r.id) + '">' + icon('eye', 'i-sm') + esc(t('details')) + '</button>',
+      S.user.screen === 'procurement' && [ST.RECEIVED, ST.CANCELLED, ST.REJECTED].indexOf(r.status) === -1 ? '<button class="btn btn-sm btn-ghost" data-act="eoFromReq" data-id="' + esc(r.id) + '">' + icon('cart', 'i-sm') + esc(t('eo_from_req')) + '</button>' : ''
+    ], [
+      canRevert(r) ? '<button class="btn btn-sm btn-ghost revert-btn" data-act="revertStep" data-id="' + esc(r.id) + '">' + icon('refresh', 'i-sm') + esc(t('revert_step')) + '</button>' : ''
+    ]) +
     (open ? '<div class="req-expand" id="exp-' + esc(r.id) + '">' + procItemsHtml(r) + '</div>' : '') +
   '</article>';
 }
@@ -4797,14 +4849,15 @@ function eoCard(o) {
     (o.notes ? '<div class="hint" style="margin-top:4px">' + esc(o.notes) + '</div>' : '') +
     '<div class="jr-items">' + o.items.slice(0, 6).map(i => '<span>' + esc(i.item) + ' <b>×' + fmtNum(i.qty, 0) + '</b>' + (i.requestId ? ' <small class="muted mono">' + esc(i.requestId) + '</small>' : '') + '</span>').join('') + (o.items.length > 6 ? '<span class="more">+' + (o.items.length - 6) + '</span>' : '') + '</div>' +
     '</div><div class="req-side"><span class="badge" style="--tone:' + (o.late ? 'var(--t-red)' : EO_TONE[o.status] || 'var(--t-gray)') + '"><i class="dot"></i>' + esc(o.late ? t('eo_late') : o.status) + '</span></div></div>' +
-    '<div class="req-actions">' +
-      (o.rfq || ed ? '<button class="btn btn-sm" data-act="eoRfq" data-id="' + esc(o.id) + '">' + icon('file', 'i-sm') + esc(t(ed && open ? 'eo_rfq' : 'eo_rfq_view')) + (o.rfqAt ? ' <small class="muted">' + esc(fmtDate(o.rfqAt)) + '</small>' : '') + '</button>' : '') +
-      (ed && open ? '<button class="btn btn-sm btn-ghost" data-act="eoEdit" data-id="' + esc(o.id) + '">' + icon('edit', 'i-sm') + esc(t('eo_edit')) + '</button>' : '') +
-      (ed && open ? '<button class="btn btn-sm btn-primary" data-act="eoSend" data-id="' + esc(o.id) + '">' + icon('send', 'i-sm flip') + esc(t(o.status === EO_ST.SENT ? 'eo_change_date' : 'eo_send')) + '</button>' : '') +
-      (ed && o.status === EO_ST.SENT ? '<button class="btn btn-sm btn-tone" style="--tone:var(--t-green)" data-act="eoArrived" data-id="' + esc(o.id) + '">' + icon('checkc', 'i-sm') + esc(t('eo_arrived')) + '</button>' : '') +
-      (ed && o.status === EO_ST.DRAFT ? '<button class="btn btn-sm btn-danger-soft" data-act="eoDelete" data-id="' + esc(o.id) + '">' + icon('trash', 'i-sm') + esc(t('delete')) + '</button>' : '') +
-      (ed && o.status === EO_ST.SENT ? '<button class="btn btn-sm btn-ghost" data-act="eoCancel" data-id="' + esc(o.id) + '">' + icon('x', 'i-sm') + esc(t('eo_cancel')) + '</button>' : '') +
-    '</div></article>';
+    actionsBar([
+      ed && open ? '<button class="btn btn-sm btn-primary" data-act="eoSend" data-id="' + esc(o.id) + '">' + icon('send', 'i-sm flip') + esc(t(o.status === EO_ST.SENT ? 'eo_change_date' : 'eo_send')) + '</button>' : '',
+      ed && o.status === EO_ST.SENT ? '<button class="btn btn-sm btn-tone" style="--tone:var(--t-green)" data-act="eoArrived" data-id="' + esc(o.id) + '">' + icon('checkc', 'i-sm') + esc(t('eo_arrived')) + '</button>' : '',
+      o.rfq || ed ? '<button class="btn btn-sm" data-act="eoRfq" data-id="' + esc(o.id) + '">' + icon('file', 'i-sm') + esc(t(ed && open ? 'eo_rfq' : 'eo_rfq_view')) + (o.rfqAt ? ' <small class="muted">' + esc(fmtDate(o.rfqAt)) + '</small>' : '') + '</button>' : '',
+      ed && open ? '<button class="btn btn-sm btn-ghost" data-act="eoEdit" data-id="' + esc(o.id) + '">' + icon('edit', 'i-sm') + esc(t('eo_edit')) + '</button>' : ''
+    ], [
+      ed && o.status === EO_ST.DRAFT ? '<button class="btn btn-sm btn-danger-soft" data-act="eoDelete" data-id="' + esc(o.id) + '">' + icon('trash', 'i-sm') + esc(t('delete')) + '</button>' : '',
+      ed && o.status === EO_ST.SENT ? '<button class="btn btn-sm btn-ghost" data-act="eoCancel" data-id="' + esc(o.id) + '">' + icon('x', 'i-sm') + esc(t('eo_cancel')) + '</button>' : ''
+    ]) + '</article>';
 }
 const eoFind = id => (EO.data && EO.data.orders || []).find(o => o.id === id);
 /* محرر الطلبية: المورد + التواصل + ملاحظات + الأصناف (تعديل الكمية، حذف، إضافة سطر) */
@@ -5467,9 +5520,10 @@ function renderDoc(animate, keepKpis) {
   setList(box, pageOf('doc', list).map((r, i) => stagger(
     '<article class="req' + (r.type === 'طارئ' ? ' urgent' : '') + '"' + reqTone(r) + '><div class="req-main clickable" data-act="review" data-id="' + esc(r.id) + '">' +
       '<div class="grow"><div class="row-wrap"><span class="req-id">' + esc(r.id) + '</span>' + typeTag(r.type) + bdTag(r) + branchTag(r.branch) + arrivedTag(r) + noteTags(r) + '</div>' + whoLine(r) +
-        '<div class="req-sub">' + stageStamp(r) + '<span>' + icon('package') + esc(t('items_count', { n: r.itemCount || 0 })) + '</span></div>' + journeyHtml(r) + slaBar(r) + nowBox(r) + itemsPreview(r) + boxAtHtml(r.boxAt) + '</div>' +
+        '<div class="req-sub">' + stageStamp(r) + '<span>' + icon('package') + esc(t('items_count', { n: r.itemCount || 0 })) + '</span></div>' + slaBar(r) + nowBox(r) + boxAtHtml(r.boxAt) + '</div>' +
       '<div class="req-side">' + badge(r.status, r) + (r.status === ST.REVIEW ? '<span class="btn btn-primary btn-sm">' + esc(t('review_title')) + icon('chevr', 'i-sm flip') + '</span>' : '') + '</div>' +
-    '</div></article>', i)).join('') + moreBtn('doc', list.length) + archiveBtn('doc', S.doc.archive), animate);
+    '</div>' +
+    '<details class="req-journey"><summary>' + icon('chevd', 'i-sm') + esc(t('journey_title')) + '</summary>' + journeyHtml(r) + itemsPreview(r) + '</details></article>', i)).join('') + moreBtn('doc', list.length) + archiveBtn('doc', S.doc.archive), animate);
   animateBars(box);
 }
 ACT.review = el => openReview(el.dataset.id);
@@ -6672,7 +6726,7 @@ function labCard(c, role, i) {
       '<div class="lab-items">' + c.items.map(it => '<div class="lab-item-row"><span>' + icon('flask', 'i-sm') + '<b>' + esc(it.workType) + '</b>' + (it.material ? ' (' + esc(it.material) + ')' : '') + ' · ' + esc(it.lab) + ((it.attachments || []).length ? ' ' + icon('image', 'i-sm') + it.attachments.length : '') + (it.details ? ' <span class="muted">· ' + esc(it.details) + '</span>' : '') + '</span>' + labBadge(it.status) + '</div>').join('') + '</div>' +
     '</div><div class="req-side">' + labBadge(c.status) + '</div></div>' +
     (role === 'lab' ? labItemActions(c) : '') +
-    '<div class="req-actions">' + acts.join('') + '</div></article>', i);
+    actionsBar(acts) + '</article>', i); // كل إجراءات المعمل معتادة فتبقى ظاهرة
 }
 /* أزرار المرحلة التالية لكل سطر (موظف المعمل) */
 const LAB_NEXT = {};
@@ -8158,11 +8212,11 @@ function bxCard(b) {
       (b.loads.length ? '<div class="row-wrap" style="margin-top:8px">' + b.loads.map(l => '<button class="btn btn-ghost btn-sm mono" data-act="detail" data-id="' + esc(l.request) + '" style="min-height:26px;padding:2px 8px">' + icon('package', 'i-sm') + esc(l.request) + ' · ' + esc(t('shipment_n', { n: l.batch })) + '</button>').join('') + '</div>' : '') +
       (last ? '<div class="hint" style="margin-top:6px">' + esc(t('bx_last')) + ': ' + esc(last.action) + ' · ' + esc(last.from === last.to ? last.to : last.from + ' ← ' + last.to) + ' · ' + esc(last.by) + ' · ' + esc(fmtDateTime(last.time)) + '</div>' : '') +
     '</div><div class="req-side">' + bxBadge(b.status) + '</div></div>' +
-    '<div class="req-actions">' + (bxRO() ? '' :
-      '<button class="btn btn-soft btn-sm" data-act="bxMove" data-id="' + esc(b.id) + '">' + icon('route', 'i-sm') + esc(t('bx_move')) + '</button>' +
-      '<button class="btn btn-sm" data-act="bxSticker" data-id="' + esc(b.id) + '">' + icon('file', 'i-sm') + esc(t('bx_sticker')) + '</button>') +
-      (b.photo ? '<a class="btn btn-ghost btn-sm" href="' + esc(b.photo) + '" target="_blank" rel="noopener">' + icon('image', 'i-sm') + esc(t('bx_photo_view')) + '</a>' : '') +
-    '</div></article>';
+    actionsBar([
+      bxRO() ? '' : '<button class="btn btn-soft btn-sm" data-act="bxMove" data-id="' + esc(b.id) + '">' + icon('route', 'i-sm') + esc(t('bx_move')) + '</button>',
+      bxRO() ? '' : '<button class="btn btn-sm" data-act="bxSticker" data-id="' + esc(b.id) + '">' + icon('file', 'i-sm') + esc(t('bx_sticker')) + '</button>',
+      b.photo ? '<a class="btn btn-ghost btn-sm" href="' + esc(b.photo) + '" target="_blank" rel="noopener">' + icon('image', 'i-sm') + esc(t('bx_photo_view')) + '</a>' : ''
+    ]) + '</article>';
 }
 ACT.bxGroup = el => { BX.group = el.dataset.g; resetPage('bx'); bxRender(); };
 ACT.bxCopy = () => {

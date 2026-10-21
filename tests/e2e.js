@@ -296,7 +296,8 @@ function log(msg) { console.log('  ✔ ' + msg); }
   expect(await page.locator(`.req:has-text("${newId}") .tag.branch`).count() === 1, 'branch tag appears once');
   expect((await page.textContent(`.req:has-text("${newId}") .stage-at`)).includes('رُفع'), 'card shows the time of the current stage (submitted)');
   await shot(page, 'nurse-my-requests', true);
-  // complaint
+  // complaint (under the card's "More" menu)
+  await page.click(`.req:has-text("${newId}") .req-more > summary`);
   await page.click(`.req:has-text("${newId}") [data-act="complaint"]`);
   await page.click('#cSend');
   expect(await page.isVisible('#cErr:not(.hidden)'), 'complaint requires details');
@@ -1141,6 +1142,7 @@ function log(msg) { console.log('  ✔ ' + msg); }
   await page.waitForSelector('.modal #bxpOk');
   await page.click('.modal #bxpOk');
   expect(await toastHas(page, 'اكتمل إرسال كل الأصناف'), 'everything sent (by mistake)');
+  await page.click('[data-rid="' + stId + '"] .req-more > summary');
   await page.waitForSelector('[data-rid="' + stId + '"] [data-act="revertStep"]');
   await page.click('[data-rid="' + stId + '"] [data-act="revertStep"]');
   await page.waitForSelector('.modal #rvReason');
@@ -1669,6 +1671,7 @@ function log(msg) { console.log('  ✔ ' + msg); }
     return (await __api(tok, 'getRequestDetail', [id])).items.map(i => i.item + ':' + i.requestedQty).join(',');
   }, wdId2);
   expect(edited === 'PROPHY PASTE:12', 'server has the new qty and the removed item is gone — ' + edited);
+  await page.click(`.req:has-text("${wdId2}") .req-more > summary`);
   await page.waitForSelector(`.req:has-text("${wdId2}") .req-actions [data-act="withdraw"]`);
   await page.click(`.req:has-text("${wdId2}") .req-actions [data-act="withdraw"]`);
   await page.click('.modal #wdOk');

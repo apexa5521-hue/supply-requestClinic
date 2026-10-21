@@ -227,6 +227,7 @@ async function flow(h) {
     await click('#eiOk'); await wait(900);
   });
   await scene('withdraw', 'fix', async () => {
+    await click(`.req:has-text("${consId}") .req-more > summary`);
     await page.waitForSelector(`.req:has-text("${consId}") [data-act="withdraw"]`);
     await click(`.req:has-text("${consId}") [data-act="withdraw"]`);
     await page.waitForSelector('#wdReason');
@@ -317,7 +318,7 @@ async function flow(h) {
     await highlight(sel, 1200);
     await click(sel); await wait(800);
   });
-  await scene('done', '', async () => { await h.nav('mine'); await point('#mineList .req [data-act="complaint"]'); });
+  await scene('done', '', async () => { await h.nav('mine'); await point('#mineList .req .req-more > summary'); });
 }
 
 if (require.main === module) makeTutorial({ id: 'nurse', noMoney: true, langs: (process.env.LANGS || 'ar,ur,id').split(','), scenes, steps, flow }).catch(e => { console.error('TUTORIAL FAILED', e); process.exit(1); });
