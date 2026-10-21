@@ -1291,6 +1291,9 @@ function session_(token) {
   const raw = preGet_('s:' + token);
   if (!raw) throw new Error('ERR_SESSION');
   const user = JSON.parse(raw);
+  // عيادات المستخدم ودوره وإيميله من تبويب المستخدمين في كل طلب: تعديل الأدمن (مثل عيادات الممرضة) ينعكس فوراً بدون إعادة دخول
+  const row = read_('Users').rows.filter(function (r) { return str_(r.Name) === user.name; })[0];
+  if (row) { user.clinic = str_(row.Clinic); user.email = str_(row.Email); if (str_(row.Role)) user.role = str_(row.Role); }
   // الدور وصلاحياته تُقرأ في كل طلب: تعديل الأدمن لدور ينعكس فوراً بدون إعادة دخول
   const sc = roleScreen_(user.role);
   if (!sc) throw new Error('ERR_SESSION');
