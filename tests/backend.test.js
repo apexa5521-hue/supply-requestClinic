@@ -1049,7 +1049,7 @@ test('custody: standard per clinic, issue with serial numbers, nurse report with
   throwsCode(() => api(p, 'issueAssets', { clinic: 'عيادة الأسنان 1', item: 'Handpiece Low Speed', serials: ['A1', 'A1'] }), 'ERR_SERIAL_DUP');
   const iss = api(p, 'issueAssets', { clinic: 'عيادة الأسنان 1', item: 'Handpiece Low Speed', serials: ['LS-001', 'LS-002', 'LS-003', 'LS-004'] });
   assert.equal(iss.ids.length, 4);
-  throwsCode(() => api(p, 'issueAssets', { clinic: 'عيادة الجلدية 1', item: 'Handpiece Low Speed', serials: ['LS-002'] }), 'ERR_SERIAL_EXISTS:LS-002');
+  throwsCode(() => api(p, 'issueAssets', { clinic: 'عيادة الجلدية 1', item: 'Handpiece Low Speed', serials: ['LS-002'] }), 'ERR_SERIAL_EXISTS:LS-002 ← عيادة الأسنان 1');
   api(p, 'issueAssets', { clinic: 'عيادة الأسنان 1', item: 'Curing Light', qty: 2, cost: 750 });
   let ca = api(n, 'getClinicAssets', { clinic: 'عيادة الأسنان 1' })[0];
   const ls = ca.items.find(i => i.item === 'Handpiece Low Speed');
@@ -1110,6 +1110,12 @@ test('custody: standard per clinic, issue with serial numbers, nurse report with
     assert.deepEqual(api(nouf, 'getClinicAssets', {}), [], 'a nurse with no clinic sees no custody (not every clinic)');
     assert.deepEqual(api(nouf, 'getAssetConfig').clinics, []);
     assert.deepEqual(api(haya, 'getClinicAssets', {}).map(c => c.clinic), ['عيادة الأسنان 1'], 'a nurse sees her own clinic only');
+    // her doctor works in another clinic: the clinics picked for her in Users still decide (not the doctor's clinic)
+    const dt = gas.ss.getSheetByName('Doctors'), dh = dt._data[0], fahd = dt._data.find(r => r[dh.indexOf('DoctorName')] === 'د. فهد');
+    fahd[dh.indexOf('NurseName')] = 'سارة, هيا, نوف';
+    ctx.onEdit({ range: { getSheet: () => dt } });
+    assert.deepEqual(api(haya, 'getAssetConfig').clinics, ['عيادة الأسنان 1'], 'only the clinics set for the nurse (not her doctor\'s clinic)');
+    assert.deepEqual(api(nouf, 'getAssetConfig').clinics, ['عيادة الجلدية 1'], 'no clinics set: her doctors\' clinics');
   }
   // التموين: استلام بصورة الحالة ← قابلة للتصليح ← رجعت
   throwsCode(() => api(p, 'updateAssetTicket', t1.id, 'receive', {}), 'ERR_PHOTO_REQUIRED');
