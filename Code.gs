@@ -457,7 +457,7 @@ function doPost(e) {
  * كل دالة معرّفة بالشاشات المسموح لها؛ '*' = أي مستخدم مسجّل.
  */
 function api(token, fn, args, opts) {
-  NO_PRICES_ = false; PRICE_VIEW_ = 'all';
+  NO_PRICES_ = false; PRICE_VIEW_ = 'all'; NK_ = '';
   let out = apiCore_(token, fn, args);
   // طبيبة الجلدية: لا تصل لمتصفحها أي أسعار أو قيم (حتى لو كانت مكتوبة في الشيت)
   if (NO_PRICES_) out = stripPrices_(out);
@@ -702,6 +702,8 @@ const API_ = {
   getQualityTrend:           { screens: [], perm: 'overview', fn: function (u, n) { return getQualityTrend_(n); } },
   getUsers:                  { screens: [], perm: 'users', fn: getUsers_ },
   getBackupStatus:           { screens: [], perm: 'users', fn: function () { return backupStatus_(); } },
+  getNotifyConfig:           { screens: [], perm: 'users', fn: function () { return getNotifyConfig_(); } },
+  saveNotifyConfig:          { screens: [], perm: 'users', fn: saveNotifyConfig_ },
   getSetupStatus:            { screens: [], perm: 'users', fn: function () { return getSetupStatus_(); } },
   runSetupNow:               { screens: [], perm: 'users', fn: runSetupNow_ },
   backupNow:                 { screens: [], perm: 'users', fn: function (user) { return runBackup_(user.name); } },
@@ -1380,7 +1382,7 @@ function loadBox_(req, batch, user, now, pick, quiet) {
   if (quiet) return;
   // تنبيه السواق بالإيميل (اختياري من Settings ← DriverEmail)
   const mail = str_(getSetting_('DriverEmail', ''));
-  if (mail) sendMail_(mail, 'بوكس جاهز للنقل: ' + str_(row.BoxID) + ' (' + owner + ') إلى ' + dest,
+  if (mail && notifyOn_('driver')) sendMail_(mail, 'بوكس جاهز للنقل: ' + str_(row.BoxID) + ' (' + owner + ') إلى ' + dest,
     'بوكس ' + owner + ' (' + str_(row.BoxID) + ') جاهز في التموين — التوصيل إلى فرع ' + dest + '.\nامسح الـ QR على البوكس عند التسليم.');
 }
 /** إخراج شحنة من البوكس (استلام الممرضة أو إلغاء الشحنة) — داخل القفل */
@@ -1470,7 +1472,7 @@ function boxDeliver_(p) {
   read_('Requests').rows.forEach(function (r) { reqs[str_(r.RequestID)] = r; });
   notify.forEach(function (l) {
     const r = reqs[l.request];
-    if (r && str_(r.Nurse)) notifyUser_(str_(r.Nurse), 'وصل بوكس طلبك ' + l.request + ' إلى فرع ' + to + ' · Box arrived, check and sign', mailMsg_({ order: ['en', 'ar'], id: l.request, req: mapRequest_(r), step: 4,
+    nk_('box_arrived'); if (r && str_(r.Nurse)) notifyUser_(str_(r.Nurse), 'وصل بوكس طلبك ' + l.request + ' إلى فرع ' + to + ' · Box arrived, check and sign', mailMsg_({ order: ['en', 'ar'], id: l.request, req: mapRequest_(r), step: 4,
       en: { title: 'Your box reached the ' + to + ' branch', lead: 'Box ' + str_(pre.BoxID) + ' (shipment ' + l.batch + ') was delivered by ' + driver + '.',
         action: 'Check the items, enter what you received, reject anything that does not match (with a photo), then sign.', btn: 'Open receipt', foot: 'You received this because you raised the request. Automatic message, please do not reply.' },
       ar: { title: 'وصل بوكس طلبك إلى فرع ' + to, lead: 'سلّم السواق ' + driver + ' البوكس ' + str_(pre.BoxID) + ' (الشحنة ' + l.batch + ').',
@@ -1548,7 +1550,7 @@ function requestBoxMove_(user, boxId, to) {
     addBoxMove_(row, b.location, to, 'طلب نقل', user.name, '', '', '');
   });
   const mail = str_(getSetting_('DriverEmail', ''));
-  if (mail) sendMail_(mail, 'مطلوب نقل بوكس ' + str_(boxId) + ' إلى ' + to, 'مطلوب نقل البوكس ' + str_(boxId) + ' إلى ' + to + '.');
+  if (mail && notifyOn_('driver')) sendMail_(mail, 'مطلوب نقل بوكس ' + str_(boxId) + ' إلى ' + to, 'مطلوب نقل البوكس ' + str_(boxId) + ' إلى ' + to + '.');
   return true;
 }
 /** بوكس جديد يدوياً (لطبيب/عيادة قبل أول إرسال، لطباعة الستيكر مبكراً) */
@@ -2744,7 +2746,7 @@ function nudgeProcurement_(user, requestId, message) {
   const body = user.name + ' (' + user.role + ') يطلب الإسراع في الطلب ' + g.req.id + ' — ' + (g.req.doctor || g.req.clinic) +
     (g.req.clinic && g.req.doctor ? ' / ' + g.req.clinic : '') + (g.req.branch ? ' / فرع ' + g.req.branch : '') + '.\n\n' + message;
   let to = '', emailed = true;
-  if (owner === 'nurse') { to = g.req.nurse; emailed = notifyUser_(to, subject, body); }
+  nk_('nudge'); if (owner === 'nurse') { to = g.req.nurse; emailed = notifyUser_(to, subject, body); }
   else if (owner === 'doctor' && doctorAccounts_()[g.req.doctor]) { to = doctorAccounts_()[g.req.doctor]; emailed = notifyUser_(to, subject, body); }
   else notifyProcurement_(r.department, subject, body);
   // بدون إيميل مسجل: يبقى التنبيه تعليقاً على الطلب يراه صاحبه في النظام
@@ -2771,7 +2773,7 @@ function sendDigest_() {
   const body = (m.late.length ? 'طلبات تجاوزت الموعد (' + m.late.length + '):\n' + m.late.map(line).join('\n') + '\n\n' : '') +
     (m.atRisk.length ? 'قريبة من الموعد ولم تُرسل بعد (' + m.atRisk.length + '):\n' + m.atRisk.map(line).join('\n') : '');
   const subject = '⏰ متابعة المواعيد: ' + m.late.length + ' متأخر · ' + m.atRisk.length + ' قريب من الموعد';
-  notifyRole_('procurement', subject, body);
+  nk_('digest'); notifyRole_('procurement', subject, body);
   notifyPerm_('monitor', subject, body);
   return m.late.length + m.atRisk.length;
 }
@@ -3177,14 +3179,14 @@ function createRequest_(user, payload) {
   const lite = { id: id, clinic: clinic, branch: branch, doctor: doctor, nurse: user.name, type: type, department: dept };
   if (needsReview && branchApproval) {
     branchManagers_(branch).forEach(function (m) {
-      notifyUser_(m, (type === 'طارئ' ? '🚨 طلب طارئ بانتظار اعتمادك - ' : 'طلب بانتظار اعتمادك - ') + id + ' · Awaiting your approval', approvalMail_(lite, items, { branch: true }));
+      nk_('approval'); notifyUser_(m, (type === 'طارئ' ? '🚨 طلب طارئ بانتظار اعتمادك - ' : 'طلب بانتظار اعتمادك - ') + id + ' · Awaiting your approval', approvalMail_(lite, items, { branch: true }));
     });
   } else if (needsReview) {
-    notifyUser_(doctorAccounts_()[doctor], (type === 'طارئ' ? '🚨 طلب طارئ بانتظار مراجعتك - ' : 'طلب جديد بانتظار مراجعتك - ') + id + ' · Awaiting your approval', approvalMail_(lite, items));
+    nk_('approval'); notifyUser_(doctorAccounts_()[doctor], (type === 'طارئ' ? '🚨 طلب طارئ بانتظار مراجعتك - ' : 'طلب جديد بانتظار مراجعتك - ') + id + ' · Awaiting your approval', approvalMail_(lite, items));
     // الطارئ: التموين يعلم مبكراً (للاستعداد) رغم انتظار الاعتماد
-    if (type === 'طارئ') notifyProcurement_(dept, '🚨 طلب طارئ (بانتظار اعتماد الطبيب) - ' + id + ' · Emergency awaiting doctor', procNewMail_(lite, items, 'waiting'));
+    nk_('proc_new'); if (type === 'طارئ') notifyProcurement_(dept, '🚨 طلب طارئ (بانتظار اعتماد الطبيب) - ' + id + ' · Emergency awaiting doctor', procNewMail_(lite, items, 'waiting'));
   } else {
-    notifyProcurement_(dept, (type === 'طارئ' ? '🚨 طلب طارئ - ' : 'طلب مستلزمات جديد - ') + id + (type === 'طارئ' ? ' · New emergency request' : ' · New supplies request'),
+    nk_('proc_new'); notifyProcurement_(dept, (type === 'طارئ' ? '🚨 طلب طارئ - ' : 'طلب مستلزمات جديد - ') + id + (type === 'طارئ' ? ' · New emergency request' : ' · New supplies request'),
       procNewMail_(lite, items, forLab ? 'lab' : clinicOnly ? 'clinic' : 'noacc'));
   }
   const k = type === 'طارئ' ? 'emergency' : 'monthly';
@@ -3502,7 +3504,7 @@ function proposeSubstitute_(user, payload) {
   });
   if (!res.auto) {
     const rq = res.request;
-    notifyUser_(doctorAccounts_()[rq.doctor], 'مستهلك بديل بانتظار موافقتك - ' + requestId + ' · Substitute awaiting your decision', mailMsg_({ order: ['ar', 'en'], id: requestId, req: rq, step: 2,
+    nk_('substitute'); notifyUser_(doctorAccounts_()[rq.doctor], 'مستهلك بديل بانتظار موافقتك - ' + requestId + ' · Substitute awaiting your decision', mailMsg_({ order: ['ar', 'en'], id: requestId, req: rq, step: 2,
       ar: { title: 'التموين يقترح مستهلكاً بديلاً', lead: 'الصنف «' + item + '» غير متوفر، واقترح التموين بديلاً له في طلبك.',
         action: 'وافق على البديل أو ارفضه من الموقع. إن رفضته يبقى الصنف الأصلي كما هو ولا يُرسل البديل.', btn: 'افتح الطلب وقرّر',
         lines: [item + ' ← ' + res.sub + ' × ' + res.qty].concat(note ? ['ملاحظة التموين: ' + note] : []), foot: 'وصلك هذا الإيميل لأن الطلب باسمك. رسالة آلية، لا ترد عليها.' },
@@ -3539,7 +3541,7 @@ function reviewSubstitute_(user, requestId, substitute, accept, reason) {
     logAction_(req.id, (accept ? 'وافق الطبيب على البديل: ' : 'رفض الطبيب البديل: ') + of + ' ← ' + substitute + (!accept && reason ? ' — ' + clean_(reason, 300) : ''), user.name);
   });
   const rsn = clean_(reason, 300);
-  notifyProcurement_(req.department, (accept ? 'وافق الطبيب على البديل - ' : 'رفض الطبيب البديل - ') + requestId + (accept ? ' · Substitute accepted' : ' · Substitute rejected'), mailMsg_({ order: ['ar', 'en'], id: requestId, req: req, step: 2,
+  nk_('substitute'); notifyProcurement_(req.department, (accept ? 'وافق الطبيب على البديل - ' : 'رفض الطبيب البديل - ') + requestId + (accept ? ' · Substitute accepted' : ' · Substitute rejected'), mailMsg_({ order: ['ar', 'en'], id: requestId, req: req, step: 2,
     ar: { title: accept ? 'وافق الطبيب على البديل' : 'رفض الطبيب البديل', lead: of + ' ← ' + substitute,
       action: accept ? 'يمكن إرسال البديل الآن.' : '', lines: accept ? [] : ['الصنف الأصلي باقٍ كما هو.'].concat(rsn ? ['السبب: ' + rsn] : []), btn: 'افتح في التموين' },
     en: { title: accept ? 'The doctor accepted the substitute' : 'The doctor rejected the substitute', lead: of + ' → ' + substitute,
@@ -3857,7 +3859,7 @@ function cancelRequests_(user, requestIds, reason) {
     });
   });
   toNotify.forEach(function (req) {
-    notifyUser_(req.nurse, 'أُلغي طلبك - ' + req.id + ' · Request cancelled', mailMsg_({ order: ['en', 'ar'], id: req.id, req: req, step: -1,
+    nk_('cancelled'); notifyUser_(req.nurse, 'أُلغي طلبك - ' + req.id + ' · Request cancelled', mailMsg_({ order: ['en', 'ar'], id: req.id, req: req, step: -1,
       en: { title: 'Procurement cancelled your request', lead: 'Reason: ' + reason, lines: ['Do not wait for this request. Raise a new one if you still need the items.'], foot: 'You received this because you raised the request. Automatic message, please do not reply.' },
       ar: { title: 'ألغى التموين طلبك', lead: 'السبب: ' + reason, lines: ['لا تنتظري هذا الطلب — ارفعي طلباً جديداً إن احتجتِ.'], foot: 'وصلك هذا الإيميل لأنك رفعتِ الطلب. رسالة آلية، لا تردي عليها.' } }));
   });
@@ -3904,8 +3906,8 @@ function bulkUpdateStatus_(user, requestIds, newStatus, boxes) {
     });
   });
   toNotify.forEach(function (req) {
-    if (newStatus === ST.SENT) notifyNurseSent_(req);
-    if (newStatus === ST.REVIEW) notifyUser_(doctorAccounts_()[req.doctor] || req.doctor, 'طلب بانتظار مراجعتك - ' + req.id + ' · Awaiting your approval',
+    nk_('shipped'); if (newStatus === ST.SENT) notifyNurseSent_(req);
+    nk_('approval'); if (newStatus === ST.REVIEW) notifyUser_(doctorAccounts_()[req.doctor] || req.doctor, 'طلب بانتظار مراجعتك - ' + req.id + ' · Awaiting your approval',
       approvalMail_(req, itemsOf_(req.id).map(function (r) { return { name: str_(r.ItemName), qty: r.RequestedQty }; })));
   });
   return result;
@@ -3963,7 +3965,7 @@ function dispatchItems_(user, requestId, lines, box) {
       remainingQty: after.remainingQty, remainingItems: after.remaining, req: mapRequest_(f.row)
     };
   });
-  if (res.allSent) notifyNurseSent_(res.req);
+  nk_('shipped'); if (res.allSent) notifyNurseSent_(res.req);
   else notifyNursePartial_(res.req, res);
   delete res.req;
   return res;
@@ -4093,7 +4095,7 @@ function rejectItems_(user, requestId, items, note, undo) {
     const body = mailMsg_({ order: ['en', 'ar'], id: requestId, req: res.req, step: 2,
       en: { title: 'Procurement rejected ' + (res.names.length > 1 ? res.names.length + ' items' : 'an item') + ' in your request', lead: 'Reason: ' + note, lines: res.names, foot: 'The rest of the request continues as normal. You received this because you raised the request. Automatic message, please do not reply.' },
       ar: { title: 'رفض التموين ' + (res.names.length > 1 ? res.names.length + ' أصناف' : 'صنفاً') + ' من طلبك', lead: 'السبب: ' + note, lines: res.names, foot: 'باقي الطلب يكمل بشكل طبيعي. وصلك هذا الإيميل لأنك رفعتِ الطلب. رسالة آلية، لا تردي عليها.' } });
-    notifyUser_(res.req.nurse, subject, body); // الطبيب يراه على الطلب في الموقع (إيميلاته: الاعتماد، البديل، الاستلام فقط)
+    nk_('rejected'); notifyUser_(res.req.nurse, subject, body); // الطبيب يراه على الطلب في الموقع (إيميلاته: الاعتماد، البديل، الاستلام فقط)
     if (res.completed) notifyNurseSent_(res.req);
   }
   delete res.req;
@@ -4172,7 +4174,7 @@ function removeMyItems_(user, requestId, items, note) {
     res = { changed: ups.length, names: names, req: mapRequest_(f.row) };
   });
   // التموين قد يكون يجهّزه الآن
-  if (res.changed) notifyProcurement_(res.req.department, 'حذفت الممرضة صنفاً من الطلب - ' + requestId + ' · Item removed by the nurse',
+  nk_('item_removed'); if (res.changed) notifyProcurement_(res.req.department, 'حذفت الممرضة صنفاً من الطلب - ' + requestId + ' · Item removed by the nurse',
     mailMsg_({ order: ['ar', 'en'], id: requestId, req: res.req, step: 2,
       ar: { title: 'حذفت الممرضة ' + (res.names.length > 1 ? res.names.length + ' أصناف' : 'صنفاً') + ' من الطلب', lead: 'السبب: ' + note, lines: res.names, action: 'لا تجهّز هذا الصنف ولا ترسله.', btn: 'افتح الطلب' },
       en: { title: 'The nurse removed ' + (res.names.length > 1 ? res.names.length + ' items' : 'an item') + ' from the request', lead: 'Reason: ' + note, lines: res.names, action: 'Do not prepare or send this item.', btn: 'Open request' } }));
@@ -4467,7 +4469,7 @@ function addNurseIssue_(user, o) {
     resetMemo_();
     id = issueCopy_({ Source: NI_SRC_.SURVEY, SourceID: '', RequestID: '', Author: user.name, Role: user.role, Clinic: clinic, Branch: clinic ? clinicBranch_(clinic) : '', Type: type, Message: message });
   });
-  notifyPerm_('surveys', '📝 ملاحظة جديدة من استبيان التمريض (' + type + ') · New nurse survey note', mailMsg_({ order: ['ar', 'en'],
+  nk_('survey'); notifyPerm_('surveys', '📝 ملاحظة جديدة من استبيان التمريض (' + type + ') · New nurse survey note', mailMsg_({ order: ['ar', 'en'],
     ar: { title: 'ملاحظة من استبيان التمريض: ' + type, lead: 'من ' + user.name + (clinic ? ' — ' + clinic : '') + ':', lines: [message], btn: 'افتح استبيان التمريض' },
     en: { title: 'Nurse survey note: ' + type, lead: 'From ' + user.name + (clinic ? ' — ' + clinic : '') + ':', lines: [message], btn: 'Open nurse survey' } }));
   return getNurseIssues_(user);
@@ -4487,7 +4489,7 @@ function setNurseIssueStatus_(user, id, status, note) {
     setCells_(t, row, { Status: status, StatusNote: note || str_(row.StatusNote), UpdatedAt: new Date(), UpdatedBy: user.name });
     author = str_(row.Author);
   });
-  if (author && author !== user.name && status === NI_ST_.CLOSED) notifyUser_(author, 'أُغلقت ملاحظتك في استبيان التمريض · Your survey note was closed', mailMsg_({ order: ['ar', 'en'],
+  nk_('survey'); if (author && author !== user.name && status === NI_ST_.CLOSED) notifyUser_(author, 'أُغلقت ملاحظتك في استبيان التمريض · Your survey note was closed', mailMsg_({ order: ['ar', 'en'],
     ar: { title: 'أُغلقت ملاحظتك', lead: user.name + ':', lines: [note] }, en: { title: 'Your note was closed', lead: user.name + ':', lines: [note] } }));
   return getNurseIssues_(user);
 }
@@ -4679,7 +4681,7 @@ function extOrderReminders_(nowMs) {
       ar: { title: o.late ? 'طلبية متأخرة عن موعدها' : 'موعد وصول طلبية اليوم', lead: o.id + ' — ' + o.supplier + ' · الموعد ' + o.exp, action: 'تابع مع المندوب، واضغط «وصلت» عند الاستلام أو عدّل الموعد.', btn: 'افتح الطلبات الخارجية' },
       en: { title: o.late ? 'External order is late' : 'External order due today', lead: o.id + ' — ' + o.supplier + ' · due ' + o.exp, action: 'Follow up with the rep; press «Arrived» on receipt or change the date.', btn: 'Open external orders' } });
     const names = o.to.filter(function (x, i, a) { return a.indexOf(x) === i; });
-    if (names.length) names.forEach(function (n) { notifyUser_(n, subject, body); }); else notifyRole_('procurement', subject, body);
+    nk_('external'); if (names.length) names.forEach(function (n) { notifyUser_(n, subject, body); }); else notifyRole_('procurement', subject, body);
   });
   return due.length;
 }
@@ -4752,7 +4754,7 @@ function revertStep_(user, requestId, reason, expected) {
     }
     out = plan;
   });
-  if (notify) notifyUser_(notify.nurse, notify.subject, notify.body);
+  nk_('reverted'); if (notify) notifyUser_(notify.nurse, notify.subject, notify.body);
   return { reverted: out, request: getRequestItemsFull_(user, requestId) };
 }
 
@@ -4818,7 +4820,7 @@ function doctorReview_(user, requestId, decision, reason, itemNotes, qtys) {
     const byBm = req.approver === 'branch', em = req.type === 'طارئ';
     const apItems = itemsOf_(requestId).filter(function (r) { return !(str_(r.SubstituteOf) && str_(r.SubStatus) !== SUB_ST.OK); })
       .map(function (r) { return { name: str_(r.ItemName), req: r.RequestedQty, ok: targetQty_(r) }; });
-    notifyProcurement_(req.department, (em ? '🚨 طلب طارئ معتمد - ' : 'طلب معتمد جاهز للتجهيز - ') + requestId + ' · Approved, needs preparing', mailMsg_({ order: ['ar', 'en'], id: requestId, req: req, step: 2, urgent: em,
+    nk_('proc_new'); notifyProcurement_(req.department, (em ? '🚨 طلب طارئ معتمد - ' : 'طلب معتمد جاهز للتجهيز - ') + requestId + ' · Approved, needs preparing', mailMsg_({ order: ['ar', 'en'], id: requestId, req: req, step: 2, urgent: em,
       ar: { title: 'اعتمد ' + (byBm ? 'مدير الفرع ' : '') + user.name + ' الطلب' + (em ? ' الطارئ' : ''), lead: (byBm ? 'معتمد من مدير الفرع' : 'معتمد من الطبيب') + ' · بحاجة لتجهيز.',
         action: em ? 'جهّز الطلب الطارئ وأرسله خلال المهلة.' : 'جهّز الطلب وأرسله في موعد الصرف.', btn: 'افتح في التموين', lines: reason ? ['ملاحظة: ' + reason] : [] },
       en: { title: user.name + ' approved the' + (em ? ' emergency' : '') + ' request', lead: (byBm ? 'Branch manager approved' : 'Doctor approved') + ' · needs preparing.',
@@ -4827,7 +4829,7 @@ function doctorReview_(user, requestId, decision, reason, itemNotes, qtys) {
   } else {
     const who = req.approver === 'branch' ? 'مدير الفرع' : 'الطبيب';
     const whoEn = req.approver === 'branch' ? 'the branch manager' : 'the doctor';
-    notifyUser_(req.nurse, 'رفض ' + who + ' للطلب - ' + requestId + ' · Request rejected', mailMsg_({ order: ['en', 'ar'], id: requestId, req: req, step: 1, urgent: true,
+    nk_('rejected'); notifyUser_(req.nurse, 'رفض ' + who + ' للطلب - ' + requestId + ' · Request rejected', mailMsg_({ order: ['en', 'ar'], id: requestId, req: req, step: 1, urgent: true,
       en: { title: 'Your request was rejected by ' + whoEn, lead: user.name + ' rejected it. Reason: ' + reason, action: 'Edit the request and send it again from «My requests».', btn: 'Open request', foot: 'You received this because you raised the request. Automatic message, please do not reply.' },
       ar: { title: 'رفض ' + who + ' طلبك', lead: 'رفضه ' + user.name + '. السبب: ' + reason, action: 'يمكنك مراجعة الطلب وإعادة إرساله من شاشة «طلباتي».', btn: 'افتح الطلب', foot: 'وصلك هذا الإيميل لأنك رفعتِ الطلب. رسالة آلية، لا تردي عليها.' } }));
   }
@@ -4850,7 +4852,7 @@ function resubmitRequest_(user, requestId, note) {
   });
   if (note) addComment_(user, requestId, note);
   const resentMail = approvalMail_(Object.assign({}, req, { nurse: user.name }), itemsOf_(requestId).map(function (r) { return { name: str_(r.ItemName), qty: r.RequestedQty }; }), { resent: true, note: note, branch: req.approver === 'branch' });
-  (req.approver === 'branch' ? branchManagers_(req.branch) : [doctorAccounts_()[req.doctor] || req.doctor]).forEach(function (to) { notifyUser_(to, 'طلب مُعاد لمراجعتك - ' + requestId + ' · Sent back for your review', resentMail); });
+  nk_('approval'); (req.approver === 'branch' ? branchManagers_(req.branch) : [doctorAccounts_()[req.doctor] || req.doctor]).forEach(function (to) { notifyUser_(to, 'طلب مُعاد لمراجعتك - ' + requestId + ' · Sent back for your review', resentMail); });
   return true;
 }
 
@@ -5037,7 +5039,7 @@ function receiveShipment_(user, requestId, batch, receivedItems, receiverName, s
   const r0 = res._req;
   const rjLines = function (ar) { return res.rejected.map(function (n) { return n + ': ' + rejects[n].reason + (rejects[n].url ? (ar ? ' — الصورة: ' : ' — photo: ') + rejects[n].url : ''); }); };
   if (res.rejected.length) {
-    notifyProcurement_(r0.department, 'رفضت الممرضة صنفاً عند الاستلام - ' + requestId + ' · Item rejected at receipt', mailMsg_({ order: ['ar', 'en'], id: requestId, req: r0, step: 5, urgent: true,
+    nk_('receipt_reject'); notifyProcurement_(r0.department, 'رفضت الممرضة صنفاً عند الاستلام - ' + requestId + ' · Item rejected at receipt', mailMsg_({ order: ['ar', 'en'], id: requestId, req: r0, step: 5, urgent: true,
       ar: { title: 'رفضت الممرضة صنفاً عند الاستلام', lead: 'الشحنة ' + batch + ' — ' + user.name + ' فحصت الشحنة ورفضت ما يلي:', action: 'راجع السبب والصورة وعالج الصنف (بديل أو إرسال صحيح).', btn: 'افتح في التموين', lines: rjLines(true) },
       en: { title: 'The nurse rejected an item at receipt', lead: 'Shipment ' + batch + ': ' + user.name + ' checked it and rejected:', action: 'Check the reason and photo, then sort the item out (substitute or correct item).', btn: 'Open in procurement', lines: rjLines(false) } }));
   }
@@ -5046,7 +5048,7 @@ function receiveShipment_(user, requestId, batch, receivedItems, receiverName, s
     const its = res._items.filter(function (i) { return i.target > 0 || (i.rcvRejects || []).length; });
     const rjAll = [];
     res._items.forEach(function (i) { (i.rcvRejects || []).forEach(function (x) { rjAll.push([i.item, x.reason]); }); });
-    notifyUser_(doctorAccounts_()[r0.doctor], 'استلمت الممرضة طلبك - ' + requestId + ' · Your request was received', mailMsg_({ order: ['ar', 'en'], id: requestId, req: r0, step: 5,
+    nk_('received'); notifyUser_(doctorAccounts_()[r0.doctor], 'استلمت الممرضة طلبك - ' + requestId + ' · Your request was received', mailMsg_({ order: ['ar', 'en'], id: requestId, req: r0, step: 5,
       ar: { title: 'استُلم طلبك بتوقيع الممرضة', lead: user.name + ' فحصت الشحنات ووقّعت الاستلام — اكتمل الطلب.', btn: 'افتح الطلب',
         lines: rjAll.map(function (x) { return 'مرفوض عند الاستلام: ' + x[0] + ' (' + x[1] + ')'; }).concat(res.mergedReceiptUrl ? ['الإيصال: ' + res.mergedReceiptUrl] : []),
         foot: 'وصلك هذا الإيميل لأن الطلب باسمك. لا يحتاج منك أي إجراء.' },
@@ -5226,7 +5228,7 @@ function addComplaint_(user, requestId, type, message) {
   const body = mailMsg_({ order: ['ar', 'en'], id: str_(requestId), req: creq, step: -1, urgent: true,
     ar: { title: 'بلاغ جديد على الطلب: ' + type, lead: 'من ' + user.name + ' (' + user.role + '):', lines: [message], action: 'راجع البلاغ وتابع معالجته.', btn: 'افتح البلاغات' },
     en: { title: 'New complaint on the request: ' + type, lead: 'From ' + user.name + ' (' + user.role + '):', lines: [message], action: 'Review the complaint and follow it up.', btn: 'Open complaints' } });
-  notifyMany_(['procurement', 'admin', 'quality'], ['complaints', 'complaints_close'], subject, body);
+  nk_('complaint'); notifyMany_(['procurement', 'admin', 'quality'], ['complaints', 'complaints_close'], subject, body);
   return { id: id };
 }
 
@@ -5271,7 +5273,7 @@ function resolveComplaint_(user, complaintId, note) {
   });
   if (c.author && c.author !== user.name) {
     const req = findRequestSafe_(c.req);
-    notifyUser_(c.author, 'أُغلق بلاغك على الطلب ' + c.req + ' · Your complaint was closed', mailMsg_({ order: ['ar', 'en'], id: c.req, req: req,
+    nk_('complaint'); notifyUser_(c.author, 'أُغلق بلاغك على الطلب ' + c.req + ' · Your complaint was closed', mailMsg_({ order: ['ar', 'en'], id: c.req, req: req,
       ar: { title: 'أُغلق بلاغك (' + c.type + ')', lead: (c.late ? 'ملاحظة الإغلاق من ' : 'أغلقه ') + user.name + (c.late ? ':' : ' بالملاحظة:'), lines: [note] },
       en: { title: 'Your complaint was closed (' + c.type + ')', lead: (c.late ? 'Closing note from ' : 'Closed by ') + user.name + (c.late ? ':' : ' with the note:'), lines: [note] } }));
   }
@@ -5312,7 +5314,7 @@ function complaintProgress_(user, complaintId, step, reply) {
   const body = mailMsg_({ order: ['ar', 'en'], id: c.req, req: req,
     ar: { title: to + ' (' + c.type + ')', lead: 'رد التموين (' + user.name + '):', lines: [reply], action: to === CMP_DONE_ ? 'الجودة: راجع المعالجة وأغلق البلاغ بملاحظة.' : '', btn: 'افتح البلاغات' },
     en: { title: (to === CMP_DONE_ ? 'Handled' : 'In progress') + ' (' + c.type + ')', lead: 'Procurement reply (' + user.name + '):', lines: [reply], action: to === CMP_DONE_ ? 'Quality: review and close the complaint with a note.' : '', btn: 'Open complaints' } });
-  if (c.author && c.author !== user.name) notifyUser_(c.author, subject, body);
+  nk_('complaint'); if (c.author && c.author !== user.name) notifyUser_(c.author, subject, body);
   notifyPerm_('complaints_close', subject, body);
   return { id: c.id, progress: to };
 }
@@ -5580,17 +5582,96 @@ function notifyUser_(name, subject, body) {
   return u ? deliver_([u], subject, body) : false;
 }
 
-/** يوصل الإشعار لمستخدمين: إيميل لمن له إيميل (بدون تكرار) + إشعار جوال لكل أجهزتهم. يرجع true إن أُرسل إيميل */
+/*
+ * أنواع الإشعارات (صفحة الأدمن): لكل نوع تشغيل/إيقاف، الإيميل، إشعار الجوال، وأدوار إضافية تستلم نسخة.
+ * كل مكان يرسل إشعاراً يحدد نوعه بـ nk_('…') قبل الإرسال؛ deliver_ يطبّق إعداد النوع.
+ * Settings ← NotifyConfig = {"digest": {"off": true}, "complaint": {"roles": ["إدارة تنفيذية"], "email": false}}
+ */
+const NOTIFY_TYPES_ = [
+  // [المفتاح, الاسم, من يستلمه افتراضياً, المرحلة]
+  ['approval', 'طلب بانتظار الاعتماد', 'الطبيب أو مدير الفرع', 'الاعتماد'],
+  ['proc_new', 'طلب جديد أو معتمد للتجهيز', 'التموين (حسب القسم)', 'التجهيز'],
+  ['substitute', 'البديل وقرار الطبيب عليه', 'الطبيب ثم التموين', 'التجهيز'],
+  ['rejected', 'رفض الطلب أو صنف منه', 'الممرضة', 'الاعتماد / التجهيز'],
+  ['cancelled', 'إلغاء الطلب', 'الممرضة', 'التجهيز'],
+  ['item_removed', 'حذف الممرضة صنفاً من الطلب', 'التموين', 'التجهيز'],
+  ['shipped', 'إرسال الطلب أو شحنة جزئية', 'الممرضة', 'الإرسال'],
+  ['driver', 'مهام نقل البوكسات', 'السائق', 'الوصول للفرع'],
+  ['box_arrived', 'وصول البوكس للفرع', 'الممرضة', 'الوصول للفرع'],
+  ['received', 'استلام الممرضة للطلب', 'الطبيب', 'الاستلام'],
+  ['receipt_reject', 'رفض صنف عند الاستلام', 'التموين', 'الاستلام'],
+  ['reverted', 'التراجع عن خطوة', 'الممرضة', 'كل المراحل'],
+  ['nudge', 'تنبيه طلب متأخر (من المتابعة)', 'صاحب المرحلة', 'كل المراحل'],
+  ['digest', 'ملخص المواعيد اليومي', 'التموين + صلاحية المتابعة', 'المتابعة'],
+  ['reminder', 'تذكير مهلة الطلب الشهري', 'الأطباء والممرضات', 'قبل الرفع'],
+  ['complaint', 'البلاغات (شحنة / عهدة / مستهلك)', 'التموين والجودة والإدارة', 'بعد الاستلام'],
+  ['asset', 'بلاغات أدوات العهدة', 'التموين ثم الممرضة', 'العهدة'],
+  ['survey', 'استبيان التمريض', 'صلاحية الاستبيانات', 'الجودة'],
+  ['doc_survey', 'استبيان رضا الأطباء', 'الأطباء', 'الجودة'],
+  ['lab', 'حالات المعمل', 'المعمل والممرضة والطبيب', 'المعمل'],
+  ['external', 'الطلبيات الخارجية', 'التموين', 'الشراء']
+];
+const NOTIFY_KEY_ = 'NotifyConfig';
+let NK_ = '';
+function nk_(kind) { NK_ = kind; }
+function notifyConfig_() {
+  if (MEMO_.notifyCfg) return MEMO_.notifyCfg;
+  let o = {};
+  try { o = JSON.parse(str_(getSetting_(NOTIFY_KEY_, '')) || '{}') || {}; } catch (e) { o = {}; }
+  return (MEMO_.notifyCfg = o && typeof o === 'object' && !Array.isArray(o) ? o : {});
+}
+function notifyOn_(kind) { return !(notifyConfig_()[kind] || {}).off; }
+function getNotifyConfig_() {
+  const cfg = notifyConfig_();
+  return {
+    types: NOTIFY_TYPES_.map(function (d) {
+      const c = cfg[d[0]] || {};
+      return { key: d[0], label: d[1], to: d[2], stage: d[3], on: !c.off, email: c.email !== false, push: c.push !== false, roles: Array.isArray(c.roles) ? c.roles : [] };
+    }),
+    roles: read_('Roles').rows.map(function (r) { return str_(r.RoleName); }).filter(String)
+  };
+}
+function saveNotifyConfig_(user, list) {
+  if (!Array.isArray(list)) throw new Error('ERR_REQUIRED');
+  const roles = getNotifyConfig_().roles, keys = NOTIFY_TYPES_.map(function (d) { return d[0]; }), out = {};
+  list.forEach(function (x) {
+    if (!x || keys.indexOf(str_(x.key)) === -1) return;
+    const o = {};
+    if (x.on === false) o.off = true;
+    if (x.email === false) o.email = false;
+    if (x.push === false) o.push = false;
+    const rs = (Array.isArray(x.roles) ? x.roles : []).map(str_).filter(function (r) { return roles.indexOf(r) !== -1; });
+    if (rs.length) o.roles = rs.filter(function (r, i) { return rs.indexOf(r) === i; });
+    if (Object.keys(o).length) out[str_(x.key)] = o;
+  });
+  const js = JSON.stringify(out);
+  withLock_(function () {
+    const t = freshTable_('Settings'), row = t.rows.filter(function (r) { return str_(r.Key) === NOTIFY_KEY_; })[0];
+    if (!row) append_('Settings', { Key: NOTIFY_KEY_, Value: js, Notes: 'أنواع الإشعارات من صفحة الأدمن: off = موقوف، email/push = false لإيقاف القناة، roles = أدوار تستلم نسخة' });
+    else if (str_(row.Value) !== js) setCells_(t, row, { Value: js });
+    logAction_('', 'تعديل إعدادات الإشعارات: ' + js, user.name);
+  });
+  resetMemo_();
+  return getNotifyConfig_();
+}
+
+/** يوصل الإشعار لمستخدمين: إيميل لمن له إيميل (بدون تكرار) + إشعار جوال لكل أجهزتهم. يرجع true إن أُرسل إيميل
+ *  — حسب إعداد نوع الإشعار الحالي (nk_): موقوف = لا شيء، وقناة موقوفة لا تُرسل، والأدوار الإضافية تستلم نسخة */
 function deliver_(users, subject, body) {
+  const cfg = NK_ ? notifyConfig_()[NK_] || {} : {};
+  if (cfg.off) return false;
+  if (Array.isArray(cfg.roles) && cfg.roles.length) {
+    users = users.concat(read_('Users').rows.filter(function (u) { return str_(u.Name) && cfg.roles.indexOf(str_(u.Role)) !== -1; }));
+  }
   const emails = {}, names = [];
   users.forEach(function (u) {
     const em = str_(u.Email), nm = str_(u.Name);
     if (em && !emails[em.toLowerCase()]) emails[em.toLowerCase()] = em;
     if (nm && names.indexOf(nm) === -1) names.push(nm);
   });
-  const to = Object.keys(emails).map(function (k) { return emails[k]; });
+  const to = cfg.email === false ? [] : Object.keys(emails).map(function (k) { return emails[k]; });
   if (to.length) sendMail_(to.join(','), subject, body);
-  pushNotify_(names, subject, body);
+  if (cfg.push !== false) pushNotify_(names, subject, body);
   return to.length > 0;
 }
 
@@ -5677,7 +5758,7 @@ function monthlyReminders_(nowMs) {
       if (pend) { linesAr.push('عندك ' + pend + ' طلب بانتظار اعتمادك قبل الصرف.'); linesEn.push(pend + ' request(s) awaiting your approval before dispatch.'); }
       const onlyPend = !list.length;
       const subject = '⏰ ' + (onlyPend ? 'طلبات بانتظار اعتمادك' : ar.t) + ' · ' + (onlyPend ? 'Requests awaiting your approval' : en.t);
-      notifyUser_(person, subject, mailMsg_({ order: ['ar', 'en'],
+      nk_('reminder'); notifyUser_(person, subject, mailMsg_({ order: ['ar', 'en'],
         ar: { title: onlyPend ? 'طلبات بانتظار اعتمادك' : ar.t, lead: onlyPend ? '' : ar.l, lines: linesAr, btn: 'افتح النظام' },
         en: { title: onlyPend ? 'Requests awaiting your approval' : en.t, lead: onlyPend ? '' : en.l, lines: linesEn, btn: 'Open the system' } }));
       out.push({ to: person, kind: kind, doctors: list, pending: pend });
@@ -5689,6 +5770,7 @@ function monthlyReminders_(nowMs) {
 /** Render: كل ~10 دقائق — التذكيرات + الملخص اليومي للمتأخرات مرة واحدة يومياً بعد الساعة 8 */
 const DIGEST_DAY_KEY_ = 'DailyDigestSentOn';
 function cronTick_(nowMs) {
+  NK_ = '';
   const now = nowMs || Date.now(), res = { reminders: monthlyReminders_(now).length, digest: -1, extOrders: extOrderReminders_(now) };
   const today = riyadh_(now);
   if (new Date(now + 3 * 36e5).getUTCHours() >= 8) {
@@ -5791,6 +5873,7 @@ function pushNotify_(names, subject, body) {
 }
 
 function notifyNursePartial_(req, r) {
+  nk_('shipped');
   if (isLabSupply_(req)) {
     notifyUser_(req.nurse, 'جزء من طلبك جاهز من التموين - ' + req.id, 'جزء من طلب مستهلكات المعمل ' + req.id + ' جاهز (' + r.items.map(function (i) { return i.item + ' ×' + i.qty; }).join('، ') + ') — والباقي لاحقاً.');
     return;
@@ -5808,6 +5891,7 @@ function notifyNursePartial_(req, r) {
 }
 
 function notifyNurseSent_(req) {
+  nk_('shipped');
   if (isLabSupply_(req)) {
     notifyUser_(req.nurse, 'جاهز للاستلام من التموين - ' + req.id, 'طلب مستهلكات المعمل رقم ' + req.id + ' جاهز — استلمه من التموين.');
     return;
@@ -6264,7 +6348,7 @@ function remindSurvey_(user, names) {
   let sent = 0;
   list.forEach(function (n) {
     if (surveyDone_(c.id, n)) return;
-    if (notifyUser_(n, 'استبيان رضا الأطباء — بانتظارك', 'نرجو تعبئة استبيان الرضا (دقيقتان) من داخل النظام قبل ' + riyadh_(toMs_(c.closes)) + '.\nيظهر لك عند الدخول أعلى صفحتك. شكراً لك.')) sent++;
+    nk_('doc_survey'); if (notifyUser_(n, 'استبيان رضا الأطباء — بانتظارك', 'نرجو تعبئة استبيان الرضا (دقيقتان) من داخل النظام قبل ' + riyadh_(toMs_(c.closes)) + '.\nيظهر لك عند الدخول أعلى صفحتك. شكراً لك.')) sent++;
   });
   logAction_('', 'تذكير استبيان الأطباء (' + list.length + ')', user.name);
   return { sent: sent, total: list.length };
@@ -7174,7 +7258,7 @@ function createLabCase_(user, payload) {
       '\n\nالأعمال:\n- ' + lines.map(function (l) { return l.workType + (l.material ? ' (' + l.material + ')' : '') + ' · ' + l.lab + (l.details ? ' · ' + l.details : ''); }).join('\n- ') +
       (payload.notes ? '\n\nملاحظات: ' + str_(payload.notes) : '') +
       (redoOf ? '\n\n⚠️ إعادة (Remake) للحالة ' + redoOf + '\nالسبب: ' + payload.redoReason + (payload.redoNote ? '\nالمشكلة: ' + payload.redoNote : '') : '');
-    notifyRole_('lab', (redoOf ? '⚠️ Remake - ' : (payload.urgent ? '🚨 حالة عاجلة للمعمل - ' : 'حالة جديدة للمعمل - ')) + res.id, body);
+    nk_('lab'); notifyRole_('lab', (redoOf ? '⚠️ Remake - ' : (payload.urgent ? '🚨 حالة عاجلة للمعمل - ' : 'حالة جديدة للمعمل - ')) + res.id, body);
     if (redoOf) notifyUser_(doctorAccounts_()[doctorName], '⚠️ إعادة عمل معمل لمريضك - ' + res.id, body);
   }
   return res;
@@ -7497,7 +7581,7 @@ function updateLabItems_(user, itemIds, action, data) {
       const subj = (action === 'ready' ? 'عمل المعمل جاهز - ' : 'أُرسل عمل المعمل للعيادة - ') + cid;
       const body = 'المريض: ' + str_(c.Patient) + ' — ملف ' + str_(c.FileNo) + '\nالطبيب: ' + str_(c.Doctor) +
         (action === 'send' ? '\n\nيرجى تأكيد الاستلام من داخل النظام عند الوصول.' : '');
-      notifyUser_(str_(c.Nurse), subj, body);
+      nk_('lab'); notifyUser_(str_(c.Nurse), subj, body);
       notifyUser_(doctorAccounts_()[str_(c.Doctor)], subj, body);
     });
   }
@@ -7525,7 +7609,7 @@ function nudgeLab_(user, id, message) {
   if (!c) throw new Error('ERR_NOT_FOUND');
   message = clean_(message, 500) || 'يرجى الإسراع — الإرسالية تجاوزت الموعد المطلوب.';
   append_('LabNotes', { Timestamp: new Date(), CaseID: str_(id), ItemID: '', Author: user.name, Role: user.role, Message: '⏰ ' + message });
-  notifyRole_('lab', '⏰ متابعة إرسالية متأخرة - ' + id, user.name + ' (' + user.role + '): ' + message + '\n\nالمريض: ' + str_(c.Patient) + ' — ملف ' + str_(c.FileNo));
+  nk_('lab'); notifyRole_('lab', '⏰ متابعة إرسالية متأخرة - ' + id, user.name + ' (' + user.role + '): ' + message + '\n\nالمريض: ' + str_(c.Patient) + ' — ملف ' + str_(c.FileNo));
   return labNotes_(id);
 }
 
@@ -8194,7 +8278,7 @@ function reportAsset_(user, payload) {
   logAction_(res.id, 'بلاغ أداة: ' + a.item + (a.serial ? ' #' + a.serial : '') + ' — ' + problem, user.name);
   issueCopy_({ Source: NI_SRC_.ASSET, SourceID: res.id, RequestID: '', Author: user.name, Role: user.role, Clinic: a.clinic, Branch: a.branch,
     Type: problem + ' — ' + a.item + (a.serial ? ' #' + a.serial : ''), Message: desc || problem });
-  notifyRole_('procurement', '🔧 بلاغ أداة - ' + res.id + ' — ' + a.item, 'العيادة: ' + a.clinic + (a.branch ? ' (' + a.branch + ')' : '') +
+  nk_('asset'); notifyRole_('procurement', '🔧 بلاغ أداة - ' + res.id + ' — ' + a.item, 'العيادة: ' + a.clinic + (a.branch ? ' (' + a.branch + ')' : '') +
     '\nالأداة: ' + a.item + (a.serial ? '\nالرقم التسلسلي: ' + a.serial : '') + '\nالمشكلة: ' + problem + (desc ? '\nالوصف: ' + desc : '') +
     '\nالممرضة: ' + user.name + '\n\nيرجى استلام الأداة وتحديث حالتها من داخل النظام.');
   return { duplicate: false, id: res.id };
@@ -8288,7 +8372,7 @@ function updateAssetTicket_(user, id, action, data) {
     return { nurse: str_(row.Nurse), item: str_(row.Item), serial: str_(row.Serial), status: o.Status };
   });
   if (out.status && action !== 'note') {
-    notifyUser_(out.nurse, 'تحديث بلاغ الأداة ' + id + ': ' + out.status, 'الأداة: ' + out.item + (out.serial ? ' #' + out.serial : '') + '\nالحالة: ' + out.status + (note ? '\nملاحظة: ' + note : ''));
+    nk_('asset'); notifyUser_(out.nurse, 'تحديث بلاغ الأداة ' + id + ': ' + out.status, 'الأداة: ' + out.item + (out.serial ? ' #' + out.serial : '') + '\nالحالة: ' + out.status + (note ? '\nملاحظة: ' + note : ''));
   }
   return getAssetTicket_(user, id);
 }

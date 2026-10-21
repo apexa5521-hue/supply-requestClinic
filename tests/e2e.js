@@ -962,8 +962,14 @@ function log(msg) { console.log('  ✔ ' + msg); }
   const PNG2 = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==', 'base64');
   await login(page, 'علي', '3333');
   await page.click('.sidebar [data-view="assets"]');
-  await page.click('[data-seg-name="asTab"][data-v="clinics"]');
+  await page.waitForSelector('#asClinics');
+  expect(!(await page.$('#asTickets')), 'custody opens on clinics, not tickets');
+  await page.waitForSelector('#asClinics .as-br');
+  expect(await page.locator('#asClinics [data-act="asIssue"]').count() === 0 && (await page.textContent('#asClinics')).includes('اختر الفرع'), 'branch picker first');
+  await page.click('#asClinics .as-br[data-b="الرياض"]');
   await page.waitForSelector('#asClinics [data-act="asIssue"][data-clinic="عيادة الأسنان 1"]');
+  expect(!(await page.textContent('#asClinics')).includes('عيادة الأسنان 2') && (await page.textContent('#asClinics')).includes('لم يُحدَّد لها معيار'), 'only the branch clinics, with the no-standard warning');
+  await shot(page, 'custody-branch');
   await page.click('#asClinics [data-act="asStd"][data-clinic="عيادة الأسنان 1"] >> nth=0');
   await page.waitForSelector('.modal #sdQty');
   await page.selectOption('.modal #sdItem', 'Handpiece Low Speed');
@@ -1446,6 +1452,17 @@ function log(msg) { console.log('  ✔ ' + msg); }
   expect(await toastHas(page, 'تم أخذ نسخة احتياطية') && await page.isVisible('#bkBox a:has-text("فتح آخر نسخة")'), 'admin takes a backup now and can open it');
   await page.locator('#bkBox').scrollIntoViewIfNeeded();
   await shot(page, 'admin-backup');
+  // أنواع الإشعارات: إيقاف نوع + نسخة لدور، ثم الحفظ
+  await page.waitForSelector('#ntBox .nt-row[data-k="digest"]');
+  await page.uncheck('#ntBox .nt-row[data-k="digest"] .nt-on');
+  await page.click('#ntBox .nt-row[data-k="complaint"] summary');
+  await page.check('#ntBox .nt-row[data-k="complaint"] .nt-role[value="جودة"]');
+  await page.click('#ntSave');
+  expect(await toastHas(page, 'حُفظت إعدادات الإشعارات'), 'admin saves notification types');
+  await page.waitForSelector('#ntBox .nt-row.nt-off[data-k="digest"]');
+  expect((await page.textContent('#ntBox .nt-row[data-k="complaint"] summary')).includes('جودة'), 'a role copy is kept after saving');
+  await page.locator('#ntBox').scrollIntoViewIfNeeded();
+  await shot(page, 'admin-notify');
   const setupVer = /SETUP_VERSION_ = '([^']+)'/.exec(fs.readFileSync(path.join(__dirname, '..', 'Code.gs'), 'utf8'))[1];
   await page.waitForFunction(v => ((document.getElementById('suBox') || {}).textContent || '').includes(v), setupVer);
   await page.click('#suBtn');
@@ -1547,6 +1564,7 @@ function log(msg) { console.log('  ✔ ' + msg); }
   // تحديد سريع بالسحب ثم تصنيف موحّد
   await page.fill('#caQ', 'bulk');
   await page.waitForFunction(() => document.querySelectorAll('#caList tr.ca-row').length === 2);
+  await page.locator('#caList tr.ca-row >> nth=0').scrollIntoViewIfNeeded(); await page.waitForTimeout(250); // ثبات الصفوف قبل السحب
   const r0 = await page.locator('#caList tr.ca-row >> nth=0').boundingBox(), r1 = await page.locator('#caList tr.ca-row >> nth=1').boundingBox();
   await page.mouse.move(r0.x + r0.width / 2, r0.y + r0.height / 2); await page.mouse.down();
   await page.mouse.move(r1.x + r1.width / 2, r1.y + r1.height / 2, { steps: 4 }); await page.mouse.up();
