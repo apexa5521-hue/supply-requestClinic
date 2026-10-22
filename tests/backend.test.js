@@ -1967,6 +1967,10 @@ test('boxes: dispatch loads the doctor box → driver scan delivers with photo �
   const info = api(null, 'boxInfo', { box: 'BOX-001', k: box.k });
   assert.deepEqual(info.places, ['التموين', 'الرياض', 'جدة']);
   assert.ok(!/PROPHY|price|سعر/.test(JSON.stringify(info)), 'no items or prices on the public page');
+  // السواق يعرف لمن يسلّم: الممرضة رافعة الطلب وعيادتها (في المهام وعند مسح الـ QR)
+  const rq = rows(gas, 'Requests').find(r => r.RequestID === id);
+  assert.deepEqual(info.to, [{ nurse: rq.Nurse, clinic: rq.Clinic }]);
+  assert.deepEqual(api(null, 'driverTasks', { k: bx.driverToken })[0].to, [{ nurse: rq.Nurse, clinic: rq.Clinic }]);
   const d = { box: 'BOX-001', k: box.k, to: 'جدة', driver: 'أبو فهد', photo: PNG, clientKey: 'dlv-000001' };
   throwsCode(() => api(null, 'boxDeliver', Object.assign({}, d, { photo: '' })), 'ERR_PHOTO_REQUIRED');
   throwsCode(() => api(null, 'boxDeliver', Object.assign({}, d, { driver: '' })), 'ERR_DRIVER_NAME');
