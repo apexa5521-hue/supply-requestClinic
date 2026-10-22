@@ -184,7 +184,7 @@ test('config: nurse sees every clinic (own clinics flagged) and no prices; clini
   const proc = api(login('علي', '3333'), 'getConfig');
   assert.equal(proc.catalog.find(c => c.name === 'PROPHY PASTE').price, 60);
   assert.equal(proc.roles.length, 0, 'roles only for admin');
-  assert.equal(api(login('المدير', '1234'), 'getConfig').roles.length, 12);
+  assert.equal(api(login('المدير', '1234'), 'getConfig').roles.length, 13);
 });
 
 test('createRequest: validation', () => {
@@ -1402,7 +1402,7 @@ test('setupSheets is idempotent and seeds defaults on an empty spreadsheet', () 
   ctx.setupSheets();
   ctx.setupSheets();
   assert.equal(gas.dump('Users').length, 2);
-  assert.equal(gas.dump('Roles').length, 14);
+  assert.equal(gas.dump('Roles').length, 15);
   assert.equal(gas.dump('ItemsCatalog').length, 18);
   const r = ctx.api(null, 'login', ['المدير', '1234']);
   assert.equal(r.user.screen, 'admin');
@@ -1482,7 +1482,7 @@ test('roles split: legacy quality/executive/finance migrate; executive keeps ful
   });
   const q = login('منى', '5555');
   assert.deepEqual(rows(gas, 'Roles').map(r => [r.RoleName, r.Screen]).sort(), [
-    ['أدمن', 'admin'], ['ممرضة', 'nurse'], ['تموين', 'procurement'], ['جودة', 'quality'], ['تنفيذي', 'executive'], ['مالية', 'finance'], ['المعمل', 'lab'], ['مدير فرع', 'branch'], ['هاوس كيبر', 'housekeeper'], ['مسؤول التعقيم', 'housekeeper'], ['مسؤول الأشعة', 'housekeeper']].sort());
+    ['أدمن', 'admin'], ['ممرضة', 'nurse'], ['تموين', 'procurement'], ['جودة', 'quality'], ['تنفيذي', 'executive'], ['مالية', 'finance'], ['المعمل', 'lab'], ['مدير فرع', 'branch'], ['هاوس كيبر', 'housekeeper'], ['مسؤول التعقيم', 'housekeeper'], ['مسؤول الأشعة', 'housekeeper'], ['صيانة', 'maintenance']].sort());
   const qc = api(q, 'getConfig');
   assert.equal(qc.user.screen, 'quality');
   assert.ok(qc.user.perms.includes('monitor') && !qc.user.perms.includes('users') && !qc.user.perms.includes('finance'));
@@ -1496,7 +1496,7 @@ test('roles split: legacy quality/executive/finance migrate; executive keeps ful
   throwsCode(() => api(e, 'getUsers'), 'ERR_FORBIDDEN'); // بعد وجود الأدمن: صلاحيات التنفيذي الافتراضية فقط (فوراً)
   assert.ok(api(e, 'getExecutiveStats'));
   const a = login('admin', '9999');
-  assert.equal(api(a, 'getConfig').user.perms.length, 16);
+  assert.equal(api(a, 'getConfig').user.perms.length, 17);
   const f = login('نواف', '7777');
   assert.ok(api(f, 'getFinance', {}).summary);
   throwsCode(() => api(f, 'getComplaints'), 'ERR_FORBIDDEN');
@@ -1634,11 +1634,11 @@ test('management roles (finance…) are added automatically when missing, so the
   });
   const a = login('المدير', '1234');
   const roles = api(a, 'getConfig').roles.map(r => r.name + ':' + r.screen).sort();
-  assert.deepEqual(roles, ['أدمن:admin', 'تموين:procurement', 'تنفيذي:executive', 'جودة:quality', 'طبيب:doctor', 'مالية:finance', 'ممرضة:nurse', 'المعمل:lab', 'مدير فرع:branch', 'هاوس كيبر:housekeeper', 'مسؤول التعقيم:housekeeper', 'مسؤول الأشعة:housekeeper'].sort());
+  assert.deepEqual(roles, ['أدمن:admin', 'تموين:procurement', 'تنفيذي:executive', 'جودة:quality', 'طبيب:doctor', 'مالية:finance', 'ممرضة:nurse', 'المعمل:lab', 'مدير فرع:branch', 'هاوس كيبر:housekeeper', 'مسؤول التعقيم:housekeeper', 'مسؤول الأشعة:housekeeper', 'صيانة:maintenance'].sort());
   api(a, 'createUser', { name: 'المالية', password: '2468', role: 'مالية', email: 'finance@example.com' });
   const f = api(null, 'login', 'المالية', '2468');
   assert.equal(f.user.screen, 'finance');
-  assert.deepEqual(f.user.perms.slice().sort(), ['assets', 'doctor_prices', 'finance', 'monitor', 'order_rules', 'prices_edit', 'reports'].sort());
+  assert.deepEqual(f.user.perms.slice().sort(), ['assets', 'doctor_prices', 'finance', 'maint', 'monitor', 'order_rules', 'prices_edit', 'reports'].sort());
   login('المدير', '1234');
   assert.equal(rows(gas, 'Roles').filter(r => r.RoleName === 'مالية').length, 1, 'added once only');
 });
@@ -3655,4 +3655,58 @@ test('admin changes a nurse\'s clinics: her open session follows at once (no re-
   assert.deepEqual(api(n, 'getAssetConfig').clinics.sort(), ['عيادة الأسنان 1', 'عيادة الجلدية 1'].sort());
   api(adm, 'updateUser', 'سارة', { name: 'سارة', password: '', role: 'ممرضة', clinic: 'عيادة الأسنان 2', email: 'sara@example.com' });
   assert.deepEqual(api(n, 'getAssetConfig').clinics, ['عيادة الأسنان 2'], 'same token, new clinics');
+});
+
+test('branch maintenance: branch manager reports with location + photo, maintenance fixes, manager confirms; requests need approval only when switched on', () => {
+  const { api, login, gas } = boot();
+  const adm = login('المدير', '1234');
+  api(adm, 'createUser', { name: 'بدر', password: '1357', role: 'مدير فرع', branch: 'الرياض', email: 'badr@example.com' });
+  api(adm, 'createUser', { name: 'صالح', password: '2468', role: 'صيانة', email: 'fix@example.com' });
+  api(adm, 'createUser', { name: 'جمال', password: '9753', role: 'مدير فرع', branch: 'جدة' });
+  const bm = login('بدر', '1357'), mt = login('صالح', '2468'), ex = login('فيصل', '6666'), fin = login('نواف', '7777'), other = login('جمال', '9753');
+  const PNG = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==';
+  const cfg = api(bm, 'getMaintConfig');
+  assert.equal(cfg.role, 'branch'); assert.equal(cfg.branch, 'الرياض');
+  assert.ok(cfg.clinics.every(c => c.branch === 'الرياض') && cfg.areas.includes('دورات المياه') && cfg.approval === false);
+  throwsCode(() => api(login('سارة', '1111'), 'createMaintTicket', {}), 'ERR_FORBIDDEN');
+  throwsCode(() => api(bm, 'createMaintTicket', { kind: 'صيانة', area: 'عيادة', clinic: 'عيادة الأسنان 1', category: 'تكييف', priority: 'عاجل', description: 'المكيف يقطّر ماء' }), 'ERR_PHOTO_REQUIRED');
+  throwsCode(() => api(bm, 'createMaintTicket', { kind: 'صيانة', area: 'عيادة', clinic: 'عيادة الأسنان 2', category: 'تكييف', description: 'x', photos: [PNG] }), 'ERR_BAD_CLINIC');
+  gas.mails.length = 0;
+  const t1 = api(bm, 'createMaintTicket', { kind: 'صيانة', area: 'عيادة', clinic: 'عيادة الأسنان 1', spot: 'فوق كرسي الأسنان', category: 'تكييف', priority: 'عاجل', stops: true, description: 'المكيف يقطّر ماء', photos: [PNG], clientKey: 'k1' });
+  assert.deepEqual([t1.status, t1.branch, t1.stops, t1.photos.length], ['جديد', 'الرياض', true, 1]);
+  assert.equal(api(bm, 'createMaintTicket', { kind: 'صيانة', area: 'عيادة', category: 'تكييف', description: 'dup', photos: [PNG], clientKey: 'k1' }).id, t1.id, 'same client key = same ticket');
+  assert.ok(gas.mails.some(m => m.to.includes('fix@example.com') && /بلاغ صيانة/.test(m.subject)), 'maintenance notified');
+  assert.equal(api(other, 'getMaintTickets', {}).length, 0, 'another branch manager does not see it');
+  // الصيانة: استلام ← تنفيذ ← بانتظار قطع ← تم الإصلاح (صورة إلزامية) مع التكلفة
+  throwsCode(() => api(bm, 'updateMaintTicket', t1.id, 'receive', {}), 'ERR_FORBIDDEN');
+  api(mt, 'updateMaintTicket', t1.id, 'receive', {});
+  throwsCode(() => api(mt, 'updateMaintTicket', t1.id, 'wait', {}), 'ERR_REASON_REQUIRED');
+  api(mt, 'updateMaintTicket', t1.id, 'wait', { note: 'بانتظار كمبروسر' });
+  throwsCode(() => api(mt, 'updateMaintTicket', t1.id, 'fixed', { cost: 450 }), 'ERR_PHOTO_REQUIRED');
+  gas.mails.length = 0;
+  let t = api(mt, 'updateMaintTicket', t1.id, 'fixed', { cost: 450, vendor: 'مؤسسة التبريد', costType: 'مقاول', note: 'تغيير الكمبروسر', photo: PNG });
+  assert.deepEqual([t.status, t.cost, t.costType, !!t.fixPhoto], ['تم الإصلاح', 450, 'مقاول', true]);
+  assert.ok(gas.mails.some(m => m.to.includes('badr@example.com')), 'branch manager told it is fixed');
+  // مدير الفرع: لم يُصلح ← يرجع للتنفيذ، ثم يؤكد فيُغلق
+  throwsCode(() => api(bm, 'updateMaintTicket', t1.id, 'reopen', {}), 'ERR_REASON_REQUIRED');
+  t = api(bm, 'updateMaintTicket', t1.id, 'reopen', { note: 'ما زال يقطّر' });
+  assert.deepEqual([t.status, t.reopenCount], ['قيد التنفيذ', 1]);
+  api(mt, 'updateMaintTicket', t1.id, 'fixed', { photo: PNG });
+  t = api(bm, 'updateMaintTicket', t1.id, 'confirm', {});
+  assert.equal(t.status, 'مغلق');
+  assert.ok(t.history.length >= 6 && t.history.some(h => /ما زال يقطّر/.test(h.what)));
+  assert.equal(api(bm, 'getMaintTickets', {})[0].cost, undefined, 'branch manager does not see cost');
+  assert.equal(api(fin, 'getMaintTickets', {})[0].cost, 450, 'finance sees cost');
+  // طلب للفرع: بدون اعتماد افتراضياً، ومع التفعيل يحتاج اعتماد التنفيذي
+  assert.equal(api(bm, 'createMaintTicket', { kind: 'طلب للفرع', area: 'الاستقبال', category: 'أثاث', description: 'كراسي انتظار' }).status, 'جديد');
+  throwsCode(() => api(bm, 'saveMaintConfig', { approval: true, sla: { 'عاجل': 4, 'مهم': 24, 'عادي': 72 } }), 'ERR_FORBIDDEN');
+  api(ex, 'saveMaintConfig', { approval: true, sla: { 'عاجل': 2, 'مهم': 24, 'عادي': 72 }, areas: [], cats: [] });
+  const r2 = api(bm, 'createMaintTicket', { kind: 'طلب للفرع', area: 'الاستقبال', category: 'جهاز', description: 'طابعة' });
+  assert.equal(r2.status, 'بانتظار الاعتماد');
+  assert.ok(!api(mt, 'getMaintTickets', {}).some(x => x.id === r2.id), 'maintenance does not see it before approval');
+  throwsCode(() => api(mt, 'updateMaintTicket', r2.id, 'approve', {}), 'ERR_FORBIDDEN');
+  assert.equal(api(ex, 'updateMaintTicket', r2.id, 'approve', {}).status, 'جديد');
+  assert.ok(api(mt, 'getMaintTickets', {}).some(x => x.id === r2.id));
+  const st = api(ex, 'getMaintStats', {});
+  assert.deepEqual([st.total, st.cost, st.byBranch[0].key], [3, 450, 'الرياض']);
 });
