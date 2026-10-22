@@ -85,7 +85,11 @@ const SCHEMA = {
   Assets:       ['AssetID', 'Item', 'Serial', 'Clinic', 'Branch', 'Qty', 'Status', 'IssuedAt', 'IssuedBy', 'Cost', 'TicketID', 'Notes', 'UpdatedAt', 'UpdatedBy', 'Doctor', 'RequestID'],
   AssetTickets: ['TicketID', 'Date', 'AssetID', 'Item', 'Serial', 'Clinic', 'Branch', 'Nurse', 'Problem', 'Description', 'Photo', 'Status',
                  'ReceivedAt', 'ReceivedBy', 'InspectPhoto', 'InspectNote', 'Decision', 'DecidedAt', 'RepairVendor', 'RepairCost', 'LossValue',
-                 'ReturnedAt', 'ReplacementAssetID', 'ClosedAt', 'UpdatedBy', 'ClientKey']
+                 'ReturnedAt', 'ReplacementAssetID', 'ClosedAt', 'UpdatedBy', 'ClientKey'],
+  // بلاغات الفرع (صيانة) وطلبات الفرع: يرفعها مدير الفرع، وينفذها دور «صيانة»، ويؤكد مدير الفرع الإصلاح ليُغلق
+  BranchTickets: ['TicketID', 'Kind', 'Branch', 'Area', 'Clinic', 'Spot', 'Category', 'Priority', 'Stops', 'Description', 'Photos', 'Status',
+                  'CreatedAt', 'CreatedBy', 'ApprovedAt', 'ApprovedBy', 'RejectNote', 'ReceivedAt', 'ReceivedBy', 'StartedAt', 'WaitNote',
+                  'FixedAt', 'FixedBy', 'FixNote', 'FixPhoto', 'Vendor', 'Cost', 'CostType', 'ConfirmedAt', 'ConfirmedBy', 'ReopenCount', 'History', 'UpdatedAt', 'UpdatedBy', 'ClientKey', 'Item', 'Qty']
 };
 
 const ST = {
@@ -117,12 +121,12 @@ const DISPATCHABLE = [ST.APPROVED, ST.PREP, ST.VENDOR_WAIT, ST.VENDOR_RECV];
 const SUB_ST = { PENDING: 'بانتظار الطبيب', OK: 'معتمد', NO: 'مرفوض' };
 
 const REQUEST_TYPES = ['شهري', 'طارئ'];
-const SCREENS = ['nurse', 'procurement', 'doctor', 'lab', 'quality', 'executive', 'finance', 'dashboard', 'branch', 'admin', 'housekeeper'];
+const SCREENS = ['nurse', 'procurement', 'doctor', 'lab', 'quality', 'executive', 'finance', 'dashboard', 'branch', 'admin', 'housekeeper', 'maintenance'];
 /** شاشات الإدارة: ما يظهر فيها تحدده صلاحيات الدور (Permissions في تبويب Roles) */
 const MGMT_SCREENS = ['quality', 'executive', 'finance', 'dashboard', 'branch', 'admin'];
 const DEFAULT_ROLES = [
   ['ممرضة', 'nurse'], ['تموين', 'procurement'], ['طبيب', 'doctor'],
-  ['جودة', 'quality'], ['جوده', 'quality'], ['مالية', 'finance'], ['تنفيذي', 'executive'], ['أدمن', 'admin'], ['المعمل', 'lab'], ['مدير فرع', 'branch'], ['هاوس كيبر', 'housekeeper'],
+  ['جودة', 'quality'], ['جوده', 'quality'], ['مالية', 'finance'], ['تنفيذي', 'executive'], ['أدمن', 'admin'], ['المعمل', 'lab'], ['مدير فرع', 'branch'], ['هاوس كيبر', 'housekeeper'], ['صيانة', 'maintenance'],
   // نفس آلية الهاوس كيبر (طلب لفرعه بموافقة مدير الفرع): مسؤول التعقيم ومسؤول الأشعة
   ['مسؤول التعقيم', 'housekeeper'], ['مسؤول الأشعة', 'housekeeper']
 ];
@@ -132,12 +136,12 @@ const DEFAULT_ROLES = [
  * notices: إرسال التنبيهات · monitor: متابعة التموين والمواعيد · finance: شاشة المالية
  * prices_edit: تعديل أسعار الكتالوج · users: المستخدمون والأدوار
  */
-const PERMS = ['overview', 'reports', 'complaints', 'complaints_close', 'notices', 'monitor', 'finance', 'prices_edit', 'lab_view', 'assets', 'users', 'doctors_live', 'surveys', 'doctor_prices', 'boxes', 'order_rules'];
+const PERMS = ['overview', 'reports', 'complaints', 'complaints_close', 'notices', 'monitor', 'finance', 'prices_edit', 'lab_view', 'assets', 'users', 'doctors_live', 'surveys', 'doctor_prices', 'boxes', 'order_rules', 'maint'];
 const DEFAULT_PERMS = {
   admin: PERMS,
-  executive: ['overview', 'reports', 'complaints', 'complaints_close', 'notices', 'monitor', 'lab_view', 'assets', 'doctors_live', 'surveys', 'doctor_prices', 'boxes', 'order_rules'],
-  quality: ['overview', 'reports', 'complaints', 'complaints_close', 'notices', 'monitor', 'lab_view', 'assets', 'doctors_live', 'surveys', 'doctor_prices', 'order_rules'],
-  finance: ['finance', 'prices_edit', 'reports', 'monitor', 'assets', 'doctor_prices', 'order_rules'],
+  executive: ['overview', 'reports', 'complaints', 'complaints_close', 'notices', 'monitor', 'lab_view', 'assets', 'doctors_live', 'surveys', 'doctor_prices', 'boxes', 'order_rules', 'maint'],
+  quality: ['overview', 'reports', 'complaints', 'complaints_close', 'notices', 'monitor', 'lab_view', 'assets', 'doctors_live', 'surveys', 'doctor_prices', 'order_rules', 'maint'],
+  finance: ['finance', 'prices_edit', 'reports', 'monitor', 'assets', 'doctor_prices', 'order_rules', 'maint'],
   dashboard: ['overview', 'reports', 'complaints', 'notices'],
   // مدير الفرع: مشاهدة فرعه + تقاريره ومؤشراته + التنبيه والشكاوى (بدون اعتماد أو إرسال)
   branch: ['overview', 'reports', 'complaints', 'monitor', 'lab_view', 'assets', 'boxes']
@@ -162,7 +166,7 @@ const COMPLAINT_TYPES = ['تأخير', 'نقص', 'زيادة', 'أخرى'];
  *  التجهيز التلقائي بعد النشر (مرة واحدة لكل إصدار) — بلا أي خطوة يدوية:
  *  تبويبات الإعداد (Settings / LabMaterials)، قائمة العيادات المعتمدة، المشغّلات (النسخ الليلي + onChange)
  * ===================================================================== */
-const SETUP_VERSION_ = '2026-10-setup-v10';
+const SETUP_VERSION_ = '2026-10-setup-v11';
 function autoSetup_() {
   try {
     const cache = CacheService.getScriptCache();
@@ -195,6 +199,7 @@ function runSetupSteps_(force) {
     ['perms', 'صلاحية العهدة للإدارة والجودة والمالية', function () { grantPerm_('assets', ['executive', 'quality', 'finance']); }],
     ['doctors_live', 'صفحة «الأطباء — مباشر» للجودة والتنفيذي', function () { grantPerm_('doctors_live', ['executive', 'quality']); }],
     ['boxes_view', 'تبويب البوكسات (اطلاع) لمدراء الفروع والتنفيذي', function () { grantPerm_('boxes', ['branch', 'executive']); }],
+    ['maint', 'بلاغات الفرع والصيانة: دور «صيانة» + الاطلاع للتنفيذي والجودة والمالية', function () { ensureMgmtRoles_(); grantPerm_('maint', ['executive', 'quality', 'finance']); }],
     ['demo', 'أدوات العهدة التجريبية TEST101', function () { seedDemoAssets_(force); }],
     ['item_type', 'قائمة «مستهلك / ماتيريال» في عمود ItemType بالكتالوج', itemTypeDropdown_],
     ['triggers', 'المشغّلات (النسخ الليلي + تغييرات الشيت)', function () { if (typeof ScriptApp !== 'undefined') installTriggers(); }]
@@ -208,7 +213,7 @@ function runSetupSteps_(force) {
   return out;
 }
 
-const ITEM_TYPES_ = ['مستهلك', 'ماتيريال', 'أدوات']; // الأدوات تُحسب على الطبيب فقط إن كانت حسبته «الكل»
+const ITEM_TYPES_ = ['مستهلك', 'ماتيريال', 'أدوات', 'جهاز']; // الأدوات والأجهزة تُحسب على الطبيب فقط إن كانت حسبته «الكل» — الجهاز تطلبه الممرضة أو مدير الفرع
 /** صنف تكتبه الممرضة بحرية (غير موجود في القائمة): يُضاف للكتالوج ويعلّم بهذه الفئة ليميّزه التموين */
 const FREE_CATEGORY_ = 'حر — من الممرضة';
 /* مراجعة الأصناف الحرة لدى التموين: اعتماد بسعر، أو مطابقة لصنف موجود (يصبح اسماً بديلاً له)، أو رفض */
@@ -703,6 +708,13 @@ const API_ = {
   getUsers:                  { screens: [], perm: 'users', fn: getUsers_ },
   getBackupStatus:           { screens: [], perm: 'users', fn: function () { return backupStatus_(); } },
   getNotifyConfig:           { screens: [], perm: 'users', fn: function () { return getNotifyConfig_(); } },
+  // بلاغات الفرع والصيانة: مدير الفرع يرفع، الصيانة تنفذ، والإدارة بصلاحية maint تتابع وتعتمد
+  getMaintConfig:            { screens: ['branch', 'maintenance', 'admin'], perm: 'maint', fn: getMaintConfig_ },
+  getMaintTickets:           { screens: ['branch', 'maintenance', 'admin'], perm: 'maint', fn: getMaintTickets_ },
+  createMaintTicket:         { screens: ['branch'], fn: createMaintTicket_ },
+  updateMaintTicket:         { screens: ['branch', 'maintenance', 'admin'], perm: 'maint', fn: updateMaintTicket_ },
+  getMaintStats:             { screens: ['maintenance', 'admin'], perm: 'maint', fn: getMaintStats_ },
+  saveMaintConfig:           { screens: ['executive', 'admin'], fn: saveMaintConfig_ },
   saveNotifyConfig:          { screens: [], perm: 'users', fn: saveNotifyConfig_ },
   getSetupStatus:            { screens: [], perm: 'users', fn: function () { return getSetupStatus_(); } },
   runSetupNow:               { screens: [], perm: 'users', fn: runSetupNow_ },
@@ -1926,7 +1938,7 @@ function permsOf_(user) {
 function ensureMgmtRoles_() {
   const have = {};
   read_('Roles').rows.forEach(function (r) { if (str_(r.RoleName)) have[str_(r.RoleName)] = str_(r.Screen); });
-  const missing = [['جودة', 'quality'], ['مالية', 'finance'], ['تنفيذي', 'executive'], ['أدمن', 'admin'], ['المعمل', 'lab'], ['مدير فرع', 'branch'], ['هاوس كيبر', 'housekeeper'], ['مسؤول التعقيم', 'housekeeper'], ['مسؤول الأشعة', 'housekeeper']].filter(function (d) {
+  const missing = [['جودة', 'quality'], ['مالية', 'finance'], ['تنفيذي', 'executive'], ['أدمن', 'admin'], ['المعمل', 'lab'], ['مدير فرع', 'branch'], ['هاوس كيبر', 'housekeeper'], ['مسؤول التعقيم', 'housekeeper'], ['مسؤول الأشعة', 'housekeeper'], ['صيانة', 'maintenance']].filter(function (d) {
     // لا نضيف «جودة» إن كان «جوده» موجوداً، ولا أي دور شاشته موجودة مسبقاً باسم آخر
     if (have[d[0]] !== undefined || (d[0] === 'جودة' && have['جوده'] !== undefined) || (d[0] === 'مالية' && have['ماليه'] !== undefined)) return false;
     if (d[1] === 'housekeeper') return true; // أدوار الفرع (هاوس كيبر / التعقيم / الأشعة) تُضاف كلٌّ باسمه
@@ -5612,7 +5624,9 @@ const NOTIFY_TYPES_ = [
   ['survey', 'استبيان التمريض', 'صلاحية الاستبيانات', 'الجودة'],
   ['doc_survey', 'استبيان رضا الأطباء', 'الأطباء', 'الجودة'],
   ['lab', 'حالات المعمل', 'المعمل والممرضة والطبيب', 'المعمل'],
-  ['external', 'الطلبيات الخارجية', 'التموين', 'الشراء']
+  ['external', 'الطلبيات الخارجية', 'التموين', 'الشراء'],
+  ['maint_new', 'بلاغ صيانة أو طلب فرع جديد', 'الصيانة (والإدارة للاعتماد)', 'الفرع'],
+  ['maint_update', 'تحديث بلاغ الفرع', 'مدير الفرع', 'الفرع']
 ];
 const NOTIFY_KEY_ = 'NotifyConfig';
 let NK_ = '';
@@ -6034,7 +6048,7 @@ function getStatsReport_(user, opts) {
         if (who && v && charged_(docCharge[who], ctype[k])) {
           const db = byDocBranch[who] || (byDocBranch[who] = {});
           const cell = db[r.branch || '—'] || (db[r.branch || '—'] = { consumable: 0, material: 0, tools: 0 });
-          const tk = ctype[k] === ITEM_TYPES_[1] ? 'material' : ctype[k] === ITEM_TYPES_[2] ? 'tools' : 'consumable';
+          const tk = ctype[k] === ITEM_TYPES_[1] ? 'material' : ctype[k] === ITEM_TYPES_[2] || ctype[k] === ITEM_TYPES_[3] ? 'tools' : 'consumable'; // الأجهزة مع الأدوات
           cell[tk] = round2_(cell[tk] + v);
         }
         items[k] = items[k] || { item: n, qty: 0, value: 0, requests: 0 };
@@ -6781,6 +6795,7 @@ function bulkType_(v) {
   if (!v || /مستهلك|consum/.test(v)) return ITEM_TYPES_[0];
   if (/ماتيريال|مادة|material/.test(v)) return ITEM_TYPES_[1];
   if (/أدوات|ادوات|اداة|أداة|tool|instrument/.test(v)) return ITEM_TYPES_[2];
+  if (/جهاز|اجهزة|أجهزة|device|equipment|machine/.test(v)) return ITEM_TYPES_[3];
   return null;
 }
 function saveCatalogItems_(user, items) {
@@ -8449,4 +8464,270 @@ function getAssetStats_(user, opts) {
     problems: Object.keys(problems).map(function (k) { return { problem: k, count: problems[k] }; }).sort(function (a, b) { return b.count - a.count; }),
     shortages: shortages.sort(function (a, b) { return b.shortage - a.shortage; }), tickets: tickets
   };
+}
+
+/* =====================================================================
+ *  بلاغات الفرع والصيانة
+ *  - يرفعها مدير الفرع لفرعه: النوع (صيانة / طلب للفرع)، الموقع بالضبط (المنطقة + العيادة + وصف المكان)،
+ *    التصنيف، الأولوية، هل يوقف العمل، والصور (إلزامية للصيانة).
+ *  - طلب للفرع يحتاج اعتماد الإدارة التنفيذية فقط إذا فُعّل من الإعدادات (MaintApproval = 1، الافتراضي لا).
+ *  - دور «صيانة»: استلام ← قيد التنفيذ ← بانتظار قطع/مقاول ← تم الإصلاح (صورة بعد + التكلفة وجهة التنفيذ).
+ *  - مدير الفرع يؤكد الإصلاح فيُغلق، أو يرفضه فيرجع «قيد التنفيذ» مع السبب.
+ *  - مهلة لكل أولوية (MaintSla بالساعات) ← «متأخر». التكلفة تظهر للمالية والإدارة (صلاحية maint).
+ * ===================================================================== */
+const MT_ST = { PENDING: 'بانتظار الاعتماد', REJECTED: 'مرفوض', NEW: 'جديد', RECEIVED: 'استُلم', WORK: 'قيد التنفيذ', WAIT: 'بانتظار قطع أو مقاول', FIXED: 'تم الإصلاح', CLOSED: 'مغلق' };
+const MT_KINDS_ = ['صيانة', 'طلب للفرع'];
+const MT_PRIORITIES_ = ['عاجل', 'مهم', 'عادي'];
+const MT_SLA_DEFAULT_ = { 'عاجل': 4, 'مهم': 24, 'عادي': 72 };
+const MT_AREAS_DEFAULT_ = ['عيادة', 'الاستقبال', 'صالة الانتظار', 'دورات المياه', 'التعقيم', 'المستودع', 'الممرات', 'المدخل والواجهة', 'المواقف', 'السطح', 'غرفة الكهرباء', 'المطبخ', 'أخرى'];
+const MT_CATS_DEFAULT_ = ['كهرباء', 'سباكة', 'تكييف', 'أجهزة طبية', 'أبواب وأقفال', 'أثاث', 'نظافة وتعقيم', 'شبكة وكاميرات', 'دهان وأرضيات', 'أخرى'];
+const MT_REQ_CATS_DEFAULT_ = ['جهاز', 'أثاث', 'خدمة', 'قرطاسية ومطبوعات', 'أخرى'];
+function mtList_(key, def) {
+  const v = str_(getSetting_(key, ''));
+  const l = v ? v.split(/[,،\n]/).map(str_).filter(String) : [];
+  return l.length ? l : def;
+}
+function mtCfg_() {
+  if (MEMO_.mtCfg) return MEMO_.mtCfg;
+  let sla = {};
+  try { sla = JSON.parse(str_(getSetting_('MaintSla', '')) || '{}') || {}; } catch (e) { sla = {}; }
+  const out = { sla: {} };
+  MT_PRIORITIES_.forEach(function (p) { const n = Number(sla[p]); out.sla[p] = n > 0 && n <= 2000 ? n : MT_SLA_DEFAULT_[p]; });
+  out.approval = Number(getSetting_('MaintApproval', 0)) === 1;
+  out.areas = mtList_('MaintAreas', MT_AREAS_DEFAULT_);
+  out.cats = mtList_('MaintCategories', MT_CATS_DEFAULT_);
+  out.reqCats = mtList_('MaintRequestCategories', MT_REQ_CATS_DEFAULT_);
+  return (MEMO_.mtCfg = out);
+}
+/** من يرى ماذا: مدير الفرع فرعه، الصيانة كل الفروع (بعد الاعتماد)، والإدارة بصلاحية maint كل شيء (التنفيذي/المالية… حسب نطاق الفرع) */
+function mtRole_(user) {
+  if (user.screen === 'maintenance') return 'maint';
+  if (user.screen === 'admin') return 'mgmt';
+  if (user.screen === 'branch') return 'branch';
+  if (user.perms && user.perms.indexOf('maint') !== -1) return 'mgmt';
+  return '';
+}
+function mtCanApprove_(user) { return user.screen === 'executive' || user.screen === 'admin'; }
+function mapMt_(r, cfg, now) {
+  const created = toMs_(r.CreatedAt), open = [MT_ST.CLOSED, MT_ST.REJECTED].indexOf(str_(r.Status)) === -1;
+  const sla = cfg.sla[str_(r.Priority)] || MT_SLA_DEFAULT_['عادي'];
+  const doneAt = toMs_(r.FixedAt) || toMs_(r.ConfirmedAt);
+  const startMs = toMs_(r.ApprovedAt) || created;
+  const hrs = startMs ? ((doneAt || now) - startMs) / 36e5 : 0;
+  let hist = [];
+  try { hist = JSON.parse(str_(r.History) || '[]') || []; } catch (e) { hist = []; }
+  return {
+    id: str_(r.TicketID), kind: str_(r.Kind), branch: str_(r.Branch), area: str_(r.Area), clinic: str_(r.Clinic), spot: str_(r.Spot),
+    category: str_(r.Category), priority: str_(r.Priority), stops: str_(r.Stops) === 'نعم', description: str_(r.Description),
+    photos: str_(r.Photos).split(/\s*\n\s*/).filter(String), status: str_(r.Status), createdAt: r.CreatedAt, createdBy: str_(r.CreatedBy),
+    approvedAt: r.ApprovedAt, approvedBy: str_(r.ApprovedBy), rejectNote: str_(r.RejectNote), receivedAt: r.ReceivedAt, receivedBy: str_(r.ReceivedBy),
+    startedAt: r.StartedAt, waitNote: str_(r.WaitNote), fixedAt: r.FixedAt, fixedBy: str_(r.FixedBy), fixNote: str_(r.FixNote), fixPhoto: str_(r.FixPhoto),
+    vendor: str_(r.Vendor), cost: num_(r.Cost) || 0, costType: str_(r.CostType), confirmedAt: r.ConfirmedAt, confirmedBy: str_(r.ConfirmedBy),
+    item: str_(r.Item), qty: Number(r.Qty) || 0,
+    reopenCount: Number(r.ReopenCount) || 0, history: hist, open: open, sla: sla, hours: round1_(hrs),
+    late: open && str_(r.Status) !== MT_ST.PENDING && str_(r.Status) !== MT_ST.FIXED && hrs > sla
+  };
+}
+function mtVisible_(user, t) {
+  const role = mtRole_(user);
+  if (role === 'branch') return t.branch === userBranch_(user);
+  if (role === 'maint') return t.status !== MT_ST.PENDING && t.status !== MT_ST.REJECTED;
+  if (role === 'mgmt') return inScope_(t.branch);
+  return false;
+}
+function getMaintConfig_(user) {
+  const cfg = mtCfg_(), role = mtRole_(user);
+  if (!role) throw new Error('ERR_FORBIDDEN');
+  const br = role === 'branch' ? userBranch_(user) : '';
+  return { role: role, kinds: MT_KINDS_, priorities: MT_PRIORITIES_, sla: cfg.sla, approval: cfg.approval, areas: cfg.areas, cats: cfg.cats, reqCats: cfg.reqCats,
+    branch: br, clinics: getClinics_().filter(function (c) { return !br || c.branch === br; }).map(function (c) { return { name: c.name, branch: c.branch }; }),
+    devices: getCatalog_(true).filter(function (c) { return c.type === ITEM_TYPES_[3]; }).map(function (c) { return c.name; }),
+    canApprove: mtCanApprove_(user), seeCost: role !== 'branch' || user.perms.indexOf('maint') !== -1, canSettings: user.screen === 'admin' || user.screen === 'executive' };
+}
+function getMaintTickets_(user, opts) {
+  opts = opts || {};
+  if (!mtRole_(user)) throw new Error('ERR_FORBIDDEN');
+  const cfg = mtCfg_(), now = Date.now();
+  const from = parseDay_(opts.from), to = parseDay_(opts.to, true);
+  const list = read_('BranchTickets').rows.filter(function (r) { return str_(r.TicketID); }).map(function (r) { return mapMt_(r, cfg, now); })
+    .filter(function (t) {
+      if (!mtVisible_(user, t)) return false;
+      const ms = toMs_(t.createdAt);
+      return (!from || ms >= from.getTime()) && (!to || ms <= to.getTime()) || (opts.openToo && t.open);
+    })
+    .sort(function (a, b) { return (b.open - a.open) || (b.late - a.late) || toMs_(b.createdAt) - toMs_(a.createdAt); });
+  // مدير الفرع بلا صلاحية maint لا يرى التكلفة
+  if (mtRole_(user) === 'branch' && user.perms.indexOf('maint') === -1) list.forEach(function (t) { delete t.cost; delete t.vendor; delete t.costType; });
+  return list;
+}
+function mtHist_(row, user, what) {
+  let h = [];
+  try { h = JSON.parse(str_(row.History) || '[]') || []; } catch (e) { h = []; }
+  h.push({ at: new Date().toISOString(), by: user.name, what: what });
+  return JSON.stringify(h.slice(-60));
+}
+function mtPhotos_(id, list, max) {
+  return (Array.isArray(list) ? list : []).slice(0, max || 4).map(function (p, i) { return saveLabPhoto_(id + '-' + (i + 1), p); });
+}
+function createMaintTicket_(user, payload) {
+  payload = payload || {};
+  if (mtRole_(user) !== 'branch') throw new Error('ERR_FORBIDDEN');
+  const cfg = mtCfg_(), branch = userBranch_(user);
+  if (!branch) throw new Error('ERR_NO_BRANCH');
+  const kind = str_(payload.kind) || MT_KINDS_[0];
+  if (MT_KINDS_.indexOf(kind) === -1) throw new Error('ERR_REQUIRED');
+  const area = clean_(payload.area, 60), cat = clean_(payload.category, 60), pr = str_(payload.priority) || 'عادي';
+  if (!area || !cat) throw new Error('ERR_REQUIRED');
+  if (MT_PRIORITIES_.indexOf(pr) === -1) throw new Error('ERR_REQUIRED');
+  const desc = clean_(payload.description, 1000);
+  if (!desc) throw new Error('ERR_REQUIRED');
+  const clinic = clean_(payload.clinic, 80);
+  if (clinic && !getClinics_().some(function (c) { return c.name === clinic && c.branch === branch; })) throw new Error('ERR_BAD_CLINIC');
+  const photos = Array.isArray(payload.photos) ? payload.photos.filter(String) : [];
+  if (kind === 'صيانة' && !photos.length) throw new Error('ERR_PHOTO_REQUIRED');
+  const clientKey = clean_(payload.clientKey, 60);
+  if (clientKey) {
+    const dup = read_('BranchTickets').rows.filter(function (r) { return str_(r.ClientKey) === clientKey; })[0];
+    if (dup) return mapMt_(dup, cfg, Date.now());
+  }
+  // طلب جهاز للفرع: اسم الجهاز (من الكتالوج أو جديد) والعدد
+  const item = clean_(payload.item, 120), qty = item ? Math.floor(Number(payload.qty) || 1) : 0;
+  if (item && !(qty >= 1 && qty <= 500)) throw new Error('ERR_BAD_QTY');
+  const status = kind === 'طلب للفرع' && cfg.approval ? MT_ST.PENDING : MT_ST.NEW;
+  const id = withLock_(function () {
+    const nid = reserveId_('MNT-', function (prefix) { return maxSeq_(freshTable_('BranchTickets').rows, 'TicketID', prefix); }).id;
+    append_('BranchTickets', { TicketID: nid, Kind: kind, Branch: branch, Area: area, Clinic: clinic, Spot: clean_(payload.spot, 200), Category: cat, Priority: pr,
+      Stops: payload.stops ? 'نعم' : 'لا', Description: desc, Photos: '', Status: status, Item: item, Qty: qty || '', CreatedAt: new Date(), CreatedBy: user.name, ReopenCount: 0,
+      History: JSON.stringify([{ at: new Date().toISOString(), by: user.name, what: status }]), UpdatedAt: new Date(), UpdatedBy: user.name, ClientKey: clientKey });
+    return nid;
+  });
+  if (photos.length) {
+    const urls = mtPhotos_(id, photos, 4);
+    const t = read_('BranchTickets'), row = t.rows.filter(function (r) { return str_(r.TicketID) === id; })[0];
+    if (row) setMany_(t, [{ row: row, obj: { Photos: urls.join('\n') } }]);
+  }
+  logAction_(id, (kind === 'صيانة' ? 'بلاغ صيانة: ' : 'طلب للفرع: ') + cat + ' — ' + area + (clinic ? ' / ' + clinic : '') + ' (' + branch + ')', user.name);
+  const where = area + (clinic ? ' — ' + clinic : '') + (payload.spot ? ' — ' + clean_(payload.spot, 200) : '');
+  const subj = (pr === 'عاجل' ? '🚨 ' : '🛠 ') + (kind === 'صيانة' ? 'بلاغ صيانة' : 'طلب للفرع') + ' - ' + id + ' · ' + branch;
+  const body = 'الفرع: ' + branch + '\nالموقع: ' + where + '\nالتصنيف: ' + cat + (item ? '\nالجهاز: ' + item + ' × ' + qty : '') + '\nالأولوية: ' + pr + (payload.stops ? '\n⛔ يوقف العمل' : '') + '\n\n' + desc + '\n\nرفعه: ' + user.name;
+  nk_('maint_new');
+  if (status === MT_ST.PENDING) { notifyRole_('executive', '⏳ بانتظار اعتمادك — ' + subj, body); }
+  else notifyRole_('maintenance', subj, body);
+  resetMemo_();
+  return mapMt_(read_('BranchTickets').rows.filter(function (r) { return str_(r.TicketID) === id; })[0], cfg, Date.now());
+}
+/** الإجراءات: approve / reject (الإدارة) · receive / start / wait / fixed / cost (الصيانة) · confirm / reopen (مدير الفرع) · note (الكل) */
+function updateMaintTicket_(user, id, action, data) {
+  data = data || {};
+  const role = mtRole_(user), cfg = mtCfg_();
+  if (!role) throw new Error('ERR_FORBIDDEN');
+  const t0 = read_('BranchTickets').rows.filter(function (r) { return str_(r.TicketID) === str_(id); })[0];
+  if (!t0) throw new Error('ERR_NOT_FOUND');
+  const cur = mapMt_(t0, cfg, Date.now());
+  if (!mtVisible_(user, cur)) throw new Error('ERR_FORBIDDEN');
+  const note = clean_(data.note, 500), now = new Date();
+  const isMaint = role === 'maint' || user.screen === 'admin';
+  const isOwner = role === 'branch' || user.screen === 'admin';
+  let obj = null, what = '', notifyBranch = true, fixPhoto = '';
+  const need = function (ok, from) { if (!ok) throw new Error('ERR_FORBIDDEN'); if (from && from.indexOf(cur.status) === -1) throw new Error('ERR_BAD_TRANSITION'); };
+  const money = function (v) { if (v === undefined || v === null || v === '') return null; const n = num_(v); if (!(n >= 0 && n <= PRICE_MAX)) throw new Error('ERR_BAD_PRICE'); return round2_(n); };
+  if (action === 'approve') { need(mtCanApprove_(user), [MT_ST.PENDING]); obj = { Status: MT_ST.NEW, ApprovedAt: now, ApprovedBy: user.name }; what = 'اعتمد'; }
+  else if (action === 'reject') {
+    need(mtCanApprove_(user), [MT_ST.PENDING]); if (!note) throw new Error('ERR_REASON_REQUIRED');
+    obj = { Status: MT_ST.REJECTED, RejectNote: note }; what = 'رُفض: ' + note;
+  }
+  else if (action === 'receive') { need(isMaint, [MT_ST.NEW]); obj = { Status: MT_ST.RECEIVED, ReceivedAt: now, ReceivedBy: user.name }; what = MT_ST.RECEIVED; }
+  else if (action === 'start') { need(isMaint, [MT_ST.NEW, MT_ST.RECEIVED, MT_ST.WAIT]); obj = { Status: MT_ST.WORK, StartedAt: t0.StartedAt || now, ReceivedAt: t0.ReceivedAt || now, ReceivedBy: str_(t0.ReceivedBy) || user.name }; what = MT_ST.WORK; }
+  else if (action === 'wait') {
+    need(isMaint, [MT_ST.RECEIVED, MT_ST.WORK]); if (!note) throw new Error('ERR_REASON_REQUIRED');
+    obj = { Status: MT_ST.WAIT, WaitNote: note }; what = MT_ST.WAIT + ': ' + note;
+  }
+  else if (action === 'fixed') {
+    need(isMaint, [MT_ST.RECEIVED, MT_ST.WORK, MT_ST.WAIT]);
+    if (cur.kind === 'صيانة' && !data.photo) throw new Error('ERR_PHOTO_REQUIRED');
+    const c = money(data.cost);
+    obj = { Status: MT_ST.FIXED, FixedAt: now, FixedBy: user.name, FixNote: note, Vendor: clean_(data.vendor, 120), CostType: data.costType === 'مقاول' ? 'مقاول' : 'داخلي' };
+    if (c !== null) obj.Cost = c;
+    if (data.photo) fixPhoto = data.photo;
+    what = MT_ST.FIXED + (note ? ': ' + note : '');
+  }
+  else if (action === 'cost') {
+    need(isMaint || role === 'mgmt'); const c = money(data.cost); if (c === null) throw new Error('ERR_BAD_PRICE');
+    obj = { Cost: c }; if (data.vendor !== undefined) obj.Vendor = clean_(data.vendor, 120); if (data.costType) obj.CostType = data.costType === 'مقاول' ? 'مقاول' : 'داخلي';
+    what = 'التكلفة: ' + c; notifyBranch = false;
+  }
+  else if (action === 'confirm') { need(isOwner, [MT_ST.FIXED]); obj = { Status: MT_ST.CLOSED, ConfirmedAt: now, ConfirmedBy: user.name }; what = 'أكد الإصلاح وأُغلق'; notifyBranch = false; }
+  else if (action === 'reopen') {
+    need(isOwner, [MT_ST.FIXED]); if (!note) throw new Error('ERR_REASON_REQUIRED');
+    obj = { Status: MT_ST.WORK, FixedAt: '', ReopenCount: cur.reopenCount + 1 }; what = 'لم يُصلح — أُعيد: ' + note; notifyBranch = false;
+  }
+  else if (action === 'note') { if (!note) throw new Error('ERR_REQUIRED'); obj = {}; what = 'ملاحظة: ' + note; notifyBranch = role !== 'branch'; }
+  else throw new Error('ERR_BAD_TRANSITION');
+  withLock_(function () {
+    const t = freshTable_('BranchTickets'), row = t.rows.filter(function (r) { return str_(r.TicketID) === cur.id; })[0];
+    if (!row || str_(row.Status) !== cur.status) throw new Error('ERR_CONFLICT');
+    obj.History = mtHist_(row, user, what); obj.UpdatedAt = now; obj.UpdatedBy = user.name;
+    setMany_(t, [{ row: row, obj: obj }]);
+  });
+  if (fixPhoto) {
+    const url = saveLabPhoto_(cur.id + '-fix', fixPhoto);
+    const t = read_('BranchTickets'), row = t.rows.filter(function (r) { return str_(r.TicketID) === cur.id; })[0];
+    if (row) setMany_(t, [{ row: row, obj: { FixPhoto: url } }]);
+  }
+  logAction_(cur.id, 'بلاغ الفرع: ' + what, user.name);
+  nk_('maint_update');
+  const subj = '🛠 ' + cur.id + ' — ' + what.slice(0, 60);
+  const body = cur.kind + ' · ' + cur.branch + ' · ' + cur.area + (cur.clinic ? ' — ' + cur.clinic : '') + '\n' + cur.description + '\n\n' + what + '\n— ' + user.name;
+  if (notifyBranch) branchManagers_(cur.branch).forEach(function (n) { notifyUser_(n, subj, body); });
+  if (action === 'approve') { nk_('maint_new'); notifyRole_('maintenance', '🛠 طلب للفرع معتمد - ' + cur.id + ' · ' + cur.branch, body); }
+  if (action === 'reopen') notifyRole_('maintenance', '↩️ أعاد مدير الفرع البلاغ ' + cur.id + ' — لم يُصلح', body);
+  resetMemo_();
+  return mapMt_(read_('BranchTickets').rows.filter(function (r) { return str_(r.TicketID) === cur.id; })[0], cfg, Date.now());
+}
+/** مؤشرات الإدارة: المفتوح والمتأخر، متوسط زمن الإصلاح، التكلفة لكل فرع، حسب التصنيف، والأماكن المتكررة */
+function getMaintStats_(user, opts) {
+  const role = mtRole_(user);
+  if (role !== 'mgmt' && role !== 'maint') throw new Error('ERR_FORBIDDEN');
+  const list = getMaintTickets_(user, opts || {});
+  const by = function (f) {
+    const o = {};
+    list.forEach(function (t) {
+      const k = f(t) || '—', x = o[k] || (o[k] = { key: k, n: 0, open: 0, late: 0, cost: 0, hrs: [] });
+      x.n++; if (t.open) x.open++; if (t.late) x.late++; x.cost = round2_(x.cost + (t.cost || 0));
+      if (!t.open || t.status === MT_ST.FIXED) x.hrs.push(t.hours);
+    });
+    return Object.keys(o).map(function (k) { const x = o[k]; x.avgHours = x.hrs.length ? round1_(x.hrs.reduce(function (a, b) { return a + b; }, 0) / x.hrs.length) : null; delete x.hrs; return x; })
+      .sort(function (a, b) { return b.n - a.n; });
+  };
+  const spots = by(function (t) { return t.branch + ' · ' + t.area + (t.clinic ? ' — ' + t.clinic : '') + ' · ' + t.category; }).filter(function (x) { return x.n > 1; }).slice(0, 10);
+  const done = list.filter(function (t) { return !t.open || t.status === MT_ST.FIXED; });
+  return { total: list.length, open: list.filter(function (t) { return t.open; }).length, late: list.filter(function (t) { return t.late; }).length,
+    stops: list.filter(function (t) { return t.open && t.stops; }).length,
+    cost: round2_(list.reduce(function (a, t) { return a + (t.cost || 0); }, 0)),
+    avgHours: done.length ? round1_(done.reduce(function (a, t) { return a + t.hours; }, 0) / done.length) : null,
+    byBranch: by(function (t) { return t.branch; }), byCategory: by(function (t) { return t.category; }), byPriority: by(function (t) { return t.priority; }), repeats: spots };
+}
+/** إعدادات البلاغات (التنفيذي والأدمن): الاعتماد لطلبات الفرع، المهلة لكل أولوية، قوائم المناطق والتصنيفات */
+function saveMaintConfig_(user, v) {
+  if (!(user.screen === 'admin' || user.screen === 'executive')) throw new Error('ERR_FORBIDDEN');
+  v = v || {};
+  const sla = {};
+  MT_PRIORITIES_.forEach(function (p) {
+    const n = Number((v.sla || {})[p]);
+    if (!(n > 0 && n <= 2000)) throw new Error('ERR_RULE_RANGE:sla');
+    sla[p] = n;
+  });
+  const lst = function (a, def) { const l = (Array.isArray(a) ? a : []).map(function (x) { return clean_(x, 60); }).filter(String); return (l.length ? l : def).join('، '); };
+  const vals = { MaintApproval: v.approval ? 1 : 0, MaintSla: JSON.stringify(sla), MaintAreas: lst(v.areas, MT_AREAS_DEFAULT_), MaintCategories: lst(v.cats, MT_CATS_DEFAULT_), MaintRequestCategories: lst(v.reqCats, MT_REQ_CATS_DEFAULT_) };
+  withLock_(function () {
+    const t = freshTable_('Settings');
+    Object.keys(vals).forEach(function (k) {
+      const row = t.rows.filter(function (r) { return str_(r.Key) === k; })[0];
+      if (!row) append_('Settings', { Key: k, Value: vals[k], Notes: 'بلاغات الفرع والصيانة (من صفحة البلاغات)' });
+      else if (str_(row.Value) !== String(vals[k])) setCells_(t, row, { Value: vals[k] });
+    });
+    logAction_('', 'إعدادات بلاغات الفرع: ' + JSON.stringify(vals), user.name);
+  });
+  resetMemo_();
+  return getMaintConfig_(user);
 }
