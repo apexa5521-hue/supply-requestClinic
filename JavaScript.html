@@ -59,6 +59,15 @@ const I18N = {
     rej_tag_nurse: 'حذفته الممرضة', rej_tag_admin: 'حُذف إدارياً', rm_items: 'حذف صنف', rm_reason: 'السبب', rm_reason_ph: 'مثال: طلبته بالغلط', rm_items_h: 'يُحذف ما لم يُرسل من الصنف. الصنف المستلم لا يُحذف من هنا — تواصلي مع الإدارة.', rm_confirm: 'حذف', rm_none: 'كل الأصناف أُرسلت — لا يوجد صنف يمكن حذفه', rm_sent_h: 'أُرسلت ولا تُحذف من هنا:', rm_pick: 'اختاري الصنف', rm_done: 'حُذف {n} صنف من الطلب', nav_req_fix: 'تصحيح الطلبات', sub_req_fix: 'حذف صنف من طلب حتى لو استُلم — بالسبب، ومسجّل للتدقيق', rf_open: 'فتح الطلب', rf_h: 'اكتب رقم الطلب. الحذف يصفّر المعتمد والمرسل والمستلم للصنف (المطلوب يبقى كما رُفع)، فتتفق المالية والتقارير، والقيم الأصلية تُحفظ في سجل التراجعات ويمكن استرجاعها.', rf_total: 'القيمة المعتمدة', rf_sent: 'المرسل', rf_received: 'المستلم', rf_value: 'القيمة', rf_remove: 'حذف الصنف', rf_restore: 'استرجاع', rf_asset: 'عليه عهدة — أرجِعها أولاً', rf_log: 'سجل التصحيحات والتراجعات', rf_remove_h: 'الصنف يخرج من حساب الطلب (المعتمد والمرسل والمستلم = 0) ومن تقارير المالية. يُسجَّل السبب والقيمة واسمك.', rf_removed: 'حُذف الصنف وسُجّل في سجل التراجعات', rf_restored: 'استُرجع الصنف بكمياته الأصلية', rf_restore_q: 'استرجاع «{n}» بكمياته الأصلية؟', ERR_ITEM_HAS_ASSET: 'صُرفت من هذا الصنف عهدة (أداة برقم تسلسلي) — أرجِعها من شاشة العهدة أولاً',
     dt_sort: 'الترتيب', dt_by_qty: 'الأكثر كمية', dt_by_times: 'الأكثر طلباً (عدد المرات)', dt_who: 'الطبيب أو العيادة', dt_all_who: 'كل الأطباء والعيادات', dt_times_n: '{n} مرة', dt_qty_n: 'كمية {n}',
     ba_title: 'وقت الوصول لكل فرع (بالدقائق)', ba_h: 'المسافة من مكان التجهيز تختلف بين الفروع. الاقتراح: مدة الطريق + 30 دقيقة للتحميل والتسليم (مثلاً بريدة 10 د ← 40 د، عنيزة 55 د ← 90 د). الشهري ممكن يكون أطول إذا الرحلة مجدولة. الفارغ = الوقت العام لمرحلة «الوصول للفرع» ({m} س شهري · {e} س طارئ).', ba_m: 'الشهري (دقيقة)', ba_e: 'الطارئ (دقيقة)', ba_general: 'العام', ba_err: 'وقت الوصول بالدقائق من 5 إلى 43200',
+    nav_maint: 'بلاغات الفرع والصيانة', sub_maint: 'صيانة الفرع وطلباته: الموقع بالضبط، الصور، المتابعة حتى التأكيد', screen_maintenance: 'صيانة', perm_maint: 'بلاغات الفرع والصيانة', perm_maint_d: 'متابعة بلاغات الصيانة وطلبات الفروع وتكلفتها',
+    mt_new: 'بلاغ صيانة', mt_new_req: 'طلب للفرع', mt_cta: 'مشكلة في الفرع؟', mt_cta_h: 'حدد المكان بالضبط وصوّر المشكلة — تصل للصيانة فوراً', mt_kind: 'النوع', mt_area: 'المنطقة', mt_clinic: 'العيادة', mt_spot: 'المكان بالضبط (اختياري)', mt_spot_ph: 'مثال: فوق كرسي الأسنان / المغسلة اليسار',
+    mt_cat: 'التصنيف', mt_priority: 'الأولوية', mt_p_urgent: 'عاجل — يوقف العمل', mt_p_high: 'مهم', mt_p_normal: 'عادي', mt_stops: 'العيادة أو المكان متوقف عن العمل', mt_desc: 'وصف المشكلة', mt_desc_req: 'وش المطلوب بالضبط؟', mt_photos: 'الصور', mt_photos_req: 'صورة واحدة على الأقل للصيانة (حتى 4)',
+    mt_sent: 'أُرسل {id} للصيانة', mt_sent_pending: 'أُرسل {id} — بانتظار اعتماد الإدارة', mt_none: 'لا توجد بلاغات', mt_g_open: 'مفتوحة', mt_g_pending: 'بانتظار الاعتماد', mt_g_fixed: 'بانتظار تأكيدك', mt_g_fixed_m: 'تم الإصلاح', mt_g_closed: 'مغلقة',
+    mt_late: 'متأخر', mt_stops_tag: 'متوقف', mt_hours: '{n} س', mt_sla: 'المهلة {n} س', mt_history: 'السجل', mt_fix_photo: 'صورة بعد الإصلاح', mt_vendor: 'جهة التنفيذ', mt_cost: 'التكلفة', mt_cost_type: 'نوع التنفيذ', mt_internal: 'داخلي', mt_contractor: 'مقاول', mt_note: 'ملاحظة',
+    mt_a_receive: 'استلام', mt_a_start: 'بدء التنفيذ', mt_a_wait: 'بانتظار قطع أو مقاول', mt_a_fixed: 'تم الإصلاح', mt_a_confirm: 'تأكيد الإصلاح وإغلاق', mt_a_reopen: 'لم يُصلح — إعادة', mt_a_approve: 'اعتماد', mt_a_reject: 'رفض', mt_a_note: 'إضافة ملاحظة', mt_a_cost: 'تعديل التكلفة',
+    mt_reason_req: 'اكتب السبب', mt_saved: 'تم تحديث {id}', mt_k_open: 'مفتوحة', mt_k_late: 'متأخرة', mt_k_stops: 'أماكن متوقفة', mt_k_avg: 'متوسط الإصلاح', mt_k_cost: 'التكلفة', mt_by_branch: 'حسب الفرع', mt_by_cat: 'حسب التصنيف', mt_repeats: 'أعطال متكررة في نفس المكان', mt_n: 'العدد',
+    mt_settings: 'إعدادات البلاغات', mt_set_approval: 'طلبات الفرع تحتاج اعتماد الإدارة التنفيذية قبل التنفيذ', mt_set_sla: 'المهلة بالساعات لكل أولوية', mt_set_areas: 'المناطق (سطر لكل منطقة)', mt_set_cats: 'تصنيفات الصيانة', mt_set_reqcats: 'تصنيفات طلبات الفرع', mt_set_saved: 'حُفظت إعدادات البلاغات', mt_all_branches: 'كل الفروع', mt_by: 'رفعه {n}', mt_reopened: 'أُعيد {n} مرة',
+    ERR_NO_BRANCH: 'لا يوجد فرع محدد لحسابك — اطلب من الأدمن تحديده',
     rl_dl_title: 'حد خاص لطبيب (زيادة أو تقليل)', rl_dl_h: 'الحد العام لكل طبيب في كل فرع هذا الشهر: شهري {m} · طارئ {e} · أصناف الطارئ {i}. أضف طبيباً لتزيد أو تقلل طلباته أو عدد أصناف طارئه كاستثناء — الخانة الفارغة = الحد العام، و0 = بلا حد.', rl_dl_m: 'الشهري', rl_dl_e: 'الطارئ', rl_dl_default: 'العام', rl_dl_used: 'هذا الشهر: شهري {m} · طارئ {e}', rl_dl_none: 'لا يوجد حد خاص — كل الأطباء على الحد العام.', rl_dl_pick: 'اسم الطبيب', rl_dl_add: 'إضافة',
     cb_btn: 'إضافة أصناف دفعة واحدة', cb_title: 'إضافة أصناف دفعة واحدة', cb_sub: 'مثل Excel — انسخ الصفوف من Excel والصقها هنا', cb_h: 'ضع المؤشر في أول خانة (اسم الصنف) والصق (Ctrl+V). نفس خانات الصنف الفردي؛ الخانات بـ * إجبارية. لا يُحفظ شيء حتى تصح كل الصفوف.', cb_price: 'السعر', cb_asset: 'عهدة؟', cb_serial: 'رقم تسلسلي؟', cb_dept_h: 'أسنان / جلدية / فارغ = مشترك', cb_type_h: 'مستهلك / ماتيريال / أدوات', cb_yes_h: 'نعم / لا', cb_alias_h: 'افصل بينها بـ ،', cb_more: '10 صفوف أخرى', cb_copy_head: 'نسخ رؤوس الأعمدة لـ Excel', cb_head_ok: 'نُسخت رؤوس الأعمدة — الصقها في أول صف في Excel', cb_clear: 'مسح الجدول', cb_count: '{n} صنف', cb_save: 'حفظ {n} صنف', cb_empty: 'الجدول فارغ — الصق الأصناف أولاً', cb_row: 'السطر {n}', cb_done: 'أُضيف {n} صنف للكتالوج', ERR_BAD_DEPT: 'القسم غير معروف (أسنان / جلدية / فارغ)', ERR_BAD_TYPE: 'النوع غير معروف (مستهلك / ماتيريال / أدوات)', ERR_BAD_YESNO: 'اكتب نعم أو لا', ERR_ITEM_DUP: 'الاسم مكرر في الجدول',
     grp_my_docs: 'أطبائي', nurse_docs: 'الأطباء المسؤولة عنهم', nurse_docs_hint: 'تظهر لها «أطبائي» أولاً عند رفع الطلب — يمكن اختيار أكثر من طبيب',
@@ -89,7 +98,7 @@ const I18N = {
     all_types: 'كل الأنواع (شهري / طارئ)',
     dash_status_hint: 'اضغط على أي حالة لعرض طلباتها', dash_status_n: '{n} طلب — اضغط رقم الطلب لفتح تفاصيله',
     link_new: '➕ طبيب جديد — أنشئه واربطه بالحساب', link_new_name: 'اسم الطبيب كما يظهر للممرضات', link_new_clinics: 'عيادات الطبيب (اختياري)', link_new_will: 'سيُضاف الطبيب «{n}» لقائمة الأطباء ويُربط بهذا الحساب',
-    free_type_tools: 'أدوات', db_tools: 'أدوات', ca_del_sel: 'حذف المحدد ({n})', ca_del_many_q: 'حذف {n} صنف من الكتالوج نهائياً؟', ca_del_many_ok: 'حُذف {n} صنف', ca_del_many_fail: 'لم يُحذف {n}: {list}',
+    free_type_tools: 'أدوات', free_type_dev: 'جهاز', db_tools: 'أدوات وأجهزة', mt_device: 'الجهاز', mt_device_ph: 'اختر من الكتالوج أو اكتب اسم الجهاز', mt_qty: 'العدد', ca_del_sel: 'حذف المحدد ({n})', ca_del_many_q: 'حذف {n} صنف من الكتالوج نهائياً؟', ca_del_many_ok: 'حُذف {n} صنف', ca_del_many_fail: 'لم يُحذف {n}: {list}',
     step_arrived: 'وصل الفرع', grp_deliver: 'بانتظار التوصيل', grp_await_receipt: 'وصل · بانتظار الاستلام', grp_signed: 'استُلم بالتوقيع',
     drv_scan_hint: 'للتسليم: امسح الباركود (QR) على البوكس نفسه بكاميرا الجوال', drv_locked: 'تم التسليم', drv_locked_sub: 'هذا البوكس سُلِّم مسبقاً ولا توجد عليه مهمة توصيل الآن', drv_last: 'آخر تسليم: {p} · {t} · {d}', ERR_BOX_DELIVERED: 'تم التسليم مسبقاً — لا توجد مهمة توصيل لهذا البوكس الآن',
     link_will: 'سيرتبط بـ: {n}', link_none: 'لا يوجد طبيب يطابق اسم الحساب — اختر الطبيب من القائمة', link_grp_free: 'أطباء بلا حساب', link_grp_taken: 'مرتبطون بحسابات أخرى', ERR_DOCTOR_LINK: 'حساب الطبيب لازم يرتبط بطبيب — اختر اسمه من «الطبيب المرتبط بالحساب»',
@@ -199,6 +208,15 @@ const I18N = {
     rej_tag_nurse: 'Removed by the nurse', rej_tag_admin: 'Removed by admin', rm_items: 'Remove item', rm_reason: 'Reason', rm_reason_ph: 'e.g. ordered by mistake', rm_items_h: 'Removes what has not been sent yet. A received item can’t be removed here — contact the admin.', rm_confirm: 'Remove', rm_none: 'Everything was sent — nothing left to remove', rm_sent_h: 'Already sent (not removable here):', rm_pick: 'Pick an item', rm_done: '{n} item(s) removed from the request', nav_req_fix: 'Fix requests', sub_req_fix: 'Remove an item even after receipt — with a reason, logged for audit', rf_open: 'Open request', rf_h: 'Type the request number. Removing sets the item’s approved, sent and received to 0 (requested stays as raised), so finance and reports agree; the original values are kept in the reversals log and can be restored.', rf_total: 'Approved value', rf_sent: 'Sent', rf_received: 'Received', rf_value: 'Value', rf_remove: 'Remove item', rf_restore: 'Restore', rf_asset: 'Has custody assets — return them first', rf_log: 'Fixes and reversals log', rf_remove_h: 'The item leaves the request totals (approved, sent, received = 0) and finance reports. The reason, value and your name are recorded.', rf_removed: 'Item removed and logged', rf_restored: 'Item restored with its original quantities', rf_restore_q: 'Restore “{n}” with its original quantities?', ERR_ITEM_HAS_ASSET: 'Custody assets were issued from this item — return them from Custody first',
     dt_sort: 'Sort', dt_by_qty: 'Highest quantity', dt_by_times: 'Most ordered (times)', dt_who: 'Doctor or clinic', dt_all_who: 'All doctors & clinics', dt_times_n: '{n}×', dt_qty_n: 'qty {n}',
     ba_title: 'Arrival time per branch (minutes)', ba_h: 'Distance from the prep site differs by branch. Suggestion: drive time + 30 min for loading and hand-over (e.g. 10 min → 40, 55 min → 90). Monthly can be longer if trips are scheduled. Empty = the general «arrival» target ({m} h monthly · {e} h emergency).', ba_m: 'Monthly (min)', ba_e: 'Emergency (min)', ba_general: 'General', ba_err: 'Arrival minutes must be 5 to 43200',
+    nav_maint: 'Branch maintenance', sub_maint: 'Branch maintenance and requests: exact location, photos, follow-up until confirmed', screen_maintenance: 'Maintenance', perm_maint: 'Branch maintenance', perm_maint_d: 'Follow branch maintenance tickets and requests, and their cost',
+    mt_new: 'Maintenance issue', mt_new_req: 'Branch request', mt_cta: 'Something wrong in the branch?', mt_cta_h: 'Pin the exact place and take a photo — maintenance gets it at once', mt_kind: 'Type', mt_area: 'Area', mt_clinic: 'Clinic', mt_spot: 'Exact spot (optional)', mt_spot_ph: 'e.g. above the dental chair / left sink',
+    mt_cat: 'Category', mt_priority: 'Priority', mt_p_urgent: 'Urgent — work stopped', mt_p_high: 'Important', mt_p_normal: 'Normal', mt_stops: 'The clinic or place is out of service', mt_desc: 'Describe the problem', mt_desc_req: 'What exactly is needed?', mt_photos: 'Photos', mt_photos_req: 'At least one photo for maintenance (up to 4)',
+    mt_sent: '{id} sent to maintenance', mt_sent_pending: '{id} sent — awaiting management approval', mt_none: 'No tickets', mt_g_open: 'Open', mt_g_pending: 'Awaiting approval', mt_g_fixed: 'Awaiting your confirmation', mt_g_fixed_m: 'Fixed', mt_g_closed: 'Closed',
+    mt_late: 'Late', mt_stops_tag: 'Out of service', mt_hours: '{n} h', mt_sla: 'Target {n} h', mt_history: 'History', mt_fix_photo: 'Photo after the fix', mt_vendor: 'Done by', mt_cost: 'Cost', mt_cost_type: 'Done by', mt_internal: 'In-house', mt_contractor: 'Contractor', mt_note: 'Note',
+    mt_a_receive: 'Receive', mt_a_start: 'Start work', mt_a_wait: 'Waiting for parts / contractor', mt_a_fixed: 'Fixed', mt_a_confirm: 'Confirm fix and close', mt_a_reopen: 'Not fixed — send back', mt_a_approve: 'Approve', mt_a_reject: 'Reject', mt_a_note: 'Add a note', mt_a_cost: 'Edit cost',
+    mt_reason_req: 'Write the reason', mt_saved: '{id} updated', mt_k_open: 'Open', mt_k_late: 'Late', mt_k_stops: 'Out of service', mt_k_avg: 'Avg fix time', mt_k_cost: 'Cost', mt_by_branch: 'By branch', mt_by_cat: 'By category', mt_repeats: 'Repeated faults in the same place', mt_n: 'Count',
+    mt_settings: 'Ticket settings', mt_set_approval: 'Branch requests need executive approval before work', mt_set_sla: 'Target hours per priority', mt_set_areas: 'Areas (one per line)', mt_set_cats: 'Maintenance categories', mt_set_reqcats: 'Branch request categories', mt_set_saved: 'Ticket settings saved', mt_all_branches: 'All branches', mt_by: 'by {n}', mt_reopened: 'sent back {n}×',
+    ERR_NO_BRANCH: 'No branch is set on your account — ask the admin',
     rl_dl_title: 'Doctor-specific limit (raise or lower)', rl_dl_h: 'General limit per doctor per branch this month: monthly {m} · emergency {e} · emergency items {i}. Add a doctor to raise or lower their requests or emergency item count as an exception — empty = the general limit, 0 = no limit.', rl_dl_m: 'Monthly', rl_dl_e: 'Emergency', rl_dl_default: 'General', rl_dl_used: 'This month: monthly {m} · emergency {e}', rl_dl_none: 'No special limits — every doctor uses the general limit.', rl_dl_pick: 'Doctor name', rl_dl_add: 'Add',
     cb_btn: 'Add items in bulk', cb_title: 'Add items in bulk', cb_sub: 'Like Excel — copy rows from Excel and paste them here', cb_h: 'Put the cursor in the first cell (item name) and paste (Ctrl+V). Same fields as a single item; * is required. Nothing is saved until every row is valid.', cb_price: 'Price', cb_asset: 'Custody?', cb_serial: 'Serial no.?', cb_dept_h: 'Dental / Derma / empty = shared', cb_type_h: 'Consumable / Material / Tools', cb_yes_h: 'Yes / No', cb_alias_h: 'separate with ,', cb_more: '10 more rows', cb_copy_head: 'Copy column headers for Excel', cb_head_ok: 'Headers copied — paste them in the first Excel row', cb_clear: 'Clear', cb_count: '{n} item(s)', cb_save: 'Save {n} item(s)', cb_empty: 'The table is empty — paste the items first', cb_row: 'Row {n}', cb_done: '{n} item(s) added to the catalog', ERR_BAD_DEPT: 'Unknown department (Dental / Derma / empty)', ERR_BAD_TYPE: 'Unknown type (Consumable / Material / Tools)', ERR_BAD_YESNO: 'Write yes or no', ERR_ITEM_DUP: 'Name repeated in the table',
     grp_my_docs: 'My doctors', nurse_docs: 'Doctors she orders for', nurse_docs_hint: 'Shown first as “My doctors” when she raises a request — pick as many as needed',
@@ -229,7 +247,7 @@ const I18N = {
     all_types: 'All types (monthly / emergency)',
     dash_status_hint: 'Click any status to list its requests', dash_status_n: '{n} request(s) — click a number to open it',
     link_new: '➕ New doctor — create and link to this account', link_new_name: 'Doctor name as nurses see it', link_new_clinics: 'Doctor clinics (optional)', link_new_will: 'Doctor «{n}» will be added to the doctors list and linked to this account',
-    free_type_tools: 'Tools', db_tools: 'Tools', ca_del_sel: 'Delete selected ({n})', ca_del_many_q: 'Delete {n} item(s) from the catalog for good?', ca_del_many_ok: '{n} item(s) deleted', ca_del_many_fail: 'Not deleted ({n}): {list}',
+    free_type_tools: 'Tools', free_type_dev: 'Device', db_tools: 'Tools & devices', mt_device: 'Device', mt_device_ph: 'Pick from the catalog or type the device name', mt_qty: 'Quantity', ca_del_sel: 'Delete selected ({n})', ca_del_many_q: 'Delete {n} item(s) from the catalog for good?', ca_del_many_ok: '{n} item(s) deleted', ca_del_many_fail: 'Not deleted ({n}): {list}',
     step_arrived: 'At branch', grp_deliver: 'Awaiting delivery', grp_await_receipt: 'Arrived · awaiting receipt', grp_signed: 'Received & signed',
     drv_scan_hint: 'To deliver: scan the QR code on the box itself with your phone camera', drv_locked: 'Delivered', drv_locked_sub: 'This box was already delivered and has no delivery task now', drv_last: 'Last delivery: {p} · {t} · {d}', ERR_BOX_DELIVERED: 'Already delivered — this box has no delivery task now',
     link_will: 'Will link to: {n}', link_none: 'No doctor matches this account name — pick the doctor from the list', link_grp_free: 'Doctors without an account', link_grp_taken: 'Linked to other accounts', ERR_DOCTOR_LINK: 'A doctor account must be linked to a doctor — pick the name in “Linked doctor”',
@@ -1292,6 +1310,7 @@ function resetApp() {
   S.token = null; S.user = null; S.view = null; S.loaded = {};
   // لا يبقى أي بيانات من المستخدم السابق في الذاكرة (قوائم، أصناف، تحديد، صفحات)
   S.proc.list = []; S.proc.items = {}; S.proc.expanded.clear(); S.proc.selected.clear(); S.proc.archive = false;
+  if (typeof MT !== 'undefined') { MT.cfg = null; MT.list = []; MT.stats = null; MT.branch = ''; MT.group = 'open'; }
   if (typeof AS !== 'undefined') { AS.cfg = null; AS.clinics = []; AS.tickets = []; AS.stats = null; AS.tab = 'clinics'; AS.group = 'new'; AS.branch = null; }
   S.nurse.mine = []; S.nurse.archive = false; S.nurse.draft = null; S.nurse.lab = null; clearTimeout(AUTO_SEND.timer); AUTO_SEND.tries = 0; AUTO_SEND.sending = false;
   LAB.mine = []; LAB.doc = []; LAB.board = []; LAB.stats = null; LAB.cfg = null; LAB.loaded = {}; // المسودة محفوظة لكل مستخدم على حدة
@@ -1357,7 +1376,8 @@ const NAV = {
   nurse:       [{ id: 'new', icon: 'plus', k: 'nav_new' }, { id: 'mine', icon: 'clipboard', k: 'nav_mine' }, { id: 'labmine', icon: 'flask', k: 'nav_lab' }, { id: 'assets', icon: 'tool', k: 'nav_assets' }, { id: 'nursevoice', icon: 'msg', k: 'nav_nurse_voice' }],
   lab:         [{ id: 'labboard', icon: 'flask', k: 'nav_lab_board' }, { id: 'labkpi', icon: 'chart', k: 'nav_lab_kpi' }, { id: 'new', icon: 'plus', k: 'nav_lab_supply' }, { id: 'mine', icon: 'clipboard', k: 'nav_mine' }, { id: 'settings', icon: 'layers', k: 'nav_settings' }],
   procurement: [{ id: 'requests', icon: 'package', k: 'nav_requests' }, { id: 'boxes', icon: 'truck', k: 'nav_boxes' }, { id: 'freeitems', icon: 'edit', k: 'nav_free_items' }, { id: 'catalog', icon: 'tag', k: 'nav_catalog' }, { id: 'rules', icon: 'calendar', k: 'nav_rules' }, { id: 'assets', icon: 'tool', k: 'nav_assets' }, { id: 'complaints', icon: 'alert', k: 'nav_complaints' }, { id: 'extorders', icon: 'cart', k: 'nav_ext_orders' }],
-  doctor:      [{ id: 'reviews', icon: 'steth', k: 'nav_reviews' }, { id: 'labdoc', icon: 'flask', k: 'nav_lab' }, { id: 'assets', icon: 'tool', k: 'nav_assets' }]
+  doctor:      [{ id: 'reviews', icon: 'steth', k: 'nav_reviews' }, { id: 'labdoc', icon: 'flask', k: 'nav_lab' }, { id: 'assets', icon: 'tool', k: 'nav_assets' }],
+  maintenance: [{ id: 'maint', icon: 'tool', k: 'nav_maint' }]
 };
 /* شاشات الإدارة (جودة / تنفيذية / مالية / أدمن): القائمة تُبنى من صلاحيات الدور التي يحددها الأدمن */
 const MGMT_SCREENS = ['quality', 'executive', 'finance', 'dashboard', 'branch', 'admin'];
@@ -1393,9 +1413,11 @@ const PERM_NAV = [
   // الإعدادات (بدل الشيت): الأدمن كل شيء، والمالية آخر موعد للطلبات القديمة فقط
   { id: 'settings', icon: 'layers', k: 'nav_settings', perm: ['users'], screens: ['finance'] },
   // مدير الفرع: يعتمد طلبات الهاوس كيبر في فرعه
-  { id: 'reviews', icon: 'checkc', k: 'nav_approvals', perm: [], screens: ['branch'] }
+  { id: 'reviews', icon: 'checkc', k: 'nav_approvals', perm: [], screens: ['branch'] },
+  // بلاغات الفرع والصيانة: مدير الفرع يرفع لفرعه، والإدارة بصلاحية maint تتابع (والتنفيذي يعتمد طلبات الفرع إن فُعّل)
+  { id: 'maint', icon: 'tool', k: 'nav_maint', perm: ['maint'], screens: ['branch', 'admin'] }
 ];
-const PERM_LIST = ['overview', 'monitor', 'doctors_live', 'surveys', 'doctor_prices', 'reports', 'finance', 'prices_edit', 'lab_view', 'assets', 'boxes', 'complaints', 'complaints_close', 'notices', 'order_rules', 'users'];
+const PERM_LIST = ['overview', 'monitor', 'doctors_live', 'surveys', 'doctor_prices', 'reports', 'finance', 'prices_edit', 'lab_view', 'assets', 'boxes', 'complaints', 'complaints_close', 'notices', 'order_rules', 'users', 'maint'];
 const WF_NAV = { id: 'workflow', icon: 'route', k: 'nav_workflow' };
 /* طبيبة الجلدية: بدون أي سعر أو قيمة في صفحتها (الخادم لا يرسلها أصلاً) */
 const noPrices = () => !!(S.user && S.user.noPrices);
@@ -4397,7 +4419,7 @@ VIEWS.catalog = {
       '<select class="input" id="caCat" style="max-width:200px"></select>' +
       // فرز: القسم، النوع، العهدة، والمكررة بالاسم
       '<select class="input" id="caDept" style="max-width:150px" aria-label="' + esc(t('user_dept')) + '">' + [['', 'ca_f_dept_all'], ['أسنان', 'dept_dental'], ['جلدية', 'dept_derma'], ['shared', 'dept_shared']].map(o => '<option value="' + o[0] + '"' + (CA.dept === o[0] ? ' selected' : '') + '>' + esc(t(o[1])) + '</option>').join('') + '</select>' +
-      '<select class="input" id="caType" style="max-width:150px" aria-label="' + esc(t('free_type')) + '">' + [['', 'ca_f_type_all'], ['مستهلك', 'free_type_cons'], ['ماتيريال', 'free_type_mat'], ['أدوات', 'free_type_tools']].map(o => '<option value="' + o[0] + '"' + (CA.type === o[0] ? ' selected' : '') + '>' + esc(t(o[1])) + '</option>').join('') + '</select>' +
+      '<select class="input" id="caType" style="max-width:150px" aria-label="' + esc(t('free_type')) + '">' + [['', 'ca_f_type_all'], ['مستهلك', 'free_type_cons'], ['ماتيريال', 'free_type_mat'], ['أدوات', 'free_type_tools'], ['جهاز', 'free_type_dev']].map(o => '<option value="' + o[0] + '"' + (CA.type === o[0] ? ' selected' : '') + '>' + esc(t(o[1])) + '</option>').join('') + '</select>' +
       '<select class="input" id="caAsset" style="max-width:150px">' + [['', 'ca_f_asset_all'], ['yes', 'ca_f_asset_yes'], ['no', 'ca_f_asset_no']].map(o => '<option value="' + o[0] + '"' + (CA.asset === o[0] ? ' selected' : '') + '>' + esc(t(o[1])) + '</option>').join('') + '</select>' +
       '<label class="row-wrap" style="gap:4px;font-size:13px"><input type="checkbox" id="caDup"' + (CA.dup ? ' checked' : '') + '> ' + esc(t('ca_f_dup')) + '</label>' +
       '<button class="btn btn-primary btn-sm hidden" id="caClassSel" data-act="caClassify">' + icon('tag', 'i-sm') + '<span></span></button>' +
@@ -4416,7 +4438,7 @@ VIEWS.catalog = {
   },
   refresh() { loadCatalogAdmin(true); }
 };
-const caTypeLabel = ty => t(ty === 'ماتيريال' ? 'free_type_mat' : ty === 'أدوات' ? 'free_type_tools' : 'free_type_cons');
+const caTypeLabel = ty => t(ty === 'ماتيريال' ? 'free_type_mat' : ty === 'أدوات' ? 'free_type_tools' : ty === 'جهاز' ? 'free_type_dev' : 'free_type_cons');
 function renderCatalogAdmin() {
   const box = $('#caList'), sel = $('#caCat'); if (!box || !CA.data) return;
   const d = CA.data;
@@ -4495,7 +4517,7 @@ ACT.caClassify = () => {
   const sel = (id, opts) => '<select class="select" id="' + id + '"><option value="__">' + esc(t('ca_keep')) + '</option>' + opts.map(o => '<option value="' + o[0] + '">' + esc(t(o[1])) + '</option>').join('') + '</select>';
   const m = openModal({ title: esc(t('ca_class_sel', { n: names.length })), icon: 'tag', size: 'sm',
     body: '<div class="field"><label for="ccD">' + esc(t('user_dept')) + '</label>' + sel('ccD', [['أسنان', 'dept_dental'], ['جلدية', 'dept_derma'], ['', 'dept_shared']]) + '</div>' +
-      '<div class="field"><label for="ccT">' + esc(t('free_type')) + '</label>' + sel('ccT', [['مستهلك', 'free_type_cons'], ['ماتيريال', 'free_type_mat'], ['أدوات', 'free_type_tools']]) + '</div>' +
+      '<div class="field"><label for="ccT">' + esc(t('free_type')) + '</label>' + sel('ccT', [['مستهلك', 'free_type_cons'], ['ماتيريال', 'free_type_mat'], ['أدوات', 'free_type_tools'], ['جهاز', 'free_type_dev']]) + '</div>' +
       '<div class="field"><label for="ccA">' + esc(t('ca_asset')) + '</label>' + sel('ccA', [['1', 'ca_f_asset_yes'], ['0', 'ca_f_asset_no']]) + '</div>' +
       '<div class="hint">' + esc(t('ca_class_h')) + '</div><div class="field-error hidden" id="ccErr">' + icon('alert', 'i-sm') + '<span></span></div>',
     foot: '<span class="spacer"></span><button class="btn" data-close>' + esc(t('cancel')) + '</button><button class="btn btn-primary" id="ccOk">' + icon('check', 'i-sm') + esc(t('save')) + '</button>' });
@@ -7661,16 +7683,232 @@ ACT.labKpiCsv = () => {
 };
 
 /* =====================================================================
+   بلاغات الفرع والصيانة: مدير الفرع يرفع (الموقع بالضبط + صور)، الصيانة تنفذ، ومدير الفرع يؤكد فيُغلق
+   ===================================================================== */
+const MT = { cfg: null, list: [], group: 'open', branch: '', stats: null };
+const MT_ST = { PENDING: 'بانتظار الاعتماد', REJECTED: 'مرفوض', NEW: 'جديد', RECEIVED: 'استُلم', WORK: 'قيد التنفيذ', WAIT: 'بانتظار قطع أو مقاول', FIXED: 'تم الإصلاح', CLOSED: 'مغلق' };
+const MT_TONE = { 'بانتظار الاعتماد': 'var(--t-amber)', 'مرفوض': 'var(--t-red)', 'جديد': 'var(--t-blue)', 'استُلم': 'var(--t-indigo)', 'قيد التنفيذ': 'var(--t-orange)', 'بانتظار قطع أو مقاول': 'var(--t-amber)', 'تم الإصلاح': 'var(--t-teal)', 'مغلق': 'var(--t-gray)' };
+const MT_PR = { 'عاجل': ['mt_p_urgent', 'var(--t-red)'], 'مهم': ['mt_p_high', 'var(--t-orange)'], 'عادي': ['mt_p_normal', 'var(--t-green)'] };
+const mtGroups = () => {
+  const role = MT.cfg && MT.cfg.role;
+  return [
+    { id: 'open', k: 'mt_g_open', test: x => x.open && x.status !== MT_ST.FIXED && x.status !== MT_ST.PENDING, tone: 'var(--t-orange)' },
+    { id: 'pending', k: 'mt_g_pending', test: x => x.status === MT_ST.PENDING, tone: 'var(--t-amber)' },
+    { id: 'fixed', k: role === 'branch' ? 'mt_g_fixed' : 'mt_g_fixed_m', test: x => x.status === MT_ST.FIXED, tone: 'var(--t-teal)' },
+    { id: 'closed', k: 'mt_g_closed', test: x => !x.open, tone: 'var(--t-gray)' },
+    { id: 'all', k: 'grp_all' }
+  ].filter(g => g.id !== 'pending' || role !== 'maint');
+};
+VIEWS.maint = {
+  title: 'nav_maint', sub: 'sub_maint',
+  render() {
+    const role = S.user.screen;
+    return (role === 'branch' ? '<section class="card as-report-cta"><div class="card-body between" style="gap:12px;flex-wrap:wrap"><div><h2 style="margin:0">' + icon('tool') + esc(t('mt_cta')) + '</h2><div class="hint">' + esc(t('mt_cta_h')) + '</div></div>' +
+        '<div class="row-wrap"><button class="btn btn-danger btn-lg" data-act="mtNew" data-kind="صيانة" id="mtNewBtn">' + icon('tool', 'i-sm') + esc(t('mt_new')) + '</button>' +
+        '<button class="btn btn-soft btn-lg" data-act="mtNew" data-kind="طلب للفرع">' + icon('plus', 'i-sm') + esc(t('mt_new_req')) + '</button></div></div></section>' : '') +
+      '<div id="mtTop"></div><div id="mtChips"></div><div class="list stagger" id="mtList">' + skeletonList(2) + '</div><div id="mtStats"></div>';
+  },
+  mount() { mtLoad(); },
+  refresh() { mtLoad(true); }
+};
+function mtLoad(silent) {
+  const cfgP = MT.cfg ? Promise.resolve(MT.cfg) : call('getMaintConfig').then(c => (MT.cfg = c));
+  return cfgP.then(() => swr('getMaintTickets', [{}], d => { MT.list = d || []; mtRender(); }, e => { if (!silent) toast(errMsg(e), 'error'); }))
+    .then(() => { if (MT.cfg.role !== 'branch') call('getMaintStats', {}).then(st => { MT.stats = st; mtRenderStats(); }).catch(() => {}); })
+    .catch(e => { const b = $('#mtList'); if (b) b.innerHTML = emptyState('alert', errMsg(e)); });
+}
+function mtRender() {
+  const box = $('#mtList'); if (!box || !MT.cfg) return;
+  const branches = Array.from(new Set(MT.list.map(x => x.branch).filter(Boolean))).sort((a, b) => a.localeCompare(b));
+  const top = $('#mtTop');
+  if (top) top.innerHTML = (MT.cfg.role !== 'branch' ? '<div class="row-wrap" style="gap:8px;margin-bottom:10px">' +
+      (branches.length > 1 ? '<select class="select" id="mtBr" style="width:auto"><option value="">' + esc(t('mt_all_branches')) + '</option>' + branches.map(b => '<option' + (MT.branch === b ? ' selected' : '') + '>' + esc(b) + '</option>').join('') + '</select>' : '') +
+      '<span class="spacer" style="flex:1"></span>' + (MT.cfg.canSettings ? '<button class="btn btn-soft btn-sm" data-act="mtSettings">' + icon('layers', 'i-sm') + esc(t('mt_settings')) + '</button>' : '') + '</div>' : '');
+  const br = $('#mtBr'); if (br) br.addEventListener('change', e => { MT.branch = e.target.value; mtRender(); mtRenderStats(); });
+  const list = MT.list.filter(x => !MT.branch || x.branch === MT.branch);
+  const groups = mtGroups();
+  if (!groups.some(g => g.id === MT.group)) MT.group = 'open';
+  const chips = $('#mtChips'); if (chips) chips.innerHTML = chipsHtml(groups, MT.group, 'mtGroup', groupCounts(groups, list));
+  const g = groups.find(x => x.id === MT.group);
+  const shown = list.filter(x => matchGroup(g, x));
+  box.innerHTML = shown.length ? shown.map(mtCard).join('') : emptyState('tool', t('mt_none'));
+}
+ACT.mtGroup = el => { MT.group = el.dataset.g; mtRender(); };
+const mtWhere = x => [x.area, x.clinic, x.spot].filter(Boolean).join(' — ');
+const mtPrTag = p => { const m = MT_PR[p] || MT_PR['عادي']; return '<span class="tag" style="color:' + m[1] + ';background:color-mix(in srgb,' + m[1] + ' 12%,transparent)">' + esc(t(m[0]).split(' — ')[0]) + '</span>'; };
+const mtBadge = st => '<span class="badge" style="--tone:' + (MT_TONE[st] || 'var(--t-gray)') + '"><i class="dot"></i>' + esc(st) + '</span>';
+function mtCard(x, i) {
+  return stagger('<article class="req' + (x.late ? ' late' : '') + '"><div class="req-main clickable" data-act="mtOpen" data-id="' + esc(x.id) + '"><div class="grow">' +
+    '<div class="row-wrap"><span class="req-id">' + esc(x.id) + '</span><span class="tag">' + esc(x.kind) + '</span>' + mtPrTag(x.priority) + branchTag(x.branch) +
+      (x.stops && x.open ? '<span class="tag late">' + icon('alert', 'i-sm') + esc(t('mt_stops_tag')) + '</span>' : '') + (x.late ? '<span class="tag late">' + esc(t('mt_late')) + '</span>' : '') + '</div>' +
+    '<div class="req-sub"><span>' + icon('pin') + '<b>' + esc(mtWhere(x)) + '</b></span><span>' + icon('layers') + esc(x.category) + '</span>' + (x.item ? '<span>' + icon('package') + '<b>' + esc(x.item) + '</b> × ' + x.qty + '</span>' : '') + '<span>' + icon('clock') + esc(relTime(x.createdAt)) + '</span></div>' +
+    '<div class="hint" style="margin-top:6px">' + esc(x.description) + '</div></div>' +
+    '<div class="req-side">' + mtBadge(x.status) + (x.open ? '<div class="muted" style="font-size:12px;margin-top:4px">' + esc(t('mt_hours', { n: fmtNum(x.hours, 1) })) + ' / ' + esc(t('mt_sla', { n: x.sla })) + '</div>' : '') +
+      (x.cost ? '<div class="muted" style="font-size:12px">' + esc(money(x.cost)) + '</div>' : '') + '</div></div></article>', i);
+}
+function mtRenderStats() {
+  const box = $('#mtStats'); if (!box || !MT.stats) return;
+  const st = MT.stats, see = MT.cfg && MT.cfg.seeCost;
+  const rows = MT.branch ? st.byBranch.filter(b => b.key === MT.branch) : st.byBranch;
+  const tbl = (title, arr) => arr.length ? '<section class="card"><div class="card-head"><h3>' + icon('chart') + esc(title) + '</h3></div><div class="card-body"><div class="table-wrap"><table class="table"><thead><tr><th></th><th class="num">' + esc(t('mt_n')) + '</th><th class="num">' + esc(t('mt_k_open')) + '</th><th class="num">' + esc(t('mt_k_late')) + '</th><th class="num">' + esc(t('mt_k_avg')) + '</th>' + (see ? '<th class="num">' + esc(t('mt_k_cost')) + '</th>' : '') + '</tr></thead><tbody>' +
+    arr.map(r => '<tr><td><b>' + esc(r.key) + '</b></td><td class="num">' + r.n + '</td><td class="num">' + r.open + '</td><td class="num"' + (r.late ? ' style="color:var(--t-red);font-weight:700"' : '') + '>' + r.late + '</td><td class="num">' + (r.avgHours === null ? '—' : esc(t('mt_hours', { n: fmtNum(r.avgHours, 1) }))) + '</td>' + (see ? '<td class="num">' + esc(money(r.cost)) + '</td>' : '') + '</tr>').join('') + '</tbody></table></div></div></section>' : '';
+  const tiles = [['tool', 'var(--t-orange)', t('mt_k_open'), st.open], ['clock', 'var(--t-red)', t('mt_k_late'), st.late], ['alert', 'var(--t-red)', t('mt_k_stops'), st.stops],
+    ['activity', 'var(--t-blue)', t('mt_k_avg'), st.avgHours === null ? '—' : t('mt_hours', { n: fmtNum(st.avgHours, 1) })]].concat(see ? [['cart', 'var(--t-green)', t('mt_k_cost'), money(st.cost)]] : []);
+  box.innerHTML = '<div class="rp-tiles" style="margin-top:14px">' + tiles.map(x => '<div class="rp-tile" style="--tone:' + x[1] + '"><span class="ic">' + icon(x[0]) + '</span><div><span>' + esc(x[2]) + '</span><b>' + esc(String(x[3])) + '</b></div></div>').join('') + '</div>' +
+    tbl(t('mt_by_branch'), rows) + tbl(t('mt_by_cat'), st.byCategory) +
+    (st.repeats.length ? '<section class="card"><div class="card-head"><h3>' + icon('refresh') + esc(t('mt_repeats')) + '</h3></div><div class="card-body list">' + st.repeats.map(r => '<div class="between"><span>' + esc(r.key) + '</span><span class="tag late">× ' + r.n + '</span></div>').join('') + '</div></section>' : '');
+}
+/* بلاغ جديد: النوع ← المنطقة (+ العيادة إن كانت «عيادة») ← المكان بالضبط ← التصنيف والأولوية ← الوصف والصور */
+ACT.mtNew = el => {
+  const cfg = MT.cfg; if (!cfg) return;
+  const st = { kind: el.dataset.kind || 'صيانة', photos: [], key: uid() };
+  const opt = (v, cur, lbl) => '<option value="' + esc(v) + '"' + (v === cur ? ' selected' : '') + '>' + esc(lbl || v) + '</option>';
+  const m = openModal({ title: esc(t(st.kind === 'صيانة' ? 'mt_new' : 'mt_new_req')), sub: esc(cfg.branch), icon: 'tool', size: 'lg',
+    body: segmented('mtKind', [{ v: 'صيانة', label: t('mt_new'), icon: 'tool' }, { v: 'طلب للفرع', label: t('mt_new_req'), icon: 'plus' }], st.kind) +
+      '<div class="grid-2" style="margin-top:12px"><div class="field"><label for="mtArea">' + esc(t('mt_area')) + '</label><select class="select" id="mtArea">' + cfg.areas.map(a => opt(a, '')).join('') + '</select></div>' +
+        '<div class="field" id="mtClinicW"><label for="mtClinic">' + esc(t('mt_clinic')) + '</label><select class="select" id="mtClinic"><option value="">—</option>' + cfg.clinics.map(c => opt(c.name, '')).join('') + '</select></div></div>' +
+      '<div class="grid-2 hidden" id="mtDevW"><div class="field"><label for="mtDev">' + esc(t('mt_device')) + '</label><input class="input" id="mtDev" list="mtDevL" maxlength="120" placeholder="' + esc(t('mt_device_ph')) + '"><datalist id="mtDevL">' + (cfg.devices || []).map(d => '<option value="' + esc(d) + '">').join('') + '</datalist></div>' +
+        '<div class="field"><label for="mtQty">' + esc(t('mt_qty')) + '</label><input class="input" id="mtQty" type="number" min="1" max="500" value="1" inputmode="numeric"></div></div>' +
+      '<div class="field"><label for="mtSpot">' + esc(t('mt_spot')) + '</label><input class="input" id="mtSpot" maxlength="200" placeholder="' + esc(t('mt_spot_ph')) + '"></div>' +
+      '<div class="grid-2"><div class="field"><label for="mtCat">' + esc(t('mt_cat')) + '</label><select class="select" id="mtCat"></select></div>' +
+        '<div class="field"><span class="label">' + esc(t('mt_priority')) + '</span><div class="chips" id="mtPr">' + ['عاجل', 'مهم', 'عادي'].map(p => '<button type="button" class="chip" data-v="' + p + '" aria-pressed="' + (p === 'عادي') + '" style="--tone:' + MT_PR[p][1] + '">' + esc(t(MT_PR[p][0])) + '</button>').join('') + '</div></div></div>' +
+      '<label class="nt-ck" style="margin:4px 0 10px"><input type="checkbox" class="check" id="mtStops"> ' + icon('alert', 'i-sm') + esc(t('mt_stops')) + '</label>' +
+      '<div class="field"><label for="mtDesc" id="mtDescL">' + esc(t('mt_desc')) + '</label><textarea class="input" id="mtDesc" rows="3" maxlength="1000"></textarea></div>' +
+      '<div class="field"><span class="label">' + esc(t('mt_photos')) + ' <span class="hint" id="mtPhH">· ' + esc(t('mt_photos_req')) + '</span></span><div class="row-wrap" id="mtPh">' +
+        '<label class="btn btn-soft btn-sm">' + icon('image', 'i-sm') + esc(t('lab_add_photo')) + '<input type="file" accept="image/*" capture="environment" hidden id="mtFile"></label></div></div>' +
+      '<div class="field-error hidden" id="mtErr">' + icon('alert', 'i-sm') + '<span></span></div>',
+    foot: '<span class="spacer"></span><button class="btn" data-close>' + esc(t('cancel')) + '</button><button class="btn btn-primary" id="mtOk">' + icon('send', 'i-sm flip') + esc(t('send')) + '</button>' });
+  $$('.segmented', m.el).forEach(placeThumb);
+  const sync = () => {
+    const isM = st.kind === 'صيانة';
+    $('#mtCat', m.el).innerHTML = (isM ? cfg.cats : cfg.reqCats).map(c => opt(c, '')).join('');
+    $('#mtClinicW', m.el).classList.toggle('hidden', $('#mtArea', m.el).value !== 'عيادة');
+    $('#mtDevW', m.el).classList.toggle('hidden', isM || $('#mtCat', m.el).value !== 'جهاز');
+    $('#mtPhH', m.el).classList.toggle('hidden', !isM);
+    $('#mtDescL', m.el).textContent = t(isM ? 'mt_desc' : 'mt_desc_req');
+    $('.modal-title', m.el) && ($('.modal-title', m.el).textContent = t(isM ? 'mt_new' : 'mt_new_req'));
+  };
+  SEG_HANDLERS.mtKind = v => { st.kind = v; sync(); };
+  $('#mtArea', m.el).addEventListener('change', sync);
+  $('#mtCat', m.el).addEventListener('change', () => $('#mtDevW', m.el).classList.toggle('hidden', st.kind === 'صيانة' || $('#mtCat', m.el).value !== 'جهاز'));
+  $('#mtPr', m.el).addEventListener('click', e => { const b = e.target.closest('.chip'); if (!b) return; $$('#mtPr .chip', m.el).forEach(c => c.setAttribute('aria-pressed', String(c === b))); if (b.dataset.v === 'عاجل') $('#mtStops', m.el).checked = true; });
+  $('#mtFile', m.el).addEventListener('change', e => {
+    const f = e.target.files && e.target.files[0]; e.target.value = ''; if (!f || st.photos.length >= 4) return;
+    fileToJpeg(f).then(u => { st.photos.push(u); $('#mtErr', m.el).classList.add('hidden'); $('#mtPh', m.el).insertAdjacentHTML('afterbegin', '<div class="lab-photo sm"><img src="' + u + '" alt=""></div>'); }).catch(er => toast(errMsg(er), 'error'));
+  });
+  sync();
+  $('#mtOk', m.el).addEventListener('click', e => {
+    const err = $('#mtErr', m.el), fail = msg => { err.querySelector('span').textContent = msg; err.classList.remove('hidden'); err.scrollIntoView({ block: 'nearest' }); };
+    err.classList.add('hidden');
+    const desc = $('#mtDesc', m.el).value.trim();
+    if (!desc) { $('#mtDesc', m.el).focus(); return fail(t(st.kind === 'صيانة' ? 'mt_desc' : 'mt_desc_req')); }
+    if (st.kind === 'صيانة' && !st.photos.length) return fail(t('mt_photos_req'));
+    const b = e.currentTarget; busy(b, true);
+    const pr = ($('#mtPr .chip[aria-pressed="true"]', m.el) || {}).dataset;
+    call('createMaintTicket', { kind: st.kind, area: $('#mtArea', m.el).value, clinic: $('#mtArea', m.el).value === 'عيادة' ? $('#mtClinic', m.el).value : '', spot: $('#mtSpot', m.el).value.trim(),
+      category: $('#mtCat', m.el).value, priority: pr ? pr.v : 'عادي',
+      item: !$('#mtDevW', m.el).classList.contains('hidden') ? $('#mtDev', m.el).value.trim() : '', qty: Number($('#mtQty', m.el).value) || 1, stops: $('#mtStops', m.el).checked, description: desc, photos: st.photos, clientKey: st.key }).then(r => {
+      busy(b, false); closeModal(m);
+      toast(t(r.status === MT_ST.PENDING ? 'mt_sent_pending' : 'mt_sent', { id: r.id }), 'success');
+      MT.list.unshift(r); MT.group = r.status === MT_ST.PENDING ? 'pending' : 'open'; mtRender();
+    }).catch(er => { busy(b, false); fail(errMsg(er)); });
+  });
+};
+/* تفاصيل البلاغ: الصور، السجل، والإجراءات حسب الدور والحالة */
+ACT.mtOpen = el => {
+  const x = MT.list.find(r => r.id === el.dataset.id); if (!x) return;
+  const role = MT.cfg.role, admin = S.user.screen === 'admin';
+  const maint = role === 'maint' || admin, owner = role === 'branch' || admin;
+  const acts = [];
+  if (x.status === MT_ST.PENDING && MT.cfg.canApprove) acts.push(['approve', 'mt_a_approve', 'btn-primary'], ['reject', 'mt_a_reject', 'btn-danger-soft', 'note']);
+  if (maint && x.status === MT_ST.NEW) acts.push(['receive', 'mt_a_receive', 'btn-primary']);
+  if (maint && [MT_ST.NEW, MT_ST.RECEIVED, MT_ST.WAIT].indexOf(x.status) !== -1) acts.push(['start', 'mt_a_start', 'btn-soft']);
+  if (maint && [MT_ST.RECEIVED, MT_ST.WORK].indexOf(x.status) !== -1) acts.push(['wait', 'mt_a_wait', 'btn-soft', 'note']);
+  if (maint && [MT_ST.RECEIVED, MT_ST.WORK, MT_ST.WAIT].indexOf(x.status) !== -1) acts.push(['fixed', 'mt_a_fixed', 'btn-primary', 'fix']);
+  if (owner && x.status === MT_ST.FIXED) acts.push(['confirm', 'mt_a_confirm', 'btn-primary'], ['reopen', 'mt_a_reopen', 'btn-danger-soft', 'note']);
+  if ((maint || role === 'mgmt') && MT.cfg.seeCost && !x.open) acts.push(['cost', 'mt_a_cost', 'btn-ghost', 'cost']);
+  acts.push(['note', 'mt_a_note', 'btn-ghost', 'note']);
+  const see = MT.cfg.seeCost;
+  const m = openModal({ title: esc(x.id) + ' · ' + esc(x.kind), sub: esc(x.branch + ' · ' + mtWhere(x)), icon: 'tool', size: 'lg',
+    body: '<div class="row-wrap">' + mtBadge(x.status) + mtPrTag(x.priority) + '<span class="tag">' + esc(x.category) + '</span>' + (x.stops && x.open ? '<span class="tag late">' + esc(t('mt_stops_tag')) + '</span>' : '') + (x.late ? '<span class="tag late">' + esc(t('mt_late')) + '</span>' : '') +
+        (x.reopenCount ? '<span class="tag warn">' + esc(t('mt_reopened', { n: x.reopenCount })) + '</span>' : '') + '</div>' +
+      (x.item ? '<div style="margin-top:10px">' + icon('package', 'i-sm') + ' ' + esc(t('mt_device')) + ': <b>' + esc(x.item) + '</b> × ' + x.qty + '</div>' : '') +
+      '<p style="margin:10px 0">' + esc(x.description) + '</p>' +
+      '<div class="hint">' + icon('user', 'i-sm') + ' ' + esc(t('mt_by', { n: x.createdBy })) + ' · ' + esc(fmtDateTime(x.createdAt)) + (x.open ? ' · ' + esc(t('mt_hours', { n: fmtNum(x.hours, 1) })) + ' / ' + esc(t('mt_sla', { n: x.sla })) : '') + '</div>' +
+      (x.photos.length || x.fixPhoto ? '<div class="lab-photos" style="margin-top:10px">' + x.photos.map(u => '<a class="lab-photo" href="' + esc(u) + '" target="_blank" rel="noopener">' + icon('image') + '<span>' + esc(t('lab_photo')) + '</span></a>').join('') +
+        (x.fixPhoto ? '<a class="lab-photo" href="' + esc(x.fixPhoto) + '" target="_blank" rel="noopener">' + icon('checkc') + '<span>' + esc(t('mt_fix_photo')) + '</span></a>' : '') + '</div>' : '') +
+      (x.rejectNote ? '<div class="reject-box" style="margin-top:10px">' + esc(x.rejectNote) + '</div>' : '') +
+      (see && (x.cost || x.vendor) ? '<div class="hint" style="margin-top:8px">' + icon('cart', 'i-sm') + ' ' + esc(t('mt_cost')) + ': <b>' + esc(money(x.cost)) + '</b>' + (x.vendor ? ' · ' + esc(x.vendor) : '') + (x.costType ? ' (' + esc(x.costType) + ')' : '') + '</div>' : '') +
+      '<h4 style="margin:14px 0 6px">' + icon('clock', 'i-sm') + ' ' + esc(t('mt_history')) + '</h4><div class="list" style="gap:4px">' + x.history.slice().reverse().map(h => '<div class="hint">' + esc(fmtDateTime(h.at)) + ' · <b>' + esc(h.by) + '</b> — ' + esc(h.what) + '</div>').join('') + '</div>' +
+      '<div id="mtAct" class="stack" style="margin-top:14px"></div><div class="field-error hidden" id="mtAErr">' + icon('alert', 'i-sm') + '<span></span></div>',
+    foot: acts.map(a => '<button class="btn ' + a[2] + '" data-a="' + a[0] + '">' + esc(t(a[1])) + '</button>').join('') + '<span class="spacer"></span><button class="btn" data-close>' + esc(t('close')) + '</button>' });
+  const box = $('#mtAct', m.el), err = $('#mtAErr', m.el);
+  const fail = msg => { err.querySelector('span').textContent = msg; err.classList.remove('hidden'); err.scrollIntoView({ block: 'nearest' }); };
+  let pending = null, photo = '';
+  const form = kind => {
+    if (kind === 'note') return '<div class="field"><label for="mtN">' + esc(t('mt_note')) + '</label><textarea class="input" id="mtN" rows="2" maxlength="500"></textarea></div>';
+    const costF = '<div class="grid-2"><div class="field"><label for="mtC">' + esc(t('mt_cost')) + '</label><input class="input" id="mtC" inputmode="decimal" value="' + (x.cost || '') + '"></div>' +
+      '<div class="field"><label for="mtCT">' + esc(t('mt_cost_type')) + '</label><select class="select" id="mtCT"><option value="داخلي">' + esc(t('mt_internal')) + '</option><option value="مقاول"' + (x.costType === 'مقاول' ? ' selected' : '') + '>' + esc(t('mt_contractor')) + '</option></select></div></div>' +
+      '<div class="field"><label for="mtV">' + esc(t('mt_vendor')) + '</label><input class="input" id="mtV" maxlength="120" value="' + esc(x.vendor || '') + '"></div>';
+    if (kind === 'cost') return costF;
+    return form('note') + costF + '<div class="field"><span class="label">' + esc(t('mt_fix_photo')) + (x.kind === 'صيانة' ? ' <span class="hint">· ' + esc(t('as_photo_req')) + '</span>' : '') + '</span><div class="row-wrap" id="mtFPh"><label class="btn btn-soft btn-sm">' + icon('image', 'i-sm') + esc(t('lab_add_photo')) + '<input type="file" accept="image/*" capture="environment" hidden id="mtFFile"></label></div></div>';
+  };
+  m.el.querySelector('.modal-foot').addEventListener('click', e => {
+    const b = e.target.closest('[data-a]'); if (!b) return;
+    const a = acts.find(z => z[0] === b.dataset.a);
+    err.classList.add('hidden');
+    if (a[3] && pending !== a[0]) {
+      pending = a[0]; box.innerHTML = form(a[3]);
+      const ff = $('#mtFFile', m.el);
+      if (ff) ff.addEventListener('change', ev => { const f = ev.target.files && ev.target.files[0]; if (!f) return; fileToJpeg(f).then(u => { photo = u; $('#mtFPh', m.el).insertAdjacentHTML('afterbegin', '<div class="lab-photo sm"><img src="' + u + '" alt=""></div>'); }); });
+      const first = box.querySelector('textarea, input'); if (first) first.focus();
+      box.scrollIntoView({ block: 'nearest' });
+      return;
+    }
+    const data = {};
+    const n = $('#mtN', m.el); if (n) data.note = n.value.trim();
+    const c = $('#mtC', m.el); if (c) { data.cost = c.value.trim(); data.costType = $('#mtCT', m.el).value; data.vendor = $('#mtV', m.el).value.trim(); }
+    if (photo) data.photo = photo;
+    if (a[3] === 'note' && !data.note) return fail(t('mt_reason_req'));
+    if (a[0] === 'fixed' && x.kind === 'صيانة' && !photo) return fail(t('as_photo_req'));
+    busy(b, true);
+    call('updateMaintTicket', x.id, a[0], data).then(r => {
+      busy(b, false); closeModal(m); toast(t('mt_saved', { id: r.id }), 'success');
+      const k = MT.list.findIndex(z => z.id === r.id); if (k !== -1) MT.list[k] = r; mtRender();
+      if (MT.cfg.role !== 'branch') call('getMaintStats', {}).then(st => { MT.stats = st; mtRenderStats(); }).catch(() => {});
+    }).catch(er => { busy(b, false); fail(errMsg(er)); });
+  });
+};
+/* إعدادات البلاغات (التنفيذي والأدمن) */
+ACT.mtSettings = () => {
+  const c = MT.cfg;
+  const ta = (id, l, v) => '<div class="field"><label for="' + id + '">' + esc(t(l)) + '</label><textarea class="input" id="' + id + '" rows="4">' + esc(v.join('\n')) + '</textarea></div>';
+  const m = openModal({ title: esc(t('mt_settings')), icon: 'layers',
+    body: '<label class="nt-ck" style="margin-bottom:12px"><input type="checkbox" class="check" id="msAp"' + (c.approval ? ' checked' : '') + '> ' + esc(t('mt_set_approval')) + '</label>' +
+      '<div class="field"><span class="label">' + esc(t('mt_set_sla')) + '</span><div class="grid-2">' + ['عاجل', 'مهم', 'عادي'].map(p => '<div class="field"><label for="msS' + p + '">' + esc(t(MT_PR[p][0])) + '</label><input class="input ms-sla" type="number" min="1" max="2000" data-p="' + p + '" id="msS' + p + '" value="' + c.sla[p] + '"></div>').join('') + '</div></div>' +
+      ta('msAr', 'mt_set_areas', c.areas) + ta('msCa', 'mt_set_cats', c.cats) + ta('msRc', 'mt_set_reqcats', c.reqCats),
+    foot: '<span class="spacer"></span><button class="btn" data-close>' + esc(t('cancel')) + '</button><button class="btn btn-primary" id="msOk">' + icon('save', 'i-sm') + esc(t('save')) + '</button>' });
+  const lines = id => $('#' + id, m.el).value.split('\n').map(v => v.trim()).filter(Boolean);
+  $('#msOk', m.el).addEventListener('click', e => {
+    const sla = {}; $$('.ms-sla', m.el).forEach(i => { sla[i.dataset.p] = Number(i.value); });
+    const b = e.currentTarget; busy(b, true);
+    call('saveMaintConfig', { approval: $('#msAp', m.el).checked, sla: sla, areas: lines('msAr'), cats: lines('msCa'), reqCats: lines('msRc') })
+      .then(cfg => { busy(b, false); MT.cfg = cfg; closeModal(m); toast(t('mt_set_saved'), 'success'); mtLoad(true); })
+      .catch(er => { busy(b, false); toast(errMsg(er), 'error'); });
+  });
+};
+
+/* =====================================================================
    USERS & ROLES (admin)
    ===================================================================== */
-const SCREEN_OPTS = ['nurse', 'housekeeper', 'procurement', 'doctor', 'lab', 'quality', 'executive', 'finance', 'branch', 'admin', 'dashboard'];
-const SCREEN_TONE = { housekeeper: 'var(--t-cyan)', branch: 'var(--t-orange)', lab: 'var(--t-violet)', nurse: 'var(--t-blue)', procurement: 'var(--t-amber)', doctor: 'var(--t-violet)', quality: 'var(--t-teal)', executive: 'var(--t-indigo)', finance: 'var(--t-orange)', dashboard: 'var(--t-gray)', admin: 'var(--t-green)' };
+const SCREEN_OPTS = ['nurse', 'housekeeper', 'procurement', 'doctor', 'lab', 'maintenance', 'quality', 'executive', 'finance', 'branch', 'admin', 'dashboard'];
+const SCREEN_TONE = { maintenance: 'var(--t-red)', housekeeper: 'var(--t-cyan)', branch: 'var(--t-orange)', lab: 'var(--t-violet)', nurse: 'var(--t-blue)', procurement: 'var(--t-amber)', doctor: 'var(--t-violet)', quality: 'var(--t-teal)', executive: 'var(--t-indigo)', finance: 'var(--t-orange)', dashboard: 'var(--t-gray)', admin: 'var(--t-green)' };
 /* الصلاحيات الافتراضية لكل شاشة إدارية (نفس Code.gs) — الأدمن يعدّلها لكل دور */
 const DEFAULT_PERMS = {
   admin: PERM_LIST,
-  executive: ['overview', 'reports', 'complaints', 'complaints_close', 'notices', 'monitor', 'lab_view', 'assets', 'doctors_live', 'surveys', 'doctor_prices', 'order_rules'],
-  quality: ['overview', 'reports', 'complaints', 'complaints_close', 'notices', 'monitor', 'lab_view', 'assets', 'doctors_live', 'surveys', 'doctor_prices', 'order_rules'],
-  finance: ['finance', 'prices_edit', 'reports', 'monitor', 'assets', 'doctor_prices', 'order_rules'],
+  executive: ['overview', 'reports', 'complaints', 'complaints_close', 'notices', 'monitor', 'lab_view', 'assets', 'doctors_live', 'surveys', 'doctor_prices', 'order_rules', 'maint'],
+  quality: ['overview', 'reports', 'complaints', 'complaints_close', 'notices', 'monitor', 'lab_view', 'assets', 'doctors_live', 'surveys', 'doctor_prices', 'order_rules', 'maint'],
+  finance: ['finance', 'prices_edit', 'reports', 'monitor', 'assets', 'doctor_prices', 'order_rules', 'maint'],
   dashboard: ['overview', 'reports', 'complaints', 'notices'],
   branch: ['overview', 'reports', 'complaints', 'monitor', 'lab_view', 'assets']
 };
