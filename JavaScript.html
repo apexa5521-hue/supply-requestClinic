@@ -98,7 +98,7 @@ const I18N = {
     all_types: 'كل الأنواع (شهري / طارئ)',
     dash_status_hint: 'اضغط على أي حالة لعرض طلباتها', dash_status_n: '{n} طلب — اضغط رقم الطلب لفتح تفاصيله',
     link_new: '➕ طبيب جديد — أنشئه واربطه بالحساب', link_new_name: 'اسم الطبيب كما يظهر للممرضات', link_new_clinics: 'عيادات الطبيب (اختياري)', link_new_will: 'سيُضاف الطبيب «{n}» لقائمة الأطباء ويُربط بهذا الحساب',
-    free_type_tools: 'أدوات', db_tools: 'أدوات', ca_del_sel: 'حذف المحدد ({n})', ca_del_many_q: 'حذف {n} صنف من الكتالوج نهائياً؟', ca_del_many_ok: 'حُذف {n} صنف', ca_del_many_fail: 'لم يُحذف {n}: {list}',
+    free_type_tools: 'أدوات', free_type_dev: 'جهاز', db_tools: 'أدوات وأجهزة', mt_device: 'الجهاز', mt_device_ph: 'اختر من الكتالوج أو اكتب اسم الجهاز', mt_qty: 'العدد', ca_del_sel: 'حذف المحدد ({n})', ca_del_many_q: 'حذف {n} صنف من الكتالوج نهائياً؟', ca_del_many_ok: 'حُذف {n} صنف', ca_del_many_fail: 'لم يُحذف {n}: {list}',
     step_arrived: 'وصل الفرع', grp_deliver: 'بانتظار التوصيل', grp_await_receipt: 'وصل · بانتظار الاستلام', grp_signed: 'استُلم بالتوقيع',
     drv_scan_hint: 'للتسليم: امسح الباركود (QR) على البوكس نفسه بكاميرا الجوال', drv_locked: 'تم التسليم', drv_locked_sub: 'هذا البوكس سُلِّم مسبقاً ولا توجد عليه مهمة توصيل الآن', drv_last: 'آخر تسليم: {p} · {t} · {d}', ERR_BOX_DELIVERED: 'تم التسليم مسبقاً — لا توجد مهمة توصيل لهذا البوكس الآن',
     link_will: 'سيرتبط بـ: {n}', link_none: 'لا يوجد طبيب يطابق اسم الحساب — اختر الطبيب من القائمة', link_grp_free: 'أطباء بلا حساب', link_grp_taken: 'مرتبطون بحسابات أخرى', ERR_DOCTOR_LINK: 'حساب الطبيب لازم يرتبط بطبيب — اختر اسمه من «الطبيب المرتبط بالحساب»',
@@ -247,7 +247,7 @@ const I18N = {
     all_types: 'All types (monthly / emergency)',
     dash_status_hint: 'Click any status to list its requests', dash_status_n: '{n} request(s) — click a number to open it',
     link_new: '➕ New doctor — create and link to this account', link_new_name: 'Doctor name as nurses see it', link_new_clinics: 'Doctor clinics (optional)', link_new_will: 'Doctor «{n}» will be added to the doctors list and linked to this account',
-    free_type_tools: 'Tools', db_tools: 'Tools', ca_del_sel: 'Delete selected ({n})', ca_del_many_q: 'Delete {n} item(s) from the catalog for good?', ca_del_many_ok: '{n} item(s) deleted', ca_del_many_fail: 'Not deleted ({n}): {list}',
+    free_type_tools: 'Tools', free_type_dev: 'Device', db_tools: 'Tools & devices', mt_device: 'Device', mt_device_ph: 'Pick from the catalog or type the device name', mt_qty: 'Quantity', ca_del_sel: 'Delete selected ({n})', ca_del_many_q: 'Delete {n} item(s) from the catalog for good?', ca_del_many_ok: '{n} item(s) deleted', ca_del_many_fail: 'Not deleted ({n}): {list}',
     step_arrived: 'At branch', grp_deliver: 'Awaiting delivery', grp_await_receipt: 'Arrived · awaiting receipt', grp_signed: 'Received & signed',
     drv_scan_hint: 'To deliver: scan the QR code on the box itself with your phone camera', drv_locked: 'Delivered', drv_locked_sub: 'This box was already delivered and has no delivery task now', drv_last: 'Last delivery: {p} · {t} · {d}', ERR_BOX_DELIVERED: 'Already delivered — this box has no delivery task now',
     link_will: 'Will link to: {n}', link_none: 'No doctor matches this account name — pick the doctor from the list', link_grp_free: 'Doctors without an account', link_grp_taken: 'Linked to other accounts', ERR_DOCTOR_LINK: 'A doctor account must be linked to a doctor — pick the name in “Linked doctor”',
@@ -4419,7 +4419,7 @@ VIEWS.catalog = {
       '<select class="input" id="caCat" style="max-width:200px"></select>' +
       // فرز: القسم، النوع، العهدة، والمكررة بالاسم
       '<select class="input" id="caDept" style="max-width:150px" aria-label="' + esc(t('user_dept')) + '">' + [['', 'ca_f_dept_all'], ['أسنان', 'dept_dental'], ['جلدية', 'dept_derma'], ['shared', 'dept_shared']].map(o => '<option value="' + o[0] + '"' + (CA.dept === o[0] ? ' selected' : '') + '>' + esc(t(o[1])) + '</option>').join('') + '</select>' +
-      '<select class="input" id="caType" style="max-width:150px" aria-label="' + esc(t('free_type')) + '">' + [['', 'ca_f_type_all'], ['مستهلك', 'free_type_cons'], ['ماتيريال', 'free_type_mat'], ['أدوات', 'free_type_tools']].map(o => '<option value="' + o[0] + '"' + (CA.type === o[0] ? ' selected' : '') + '>' + esc(t(o[1])) + '</option>').join('') + '</select>' +
+      '<select class="input" id="caType" style="max-width:150px" aria-label="' + esc(t('free_type')) + '">' + [['', 'ca_f_type_all'], ['مستهلك', 'free_type_cons'], ['ماتيريال', 'free_type_mat'], ['أدوات', 'free_type_tools'], ['جهاز', 'free_type_dev']].map(o => '<option value="' + o[0] + '"' + (CA.type === o[0] ? ' selected' : '') + '>' + esc(t(o[1])) + '</option>').join('') + '</select>' +
       '<select class="input" id="caAsset" style="max-width:150px">' + [['', 'ca_f_asset_all'], ['yes', 'ca_f_asset_yes'], ['no', 'ca_f_asset_no']].map(o => '<option value="' + o[0] + '"' + (CA.asset === o[0] ? ' selected' : '') + '>' + esc(t(o[1])) + '</option>').join('') + '</select>' +
       '<label class="row-wrap" style="gap:4px;font-size:13px"><input type="checkbox" id="caDup"' + (CA.dup ? ' checked' : '') + '> ' + esc(t('ca_f_dup')) + '</label>' +
       '<button class="btn btn-primary btn-sm hidden" id="caClassSel" data-act="caClassify">' + icon('tag', 'i-sm') + '<span></span></button>' +
@@ -4438,7 +4438,7 @@ VIEWS.catalog = {
   },
   refresh() { loadCatalogAdmin(true); }
 };
-const caTypeLabel = ty => t(ty === 'ماتيريال' ? 'free_type_mat' : ty === 'أدوات' ? 'free_type_tools' : 'free_type_cons');
+const caTypeLabel = ty => t(ty === 'ماتيريال' ? 'free_type_mat' : ty === 'أدوات' ? 'free_type_tools' : ty === 'جهاز' ? 'free_type_dev' : 'free_type_cons');
 function renderCatalogAdmin() {
   const box = $('#caList'), sel = $('#caCat'); if (!box || !CA.data) return;
   const d = CA.data;
@@ -4517,7 +4517,7 @@ ACT.caClassify = () => {
   const sel = (id, opts) => '<select class="select" id="' + id + '"><option value="__">' + esc(t('ca_keep')) + '</option>' + opts.map(o => '<option value="' + o[0] + '">' + esc(t(o[1])) + '</option>').join('') + '</select>';
   const m = openModal({ title: esc(t('ca_class_sel', { n: names.length })), icon: 'tag', size: 'sm',
     body: '<div class="field"><label for="ccD">' + esc(t('user_dept')) + '</label>' + sel('ccD', [['أسنان', 'dept_dental'], ['جلدية', 'dept_derma'], ['', 'dept_shared']]) + '</div>' +
-      '<div class="field"><label for="ccT">' + esc(t('free_type')) + '</label>' + sel('ccT', [['مستهلك', 'free_type_cons'], ['ماتيريال', 'free_type_mat'], ['أدوات', 'free_type_tools']]) + '</div>' +
+      '<div class="field"><label for="ccT">' + esc(t('free_type')) + '</label>' + sel('ccT', [['مستهلك', 'free_type_cons'], ['ماتيريال', 'free_type_mat'], ['أدوات', 'free_type_tools'], ['جهاز', 'free_type_dev']]) + '</div>' +
       '<div class="field"><label for="ccA">' + esc(t('ca_asset')) + '</label>' + sel('ccA', [['1', 'ca_f_asset_yes'], ['0', 'ca_f_asset_no']]) + '</div>' +
       '<div class="hint">' + esc(t('ca_class_h')) + '</div><div class="field-error hidden" id="ccErr">' + icon('alert', 'i-sm') + '<span></span></div>',
     foot: '<span class="spacer"></span><button class="btn" data-close>' + esc(t('cancel')) + '</button><button class="btn btn-primary" id="ccOk">' + icon('check', 'i-sm') + esc(t('save')) + '</button>' });
@@ -7741,7 +7741,7 @@ function mtCard(x, i) {
   return stagger('<article class="req' + (x.late ? ' late' : '') + '"><div class="req-main clickable" data-act="mtOpen" data-id="' + esc(x.id) + '"><div class="grow">' +
     '<div class="row-wrap"><span class="req-id">' + esc(x.id) + '</span><span class="tag">' + esc(x.kind) + '</span>' + mtPrTag(x.priority) + branchTag(x.branch) +
       (x.stops && x.open ? '<span class="tag late">' + icon('alert', 'i-sm') + esc(t('mt_stops_tag')) + '</span>' : '') + (x.late ? '<span class="tag late">' + esc(t('mt_late')) + '</span>' : '') + '</div>' +
-    '<div class="req-sub"><span>' + icon('pin') + '<b>' + esc(mtWhere(x)) + '</b></span><span>' + icon('layers') + esc(x.category) + '</span><span>' + icon('clock') + esc(relTime(x.createdAt)) + '</span></div>' +
+    '<div class="req-sub"><span>' + icon('pin') + '<b>' + esc(mtWhere(x)) + '</b></span><span>' + icon('layers') + esc(x.category) + '</span>' + (x.item ? '<span>' + icon('package') + '<b>' + esc(x.item) + '</b> × ' + x.qty + '</span>' : '') + '<span>' + icon('clock') + esc(relTime(x.createdAt)) + '</span></div>' +
     '<div class="hint" style="margin-top:6px">' + esc(x.description) + '</div></div>' +
     '<div class="req-side">' + mtBadge(x.status) + (x.open ? '<div class="muted" style="font-size:12px;margin-top:4px">' + esc(t('mt_hours', { n: fmtNum(x.hours, 1) })) + ' / ' + esc(t('mt_sla', { n: x.sla })) + '</div>' : '') +
       (x.cost ? '<div class="muted" style="font-size:12px">' + esc(money(x.cost)) + '</div>' : '') + '</div></div></article>', i);
@@ -7767,6 +7767,8 @@ ACT.mtNew = el => {
     body: segmented('mtKind', [{ v: 'صيانة', label: t('mt_new'), icon: 'tool' }, { v: 'طلب للفرع', label: t('mt_new_req'), icon: 'plus' }], st.kind) +
       '<div class="grid-2" style="margin-top:12px"><div class="field"><label for="mtArea">' + esc(t('mt_area')) + '</label><select class="select" id="mtArea">' + cfg.areas.map(a => opt(a, '')).join('') + '</select></div>' +
         '<div class="field" id="mtClinicW"><label for="mtClinic">' + esc(t('mt_clinic')) + '</label><select class="select" id="mtClinic"><option value="">—</option>' + cfg.clinics.map(c => opt(c.name, '')).join('') + '</select></div></div>' +
+      '<div class="grid-2 hidden" id="mtDevW"><div class="field"><label for="mtDev">' + esc(t('mt_device')) + '</label><input class="input" id="mtDev" list="mtDevL" maxlength="120" placeholder="' + esc(t('mt_device_ph')) + '"><datalist id="mtDevL">' + (cfg.devices || []).map(d => '<option value="' + esc(d) + '">').join('') + '</datalist></div>' +
+        '<div class="field"><label for="mtQty">' + esc(t('mt_qty')) + '</label><input class="input" id="mtQty" type="number" min="1" max="500" value="1" inputmode="numeric"></div></div>' +
       '<div class="field"><label for="mtSpot">' + esc(t('mt_spot')) + '</label><input class="input" id="mtSpot" maxlength="200" placeholder="' + esc(t('mt_spot_ph')) + '"></div>' +
       '<div class="grid-2"><div class="field"><label for="mtCat">' + esc(t('mt_cat')) + '</label><select class="select" id="mtCat"></select></div>' +
         '<div class="field"><span class="label">' + esc(t('mt_priority')) + '</span><div class="chips" id="mtPr">' + ['عاجل', 'مهم', 'عادي'].map(p => '<button type="button" class="chip" data-v="' + p + '" aria-pressed="' + (p === 'عادي') + '" style="--tone:' + MT_PR[p][1] + '">' + esc(t(MT_PR[p][0])) + '</button>').join('') + '</div></div></div>' +
@@ -7781,12 +7783,14 @@ ACT.mtNew = el => {
     const isM = st.kind === 'صيانة';
     $('#mtCat', m.el).innerHTML = (isM ? cfg.cats : cfg.reqCats).map(c => opt(c, '')).join('');
     $('#mtClinicW', m.el).classList.toggle('hidden', $('#mtArea', m.el).value !== 'عيادة');
+    $('#mtDevW', m.el).classList.toggle('hidden', isM || $('#mtCat', m.el).value !== 'جهاز');
     $('#mtPhH', m.el).classList.toggle('hidden', !isM);
     $('#mtDescL', m.el).textContent = t(isM ? 'mt_desc' : 'mt_desc_req');
     $('.modal-title', m.el) && ($('.modal-title', m.el).textContent = t(isM ? 'mt_new' : 'mt_new_req'));
   };
   SEG_HANDLERS.mtKind = v => { st.kind = v; sync(); };
   $('#mtArea', m.el).addEventListener('change', sync);
+  $('#mtCat', m.el).addEventListener('change', () => $('#mtDevW', m.el).classList.toggle('hidden', st.kind === 'صيانة' || $('#mtCat', m.el).value !== 'جهاز'));
   $('#mtPr', m.el).addEventListener('click', e => { const b = e.target.closest('.chip'); if (!b) return; $$('#mtPr .chip', m.el).forEach(c => c.setAttribute('aria-pressed', String(c === b))); if (b.dataset.v === 'عاجل') $('#mtStops', m.el).checked = true; });
   $('#mtFile', m.el).addEventListener('change', e => {
     const f = e.target.files && e.target.files[0]; e.target.value = ''; if (!f || st.photos.length >= 4) return;
@@ -7802,7 +7806,8 @@ ACT.mtNew = el => {
     const b = e.currentTarget; busy(b, true);
     const pr = ($('#mtPr .chip[aria-pressed="true"]', m.el) || {}).dataset;
     call('createMaintTicket', { kind: st.kind, area: $('#mtArea', m.el).value, clinic: $('#mtArea', m.el).value === 'عيادة' ? $('#mtClinic', m.el).value : '', spot: $('#mtSpot', m.el).value.trim(),
-      category: $('#mtCat', m.el).value, priority: pr ? pr.v : 'عادي', stops: $('#mtStops', m.el).checked, description: desc, photos: st.photos, clientKey: st.key }).then(r => {
+      category: $('#mtCat', m.el).value, priority: pr ? pr.v : 'عادي',
+      item: !$('#mtDevW', m.el).classList.contains('hidden') ? $('#mtDev', m.el).value.trim() : '', qty: Number($('#mtQty', m.el).value) || 1, stops: $('#mtStops', m.el).checked, description: desc, photos: st.photos, clientKey: st.key }).then(r => {
       busy(b, false); closeModal(m);
       toast(t(r.status === MT_ST.PENDING ? 'mt_sent_pending' : 'mt_sent', { id: r.id }), 'success');
       MT.list.unshift(r); MT.group = r.status === MT_ST.PENDING ? 'pending' : 'open'; mtRender();
@@ -7827,6 +7832,7 @@ ACT.mtOpen = el => {
   const m = openModal({ title: esc(x.id) + ' · ' + esc(x.kind), sub: esc(x.branch + ' · ' + mtWhere(x)), icon: 'tool', size: 'lg',
     body: '<div class="row-wrap">' + mtBadge(x.status) + mtPrTag(x.priority) + '<span class="tag">' + esc(x.category) + '</span>' + (x.stops && x.open ? '<span class="tag late">' + esc(t('mt_stops_tag')) + '</span>' : '') + (x.late ? '<span class="tag late">' + esc(t('mt_late')) + '</span>' : '') +
         (x.reopenCount ? '<span class="tag warn">' + esc(t('mt_reopened', { n: x.reopenCount })) + '</span>' : '') + '</div>' +
+      (x.item ? '<div style="margin-top:10px">' + icon('package', 'i-sm') + ' ' + esc(t('mt_device')) + ': <b>' + esc(x.item) + '</b> × ' + x.qty + '</div>' : '') +
       '<p style="margin:10px 0">' + esc(x.description) + '</p>' +
       '<div class="hint">' + icon('user', 'i-sm') + ' ' + esc(t('mt_by', { n: x.createdBy })) + ' · ' + esc(fmtDateTime(x.createdAt)) + (x.open ? ' · ' + esc(t('mt_hours', { n: fmtNum(x.hours, 1) })) + ' / ' + esc(t('mt_sla', { n: x.sla })) : '') + '</div>' +
       (x.photos.length || x.fixPhoto ? '<div class="lab-photos" style="margin-top:10px">' + x.photos.map(u => '<a class="lab-photo" href="' + esc(u) + '" target="_blank" rel="noopener">' + icon('image') + '<span>' + esc(t('lab_photo')) + '</span></a>').join('') +

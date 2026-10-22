@@ -3699,6 +3699,12 @@ test('branch maintenance: branch manager reports with location + photo, maintena
   assert.equal(api(fin, 'getMaintTickets', {})[0].cost, 450, 'finance sees cost');
   // طلب للفرع: بدون اعتماد افتراضياً، ومع التفعيل يحتاج اعتماد التنفيذي
   assert.equal(api(bm, 'createMaintTicket', { kind: 'طلب للفرع', area: 'الاستقبال', category: 'أثاث', description: 'كراسي انتظار' }).status, 'جديد');
+  // جهاز: نوع رابع في الكتالوج، ومدير الفرع يطلبه باسمه والعدد
+  api(adm, 'classifyCatalogItems', ['Itero Sleeve'], { type: 'جهاز' });
+  assert.ok(api(bm, 'getMaintConfig').devices.includes('Itero Sleeve'), 'catalog devices offered to the branch manager');
+  const dv = api(bm, 'createMaintTicket', { kind: 'طلب للفرع', area: 'عيادة', clinic: 'عيادة الأسنان 1', category: 'جهاز', item: 'Itero Sleeve', qty: 2, description: 'جهاز إضافي' });
+  assert.deepEqual([dv.item, dv.qty], ['Itero Sleeve', 2]);
+  throwsCode(() => api(bm, 'createMaintTicket', { kind: 'طلب للفرع', area: 'عيادة', category: 'جهاز', item: 'x', qty: 0.5, description: 'x' }), 'ERR_BAD_QTY');
   throwsCode(() => api(bm, 'saveMaintConfig', { approval: true, sla: { 'عاجل': 4, 'مهم': 24, 'عادي': 72 } }), 'ERR_FORBIDDEN');
   api(ex, 'saveMaintConfig', { approval: true, sla: { 'عاجل': 2, 'مهم': 24, 'عادي': 72 }, areas: [], cats: [] });
   const r2 = api(bm, 'createMaintTicket', { kind: 'طلب للفرع', area: 'الاستقبال', category: 'جهاز', description: 'طابعة' });
@@ -3708,5 +3714,5 @@ test('branch maintenance: branch manager reports with location + photo, maintena
   assert.equal(api(ex, 'updateMaintTicket', r2.id, 'approve', {}).status, 'جديد');
   assert.ok(api(mt, 'getMaintTickets', {}).some(x => x.id === r2.id));
   const st = api(ex, 'getMaintStats', {});
-  assert.deepEqual([st.total, st.cost, st.byBranch[0].key], [3, 450, 'الرياض']);
+  assert.deepEqual([st.total, st.cost, st.byBranch[0].key], [4, 450, 'الرياض']);
 });

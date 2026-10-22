@@ -89,7 +89,7 @@ const SCHEMA = {
   // بلاغات الفرع (صيانة) وطلبات الفرع: يرفعها مدير الفرع، وينفذها دور «صيانة»، ويؤكد مدير الفرع الإصلاح ليُغلق
   BranchTickets: ['TicketID', 'Kind', 'Branch', 'Area', 'Clinic', 'Spot', 'Category', 'Priority', 'Stops', 'Description', 'Photos', 'Status',
                   'CreatedAt', 'CreatedBy', 'ApprovedAt', 'ApprovedBy', 'RejectNote', 'ReceivedAt', 'ReceivedBy', 'StartedAt', 'WaitNote',
-                  'FixedAt', 'FixedBy', 'FixNote', 'FixPhoto', 'Vendor', 'Cost', 'CostType', 'ConfirmedAt', 'ConfirmedBy', 'ReopenCount', 'History', 'UpdatedAt', 'UpdatedBy', 'ClientKey']
+                  'FixedAt', 'FixedBy', 'FixNote', 'FixPhoto', 'Vendor', 'Cost', 'CostType', 'ConfirmedAt', 'ConfirmedBy', 'ReopenCount', 'History', 'UpdatedAt', 'UpdatedBy', 'ClientKey', 'Item', 'Qty']
 };
 
 const ST = {
@@ -213,7 +213,7 @@ function runSetupSteps_(force) {
   return out;
 }
 
-const ITEM_TYPES_ = ['مستهلك', 'ماتيريال', 'أدوات']; // الأدوات تُحسب على الطبيب فقط إن كانت حسبته «الكل»
+const ITEM_TYPES_ = ['مستهلك', 'ماتيريال', 'أدوات', 'جهاز']; // الأدوات والأجهزة تُحسب على الطبيب فقط إن كانت حسبته «الكل» — الجهاز تطلبه الممرضة أو مدير الفرع
 /** صنف تكتبه الممرضة بحرية (غير موجود في القائمة): يُضاف للكتالوج ويعلّم بهذه الفئة ليميّزه التموين */
 const FREE_CATEGORY_ = 'حر — من الممرضة';
 /* مراجعة الأصناف الحرة لدى التموين: اعتماد بسعر، أو مطابقة لصنف موجود (يصبح اسماً بديلاً له)، أو رفض */
@@ -6048,7 +6048,7 @@ function getStatsReport_(user, opts) {
         if (who && v && charged_(docCharge[who], ctype[k])) {
           const db = byDocBranch[who] || (byDocBranch[who] = {});
           const cell = db[r.branch || '—'] || (db[r.branch || '—'] = { consumable: 0, material: 0, tools: 0 });
-          const tk = ctype[k] === ITEM_TYPES_[1] ? 'material' : ctype[k] === ITEM_TYPES_[2] ? 'tools' : 'consumable';
+          const tk = ctype[k] === ITEM_TYPES_[1] ? 'material' : ctype[k] === ITEM_TYPES_[2] || ctype[k] === ITEM_TYPES_[3] ? 'tools' : 'consumable'; // الأجهزة مع الأدوات
           cell[tk] = round2_(cell[tk] + v);
         }
         items[k] = items[k] || { item: n, qty: 0, value: 0, requests: 0 };
@@ -6795,6 +6795,7 @@ function bulkType_(v) {
   if (!v || /مستهلك|consum/.test(v)) return ITEM_TYPES_[0];
   if (/ماتيريال|مادة|material/.test(v)) return ITEM_TYPES_[1];
   if (/أدوات|ادوات|اداة|أداة|tool|instrument/.test(v)) return ITEM_TYPES_[2];
+  if (/جهاز|اجهزة|أجهزة|device|equipment|machine/.test(v)) return ITEM_TYPES_[3];
   return null;
 }
 function saveCatalogItems_(user, items) {
@@ -8480,7 +8481,7 @@ const MT_PRIORITIES_ = ['عاجل', 'مهم', 'عادي'];
 const MT_SLA_DEFAULT_ = { 'عاجل': 4, 'مهم': 24, 'عادي': 72 };
 const MT_AREAS_DEFAULT_ = ['عيادة', 'الاستقبال', 'صالة الانتظار', 'دورات المياه', 'التعقيم', 'المستودع', 'الممرات', 'المدخل والواجهة', 'المواقف', 'السطح', 'غرفة الكهرباء', 'المطبخ', 'أخرى'];
 const MT_CATS_DEFAULT_ = ['كهرباء', 'سباكة', 'تكييف', 'أجهزة طبية', 'أبواب وأقفال', 'أثاث', 'نظافة وتعقيم', 'شبكة وكاميرات', 'دهان وأرضيات', 'أخرى'];
-const MT_REQ_CATS_DEFAULT_ = ['أثاث', 'جهاز', 'خدمة', 'قرطاسية ومطبوعات', 'أخرى'];
+const MT_REQ_CATS_DEFAULT_ = ['جهاز', 'أثاث', 'خدمة', 'قرطاسية ومطبوعات', 'أخرى'];
 function mtList_(key, def) {
   const v = str_(getSetting_(key, ''));
   const l = v ? v.split(/[,،\n]/).map(str_).filter(String) : [];
@@ -8522,6 +8523,7 @@ function mapMt_(r, cfg, now) {
     approvedAt: r.ApprovedAt, approvedBy: str_(r.ApprovedBy), rejectNote: str_(r.RejectNote), receivedAt: r.ReceivedAt, receivedBy: str_(r.ReceivedBy),
     startedAt: r.StartedAt, waitNote: str_(r.WaitNote), fixedAt: r.FixedAt, fixedBy: str_(r.FixedBy), fixNote: str_(r.FixNote), fixPhoto: str_(r.FixPhoto),
     vendor: str_(r.Vendor), cost: num_(r.Cost) || 0, costType: str_(r.CostType), confirmedAt: r.ConfirmedAt, confirmedBy: str_(r.ConfirmedBy),
+    item: str_(r.Item), qty: Number(r.Qty) || 0,
     reopenCount: Number(r.ReopenCount) || 0, history: hist, open: open, sla: sla, hours: round1_(hrs),
     late: open && str_(r.Status) !== MT_ST.PENDING && str_(r.Status) !== MT_ST.FIXED && hrs > sla
   };
@@ -8539,6 +8541,7 @@ function getMaintConfig_(user) {
   const br = role === 'branch' ? userBranch_(user) : '';
   return { role: role, kinds: MT_KINDS_, priorities: MT_PRIORITIES_, sla: cfg.sla, approval: cfg.approval, areas: cfg.areas, cats: cfg.cats, reqCats: cfg.reqCats,
     branch: br, clinics: getClinics_().filter(function (c) { return !br || c.branch === br; }).map(function (c) { return { name: c.name, branch: c.branch }; }),
+    devices: getCatalog_(true).filter(function (c) { return c.type === ITEM_TYPES_[3]; }).map(function (c) { return c.name; }),
     canApprove: mtCanApprove_(user), seeCost: role !== 'branch' || user.perms.indexOf('maint') !== -1, canSettings: user.screen === 'admin' || user.screen === 'executive' };
 }
 function getMaintTickets_(user, opts) {
@@ -8587,11 +8590,14 @@ function createMaintTicket_(user, payload) {
     const dup = read_('BranchTickets').rows.filter(function (r) { return str_(r.ClientKey) === clientKey; })[0];
     if (dup) return mapMt_(dup, cfg, Date.now());
   }
+  // طلب جهاز للفرع: اسم الجهاز (من الكتالوج أو جديد) والعدد
+  const item = clean_(payload.item, 120), qty = item ? Math.floor(Number(payload.qty) || 1) : 0;
+  if (item && !(qty >= 1 && qty <= 500)) throw new Error('ERR_BAD_QTY');
   const status = kind === 'طلب للفرع' && cfg.approval ? MT_ST.PENDING : MT_ST.NEW;
   const id = withLock_(function () {
     const nid = reserveId_('MNT-', function (prefix) { return maxSeq_(freshTable_('BranchTickets').rows, 'TicketID', prefix); }).id;
     append_('BranchTickets', { TicketID: nid, Kind: kind, Branch: branch, Area: area, Clinic: clinic, Spot: clean_(payload.spot, 200), Category: cat, Priority: pr,
-      Stops: payload.stops ? 'نعم' : 'لا', Description: desc, Photos: '', Status: status, CreatedAt: new Date(), CreatedBy: user.name, ReopenCount: 0,
+      Stops: payload.stops ? 'نعم' : 'لا', Description: desc, Photos: '', Status: status, Item: item, Qty: qty || '', CreatedAt: new Date(), CreatedBy: user.name, ReopenCount: 0,
       History: JSON.stringify([{ at: new Date().toISOString(), by: user.name, what: status }]), UpdatedAt: new Date(), UpdatedBy: user.name, ClientKey: clientKey });
     return nid;
   });
@@ -8603,7 +8609,7 @@ function createMaintTicket_(user, payload) {
   logAction_(id, (kind === 'صيانة' ? 'بلاغ صيانة: ' : 'طلب للفرع: ') + cat + ' — ' + area + (clinic ? ' / ' + clinic : '') + ' (' + branch + ')', user.name);
   const where = area + (clinic ? ' — ' + clinic : '') + (payload.spot ? ' — ' + clean_(payload.spot, 200) : '');
   const subj = (pr === 'عاجل' ? '🚨 ' : '🛠 ') + (kind === 'صيانة' ? 'بلاغ صيانة' : 'طلب للفرع') + ' - ' + id + ' · ' + branch;
-  const body = 'الفرع: ' + branch + '\nالموقع: ' + where + '\nالتصنيف: ' + cat + '\nالأولوية: ' + pr + (payload.stops ? '\n⛔ يوقف العمل' : '') + '\n\n' + desc + '\n\nرفعه: ' + user.name;
+  const body = 'الفرع: ' + branch + '\nالموقع: ' + where + '\nالتصنيف: ' + cat + (item ? '\nالجهاز: ' + item + ' × ' + qty : '') + '\nالأولوية: ' + pr + (payload.stops ? '\n⛔ يوقف العمل' : '') + '\n\n' + desc + '\n\nرفعه: ' + user.name;
   nk_('maint_new');
   if (status === MT_ST.PENDING) { notifyRole_('executive', '⏳ بانتظار اعتمادك — ' + subj, body); }
   else notifyRole_('maintenance', subj, body);
