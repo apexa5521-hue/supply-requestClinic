@@ -1428,8 +1428,14 @@ function loadsInfo_(loads) {
   read_('Requests').rows.forEach(function (r) { if (want[str_(r.RequestID)]) reqs[str_(r.RequestID)] = r; });
   return loads.map(function (k) {
     const id = k.split('#')[0], r = reqs[id];
-    return { request: id, batch: Number(k.split('#')[1]) || 0, clinic: r ? str_(r.Clinic) : '', branch: r ? reqBranch_(r) : '' };
+    return { request: id, batch: Number(k.split('#')[1]) || 0, clinic: r ? str_(r.Clinic) : '', branch: r ? reqBranch_(r) : '', nurse: r ? str_(r.Nurse) : '' };
   });
+}
+/** لمن يُسلَّم البوكس: الممرضة (رافعة الطلب) وعيادتها، بدون تكرار — يظهر للسواق في المهام وعند مسح الـ QR */
+function boxRecipients_(info) {
+  const seen = {}, out = [];
+  info.forEach(function (l) { const k = l.nurse + '|' + l.clinic; if (l.nurse && !seen[k]) { seen[k] = true; out.push({ nurse: l.nurse, clinic: l.clinic }); } });
+  return out;
 }
 /** للبوكس مهمة توصيل الآن؟ (محمّل بشحنة أو طلب التموين نقله) — غير ذلك فقد سُلِّم ولا يُسلَّم مرة ثانية */
 function boxPending_(b) { return b.status === BX_ST.READY || b.status === BX_ST.MOVE; }
@@ -1438,8 +1444,9 @@ function boxInfo_(p) {
   const row = boxByToken_(p);
   const b = mapBox_(row);
   const last = read_('BoxMoves').rows.filter(function (m) { return str_(m.BoxID) === b.id && (str_(m.Action) === 'تسليم' || str_(m.Action) === 'نقل'); }).pop();
+  const loads = loadsInfo_(b.loads);
   return { id: b.id, owner: b.owner, branch: b.branch, location: b.location, status: b.status, destination: b.destination,
-    loads: loadsInfo_(b.loads), places: boxPlaces_(), pending: boxPending_(b),
+    loads: loads, to: boxRecipients_(loads), places: boxPlaces_(), pending: boxPending_(b),
     last: last ? { to: str_(last.To), at: last.Timestamp, by: str_(last.By) } : null };
 }
 /** «تسليم»: مكان التسليم + صورة البوكس + اسم السواق */
@@ -1512,7 +1519,8 @@ function driverTasks_(p) {
   const boxes = read_('Boxes').rows.map(mapBox_).filter(function (b) { return b.id && (b.status === BX_ST.READY || b.status === BX_ST.MOVE); });
   // بدون رمز البوكس: التسليم فقط بمسح الـ QR على البوكس نفسه (لا يُسلَّم من القائمة)
   return boxes.map(function (b) {
-    return { id: b.id, owner: b.owner, branch: b.branch, status: b.status, location: b.location, destination: b.destination, since: b.updatedAt, count: b.loads.length };
+    return { id: b.id, owner: b.owner, branch: b.branch, status: b.status, location: b.location, destination: b.destination, since: b.updatedAt, count: b.loads.length,
+      to: boxRecipients_(loadsInfo_(b.loads)) };
   }).sort(function (a, b) { return toMs_(a.since) - toMs_(b.since); });
 }
 /** شاشة التموين: كل البوكسات + آخر حركة + رابط الـ QR لكل بوكس + رابط الشحنات (السواق) */
