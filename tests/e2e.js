@@ -619,12 +619,14 @@ function log(msg) { console.log('  ✔ ' + msg); }
   await page.click('[data-act="drvTasks"]');
   await page.waitForFunction(() => !document.querySelector('#driverView').textContent.includes('آخر قائمة محفوظة'));
   expect((await page.textContent('.drv-task')).includes('من التموين إلى ' + bx.destination), 'driver tasks: box from procurement to the branch');
+  expect((await page.textContent('.drv-task')).includes('التسليم إلى:'), 'driver tasks show the nurse to hand the box to');
   // التسليم بالمسح فقط: بطاقات المهام للعرض ولا تحمل رمز البوكس
   expect(await page.isVisible('.drv-scan-hint') && await page.locator('.drv-task[data-act], button.drv-task').count() === 0, 'driver tasks are view-only: delivery only by scanning the box QR');
   expect(await page.evaluate(tk => __realCall('driverTasks', { k: tk }).then(l => l.every(x => !x.k)), await page.evaluate(() => BX.data.driverToken)), 'driver tasks do not expose box keys');
   await page.evaluate(b => showDriverBox(b.id, b.k), bx);
   await page.waitForSelector('#drvGo');
   expect(await page.getAttribute('.drv-place[data-p="' + bx.destination + '"]', 'aria-pressed') === 'true', 'destination branch preselected');
+  expect(await page.isVisible('.drv-to.big') && (await page.textContent('.drv-to.big')).includes('التسليم إلى:'), 'scanned box page shows the nurse to hand it to');
   expect(await page.isDisabled('.drv-place[data-p="التموين"]'), 'the place where the box already is cannot be chosen');
   await page.click('.drv-lang[data-l="bn"]');
   expect((await page.textContent('#drvGo')).includes('ডেলিভারি সম্পন্ন'), 'driver page switches to Bengali');
