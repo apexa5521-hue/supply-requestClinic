@@ -3745,5 +3745,28 @@ test('operations manager sees prices (branch manager does not); doctor value bre
   api(p, 'cancelRequests', [c2], 'بالغلط');
   const f = api(fin, 'getFinance', {});
   assert.equal(f.summary.requests, 1, 'cancelled request not counted');
-  assert.equal(f.summary.avgValue, f.summary.approved, 'average over live requests only');
+  assert.equal(f.summary.avgValue, f.summary.pendingDoctor, 'average over live requests only (still awaiting the doctor)');
+});
+
+test('exempt consumable: emergency orders of it do not use the emergency limit; finance «approved» = doctor-approved only', () => {
+  const { api, login } = boot();
+  const adm = login('المدير', '1234'), n = login('سارة', '1111'), p = login('علي', '3333'), fin = login('نواف', '7777'), kh = login('د. خالد', '4444');
+  api(p, 'saveOrderRules', { emergencyMax: 1 });
+  const cat = api(adm, 'getCatalogAdmin').items.find(i => i.name === 'DENTAL FLOSS');
+  api(adm, 'saveCatalogItem', 'DENTAL FLOSS', Object.assign({}, cat, { exempt: true }));
+  assert.equal(api(adm, 'getCatalogAdmin').items.find(i => i.name === 'DENTAL FLOSS').exempt, true);
+  const em = items => api(n, 'createRequest', { clinic: 'عيادة الأسنان 1', doctor: 'د. خالد', type: 'طارئ', items });
+  const e1 = em([{ name: 'DENTAL FLOSS', qty: 1 }]), e2 = em([{ name: 'DENTAL FLOSS', qty: 2 }]);
+  const list = api(p, 'getRequests', {});
+  assert.ok(list.find(r => r.id === e1.id).exempt && list.find(r => r.id === e2.id).exempt, 'flagged «exempt consumable»');
+  em([{ name: 'PROPHY PASTE', qty: 1 }]); // الحد 1: أول طارئ عادي يمر
+  throwsCode(() => em([{ name: 'PROPHY PASTE', qty: 2 }]), 'ERR_EMERGENCY_LIMIT');
+  assert.ok(em([{ name: 'DENTAL FLOSS', qty: 3 }]).id, 'exempt emergency still open after the limit');
+  // المالية: «المعتمد» = بعد اعتماد الطبيب فقط
+  const f0 = api(fin, 'getFinance', {});
+  assert.equal(f0.summary.approved, 0, 'nothing approved by the doctor yet');
+  assert.ok(f0.summary.pendingDoctor > 0);
+  api(kh, 'doctorReview', e1.id, 'اعتمد', '', []);
+  const f1 = api(fin, 'getFinance', {});
+  assert.equal(f1.summary.approved, 12.5, 'only the approved request');
 });

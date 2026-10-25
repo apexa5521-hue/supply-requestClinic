@@ -28,12 +28,14 @@ const SCHEMA = {
   // Ownership: مستهلك (افتراضي) أو عهدة (على حساب الشركة) · Serialized: نعم للأدوات ذات الرقم التسلسلي (الهاندبيس…)
   // Department: أسنان / جلدية (فارغ = مشترك يظهر للقسمين) · ItemType: مستهلك أو ماتيريال (Category يبقى لتصنيف الصنف)
   ItemsCatalog: ['ItemName', 'CommercialName', 'Category', 'Price', 'Ownership', 'Serialized', 'Department', 'ItemType',
-                 'AliasOf', 'FreeStatus', 'FreeBy', 'FreeAt', 'FreeNote'], // الصنف الحر: مراجعة التموين، والاسم البديل (AliasOf) لصنف موجود
+                 'AliasOf', 'FreeStatus', 'FreeBy', 'FreeAt', 'FreeNote',
+                 'Exempt'], // Exempt = نعم: مستهلك مستثنى — يُطلب كطارئ أكثر من مرة دون أن يُحسب من حد الطوارئ · الصنف الحر: مراجعة التموين، والاسم البديل (AliasOf) لصنف موجود
   Requests:     ['RequestID', 'Date', 'Clinic', 'Doctor', 'Nurse', 'Type', 'Status',
                  'SubmittedAt', 'SentAt', 'ReceivedAt', 'ReceiverName', 'SignatureURL',
                  'PrepAt', 'VendorWaitAt', 'VendorReceivedAt', 'ReviewAt', 'ReviewedAt',
                  'RejectionReason', 'ReceiptURL', 'Branch', 'ApprovedAt', 'ClientKey', 'Department', 'Backdated',
-                 'CancelReason', 'CancelledAt', 'CancelledBy', 'Approver'], // Approver: «مدير الفرع» لطلبات الهاوس كيبر (فارغ = الطبيب)
+                 'CancelReason', 'CancelledAt', 'CancelledBy', 'Approver',
+                 'Exempt'], // Exempt = نعم: طارئ كل أصنافه «مستهلك مستثنى» — لا يُحسب من حد الطوارئ // Approver: «مدير الفرع» لطلبات الهاوس كيبر (فارغ = الطبيب)
   // ItemStatus: حالة الصنف داخل الطلبية (قيد التجهيز / بانتظار المندوب / استلم المندوب) قبل إرساله
   RequestItems: ['RequestID', 'ItemName', 'RequestedQty', 'ApprovedQty', 'ReceivedQty', 'DispatchedAt', 'DispatchBatch', 'ItemStatus', 'ItemStatusAt', 'ItemStatusBy',
                  'SubstituteOf', 'SubStatus', 'SubNote', 'SubBy', 'SubAt', // البديل: سطر جديد يشير لاسم الصنف الأصلي
@@ -1896,6 +1898,7 @@ function getCatalog_(withPrice) {
     if (str_(r.Category) === FREE_CATEGORY_ && str_(r.FreeStatus) !== FREE_ST.OK) o.freePending = true;
     if (isAssetOwnership_(r.Ownership)) { o.asset = true; o.serialized = isYes_(r.Serialized); }
     const dp = normDept_(r.Department); if (dp) o.dept = dp;
+    if (isYes_(r.Exempt)) o.exempt = true;
     if (withPrice && !priceVisible_()) o.priceHidden = true;
     else if (withPrice) {
       o.price = price_(r.Price) || 0;
@@ -2209,7 +2212,7 @@ function mapRequest_(r) {
     signature: str_(r.SignatureURL), receiptUrl: str_(r.ReceiptURL),
     rejectionReason: str_(r.RejectionReason),
     cancelReason: str_(r.CancelReason), cancelledAt: r.CancelledAt, cancelledBy: str_(r.CancelledBy),
-    backdated: isBackdated_(r)
+    backdated: isBackdated_(r), exempt: isYes_(r.Exempt)
   };
 }
 
@@ -2450,7 +2453,7 @@ function isEmergencyType_(v) { return /طار|emerg|urgent/i.test(str_(v)); }
 function orderUsage_() {
   const month = riyadh_(Date.now()).slice(0, 7), out = {};
   read_('Requests').rows.forEach(function (r) {
-    if (!str_(r.RequestID) || isOff_(str_(r.Status)) || isBackdated_(r)) return;
+    if (!str_(r.RequestID) || isOff_(str_(r.Status)) || isBackdated_(r) || isYes_(r.Exempt)) return; // الطارئ «مستهلك مستثنى» لا يُحسب
     if (monthOf_(r.SubmittedAt || r.Date) !== month) return;
     const k = orderTarget_(r.Doctor, r.Clinic), br = reqBranch_(r);
     // لكل طبيب: المجموع + لكل فرع («الطبيب|الفرع») — الحد يُطبَّق على كل فرع على حدة (للطبيب بوكس في كل فرع)
@@ -2911,12 +2914,17 @@ function getFinance_(user, opts) {
     if ((!from || ms >= from.getTime()) && (!to || ms <= to.getTime())) inRange[r.id] = r;
   });
   let requested = 0, received = 0, dispatched = 0;
+  // «المعتمد» = ما اعتمده الطبيب (أو لا يحتاج اعتماده) فقط · ما زال لدى الطبيب يظهر منفصلاً
+  // «التوفير من المراجعة» = المطلوب − المعتمد في الطلبات المعتمدة نفسها
+  let approved = 0, reqCleared = 0, pendingDoc = 0;
   const byType = {};
   read_('RequestItems').rows.forEach(function (it) {
     const r = inRange[str_(it.RequestID)];
     if (!r) return;
     const p = pr(it.ItemName);
     requested += (num_(it.RequestedQty) || 0) * p;
+    if (r.awaitingDoctor) pendingDoc += targetQty_(it) * p;
+    else { approved += targetQty_(it) * p; if (!str_(it.SubstituteOf)) reqCleared += (num_(it.RequestedQty) || 0) * p; }
     if (it.ReceivedQty !== '' && it.ReceivedQty !== null) received += (num_(it.ReceivedQty) || 0) * p;
     const t = r.type || '—';
     byType[t] = round2_((byType[t] || 0) + targetQty_(it) * p);
@@ -2936,8 +2944,8 @@ function getFinance_(user, opts) {
   }
   return {
     from: rep.from, to: rep.to, branch: branch, generatedAt: new Date(),
-    summary: { requests: rep.summary.requests - rep.summary.rejected - rep.summary.cancelled, requested: round2_(requested), approved: rep.summary.value,
-      dispatched: round2_(dispatched), received: round2_(received), reviewSaving: round2_(Math.max(0, requested - rep.summary.value)),
+    summary: { requests: rep.summary.requests - rep.summary.rejected - rep.summary.cancelled, requested: round2_(requested), approved: round2_(approved), pendingDoctor: round2_(pendingDoc),
+      dispatched: round2_(dispatched), received: round2_(received), reviewSaving: round2_(Math.max(0, reqCleared - approved)),
       avgValue: rep.summary.avgValue, emergency: rep.summary.emergency },
     byType: byType, branches: rep.branches, clinics: rep.clinics, doctors: rep.doctors, billing: rep.billing, docBranches: rep.docBranches, topItems: rep.topItems,
     badPrices: rep.badPrices, trend: trend
@@ -3134,12 +3142,13 @@ function createRequest_(user, payload) {
   if (!items.length) throw new Error('ERR_NO_ITEMS');
   // الطلب من الكتالوج فقط — لا أصناف بأسماء حرة (يُعتمد اسم الكتالوج بحروفه)
   const catalogMaps = function () {
-    const catalog = {}, catDept = {};
+    const catalog = {}, catDept = {}, exempt = {};
     getCatalog_(false).forEach(function (c) {
       catalog[c.name.toLowerCase()] = c.name; catDept[c.name.toLowerCase()] = c.dept || '';
+      if (c.exempt) exempt[c.name] = true;
       (c.aliases || []).forEach(function (a) { catalog[a.toLowerCase()] = c.name; catDept[a.toLowerCase()] = c.dept || ''; }); // الاسم الذي تعرفه الممرضة ← اسم التموين
     });
-    return { catalog: catalog, catDept: catDept };
+    return { catalog: catalog, catDept: catDept, exempt: exempt };
   };
   let maps = catalogMaps();
   // قسم الطلب من عيادته: طلب الأسنان لا يقبل مستهلكات الجلدية والعكس (المشترك مسموح للقسمين)
@@ -3171,7 +3180,10 @@ function createRequest_(user, payload) {
   if (str_(payload.backdate) && !forLab) return createBackdated_(user, payload, { clinic: clinic, branch: branch, doctor: doctor, type: type, dept: dept, items: items });
   // الطبيب المحدد بفروع: لا يُطلب له في فرع لا يعمل به
   if (doctor) { const db = doctorBranches_(doctor); if (db.explicit && db.list.indexOf(branch) === -1) throw new Error('ERR_DOCTOR_BRANCH:' + db.list.join('، ')); }
-  checkOrderRules_(user, type, items.length, orderTarget_(doctor, clinic), branch);
+  // «مستهلك مستثنى»: يُطلب كطارئ أكثر من مرة — لا يُحسب من عدد أصناف الطارئ، والطارئ اللي كل أصنافه مستثناة لا يُحسب من حد الطوارئ
+  const counted = type === 'طارئ' ? items.filter(function (it) { return !maps.exempt[it.name]; }).length : items.length;
+  const exemptReq = type === 'طارئ' && !counted;
+  if (!exemptReq) checkOrderRules_(user, type, counted, orderTarget_(doctor, clinic), branch);
   const rules = getOrderRules_(user, orderTarget_(doctor, clinic), branch); // المتبقي بعد هذا الطلب يرجع للواجهة (تحديث فوري للتنبيه)
 
   // منع الإرسال المزدوج لنفس الطلب خلال دقيقتين
@@ -3205,7 +3217,7 @@ function createRequest_(user, payload) {
     append_('Requests', {
       RequestID: id, Date: now, Clinic: clinic, Branch: branch, Doctor: doctor, Nurse: user.name,
       Type: type, Status: needsReview ? ST.REVIEW : ST.NEW, SubmittedAt: now, ReviewAt: needsReview ? now : '', ClientKey: clientKey, Department: dept,
-      Approver: branchApproval ? BRANCH_APPROVER_ : ''
+      Approver: branchApproval ? BRANCH_APPROVER_ : '', Exempt: exemptReq ? 'نعم' : ''
     });
     items.forEach(function (it) { append_('RequestItems', { RequestID: id, ItemName: it.name, RequestedQty: it.qty }); });
   } catch (e) {
@@ -6736,7 +6748,7 @@ function getCatalogAdmin_(user) {
     const c = str_(r.Category);
     if (c) cats[c] = true;
     return { name: str_(r.ItemName), commercial: str_(r.CommercialName), category: c, price: price_(r.Price), priceIssue: priceProblem_(r.Price),
-      dept: normDept_(r.Department), type: str_(r.ItemType) || ITEM_TYPES_[0], asset: isAssetOwnership_(r.Ownership), serialized: isYes_(r.Serialized),
+      dept: normDept_(r.Department), type: str_(r.ItemType) || ITEM_TYPES_[0], asset: isAssetOwnership_(r.Ownership), serialized: isYes_(r.Serialized), exempt: isYes_(r.Exempt),
       aliases: aliases[str_(r.ItemName).toLowerCase()] || [] };
   }).sort(function (a, b) { return a.name.localeCompare(b.name); });
   return { items: items, categories: Object.keys(cats).sort(), types: ITEM_TYPES_, depts: DEPTS };
@@ -6750,7 +6762,7 @@ function catalogFields_(it) {
   if (it.price === '' || it.price === null || it.price === undefined || isNaN(p) || p < 0 || p > PRICE_MAX) throw new Error('ERR_BAD_PRICE');
   const type = ITEM_TYPES_.indexOf(str_(it.type)) !== -1 ? str_(it.type) : ITEM_TYPES_[0];
   return { name: name, obj: { ItemName: name, CommercialName: clean_(it.commercial, 120), Category: clean_(it.category, 80), Price: round2_(p),
-    Department: normDept_(it.dept), ItemType: type, Ownership: it.asset ? 'عهدة' : '', Serialized: it.asset && it.serialized ? 'نعم' : '' } };
+    Department: normDept_(it.dept), ItemType: type, Ownership: it.asset ? 'عهدة' : '', Serialized: it.asset && it.serialized ? 'نعم' : '', Exempt: it.exempt ? 'نعم' : '' } };
 }
 
 /** إضافة صنف (orig فارغ) أو تعديله؛ تغيير الاسم ينتقل للطلبات والشحنات والعهدة والأسماء البديلة */
