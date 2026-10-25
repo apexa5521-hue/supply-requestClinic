@@ -31,6 +31,13 @@ function boot(extraSeed, gasOpts) {
   return { gas, ctx, api, login };
 }
 
+/** يسجّل كل الأصناف كأنها استُلمت بكميتها المعتمدة (القيمة في التقارير وحسبة الطبيب على المستلم فعلاً) */
+function receiveAll(gas, ctx) {
+  const t = gas.ss.getSheetByName('RequestItems'), h = t._data[0];
+  const iR = h.indexOf('ReceivedQty'), iA = h.indexOf('ApprovedQty'), iQ = h.indexOf('RequestedQty');
+  t._data.slice(1).forEach(r => { if (r[iR] === '' || r[iR] === null || r[iR] === undefined) r[iR] = r[iA] !== '' && r[iA] !== null && r[iA] !== undefined ? r[iA] : r[iQ]; });
+  ctx.onEdit({ range: { getSheet: () => t } });
+}
 function rows(gas, sheet) {
   const d = gas.dump(sheet);
   const h = d[0];
@@ -637,7 +644,7 @@ test('old requests not yet approved (new or prepared under the old order) appear
 });
 
 test('doctor report: priced items and totals for a month or a cumulative period', () => {
-  const { api, login, gas } = boot(g => { const d = g.dump('ItemsCatalog'); g.seed('ItemsCatalog', d[0], d.slice(1).concat([['صنف بلا سعر', '', '', '']])); });
+  const { api, login, gas, ctx } = boot(g => { const d = g.dump('ItemsCatalog'); g.seed('ItemsCatalog', d[0], d.slice(1).concat([['صنف بلا سعر', '', '', '']])); });
   const n = login('سارة', '1111'), d = login('د. خالد', '4444'), q = login('منى', '5555'), p = login('علي', '3333');
   const mk = items => api(n, 'createRequest', { clinic: 'عيادة الأسنان 1', doctor: 'د. خالد', type: 'شهري', items }).id;
   const a = mk([{ name: 'PROPHY PASTE', qty: 2 }, { name: 'DENTAL FLOSS', qty: 4 }]);  // 2×60 + 4×12.5 = 170
@@ -652,6 +659,7 @@ test('doctor report: priced items and totals for a month or a cumulative period'
   t._data.find(r => r[0] === b)[H.indexOf('SubmittedAt')] = new Date('2025-01-15T09:00:00Z');
   gas.globals.CacheService.getScriptCache().remove('v:Requests');
 
+  receiveAll(gas, ctx); // القيمة على المستلم فعلاً
   const all = api(d, 'getDoctorReport', { from: '', to: '' });
   assert.equal(all.doctor, 'د. خالد');
   assert.deepEqual(all.rows.map(r => r.id), [b, a], 'sorted by date, rejected excluded');
@@ -732,7 +740,7 @@ test('request numbers stay sequential and unique per day, continuing from existi
 });
 
 test('quality/executive statistics: by doctor, branch, clinic, items, with period and branch filters', () => {
-  const { api, login, gas } = boot();
+  const { api, login, gas, ctx } = boot();
   const n = login('سارة', '1111'), r2 = login('ريم', '2222'), p = login('علي', '3333'), d = login('د. خالد', '4444'), q = login('منى', '5555'), a = login('المدير', '1234');
   const mk = (tok, clinic, doctor, items, extra) => api(tok, 'createRequest', Object.assign({ clinic, doctor, type: 'شهري', items }, extra || {})).id;
   const x1 = mk(n, 'عيادة الأسنان 1', 'د. خالد', [{ name: 'PROPHY PASTE', qty: 2 }]);                  // 120
@@ -742,6 +750,7 @@ test('quality/executive statistics: by doctor, branch, clinic, items, with perio
   api(d, 'doctorReview', x1, 'اعتمد', '', []);
   api(d, 'doctorReview', x2, 'اعتمد', '', [], [{ item: 'Itero Sleeve', qty: 1 }]);
   api(d, 'doctorReview', x3, 'رفض', 'لا', []);
+  receiveAll(gas, ctx); // القيمة على المستلم فعلاً
   const st = api(q, 'getStatsReport', {});
   assert.deepEqual([st.summary.requests, st.summary.rejected, st.summary.value], [4, 1, 445], 'rejected value not counted');
   const kh = st.doctors.find(x => x.name === 'د. خالد');
@@ -759,7 +768,7 @@ test('quality/executive statistics: by doctor, branch, clinic, items, with perio
 });
 
 test('prices: a date in the Price cell (Sheets turns "3/8" into a date) is never read as a huge number', () => {
-  const { api, login } = boot(g => {
+  const { api, login, gas, ctx } = boot(g => {
     g.seed('ItemsCatalog', ['ItemName', 'CommercialName', 'Category', 'Price'], [
       ['Itero Sleeve', 'Align', 'Scanner', new Date('2026-08-02T21:00:00Z')],  // = 1,785,704,400,000 لو قُرئ كرقم
       ['PROPHY BRUSH', '', '', '27.5'],
@@ -774,6 +783,7 @@ test('prices: a date in the Price cell (Sheets turns "3/8" into a date) is never
   const cat = api(d, 'getRequestItemsWithCatalog', id);
   assert.deepEqual(cat.map(i => i.price), [0, 27.5, 4.95, 1250.5], 'dates become 0, text prices are parsed');
   api(d, 'doctorReview', id, 'اعتمد', '', []);
+  receiveAll(gas, ctx); // القيمة على المستلم فعلاً
   const rep = api(d, 'getDoctorReport', {});
   assert.equal(rep.summary.total, 2533.45, '27.5 + 4.95 + 2×1250.5 — no 1.7 trillion');
   assert.deepEqual(rep.badPrices, [{ item: 'Itero Sleeve', issue: 'date' }]);
@@ -1156,6 +1166,7 @@ test('custody: standard per clinic, issue with serial numbers, nurse report with
   throwsCode(() => api(d, 'reportAsset', { assetId: cl.id, problem: 'أخرى', description: 'x' }), 'ERR_FORBIDDEN');
   // أصناف العهدة لا تُحسب على الطبيب
   const req = api(n, 'createRequest', { doctor: 'د. خالد', type: 'شهري', items: [{ name: 'DENTAL FLOSS', qty: 2 }, { name: 'Curing Light', qty: 1 }] });
+  receiveAll(gas, ctx); // القيمة على المستلم فعلاً
   const rep = api(a, 'getDoctorReport', { doctor: 'د. خالد' });
   const row = rep.rows.find(r => r.id === req.id);
   assert.deepEqual(row.items.map(i => [i.item, i.total, i.company]), [['DENTAL FLOSS', 25, false], ['Curing Light', 0, true]]);
@@ -2162,7 +2173,7 @@ test('backdated requests: nurse records a past received request, tagged and kept
 });
 
 test('doctor billing: fixed (clinic) doctors carry their whole clinic, box doctors only their own requests — each request once', () => {
-  const { api, login } = boot(g => {
+  const { api, login, gas, ctx } = boot(g => {
     g.seed('Doctors', ['DoctorName', 'Clinic', 'NurseName', 'Subspecialty', 'Billing'], [
       ['د. خالد', 'عيادة الأسنان 1', 'سارة', 'تقويم', 'عيادة'],
       ['د. نورة', 'عيادة الأسنان 1', 'سارة', '', 'بوكس'],
@@ -2176,6 +2187,7 @@ test('doctor billing: fixed (clinic) doctors carry their whole clinic, box docto
   mk('د. فهد', 'عيادة الأسنان 1', 2);    // ثابت في عيادة أخرى، طلب في عيادة خالد → خالد
   mk('د. خالد', 'عيادة الأسنان 1', 3);   // → خالد
   api(n, 'createRequest', { clinic: 'Sterilization', branch: 'الرياض', type: 'شهري', items: [{ name: 'PROPHY PASTE', qty: 4 }] }); // بلا طبيب
+  receiveAll(gas, ctx); // القيمة على المستلم فعلاً
   const st = api(login('منى', '5555'), 'getStatsReport', {});
   const b = Object.fromEntries(st.billing.map(x => [x.name, x]));
   assert.deepEqual([b['د. خالد'].basis, b['د. خالد'].clinic, b['د. خالد'].requests, b['د. خالد'].value], ['clinic', 'عيادة الأسنان 1', 2, 300]);
@@ -2186,7 +2198,7 @@ test('doctor billing: fixed (clinic) doctors carry their whole clinic, box docto
 });
 
 test('finance: each doctor\'s spend per branch separately (consumable / material) and the total across branches', () => {
-  const { api, login } = boot(g => {
+  const { api, login, gas, ctx } = boot(g => {
     g.seed('Doctors', ['DoctorName', 'Clinic', 'NurseName', 'Subspecialty', 'Billing'], [
       ['د. نورة', 'عيادة الأسنان 1، عيادة الأسنان 2', 'سارة', '', 'بوكس'],
       ['د. خالد', 'عيادة الأسنان 1', 'سارة', 'تقويم', 'بوكس']
@@ -2197,6 +2209,7 @@ test('finance: each doctor\'s spend per branch separately (consumable / material
   api(n, 'createRequest', { clinic: 'عيادة الأسنان 1', doctor: 'د. نورة', type: 'شهري', items: [{ name: 'PROPHY PASTE', qty: 2 }, { name: 'Ivoclar Tetric-N A2', qty: 1 }] });
   api(login('ريم', '2222'), 'createRequest', { clinic: 'عيادة الأسنان 2', doctor: 'د. نورة', type: 'شهري', items: [{ name: 'PROPHY PASTE', qty: 1 }] });
   api(n, 'createRequest', { clinic: 'عيادة الأسنان 1', doctor: 'د. خالد', type: 'شهري', items: [{ name: 'PROPHY PASTE', qty: 1 }] });
+  receiveAll(gas, ctx); // القيمة على المستلم فعلاً
   let db = api(f, 'getFinance', {}).docBranches;
   assert.deepEqual(db.branches, ['الرياض', 'جدة']);
   const nora = db.rows.find(r => r.name === 'د. نورة');
@@ -2231,11 +2244,12 @@ test('doctors live: open requests per doctor by stage, for quality/executive onl
 });
 
 test('doctor prices: no prices by default; executive / quality / finance grant or withhold per doctor', () => {
-  const { api, login, gas } = boot();
+  const { api, login, gas, ctx } = boot();
   const n = login('سارة', '1111');
   const id = api(n, 'createRequest', { clinic: 'عيادة الأسنان 1', doctor: 'د. سعد', type: 'شهري', items: [{ name: 'PROPHY PASTE', qty: 2 }] }).id;
   const a = login('المدير', '1234');
   api(a, 'createUser', { name: 'د. سعد', password: '9876', role: 'طبيب' });
+  receiveAll(gas, ctx); // القيمة على المستلم فعلاً
   const view = () => { const d = login('د. سعد', '9876'); return { user: api(d, 'getConfig').user, items: api(d, 'getRequestItemsWithCatalog', id), rep: api(d, 'getDoctorReport', {}) }; };
   let v = view();
   assert.equal(v.user.priceView, 'none', 'dental doctor sees no prices by default');
@@ -2263,12 +2277,13 @@ test('doctor prices: no prices by default; executive / quality / finance grant o
 });
 
 test('branch manager: no prices or values anywhere (requests, reports, lab, custody) unless granted', () => {
-  const { api, login, gas } = boot();
+  const { api, login, gas, ctx } = boot();
   const a = login('المدير', '1234');
   api(a, 'createUser', { name: 'مدير جدة', password: '9090', role: 'مدير فرع', branch: 'جدة' });
   const reem = login('ريم', '2222');
   const id = api(reem, 'createRequest', { clinic: 'Sterilization', branch: 'جدة', type: 'طارئ', items: [{ name: 'PROPHY PASTE', qty: 2 }] }).id;
   api(reem, 'createLabCase', { doctor: 'د. سعد', fileNo: '22', scanDate: '2020-01-01', lines: [{ lab: 'المعمل الداخلي', workType: 'Denture', material: 'Acrylic' }] });
+  receiveAll(gas, ctx); // القيمة على المستلم فعلاً
   const MONEY = /"(price|total|value|avgValue|cost|repairCost|lossValue|activeValue|lineValue|unitPrice|unpriced|badPrices)":/;
   const look = () => {
     const m = login('مدير جدة', '9090');
@@ -2823,7 +2838,7 @@ test('order rules: procurement/management set limits that apply at once; nurse s
 });
 
 test('doctor custody + finance charge types: handpiece in a doctor request is issued to the doctor; finance sets consumable/material per doctor; finance edits the catalog', () => {
-  const { api, login, gas } = boot();
+  const { api, login, gas, ctx } = boot();
   const n = login('سارة', '1111'), p = login('علي', '3333'), f = login('نواف', '7777');
   // finance has the items tab: mark one item as material
   api(f, 'saveCatalogItem', 'Ivoclar Tetric-N A2', { name: 'Ivoclar Tetric-N A2', commercial: 'Tetric N-Ceram', category: 'Composite', price: 120, type: 'ماتيريال' });
@@ -2850,6 +2865,7 @@ test('doctor custody + finance charge types: handpiece in a doctor request is is
   api(p, 'updateAsset', hp.id, { serial: 'LS-900', doctor: 'د. خالد' });
   api(p, 'updateAsset', hp.id, { doctor: 'د. نورة' });
   // doctor report: everything charged by default, custody listed once with its value
+  receiveAll(gas, ctx); // القيمة على المستلم فعلاً
   let rep = api(f, 'getDoctorReport', { doctor: 'د. نورة' });
   assert.equal(rep.summary.total, 240, 'consumable 120 + material 120; the handpiece is not counted as a consumable');
   assert.deepEqual([rep.summary.custodyUnits, rep.summary.custodyTotal, rep.custody.length], [2, 3000, 2]);
@@ -3722,7 +3738,7 @@ test('branch maintenance: branch manager reports with location + photo, maintena
 });
 
 test('operations manager sees prices (branch manager does not); doctor value breaks down into its biggest items', () => {
-  const { api, login } = boot();
+  const { api, login, gas, ctx } = boot();
   const adm = login('المدير', '1234');
   api(adm, 'createUser', { name: 'مدير تشغيل', password: '1212', role: 'مدير التشغيل' });
   api(adm, 'createUser', { name: 'مدير فرع', password: '3434', role: 'مدير فرع', branch: 'الرياض' });
@@ -3731,6 +3747,7 @@ test('operations manager sees prices (branch manager does not); doctor value bre
   assert.equal(oc.user.screen, 'executive');
   assert.deepEqual(oc.user.perms.slice().sort(), ['assets', 'boxes', 'complaints', 'doctors_live', 'lab_view', 'maint', 'monitor', 'notices', 'overview', 'reports'].sort());
   api(n, 'createRequest', { clinic: 'عيادة الأسنان 1', doctor: 'د. خالد', type: 'شهري', items: [{ name: 'PROPHY PASTE', qty: 10 }, { name: 'DENTAL FLOSS', qty: 2 }] });
+  receiveAll(gas, ctx); // القيمة على المستلم فعلاً
   const st = api(op, 'getStatsReport', {});
   const kh = st.doctors.find(d => d.name === 'د. خالد');
   assert.ok(kh.value > 0, 'operations manager sees values');
@@ -3769,4 +3786,20 @@ test('exempt consumable: emergency orders of it do not use the emergency limit; 
   api(kh, 'doctorReview', e1.id, 'اعتمد', '', []);
   const f1 = api(fin, 'getFinance', {});
   assert.equal(f1.summary.approved, 12.5, 'only the approved request');
+});
+
+test('value = what the nurse actually received: approved but not delivered, or rejected at receipt, is not counted', () => {
+  const { api, login, gas, ctx } = boot();
+  const n = login('سارة', '1111'), q = login('منى', '5555');
+  const id = api(n, 'createRequest', { clinic: 'عيادة الأسنان 1', doctor: 'د. خالد', type: 'شهري', items: [{ name: 'PROPHY PASTE', qty: 10 }, { name: 'DENTAL FLOSS', qty: 4 }] }).id;
+  const val = () => (api(q, 'getStatsReport', {}).doctors.find(d => d.name === 'د. خالد') || { value: 0 }).value;
+  assert.equal(val(), 0, 'nothing received yet = no value');
+  const t = gas.ss.getSheetByName('RequestItems'), h = t._data[0];
+  const row = name => t._data.find(r => r[h.indexOf('RequestID')] === id && r[h.indexOf('ItemName')] === name);
+  row('PROPHY PASTE')[h.indexOf('ReceivedQty')] = 6;   // وصل 6 من 10
+  row('DENTAL FLOSS')[h.indexOf('ReceivedQty')] = 0;   // رُفض عند الاستلام
+  ctx.onEdit({ range: { getSheet: () => t } });
+  assert.equal(val(), 360, 'only 6 × 60 received counts; the rejected floss does not');
+  const rep = api(q, 'getDoctorReport', { doctor: 'د. خالد' });
+  assert.deepEqual(rep.rows.find(r => r.id === id).items.map(i => [i.item, i.qty, i.total]), [['PROPHY PASTE', 6, 360]], 'doctor report lists received lines only');
 });
