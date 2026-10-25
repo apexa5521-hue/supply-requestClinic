@@ -68,6 +68,7 @@ const I18N = {
     mt_reason_req: 'اكتب السبب', mt_saved: 'تم تحديث {id}', mt_k_open: 'مفتوحة', mt_k_late: 'متأخرة', mt_k_stops: 'أماكن متوقفة', mt_k_avg: 'متوسط الإصلاح', mt_k_cost: 'التكلفة', mt_by_branch: 'حسب الفرع', mt_by_cat: 'حسب التصنيف', mt_repeats: 'أعطال متكررة في نفس المكان', mt_n: 'العدد',
     mt_settings: 'إعدادات البلاغات', mt_set_approval: 'طلبات الفرع تحتاج اعتماد الإدارة التنفيذية قبل التنفيذ', mt_set_sla: 'المهلة بالساعات لكل أولوية', mt_set_areas: 'المناطق (سطر لكل منطقة)', mt_set_cats: 'تصنيفات الصيانة', mt_set_reqcats: 'تصنيفات طلبات الفرع', mt_set_saved: 'حُفظت إعدادات البلاغات', mt_all_branches: 'كل الفروع', mt_by: 'رفعه {n}', mt_reopened: 'أُعيد {n} مرة',
     ERR_NO_BRANCH: 'لا يوجد فرع محدد لحسابك — اطلب من الأدمن تحديده',
+    rp_val_why: 'ما الذي يكوّن هذه القيمة؟', rp_val_how: 'القيمة = الكمية المعتمدة (أو المطلوبة) × سعر الصنف في الكتالوج، لكل الطلبات غير المرفوضة في الفترة. هذه أكبر 5 أصناف فيها:', rp_val_check: 'تحقق من السعر أو الكمية — يكوّن جزءاً كبيراً من القيمة أو سعر الوحدة عالٍ لمستهلك', rp_val_rest: 'بقية الأصناف', rp_val_fix: 'إن كان السعر لعلبة كاملة وهو مكتوب للحبة (أو العكس) صحّحه من صفحة الأصناف — تتعدل القيمة فوراً.',
     rl_dl_title: 'حد خاص لطبيب (زيادة أو تقليل)', rl_dl_h: 'الحد العام لكل طبيب في كل فرع هذا الشهر: شهري {m} · طارئ {e} · أصناف الطارئ {i}. أضف طبيباً لتزيد أو تقلل طلباته أو عدد أصناف طارئه كاستثناء — الخانة الفارغة = الحد العام، و0 = بلا حد.', rl_dl_m: 'الشهري', rl_dl_e: 'الطارئ', rl_dl_default: 'العام', rl_dl_used: 'هذا الشهر: شهري {m} · طارئ {e}', rl_dl_none: 'لا يوجد حد خاص — كل الأطباء على الحد العام.', rl_dl_pick: 'اسم الطبيب', rl_dl_add: 'إضافة',
     cb_btn: 'إضافة أصناف دفعة واحدة', cb_title: 'إضافة أصناف دفعة واحدة', cb_sub: 'مثل Excel — انسخ الصفوف من Excel والصقها هنا', cb_h: 'ضع المؤشر في أول خانة (اسم الصنف) والصق (Ctrl+V). نفس خانات الصنف الفردي؛ الخانات بـ * إجبارية. لا يُحفظ شيء حتى تصح كل الصفوف.', cb_price: 'السعر', cb_asset: 'عهدة؟', cb_serial: 'رقم تسلسلي؟', cb_dept_h: 'أسنان / جلدية / فارغ = مشترك', cb_type_h: 'مستهلك / ماتيريال / أدوات', cb_yes_h: 'نعم / لا', cb_alias_h: 'افصل بينها بـ ،', cb_more: '10 صفوف أخرى', cb_copy_head: 'نسخ رؤوس الأعمدة لـ Excel', cb_head_ok: 'نُسخت رؤوس الأعمدة — الصقها في أول صف في Excel', cb_clear: 'مسح الجدول', cb_count: '{n} صنف', cb_save: 'حفظ {n} صنف', cb_empty: 'الجدول فارغ — الصق الأصناف أولاً', cb_row: 'السطر {n}', cb_done: 'أُضيف {n} صنف للكتالوج', ERR_BAD_DEPT: 'القسم غير معروف (أسنان / جلدية / فارغ)', ERR_BAD_TYPE: 'النوع غير معروف (مستهلك / ماتيريال / أدوات)', ERR_BAD_YESNO: 'اكتب نعم أو لا', ERR_ITEM_DUP: 'الاسم مكرر في الجدول',
     grp_my_docs: 'أطبائي', nurse_docs: 'الأطباء المسؤولة عنهم', nurse_docs_hint: 'تظهر لها «أطبائي» أولاً عند رفع الطلب — يمكن اختيار أكثر من طبيب',
@@ -217,6 +218,7 @@ const I18N = {
     mt_reason_req: 'Write the reason', mt_saved: '{id} updated', mt_k_open: 'Open', mt_k_late: 'Late', mt_k_stops: 'Out of service', mt_k_avg: 'Avg fix time', mt_k_cost: 'Cost', mt_by_branch: 'By branch', mt_by_cat: 'By category', mt_repeats: 'Repeated faults in the same place', mt_n: 'Count',
     mt_settings: 'Ticket settings', mt_set_approval: 'Branch requests need executive approval before work', mt_set_sla: 'Target hours per priority', mt_set_areas: 'Areas (one per line)', mt_set_cats: 'Maintenance categories', mt_set_reqcats: 'Branch request categories', mt_set_saved: 'Ticket settings saved', mt_all_branches: 'All branches', mt_by: 'by {n}', mt_reopened: 'sent back {n}×',
     ERR_NO_BRANCH: 'No branch is set on your account — ask the admin',
+    rp_val_why: 'What makes up this value?', rp_val_how: 'Value = approved (or requested) quantity × catalog price, for every non-rejected request in the period. The 5 biggest items:', rp_val_check: 'Check the price or quantity — a big share of the value, or a high unit price for a consumable', rp_val_rest: 'Other items', rp_val_fix: 'If a box price was entered as a unit price (or the other way round), fix it on the Items page — the value updates at once.',
     rl_dl_title: 'Doctor-specific limit (raise or lower)', rl_dl_h: 'General limit per doctor per branch this month: monthly {m} · emergency {e} · emergency items {i}. Add a doctor to raise or lower their requests or emergency item count as an exception — empty = the general limit, 0 = no limit.', rl_dl_m: 'Monthly', rl_dl_e: 'Emergency', rl_dl_default: 'General', rl_dl_used: 'This month: monthly {m} · emergency {e}', rl_dl_none: 'No special limits — every doctor uses the general limit.', rl_dl_pick: 'Doctor name', rl_dl_add: 'Add',
     cb_btn: 'Add items in bulk', cb_title: 'Add items in bulk', cb_sub: 'Like Excel — copy rows from Excel and paste them here', cb_h: 'Put the cursor in the first cell (item name) and paste (Ctrl+V). Same fields as a single item; * is required. Nothing is saved until every row is valid.', cb_price: 'Price', cb_asset: 'Custody?', cb_serial: 'Serial no.?', cb_dept_h: 'Dental / Derma / empty = shared', cb_type_h: 'Consumable / Material / Tools', cb_yes_h: 'Yes / No', cb_alias_h: 'separate with ,', cb_more: '10 more rows', cb_copy_head: 'Copy column headers for Excel', cb_head_ok: 'Headers copied — paste them in the first Excel row', cb_clear: 'Clear', cb_count: '{n} item(s)', cb_save: 'Save {n} item(s)', cb_empty: 'The table is empty — paste the items first', cb_row: 'Row {n}', cb_done: '{n} item(s) added to the catalog', ERR_BAD_DEPT: 'Unknown department (Dental / Derma / empty)', ERR_BAD_TYPE: 'Unknown type (Consumable / Material / Tools)', ERR_BAD_YESNO: 'Write yes or no', ERR_ITEM_DUP: 'Name repeated in the table',
     grp_my_docs: 'My doctors', nurse_docs: 'Doctors she orders for', nurse_docs_hint: 'Shown first as “My doctors” when she raises a request — pick as many as needed',
@@ -4201,7 +4203,8 @@ function rpStatsHtml(st, range) {
     { h: t('rp_approved'), num: 1, v: r => fmtNum(r.approved, 0) },
     { h: t('st_rejected'), num: 1, v: r => r.rejected ? '<span style="color:var(--t-red);font-weight:700">' + r.rejected + '</span>' : '0' },
     { h: t('rp_pending_doc'), num: 1, v: r => r.pending ? '<span class="badge" style="--tone:var(--t-violet)"><i class="dot"></i>' + r.pending + '</span>' : '0' },
-    { h: t('rp_value'), num: 1, v: r => '<b>' + fmtNum(r.value, 2) + '</b>' },
+    // الضغط على القيمة: الأصناف التي تكوّنها (أكبر 5) مع علامة «تحقق من السعر»
+    { h: t('rp_value'), num: 1, v: r => (r.top && r.top.length ? '<button type="button" class="btn btn-ghost btn-sm rp-val" data-act="rpValWhy" data-doc="' + esc(r.name) + '" title="' + esc(t('rp_val_why')) + '"><b>' + fmtNum(r.value, 2) + '</b>' + (r.top.some(x => x.check) ? ' ' + icon('alert', 'i-sm') : '') + '</button>' : '<b>' + fmtNum(r.value, 2) + '</b>') },
     { h: t('rp_avg_request'), num: 1, v: r => fmtNum(r.avgValue, 2) },
     { h: t('rp_avg_approval'), num: 1, v: r => hrsTxt(r.avgApprovalHrs) },
     { h: '', v: r => '<button class="btn btn-soft btn-sm" data-act="rpDocOf" data-doc="' + esc(r.name) + '">' + icon('file', 'i-sm') + esc(t('rp_report')) + '</button>' }
@@ -4257,6 +4260,21 @@ function rpShowDoc() {
   out.innerHTML = reportHtml(RP.doc, RP.docRange);
   $$('[data-act="rpDocPrint"], [data-act="rpDocCsv"]').forEach(b => { b.disabled = !RP.doc.rows.length; });
 }
+ACT.rpValWhy = el => {
+  const st = RP.stats, d = st && (st.doctors || []).find(x => x.name === el.dataset.doc);
+  if (!d) return;
+  const rest = Math.max(0, d.value - d.top.reduce((a, x) => a + x.value, 0));
+  openModal({ title: esc(t('rp_val_why')), sub: esc(d.name + ' · ' + fmtNum(d.value, 2) + ' ' + t('currency')), icon: 'cart', size: 'lg',
+    body: '<div class="hint" style="margin-bottom:10px">' + esc(t('rp_val_how')) + '</div>' +
+      '<div class="table-wrap"><table class="table"><thead><tr><th>' + esc(t('items')) + '</th><th class="num">' + esc(t('rep_qty')) + '</th><th class="num">' + esc(t('rep_price')) + '</th><th class="num">' + esc(t('rep_line_total')) + '</th><th class="num">%</th></tr></thead><tbody>' +
+      d.top.map(x => '<tr' + (x.check ? ' class="rp-check"' : '') + '><td><b>' + esc(x.item) + '</b>' + (x.check ? '<div class="hint" style="color:var(--t-red)">' + icon('alert', 'i-sm') + ' ' + esc(t('rp_val_check')) + '</div>' : '') +
+        '<div class="hint mono">' + x.requests.slice(0, 4).map(esc).join('، ') + (x.requests.length > 4 ? ' +' + (x.requests.length - 4) : '') + '</div></td>' +
+        '<td class="num">' + fmtNum(x.qty, 0) + '</td><td class="num">' + fmtNum(x.price, 2) + '</td><td class="num"><b>' + fmtNum(x.value, 2) + '</b></td><td class="num">' + x.share + '%</td></tr>').join('') +
+      (rest > 0.5 ? '<tr><td class="muted">' + esc(t('rp_val_rest')) + '</td><td></td><td></td><td class="num">' + fmtNum(rest, 2) + '</td><td class="num">' + Math.round(rest / (d.value || 1) * 100) + '%</td></tr>' : '') +
+      '</tbody></table></div>' +
+      (d.top.some(x => x.check) ? '<div class="alert warning" style="margin-top:10px"><span class="alert-ic">' + icon('alert') + '</span><span>' + esc(t('rp_val_fix')) + '</span></div>' : ''),
+    foot: '<span class="spacer"></span><button class="btn" data-close>' + esc(t('close')) + '</button><button class="btn btn-soft" data-act="rpDocOf" data-doc="' + esc(d.name) + '">' + icon('file', 'i-sm') + esc(t('rp_report')) + '</button>' });
+};
 ACT.rpDocPrint = () => { if (RP.doc) printReport(reportHtml(RP.doc, RP.docRange)); };
 ACT.rpDocCsv = () => { if (RP.doc) exportReportCsv(RP.doc, RP.docRange); };
 ACT.rpCsv = () => {
@@ -6432,7 +6450,7 @@ function fnHtml(d, range) {
   ];
   const areaCols = k => [
     { h: t(k), v: r => '<b>' + esc(r.name) + '</b>' },
-    { h: t('rep_requests'), num: 1, v: r => fmtNum(r.requests - r.rejected, 0) },
+    { h: t('rep_requests'), num: 1, v: r => fmtNum(r.requests - r.rejected - (r.cancelled || 0), 0) },
     { h: t('rp_value'), num: 1, v: r => '<b>' + fmtNum(r.value, 2) + '</b>' },
     { h: t('rp_avg_request'), num: 1, v: r => fmtNum(r.avgValue, 2) },
     { h: t('fn_share'), num: 1, v: r => (s.approved ? Math.round(r.value / s.approved * 100) : 0) + '%' }

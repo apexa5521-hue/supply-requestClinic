@@ -1258,6 +1258,11 @@ function log(msg) { console.log('  ✔ ' + msg); }
   expect(await page.locator('#rpStats .rp-table').count() === 5, 'tables by doctor, doctor billing, branch, clinic and top items');
   expect((await page.textContent('#rpStats')).includes('الحسبة المالية للأطباء') && await page.locator('#rpStats .tag.bill-box').count() >= 1, 'doctor billing table (clinic / box) is shown');
   expect((await page.textContent('#rpStats .rp-table >> nth=0')).includes('د. خالد'), 'doctor table lists doctors');
+  await page.click('#rpStats [data-act="rpValWhy"] >> nth=0');
+  await page.waitForSelector('.modal tbody tr');
+  expect((await page.textContent('.modal')).includes('ما الذي يكوّن هذه القيمة'), 'doctor value opens its biggest items (qty × price)');
+  await shot(page, 'report-value-why');
+  await page.keyboard.press('Escape');
   await page.waitForSelector('#rpDoctor option[value="د. خالد"], #rpDoctor option:has-text("د. خالد")', { state: 'attached' });
   await page.selectOption('#rpDoctor', 'د. خالد');
   await page.click('[data-act="rpDoc"]');
