@@ -184,7 +184,7 @@ test('config: nurse sees every clinic (own clinics flagged) and no prices; clini
   const proc = api(login('علي', '3333'), 'getConfig');
   assert.equal(proc.catalog.find(c => c.name === 'PROPHY PASTE').price, 60);
   assert.equal(proc.roles.length, 0, 'roles only for admin');
-  assert.equal(api(login('المدير', '1234'), 'getConfig').roles.length, 13);
+  assert.equal(api(login('المدير', '1234'), 'getConfig').roles.length, 14);
 });
 
 test('createRequest: validation', () => {
@@ -1482,7 +1482,7 @@ test('roles split: legacy quality/executive/finance migrate; executive keeps ful
   });
   const q = login('منى', '5555');
   assert.deepEqual(rows(gas, 'Roles').map(r => [r.RoleName, r.Screen]).sort(), [
-    ['أدمن', 'admin'], ['ممرضة', 'nurse'], ['تموين', 'procurement'], ['جودة', 'quality'], ['تنفيذي', 'executive'], ['مالية', 'finance'], ['المعمل', 'lab'], ['مدير فرع', 'branch'], ['هاوس كيبر', 'housekeeper'], ['مسؤول التعقيم', 'housekeeper'], ['مسؤول الأشعة', 'housekeeper'], ['صيانة', 'maintenance']].sort());
+    ['أدمن', 'admin'], ['ممرضة', 'nurse'], ['تموين', 'procurement'], ['جودة', 'quality'], ['تنفيذي', 'executive'], ['مالية', 'finance'], ['المعمل', 'lab'], ['مدير فرع', 'branch'], ['هاوس كيبر', 'housekeeper'], ['مسؤول التعقيم', 'housekeeper'], ['مسؤول الأشعة', 'housekeeper'], ['صيانة', 'maintenance'], ['مدير التشغيل', 'executive']].sort());
   const qc = api(q, 'getConfig');
   assert.equal(qc.user.screen, 'quality');
   assert.ok(qc.user.perms.includes('monitor') && !qc.user.perms.includes('users') && !qc.user.perms.includes('finance'));
@@ -1634,7 +1634,7 @@ test('management roles (finance…) are added automatically when missing, so the
   });
   const a = login('المدير', '1234');
   const roles = api(a, 'getConfig').roles.map(r => r.name + ':' + r.screen).sort();
-  assert.deepEqual(roles, ['أدمن:admin', 'تموين:procurement', 'تنفيذي:executive', 'جودة:quality', 'طبيب:doctor', 'مالية:finance', 'ممرضة:nurse', 'المعمل:lab', 'مدير فرع:branch', 'هاوس كيبر:housekeeper', 'مسؤول التعقيم:housekeeper', 'مسؤول الأشعة:housekeeper', 'صيانة:maintenance'].sort());
+  assert.deepEqual(roles, ['أدمن:admin', 'تموين:procurement', 'تنفيذي:executive', 'جودة:quality', 'طبيب:doctor', 'مالية:finance', 'ممرضة:nurse', 'المعمل:lab', 'مدير فرع:branch', 'هاوس كيبر:housekeeper', 'مسؤول التعقيم:housekeeper', 'مسؤول الأشعة:housekeeper', 'صيانة:maintenance', 'مدير التشغيل:executive'].sort());
   api(a, 'createUser', { name: 'المالية', password: '2468', role: 'مالية', email: 'finance@example.com' });
   const f = api(null, 'login', 'المالية', '2468');
   assert.equal(f.user.screen, 'finance');
@@ -3719,4 +3719,54 @@ test('branch maintenance: branch manager reports with location + photo, maintena
   assert.ok(api(mt, 'getMaintTickets', {}).some(x => x.id === r2.id));
   const st = api(ex, 'getMaintStats', {});
   assert.deepEqual([st.total, st.cost, st.byBranch[0].key], [4, 450, 'الرياض']);
+});
+
+test('operations manager sees prices (branch manager does not); doctor value breaks down into its biggest items', () => {
+  const { api, login } = boot();
+  const adm = login('المدير', '1234');
+  api(adm, 'createUser', { name: 'مدير تشغيل', password: '1212', role: 'مدير التشغيل' });
+  api(adm, 'createUser', { name: 'مدير فرع', password: '3434', role: 'مدير فرع', branch: 'الرياض' });
+  const op = login('مدير تشغيل', '1212'), bm = login('مدير فرع', '3434'), n = login('سارة', '1111');
+  const oc = api(op, 'getConfig');
+  assert.equal(oc.user.screen, 'executive');
+  assert.deepEqual(oc.user.perms.slice().sort(), ['assets', 'boxes', 'complaints', 'doctors_live', 'lab_view', 'maint', 'monitor', 'notices', 'overview', 'reports'].sort());
+  api(n, 'createRequest', { clinic: 'عيادة الأسنان 1', doctor: 'د. خالد', type: 'شهري', items: [{ name: 'PROPHY PASTE', qty: 10 }, { name: 'DENTAL FLOSS', qty: 2 }] });
+  const st = api(op, 'getStatsReport', {});
+  const kh = st.doctors.find(d => d.name === 'د. خالد');
+  assert.ok(kh.value > 0, 'operations manager sees values');
+  assert.equal(kh.top[0].item, 'PROPHY PASTE');
+  assert.deepEqual([kh.top[0].qty, kh.top[0].value, kh.top[0].check], [10, 600, true], 'biggest item, its share flagged for a check');
+  assert.equal(kh.top.reduce((a, x) => a + x.value, 0), kh.value, 'the lines add up to the doctor value');
+  const bst = api(bm, 'getStatsReport', {});
+  assert.ok(bst.doctors.every(d => d.value === undefined), 'branch manager: no values by default');
+  // المالية: الطلب الملغي لا يدخل في العدد ولا يخفض المتوسط
+  const p = login('علي', '3333'), fin = login('نواف', '7777');
+  const c2 = api(n, 'createRequest', { clinic: 'عيادة الأسنان 1', doctor: 'د. خالد', type: 'طارئ', items: [{ name: 'DENTAL FLOSS', qty: 3 }] }).id;
+  api(p, 'cancelRequests', [c2], 'بالغلط');
+  const f = api(fin, 'getFinance', {});
+  assert.equal(f.summary.requests, 1, 'cancelled request not counted');
+  assert.equal(f.summary.avgValue, f.summary.pendingDoctor, 'average over live requests only (still awaiting the doctor)');
+});
+
+test('exempt consumable: emergency orders of it do not use the emergency limit; finance «approved» = doctor-approved only', () => {
+  const { api, login } = boot();
+  const adm = login('المدير', '1234'), n = login('سارة', '1111'), p = login('علي', '3333'), fin = login('نواف', '7777'), kh = login('د. خالد', '4444');
+  api(p, 'saveOrderRules', { emergencyMax: 1 });
+  const cat = api(adm, 'getCatalogAdmin').items.find(i => i.name === 'DENTAL FLOSS');
+  api(adm, 'saveCatalogItem', 'DENTAL FLOSS', Object.assign({}, cat, { exempt: true }));
+  assert.equal(api(adm, 'getCatalogAdmin').items.find(i => i.name === 'DENTAL FLOSS').exempt, true);
+  const em = items => api(n, 'createRequest', { clinic: 'عيادة الأسنان 1', doctor: 'د. خالد', type: 'طارئ', items });
+  const e1 = em([{ name: 'DENTAL FLOSS', qty: 1 }]), e2 = em([{ name: 'DENTAL FLOSS', qty: 2 }]);
+  const list = api(p, 'getRequests', {});
+  assert.ok(list.find(r => r.id === e1.id).exempt && list.find(r => r.id === e2.id).exempt, 'flagged «exempt consumable»');
+  em([{ name: 'PROPHY PASTE', qty: 1 }]); // الحد 1: أول طارئ عادي يمر
+  throwsCode(() => em([{ name: 'PROPHY PASTE', qty: 2 }]), 'ERR_EMERGENCY_LIMIT');
+  assert.ok(em([{ name: 'DENTAL FLOSS', qty: 3 }]).id, 'exempt emergency still open after the limit');
+  // المالية: «المعتمد» = بعد اعتماد الطبيب فقط
+  const f0 = api(fin, 'getFinance', {});
+  assert.equal(f0.summary.approved, 0, 'nothing approved by the doctor yet');
+  assert.ok(f0.summary.pendingDoctor > 0);
+  api(kh, 'doctorReview', e1.id, 'اعتمد', '', []);
+  const f1 = api(fin, 'getFinance', {});
+  assert.equal(f1.summary.approved, 12.5, 'only the approved request');
 });
