@@ -868,6 +868,11 @@ button.ship-open:hover { background: color-mix(in srgb, var(--t-indigo) 18%, tra
 .steril-note { margin-top: 6px; color: var(--t-indigo, var(--primary)); font-weight: 600; }
 .rep-notes { display: grid; gap: 6px; padding: 10px 12px; font-size: 13px; }
 .rep-check { width: 34px; }
+.nav-sub { margin-bottom: -4px; }
+.nav-sub .segmented { max-width: 100%; overflow-x: auto; }
+.rp-val { min-height: 26px; padding: 2px 8px; text-decoration: underline dotted; }
+.rp-val .i { color: var(--t-red); }
+tr.rp-check td { background: color-mix(in srgb, var(--t-red) 6%, transparent); }
 .drv-to { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 6px; font-size: 14px; }
 .drv-to.big { margin-top: 8px; padding: 10px 12px; border-radius: 12px; font-size: 16px; background: var(--primary-soft); }
 .nt-ck { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; cursor: pointer; white-space: nowrap; }
@@ -1302,6 +1307,7 @@ button.ship-open:hover { background: color-mix(in srgb, var(--t-indigo) 18%, tra
       <div class="avatar mobile-only" id="userAvatarM" style="width:34px;height:34px"></div>
       <div class="title"><h1 id="pageTitle"></h1><p id="pageSub"></p></div>
       <div class="topbar-actions">
+        <button class="btn btn-ghost btn-icon btn-sm hidden" id="wfBtn" data-act="nav" data-view="workflow" data-i18n-title="help_workflow"><svg class="i i-sm"><use href="#i-route"/></svg></button>
         <button class="btn btn-ghost btn-icon btn-sm desktop-only" id="tourBtn" data-act="startTour" data-i18n-title="tour_replay"><svg class="i i-sm"><use href="#i-info"/></svg></button>
         <button class="btn btn-ghost btn-sm sync-btn" id="syncBtn" data-act="sync" data-i18n-title="sync"><svg class="i i-sm"><use href="#i-refresh"/></svg><span class="sync-time" id="syncTime"></span></button>
         <button class="btn btn-ghost btn-sm desktop-only" data-act="toggleLang" data-i18n-title="lang_switch"><svg class="i i-sm"><use href="#i-globe"/></svg><span class="desktop-only" data-i18n="lang_switch"></span></button>

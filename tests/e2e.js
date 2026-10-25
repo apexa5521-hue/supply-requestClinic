@@ -136,6 +136,15 @@ function log(msg) { console.log('  ✔ ' + msg); }
     await page.waitForSelector('#appShell:not(.hidden)');
     await page.waitForTimeout(400);
   }
+  // فتح شاشة من القائمة: مباشرة، أو من تبويبها المختصر ثم الزر الفرعي أعلى الصفحة · «سير العمل» من زر المساعدة
+  async function openView(page, v) {
+    if (v === 'workflow') { await page.click('#wfBtn'); return; }
+    if (await page.locator('.sidebar [data-view="' + v + '"]').count()) {
+      await page.click('.sidebar [data-view="' + v + '"]');
+      if (await page.evaluate(id => S.view === id, v)) return;
+    } else await page.click('.sidebar [data-members~="' + v + '"]');
+    await page.click('.nav-sub [data-seg-name="navSub"][data-v="' + v + '"]');
+  }
   async function logout(page) {
     await page.click('.sidebar [data-act="logout"]');
     await page.waitForSelector('#loginView:not(.hidden)');
@@ -285,7 +294,7 @@ function log(msg) { console.log('  ✔ ' + msg); }
   const bdId = /REQ-[\d-]+/.exec(tt)[0];
   await page.uncheck('#fBackdate');
 
-  await page.click('.sidebar [data-view="mine"]');
+  await openView(page, 'mine');
   await page.waitForSelector('#mineList .req');
   expect(await page.isVisible(`text=${newId}`), 'new request appears in "my requests"');
   await page.click('#mineChips .chip[data-g="all"]').catch(() => {});
@@ -306,13 +315,13 @@ function log(msg) { console.log('  ✔ ' + msg); }
   await page.click('#cSend');
   expect(await toastHas(page, 'البلاغ'), 'complaint sent');
   // استبيان التمريض: البلاغ وصل نسخة منه، وملاحظة الاستبيان تبقى فيه فقط
-  await page.click('.sidebar [data-view="nursevoice"]');
+  await openView(page, 'nursevoice');
   expect(await page.waitForFunction(() => (document.querySelector('#niList') || {}).textContent && document.querySelector('#niList').textContent.includes('نحتاج الطلب بسرعة'), null, { timeout: 15000 }).then(() => true, () => false),
     'the complaint is copied to the nurse survey platform');
   await page.fill('#niMsg', 'ملاحظة استبيان تجريبية');
   await page.click('[data-act="niSend"]');
   expect(await toastHas(page, 'أُرسلت ملاحظتك'), 'survey note sent');
-  await page.click('.sidebar [data-view="mine"]'); await page.waitForSelector('#mineList .req');
+  await openView(page, 'mine'); await page.waitForSelector('#mineList .req');
   await logout(page);
 
   // ---------- Procurement ----------
@@ -354,7 +363,7 @@ function log(msg) { console.log('  ✔ ' + msg); }
   expect(await page.locator('.chip[data-g="review"] .count-pill').textContent() === '1', 'procurement sees it under "With doctor" right after submission');
   await shot(page, 'proc-bulk-new');
   await page.click('[data-act="clearSel"]');
-  await page.click('.sidebar [data-view="complaints"]');
+  await openView(page, 'complaints');
   await page.waitForSelector('#cList .req');
   expect(await page.locator('#cList [data-act="resolve"]').count() === 0 && await page.locator('#cList [data-act="cProg"][data-step="progress"]').count() >= 1,
     'procurement cannot close issues, it replies: «in progress» → «handled»');
@@ -372,7 +381,7 @@ function log(msg) { console.log('  ✔ ' + msg); }
   expect((await page.textContent('#cList')).includes('تمت المعالجة'), 'complaint marked handled with procurement reply');
   await shot(page, 'procurement-complaints');
   // الطلبات الخارجية: من بطاقة الطلب ← اختيار الصنف والكمية ← مورد ← طلب عرض سعر ← أُرسل للمندوب بتاريخ متوقع
-  await page.click('.sidebar [data-view="requests"]');
+  await openView(page, 'requests');
   await page.click('.chip[data-g="all"]');
   await page.waitForSelector(`#procList .req[data-rid="${newId}"] [data-act="eoFromReq"]`);
   await page.click(`#procList .req[data-rid="${newId}"] [data-act="eoFromReq"]`);
@@ -380,7 +389,7 @@ function log(msg) { console.log('  ✔ ' + msg); }
   await page.fill('.modal #eoSup2', 'مؤسسة الاختبار');
   await page.click('.modal #eoAdd');
   expect(await toastHas(page, 'للطلبية الخارجية'), 'items added to an external order for a supplier');
-  await page.click('.sidebar [data-view="extorders"]');
+  await openView(page, 'extorders');
   await page.waitForSelector('#eoList .req:has-text("مؤسسة الاختبار")');
   await page.click('#eoList .req:has-text("مؤسسة الاختبار") [data-act="eoRfq"]');
   await page.waitForSelector('.modal .rep-table tbody tr');
@@ -392,7 +401,7 @@ function log(msg) { console.log('  ✔ ' + msg); }
   await page.waitForSelector('#eoList .req:has-text("مؤسسة الاختبار") [data-act="eoArrived"]');
   expect((await page.textContent('#eoStats')).includes('مؤسسة الاختبار'), 'sent to the rep with an expected date — counted in the reps statistics');
   await shot(page, 'external-orders');
-  await page.click('.sidebar [data-view="complaints"]'); await page.waitForSelector('#cList .req');
+  await openView(page, 'complaints'); await page.waitForSelector('#cList .req');
   await logout(page);
 
   // ---------- Doctor ----------
@@ -477,7 +486,7 @@ function log(msg) { console.log('  ✔ ' + msg); }
   // ---------- Procurement: prepare & dispatch after approval ----------
   await login(page, 'علي', '3333');
   expect(await page.isVisible('#pageTitle:has-text("البلاغات")'), 'app remembers the last visited screen');
-  await page.click('.sidebar [data-view="requests"]');
+  await openView(page, 'requests');
   // مراحل التموين: كل طلب في مرحلة واحدة فقط — ومجموع المراحل = «الكل»
   const stageSum = await page.evaluate(() => Array.from(document.querySelectorAll('#procChips .chip:not([data-g="all"]) .count-pill')).reduce((a, x) => a + Number(x.textContent), 0));
   const stageAll = Number(await page.textContent('#procChips .chip[data-g="all"] .count-pill'));
@@ -590,7 +599,7 @@ function log(msg) { console.log('  ✔ ' + msg); }
   await page.click('.modal #bxpOk');
   expect(await toastHas(page, 'اكتمل'), 'all quantities dispatched → request sent');
   // ---------- البوكسات: الإرسال حمّل بوكس الطبيب ← السواق يمسح ويسلّم بصورة ----------
-  await page.click('.sidebar [data-view="boxes"]');
+  await openView(page, 'boxes');
   await page.waitForSelector('#bxList .box-card');
   const bx = await page.evaluate(() => BX.data.boxes[0]);
   expect(await page.evaluate(() => { const ids = Array.from(document.querySelectorAll('#bxList .box-card .req-id')).map(e => e.textContent); return ids.length > 0; }), 'boxes listed (newest activity first)');
@@ -659,7 +668,7 @@ function log(msg) { console.log('  ✔ ' + msg); }
   // ---------- Nurse receives ----------
   await login(page, 'سارة', '1111');
   expect(await page.isVisible('.alert.info'), 'nurse is alerted about a request to receive');
-  await page.click('.sidebar [data-view="mine"]');
+  await openView(page, 'mine');
   expect(await page.textContent(`.req:has-text("${newId}") [data-act="receive"] .count-pill`) === '2', 'receive button shows 2 shipments waiting');
   expect(await page.isVisible(`.req:has-text("${newId}") .tag.arrived`), 'request card shows «وصل الفرع» after the driver delivery');
   expect((await page.getAttribute(`.req:has-text("${newId}")`, 'style') || '').includes('--t-cyan'), 'arrived request card is colored as a whole');
@@ -876,13 +885,13 @@ function log(msg) { console.log('  ✔ ' + msg); }
   await shot(page, 'lab-board', true);
   await page.click('.lab-card [data-act="labDo"][data-a="send"][data-items*=","]');
   expect(await toastHas(page, 'أُرسل للعيادة'), 'lab sent both items back to the clinic');
-  await page.click('.sidebar [data-view="labkpi"]');
+  await openView(page, 'labkpi');
   await page.waitForSelector('#lkBody .rp-tile');
   expect((await page.textContent('#lkBody')).includes('معمل النخبة'), 'lab KPIs list labs');
   await shot(page, 'lab-kpis', true);
   await logout(page);
   await login(page, 'سارة', '1111');
-  await page.click('.sidebar [data-view="labmine"]');
+  await openView(page, 'labmine');
   await page.waitForSelector('#labList [data-act="labConfirm"]');
   await page.click('#labList [data-act="labConfirm"]');
   expect(await toastHas(page, 'تأكيد استلام'), 'nurse confirmed receipt of lab work');
@@ -907,7 +916,7 @@ function log(msg) { console.log('  ✔ ' + msg); }
   await logout(page);
   // المعمل: بحث برقم الملف ← Delivered to Patient
   await login(page, 'فني المعمل', '8888');
-  await page.click('.sidebar [data-view="labboard"]');
+  await openView(page, 'labboard');
   await page.waitForSelector('#labList .lab-card');
   await page.fill('[data-input="labQ"]', 'F-1001');
   await page.waitForTimeout(300);
@@ -921,7 +930,7 @@ function log(msg) { console.log('  ✔ ' + msg); }
   await logout(page);
   // مسؤول المعمل يطلب مستهلكات للمعمل: بلا طبيب أو اعتماد، والتموين يسلّمها مباشرة بلا بوكس
   await login(page, 'فني المعمل', '8888');
-  await page.click('.sidebar [data-view="new"]');
+  await openView(page, 'new');
   await page.waitForSelector('#itemSearch');
   expect(!(await page.$('#fDoctor')) && !(await page.$('#fKind')) && (await page.textContent('.new-layout')).includes('مستهلكات المعمل'), 'lab form: no doctor or clinic, «lab supplies» only');
   await page.fill('#itemSearch', 'floss');
@@ -931,12 +940,12 @@ function log(msg) { console.log('  ✔ ' + msg); }
   await page.click('#submitBtn');
   expect(await toastHas(page, 'تم إرسال'), 'lab submitted a supply request');
   const labSupId = await page.evaluate(() => __gas.dump('Requests').slice(-1)[0][0]);
-  await page.click('.sidebar [data-view="mine"]');
+  await openView(page, 'mine');
   await page.waitForSelector(`.req:has-text("${labSupId}")`);
   expect((await page.textContent(`.req:has-text("${labSupId}") .badge`)).includes('جديد'), 'lab sees its request as new');
   await logout(page);
   await login(page, 'علي', '3333');
-  await page.click('.sidebar [data-view="requests"]');
+  await openView(page, 'requests');
   await page.waitForSelector(`.req[data-rid="${labSupId}"]`);
   expect((await page.textContent(`.req[data-rid="${labSupId}"]`)).includes('مستهلكات المعمل'), 'procurement sees «lab supplies»');
   await page.check(`.req[data-rid="${labSupId}"] .req-main > .check`);
@@ -950,7 +959,7 @@ function log(msg) { console.log('  ✔ ' + msg); }
   expect(true, 'lab supplies are received on handover (no signature)');
   await logout(page);
   await login(page, 'د. خالد', 'dr-khaled-7');
-  await page.click('.sidebar [data-view="labdoc"]');
+  await openView(page, 'labdoc');
   await page.waitForSelector('#labList .lab-card');
   expect(await page.locator('#labList .lab-card').count() === 3, 'doctor follows his patient cases (original + redo + iTero)');
   await page.click('#labList .lab-card.redo [data-act="labOpen"] >> nth=0');
@@ -963,7 +972,7 @@ function log(msg) { console.log('  ✔ ' + msg); }
   // ---------- عُهدة العيادة: المعيار ← الصرف بالأرقام التسلسلية ← بلاغ الممرضة ← استلام بصورة ← تالفة ← بديل ----------
   const PNG2 = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==', 'base64');
   await login(page, 'علي', '3333');
-  await page.click('.sidebar [data-view="assets"]');
+  await openView(page, 'assets');
   await page.waitForSelector('#asClinics');
   expect(!(await page.$('#asTickets')), 'custody opens on clinics, not tickets');
   await page.waitForSelector('#asClinics .as-br');
@@ -1038,7 +1047,7 @@ function log(msg) { console.log('  ✔ ' + msg); }
   await shot(page, 'assets-procurement-clinics', true);
   await logout(page);
   await login(page, 'سارة', '1111');
-  await page.click('.sidebar [data-view="assets"]');
+  await openView(page, 'assets');
   expect(await page.isVisible('#asReportBtn') && (await page.textContent('#pageSub')).trim() === '', 'nurse custody page: «report a faulty tool» button on top, no subtitle');
   await page.waitForSelector('#asClinics section');
   expect(!(await page.textContent('#asClinics')).includes('عيادة الجلدية 1') && (await page.textContent('#asClinics')).includes('بلا عهدة مسجلة'), 'clinics without custody are collapsed into one line');
@@ -1065,7 +1074,7 @@ function log(msg) { console.log('  ✔ ' + msg); }
   await logout(page);
   await login(page, 'علي', '3333');
   expect(await page.isVisible('.alert:has-text("بلاغ أداة جديد")'), 'procurement gets a new-tool-ticket alert');
-  await page.click('.sidebar [data-view="assets"]');
+  await openView(page, 'assets');
   await page.click('[data-seg-name="asTab"][data-v="tickets"]');
   await page.waitForSelector('#asTickets .req');
   await page.click('#asTickets .req [data-act="asTicket"]');
@@ -1103,7 +1112,7 @@ function log(msg) { console.log('  ✔ ' + msg); }
   const rjId = await page.evaluate(() => call('createRequest', { clinic: 'Sterilization', branch: 'جدة', type: 'شهري', items: [{ name: 'PROPHY PASTE', qty: 2 }, { name: 'DENTAL FLOSS', qty: 4 }] }).then(r => r.id));
   await logout(page);
   await login(page, 'علي', '3333');
-  await page.click('.sidebar [data-view="requests"]');
+  await openView(page, 'requests');
   await page.waitForSelector('[data-rid="' + rjId + '"] [data-act="procToggle"]');
   await page.click('[data-rid="' + rjId + '"] .req-actions [data-act="procToggle"]');
   await page.click('#exp-' + rjId + ' [data-act="rejItem"][data-item="DENTAL FLOSS"]');
@@ -1130,7 +1139,7 @@ function log(msg) { console.log('  ✔ ' + msg); }
   const stId = await page.evaluate(() => call('createRequest', { clinic: 'Sterilization', branch: 'الرياض', type: 'شهري', items: [{ name: 'PROPHY PASTE', qty: 2 }, { name: 'DENTAL FLOSS', qty: 4 }] }).then(r => r.id));
   await logout(page);
   await login(page, 'علي', '3333');
-  await page.click('.sidebar [data-view="requests"]');
+  await openView(page, 'requests');
   await page.waitForSelector('[data-rid="' + stId + '"] [data-act="procToggle"]');
   await page.click('[data-rid="' + stId + '"] .req-actions [data-act="procToggle"]');
   await page.waitForSelector('#exp-' + stId + ' .item-st[data-item="DENTAL FLOSS"]');
@@ -1176,22 +1185,22 @@ function log(msg) { console.log('  ✔ ' + msg); }
   expect(await page.locator(`#procList .req[data-rid="${stId}"]`).count() === 1, '«cancelled» chip lists it');
   await logout(page);
   await login(page, 'سارة', '1111');
-  await page.click('.sidebar [data-view="mine"]');
+  await openView(page, 'mine');
   await page.waitForSelector(`.req:has-text("${stId}") .cancel-box`);
   expect((await page.textContent(`.req:has-text("${stId}") .cancel-box`)).includes('الأصناف غير متوفرة هذا الشهر') && (await page.textContent(`.req:has-text("${stId}") .badge`)).includes('ملغي'), 'nurse sees the request cancelled with the reason');
   await logout(page);
   await login(page, 'منى', '5555');
-  await page.click('.sidebar [data-view="monitor"]');
+  await openView(page, 'monitor');
   await page.waitForSelector('#monRev .card');
   expect((await page.textContent('#monRev')).includes('أُرسلت بالغلط قبل وصول المندوب') && (await page.textContent('#monRev')).includes(stId), 'quality sees the undo log (who, when, what, why)');
   await shot(page, 'undo-log', true);
-  await page.click('.sidebar [data-view="overview"]');
+  await openView(page, 'overview');
   await logout(page);
 
   // ---------- Quality dashboard ----------
   await login(page, 'منى', '5555');
   // إغلاق بلاغ مفتوح بملاحظة
-  await page.click('.sidebar [data-view="complaints"]');
+  await openView(page, 'complaints');
   await page.waitForSelector('#cList [data-act="resolve"]');
   await page.click('#cList [data-act="resolve"] >> nth=0');
   await page.waitForSelector('.modal #rsNote');
@@ -1204,7 +1213,7 @@ function log(msg) { console.log('  ✔ ' + msg); }
   await page.click('[data-act="cFilter"]:not([data-g="open"])');
   await page.waitForSelector('#cList :text("تم التواصل مع التموين")');
   expect((await page.textContent('#cList')).includes('ملاحظة الإغلاق'), 'closed complaints show their closing note');
-  await page.click('.sidebar [data-view="overview"]');
+  await openView(page, 'overview');
   await page.waitForSelector('#dashKpis .kpi-val');
   await page.waitForTimeout(1200);
   await shot(page, 'dashboard-light', true);
@@ -1213,7 +1222,7 @@ function log(msg) { console.log('  ✔ ' + msg); }
   await shot(page, 'dashboard-dark', true);
   await page.click('.topbar [data-act="toggleTheme"]');
   // توزيع الحالات قابل للضغط: يعرض كل طلبات الحالة، ورقم الطلب يفتح تفاصيله
-  await page.click('.sidebar [data-view="overview"]');
+  await openView(page, 'overview');
   await page.waitForSelector('#dashDist .legend-btn');
   const lgN = Number(await page.textContent('#dashDist .legend-btn >> nth=0 >> b'));
   const sums = await page.evaluate(() => ({ legend: Array.from(document.querySelectorAll('#dashDist .legend-btn b')).reduce((x, b) => x + Number(b.textContent), 0), total: S.dash.stats.count }));
@@ -1245,12 +1254,12 @@ function log(msg) { console.log('  ✔ ' + msg); }
   await page.keyboard.press('Escape'); await page.waitForTimeout(250);
   await page.keyboard.press('Escape'); await page.waitForTimeout(300);
   // التقارير والإحصائيات + تقرير طبيب من قائمة منسدلة
-  await page.click('.sidebar [data-view="reports"]');
+  await openView(page, 'reports');
   // تم تحميلها مسبقاً في الخلفية بعد الدخول: تظهر فوراً بلا انتظار الخادم
   expect(await page.waitForSelector('#rpStats .rp-tile', { timeout: 250 }).then(() => true, () => false), 'reports open instantly (preloaded in the background after login)');
-  await page.click('.sidebar [data-view="monitor"]');
+  await openView(page, 'monitor');
   expect(await page.waitForSelector('#monBody .rp-tile', { timeout: 250 }).then(() => true, () => false), 'follow-up screen opens instantly (preloaded)');
-  await page.click('.sidebar [data-view="reports"]');
+  await openView(page, 'reports');
   await page.click('[data-seg-name="rpMode"][data-v="all"]');
   await page.click('[data-act="rpGo"]');
   await page.waitForSelector('#rpStats .rp-tile');
@@ -1258,6 +1267,11 @@ function log(msg) { console.log('  ✔ ' + msg); }
   expect(await page.locator('#rpStats .rp-table').count() === 5, 'tables by doctor, doctor billing, branch, clinic and top items');
   expect((await page.textContent('#rpStats')).includes('الحسبة المالية للأطباء') && await page.locator('#rpStats .tag.bill-box').count() >= 1, 'doctor billing table (clinic / box) is shown');
   expect((await page.textContent('#rpStats .rp-table >> nth=0')).includes('د. خالد'), 'doctor table lists doctors');
+  await page.click('#rpStats [data-act="rpValWhy"] >> nth=0');
+  await page.waitForSelector('.modal tbody tr');
+  expect((await page.textContent('.modal')).includes('ما الذي يكوّن هذه القيمة'), 'doctor value opens its biggest items (qty × price)');
+  await shot(page, 'report-value-why');
+  await page.keyboard.press('Escape');
   await page.waitForSelector('#rpDoctor option[value="د. خالد"], #rpDoctor option:has-text("د. خالد")', { state: 'attached' });
   await page.selectOption('#rpDoctor', 'د. خالد');
   await page.click('[data-act="rpDoc"]');
@@ -1268,17 +1282,18 @@ function log(msg) { console.log('  ✔ ' + msg); }
   await page.waitForSelector('#rpDocOut .rep-grand');
   expect(true, 'report button in the doctor table opens that doctor');
   await shot(page, 'reports-statistics', true);
-  await page.click('.sidebar [data-view="notices"]');
+  await openView(page, 'notices');
   await page.click('[data-seg-name="noticeTarget"][data-v="ممرضة"]');
   await page.fill('#noticeMsg', 'يرجى تأكيد الاستلام في نفس اليوم');
   await page.click('[data-act="sendNotice"]');
   expect(await toastHas(page, 'تم إرسال التنبيه'), 'notice sent');
   // ---------- Quality: deadlines & procurement follow-up ----------
-  const qNav = await page.$$eval('.sidebar .nav-item', els => els.map(e => e.dataset.view));
+  const qNav = await page.$$eval('.sidebar .nav-item', els => [].concat(...els.map(e => (e.dataset.members ? e.dataset.members.split(' ') : [e.dataset.view]))));
+  expect((await page.textContent('.sidebar')).includes('لوحة المتابعة') && await page.locator('.sidebar [data-members~="monitor"]').count() === 1, 'related tabs are grouped (follow-up board = overview + monitor + doctors live)');
   expect(qNav.includes('monitor') && !qNav.includes('users') && !qNav.includes('finance'), 'quality menu follows its permissions (follow-up yes, users/finance no): ' + qNav.join(','));
   // أسعار الأطباء: الجودة تمنح/تحجب
   expect(qNav.includes('docprices'), 'quality sees «Doctor prices»');
-  await page.click('.sidebar [data-view="docprices"]');
+  await openView(page, 'docprices');
   await page.waitForSelector('#dpBody [data-act="dpSet"]');
   expect((await page.textContent('#dpBody')).includes('د. خالد') && await page.locator('#dpBody .tag.pv').count() >= 1, 'doctor list with who sees prices');
   await page.click('#dpBody [data-act="dpSet"][data-u="د. خالد"]');
@@ -1288,13 +1303,13 @@ function log(msg) { console.log('  ✔ ' + msg); }
   await shot(page, 'quality-doctor-prices');
   // نتائج استبيان الأطباء
   expect(qNav.includes('surveys'), 'quality sees «Doctor survey»');
-  await page.click('.sidebar [data-view="surveys"]');
+  await openView(page, 'surveys');
   await page.waitForSelector('#svBody .rp-tile');
   expect((await page.textContent('#svBody')).includes('تتبع البوكس ممتاز') && (await page.textContent('#svBody')).includes('د. خالد'), 'survey results: per question, written feedback and each doctor answer');
   await shot(page, 'quality-survey', true);
   // الأطباء — مباشر
   expect(qNav.includes('doctorslive'), 'quality sees «Doctors — live»');
-  await page.click('.sidebar [data-view="doctorslive"]');
+  await openView(page, 'doctorslive');
   await page.waitForSelector('#dlBody .rp-table');
   expect(await page.locator('#dlTiles .rp-tile').count() === 5 && (await page.textContent('#dlTiles')).includes('جديد · لم يعتمده الطبيب بعد'), 'totals by stage at the top (review, new, approved, prep, sent)');
   expect((await page.textContent('#dlBody')).includes('د. خالد'), 'one row per doctor');
@@ -1303,7 +1318,7 @@ function log(msg) { console.log('  ✔ ' + msg); }
   expect(await page.locator('.modal [data-act="detail"]').count() >= 1, 'a count opens the requests behind it');
   await shot(page, 'doctors-live', true);
   await page.keyboard.press('Escape');
-  await page.click('.sidebar [data-view="monitor"]');
+  await openView(page, 'monitor');
   await page.waitForSelector('#monBody .rp-tile');
   expect(await page.locator('#monBody .mon-doc').count() === 4, 'monthly cycle is tracked per doctor (not per clinic)');
   expect(await page.locator('#monBody [data-act="monNudge"]').count() >= 1, 'overdue requests are listed with a nudge button');
@@ -1324,9 +1339,9 @@ function log(msg) { console.log('  ✔ ' + msg); }
   // ---------- Finance ----------
   await login(page, 'نواف', '7777');
   await page.waitForSelector('#fnBody .rp-tile');
-  const fNav = await page.$$eval('.sidebar .nav-item', els => els.map(e => e.dataset.view));
+  const fNav = await page.$$eval('.sidebar .nav-item', els => [].concat(...els.map(e => (e.dataset.members ? e.dataset.members.split(' ') : [e.dataset.view]))));
   expect(fNav[0] === 'finance' && !fNav.includes('users') && !fNav.includes('complaints'), 'finance lands on its own screen: ' + fNav.join(','));
-  expect(await page.locator('#fnBody .rp-tile').count() === 8, 'finance shows 8 money figures');
+  expect(await page.locator('#fnBody .rp-tile').count() === 9, 'finance shows 9 money figures (incl. awaiting doctor approval)');
   await page.waitForSelector('#fnPrices tr:has-text("Itero Sleeve") .price-in');
   await page.fill('#fnPrices tr:has-text("Itero Sleeve") .price-in', '320');
   await page.click('#fnPrices tr:has-text("Itero Sleeve") [data-act="priceSave"]');
@@ -1348,10 +1363,10 @@ function log(msg) { console.log('  ✔ ' + msg); }
   await shot(page, 'finance-doctor-branches');
   await shot(page, 'finance', true);
   // المالية تضيف وتعدّل الأصناف مثل التموين
-  await page.click('.sidebar [data-view="catalog"]');
+  await openView(page, 'catalog');
   await page.waitForSelector('#caList tr:has-text("Itero Sleeve")');
   expect(await page.isVisible('[data-act="caEdit"]'), 'finance has the items tab with add/edit');
-  await page.click('.sidebar [data-view="assetsdash"]');
+  await openView(page, 'assetsdash');
   await page.waitForSelector('#asStats .rp-tile');
   expect((await page.textContent('#asStats')).includes('1,500') && (await page.textContent('#asStats')).includes('Handpiece Low Speed'), 'finance sees custody cost (loss 1,500) by tool');
   await shot(page, 'assets-dashboard', true);
@@ -1374,16 +1389,16 @@ function log(msg) { console.log('  ✔ ' + msg); }
   const tabErrors = [];
   for (const v of adminNav) {
     await page.evaluate(() => document.querySelectorAll('.toast').forEach(t => t.remove()));
-    await page.click('.sidebar [data-view="' + v + '"]');
+    await openView(page, v);
     await page.waitForTimeout(1200);
     const err = await page.evaluate(() => Array.from(document.querySelectorAll('.toast.error, #view .empty')).map(e => e.innerText).filter(x => /تعذّر|غير مسموح|ERR_|صلاحية/.test(x)).join(' | '));
     if (err) tabErrors.push(v + ': ' + err);
   }
   expect(!tabErrors.length, 'every admin tab opens without errors' + (tabErrors.length ? ' — ' + tabErrors.join(' ; ') : ''));
-  await page.click('.sidebar [data-view="boxes"]');
+  await openView(page, 'boxes');
   await page.waitForSelector('#bxList');
   expect(!!(await page.$('#bxDrvUrl')), 'admin manages boxes (driver link visible, not read-only)');
-  await page.click('.sidebar [data-view="users"]');
+  await openView(page, 'users');
   await page.waitForSelector('#uTable table');
   await shot(page, 'admin-users');
   await page.click('[data-act="userNew"]');
@@ -1505,7 +1520,7 @@ function log(msg) { console.log('  ✔ ' + msg); }
   await page.waitForSelector('#mtList .req:has-text("مغلق")');
   await logout(page);
   await login(page, 'المدير', '1234');
-  await page.click('.sidebar [data-view="users"]');
+  await openView(page, 'users');
   await page.waitForSelector('#uTable table');
   await page.waitForSelector('#bkBox');
   await page.waitForFunction(() => /لم تُؤخذ|آخر نسخة/.test(document.getElementById('bkBox').textContent));
@@ -1547,7 +1562,7 @@ function log(msg) { console.log('  ✔ ' + msg); }
 
   // ---------- English / LTR ----------
   await page.click('.topbar [data-act="toggleLang"]');
-  await page.click('.sidebar [data-view="overview"]');
+  await openView(page, 'overview');
   await page.waitForTimeout(1300);
   expect(await page.evaluate(() => document.documentElement.dir) === 'ltr', 'language toggle switches to LTR');
   await shot(page, 'dashboard-english');
@@ -1561,7 +1576,7 @@ function log(msg) { console.log('  ✔ ' + msg); }
       { name: 'salk', qty: 2, free: true, type: 'مستهلك' }, { name: 'gloves big', qty: 3, free: true, type: 'مستهلك' }, { name: 'wrong thing', qty: 1, free: true, type: 'ماتيريال' }] }]);
   });
   await login(page, 'علي', '3333');
-  await page.click('.sidebar [data-view="freeitems"]');
+  await openView(page, 'freeitems');
   await page.waitForSelector('#fiList .fi-row');
   expect(await page.locator('#fiList .fi-row').count() === 3, 'procurement «free items» tab lists the nurse-added items');
   await shot(page, 'proc-free-items');
@@ -1587,7 +1602,7 @@ function log(msg) { console.log('  ✔ ' + msg); }
   await page.waitForSelector('#fiList .empty, #fiList .empty-state');
   await logout(page);
   await login(page, 'سارة', '1111');
-  await page.click('.sidebar [data-view="new"]');
+  await openView(page, 'new');
   await page.click('[data-seg-name="reqKind"][data-v="doctor"]');
   await page.waitForSelector('#itemSearch');
   await page.fill('#itemSearch', 'gloves');
@@ -1601,7 +1616,7 @@ function log(msg) { console.log('  ✔ ' + msg); }
 
   // ---------- التموين يدير الأصناف من الموقع، والأدمن يدير الأطباء ----------
   await login(page, 'علي', '3333');
-  await page.click('.sidebar [data-view="catalog"]');
+  await openView(page, 'catalog');
   await page.waitForSelector('#caList table');
   // إضافة أصناف دفعة واحدة: لصق صفوف من Excel (مع سطر رؤوس الأعمدة) في الجدول
   await page.click('.card-head [data-act="caBulk"]');
@@ -1698,11 +1713,11 @@ function log(msg) { console.log('  ✔ ' + msg); }
   expect(sheet.includes('DENTAL FLOSS') && !sheet.includes('>Floss thread<') && sheet.includes('PROPHY PASTE'), 'print sheet uses the procurement name');
   expect(/لم تُطبع 1 /.test(sheet) && !/<td><div style="font-weight:600">Saliva tips/.test(sheet), 'unapproved free item is left off the sheet, with a note');
   await page.fill('#caQ', '');
-  expect(await page.locator('.sidebar [data-view="docadmin"]').count() === 0, 'procurement has no doctors tab (admin only)');
+  expect(await page.locator('.sidebar [data-view="docadmin"], .sidebar [data-members~="docadmin"]').count() === 0, 'procurement has no doctors tab (admin only)');
   await logout(page);
   // الأطباء (الأدمن فقط): طبيب جديد بحساب دخول
   await login(page, 'المدير', '1234');
-  await page.click('.sidebar [data-view="docadmin"]');
+  await openView(page, 'docadmin');
   await page.waitForSelector('#daList .da-row');
   await page.click('.card-head [data-act="daEdit"]');
   await page.waitForSelector('.modal #daN');
@@ -1721,13 +1736,13 @@ function log(msg) { console.log('  ✔ ' + msg); }
   await shot(page, 'proc-doctors');
   await logout(page);
   await login(page, 'Dr.Majed', '9090');
-  expect(await page.isVisible('.sidebar [data-view="reviews"]'), 'the new doctor logs in to the doctor page');
+  expect(await page.isVisible('.sidebar [data-view="reviews"], .sidebar [data-members~="reviews"]'), 'the new doctor logs in to the doctor page');
   await logout(page);
 
   // ---------- XSS check ----------
   await login(page, 'سارة', '1111');
   await page.evaluate(() => __api(null, 'login', ['سارة', '1111']));
-  await page.click('.sidebar [data-view="mine"]');
+  await openView(page, 'mine');
   await page.click(`.req:has-text("${newId}") [data-act="detail"]`);
   await page.waitForSelector('#dComment');
   await page.fill('#dComment', '<img src=x onerror="window.__xss=1">');
@@ -1740,8 +1755,8 @@ function log(msg) { console.log('  ✔ ' + msg); }
     const tok = (await __api(null, 'login', ['سارة', '1111'])).token;
     return (await __api(tok, 'createRequest', [{ doctor: 'د. خالد', type: 'شهري', items: [{ name: 'PROPHY PASTE', qty: 9 }] }])).id;
   });
-  await page.click('.sidebar [data-view="new"]');
-  await page.click('.sidebar [data-view="mine"]');
+  await openView(page, 'new');
+  await openView(page, 'mine');
   await page.click(`.req:has-text("${wdId}") [data-act="detail"]`);
   await page.waitForSelector('.modal [data-act="withdraw"]');
   await page.click('.modal [data-act="withdraw"]');
@@ -1759,8 +1774,8 @@ function log(msg) { console.log('  ✔ ' + msg); }
     const tok = (await __api(null, 'login', ['سارة', '1111'])).token;
     return (await __api(tok, 'createRequest', [{ clinic: 'Sterilization', branch: 'الرياض', type: 'شهري', items: [{ name: 'PROPHY PASTE', qty: 11 }, { name: 'DENTAL FLOSS', qty: 3 }] }])).id;
   });
-  await page.click('.sidebar [data-view="new"]');
-  await page.click('.sidebar [data-view="mine"]');
+  await openView(page, 'new');
+  await openView(page, 'mine');
   // تعديل الأصناف: تغيير كمية + حذف صنف
   await page.click(`.req:has-text("${wdId2}") .req-actions [data-act="editItems"]`);
   await page.waitForSelector('.modal .rvQty[data-item="PROPHY PASTE"]');
@@ -1786,9 +1801,9 @@ function log(msg) { console.log('  ✔ ' + msg); }
   // ---------- Housekeeper: nurse-like request for a place, only in her account, straight to procurement ----------
   await page.evaluate(async () => { const tk = (await __api(null, 'login', ['المدير', '1234'])).token; await __api(tk, 'createUser', [{ name: 'هيفاء HK', password: '3030', role: 'هاوس كيبر', clinic: '', branch: 'جدة' }]); });
   await login(page, 'هيفاء HK', '3030');
-  const hkNav = await page.$$eval('.sidebar .nav-item', els => els.map(e => e.dataset.view));
+  const hkNav = await page.$$eval('.sidebar .nav-item', els => [].concat(...els.map(e => (e.dataset.members ? e.dataset.members.split(' ') : [e.dataset.view]))));
   expect(hkNav.join(',') === 'new,mine', 'housekeeper sees only New request and My requests: ' + hkNav.join(','));
-  await page.click('.sidebar [data-view="new"]'); await page.waitForSelector('#fKind');
+  await openView(page, 'new'); await page.waitForSelector('#fKind');
   expect(await page.isHidden('[data-seg-name="reqKind"]') && (await page.textContent('#fKind')).includes('التموين مباشرة'), 'no doctor option — the request is for a place, straight to procurement');
   expect(!(await page.$('#fClinic')) && await page.isDisabled('#fBranch') && await page.inputValue('#fBranch') === 'جدة' && !(await page.$('#fBackdate')),
     'housekeeper form: her branch fixed (no clinic, no past requests)');
@@ -1798,7 +1813,7 @@ function log(msg) { console.log('  ✔ ' + msg); }
   // رقم الطلب من رسالة «تم إرسال الطلب» تحديداً (قد تبقى رسائل سابقة على الشاشة)
   const hkToast = await page.waitForFunction(() => [...document.querySelectorAll('.toast')].map(x => x.textContent).find(x => /تم إرسال الطلب/.test(x)) || null).then(h => h.jsonValue());
   const hkId = (/REQ-[\d-]+/.exec(hkToast) || [''])[0];
-  await page.click('.sidebar [data-view="mine"]');
+  await openView(page, 'mine');
   await page.evaluate(() => loadMine(true)); // القائمة قد تُرسم قبل وصول الطلب الجديد
   await page.waitForSelector(`.req:has-text("${hkId}")`);
   expect(!(await page.textContent(`.req:has-text("${hkId}") .badge`)).includes('مدير الفرع') && (await page.textContent(`.req:has-text("${hkId}") .jr-now`)).includes('التموين'), 'no branch manager step: it waits for procurement');
@@ -1806,14 +1821,14 @@ function log(msg) { console.log('  ✔ ' + msg); }
   expect(await page.evaluate(id => { const d = __gas.dump('Requests'); const h = d[0]; const r = d.find(x => x[0] === id); return r[h.indexOf('Status')] === 'جديد' && !r[h.indexOf('Approver')]; }, hkId), 'saved as new for procurement, no approver');
   await logout(page);
   await login(page, 'سارة', '1111');
-  await page.click('.sidebar [data-view="mine"]');
+  await openView(page, 'mine');
   await page.waitForTimeout(600);
   expect(!(await page.isVisible(`.req:has-text("${hkId}")`)), 'other nurses do not see the housekeeper request');
   await logout(page);
 
   // ---------- Settings in the app (no sheet): admin adds a clinic and sets the driver email; finance sees only the backdate ----------
   await login(page, 'المدير', '1234');
-  await page.click('.sidebar [data-view="settings"]');
+  await openView(page, 'settings');
   await page.waitForSelector('#stk_DriverEmail');
   await page.fill('#stk_DriverEmail', 'driver@clinic.sa');
   await page.click('[data-act="stSaveKeys"]');
@@ -1829,7 +1844,7 @@ function log(msg) { console.log('  ✔ ' + msg); }
   expect(await page.isVisible('#stl_materials') && await page.isVisible('[data-act="stQ"]'), 'labs lists and survey questions are editable');
   await shot(page, 'admin-settings');
   // الأصناف الأكثر طلباً لكل طبيب هذا الشهر
-  await page.click('.sidebar [data-view="docitems"]');
+  await openView(page, 'docitems');
   await page.waitForSelector('#diBox .card');
   expect((await page.textContent('#diBox')).includes('الأكثر طلباً:') && await page.locator('#diDoc option').count() > 2, 'items per doctor: top item per doctor this month, doctor filter');
   expect(await page.getAttribute('#diMonth', 'type') === 'month', 'month and year picked from a calendar');
@@ -1845,7 +1860,7 @@ function log(msg) { console.log('  ✔ ' + msg); }
   await page.selectOption('#diSort', 'name');
   await shot(page, 'doctor-items');
   // تصحيح الطلبات: الأدمن يفتح طلباً مستلماً ويحذف صنفاً بالسبب ثم يسترجعه
-  await page.click('.sidebar [data-view="reqfix"]');
+  await openView(page, 'reqfix');
   await page.fill('#rfId', 'REQ-H024');
   await page.click('[data-act="rfLoad"]');
   await page.waitForSelector('#rfBox table');
@@ -1880,14 +1895,14 @@ function log(msg) { console.log('  ✔ ' + msg); }
   expect(!(await page.isVisible('#rfDeleted [data-act="rfUndelete"][data-id="REQ-H024"]')), 'restored request is back and marked restored');
   await logout(page);
   await login(page, 'نواف', '7777');
-  await page.click('.sidebar [data-view="settings"]');
+  await openView(page, 'settings');
   await page.waitForSelector('#stk_BackdateUntil');
   expect(await page.locator('.st-key').count() === 1 && !(await page.isVisible('[data-act="stClinic"]')), 'finance sees only the past-requests date');
   await logout(page);
 
   // ---------- Request rules: procurement sets limits → nurse sees the window bar and is stopped with a clear message ----------
   await login(page, 'علي', '3333');
-  await page.click('.sidebar [data-view="rules"]');
+  await openView(page, 'rules');
   await page.waitForSelector('#rl_emergencyMaxItems');
   await page.fill('#rl_winStart', '25'); await page.fill('#rl_winEnd', '20');
   await page.click('#rlSave');
@@ -1909,7 +1924,7 @@ function log(msg) { console.log('  ✔ ' + msg); }
   await shot(page, 'order-rules');
   await logout(page);
   await login(page, 'سارة', '1111');
-  await page.click('.sidebar [data-view="new"]');
+  await openView(page, 'new');
   await page.waitForSelector('.rule-slot .rule-bar.in');
   const bar = await page.textContent('.rule-slot .rule-bar');
   expect(bar.includes('أنت داخل نافذة الطلب الشهري') && (bar.includes('الطارئ المتبقي لـ') || bar.includes('الحد لكل طبيب')) && bar.includes('6 ساعة') && bar.includes('1 أصناف'), 'nurse sees window, emergency left and limits — ' + bar);
@@ -1928,7 +1943,7 @@ function log(msg) { console.log('  ✔ ' + msg); }
   await page.evaluate(() => { nurseDraft().items = []; saveDraft(); });
   await logout(page);
   await login(page, 'د. خالد', 'dr-khaled-7');
-  await page.click('.sidebar [data-view="reviews"]');
+  await openView(page, 'reviews');
   await page.waitForSelector('.rule-slot .rule-bar');
   expect(await page.isVisible('.rule-slot .rule-bar') && (await page.textContent('.rule-slot .rule-bar')).includes('نافذة الطلب الشهري'), 'doctor sees the monthly window bar');
   await logout(page);
@@ -2035,7 +2050,7 @@ function log(msg) { console.log('  ✔ ' + msg); }
     }
     expect(!(await tp.isVisible('.tour-card')), 'tour can be completed to the end');
     await tp.click('.topbar [data-act="toggleLang"]');
-    await tp.click('.sidebar [data-view="workflow"]');
+    await openView(tp, 'workflow');
     await tp.waitForSelector('.wf-flow');
     expect(await tp.locator('.wf-stage').count() === 6 && await tp.isVisible('.wf-card.mine'), 'workflow page shows 6 stages and highlights your role');
     expect(await tp.locator('.wf-rolecard').count() === 0, 'nurse does not see the «who does what» block (executive, quality and admin only)');

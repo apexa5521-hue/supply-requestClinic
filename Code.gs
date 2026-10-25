@@ -28,12 +28,14 @@ const SCHEMA = {
   // Ownership: مستهلك (افتراضي) أو عهدة (على حساب الشركة) · Serialized: نعم للأدوات ذات الرقم التسلسلي (الهاندبيس…)
   // Department: أسنان / جلدية (فارغ = مشترك يظهر للقسمين) · ItemType: مستهلك أو ماتيريال (Category يبقى لتصنيف الصنف)
   ItemsCatalog: ['ItemName', 'CommercialName', 'Category', 'Price', 'Ownership', 'Serialized', 'Department', 'ItemType',
-                 'AliasOf', 'FreeStatus', 'FreeBy', 'FreeAt', 'FreeNote'], // الصنف الحر: مراجعة التموين، والاسم البديل (AliasOf) لصنف موجود
+                 'AliasOf', 'FreeStatus', 'FreeBy', 'FreeAt', 'FreeNote',
+                 'Exempt'], // Exempt = نعم: مستهلك مستثنى — يُطلب كطارئ أكثر من مرة دون أن يُحسب من حد الطوارئ · الصنف الحر: مراجعة التموين، والاسم البديل (AliasOf) لصنف موجود
   Requests:     ['RequestID', 'Date', 'Clinic', 'Doctor', 'Nurse', 'Type', 'Status',
                  'SubmittedAt', 'SentAt', 'ReceivedAt', 'ReceiverName', 'SignatureURL',
                  'PrepAt', 'VendorWaitAt', 'VendorReceivedAt', 'ReviewAt', 'ReviewedAt',
                  'RejectionReason', 'ReceiptURL', 'Branch', 'ApprovedAt', 'ClientKey', 'Department', 'Backdated',
-                 'CancelReason', 'CancelledAt', 'CancelledBy', 'Approver'], // Approver: «مدير الفرع» لطلبات الهاوس كيبر (فارغ = الطبيب)
+                 'CancelReason', 'CancelledAt', 'CancelledBy', 'Approver',
+                 'Exempt'], // Exempt = نعم: طارئ كل أصنافه «مستهلك مستثنى» — لا يُحسب من حد الطوارئ // Approver: «مدير الفرع» لطلبات الهاوس كيبر (فارغ = الطبيب)
   // ItemStatus: حالة الصنف داخل الطلبية (قيد التجهيز / بانتظار المندوب / استلم المندوب) قبل إرساله
   RequestItems: ['RequestID', 'ItemName', 'RequestedQty', 'ApprovedQty', 'ReceivedQty', 'DispatchedAt', 'DispatchBatch', 'ItemStatus', 'ItemStatusAt', 'ItemStatusBy',
                  'SubstituteOf', 'SubStatus', 'SubNote', 'SubBy', 'SubAt', // البديل: سطر جديد يشير لاسم الصنف الأصلي
@@ -166,7 +168,7 @@ const COMPLAINT_TYPES = ['تأخير', 'نقص', 'زيادة', 'أخرى'];
  *  التجهيز التلقائي بعد النشر (مرة واحدة لكل إصدار) — بلا أي خطوة يدوية:
  *  تبويبات الإعداد (Settings / LabMaterials)، قائمة العيادات المعتمدة، المشغّلات (النسخ الليلي + onChange)
  * ===================================================================== */
-const SETUP_VERSION_ = '2026-10-setup-v11';
+const SETUP_VERSION_ = '2026-10-setup-v12';
 function autoSetup_() {
   try {
     const cache = CacheService.getScriptCache();
@@ -200,6 +202,7 @@ function runSetupSteps_(force) {
     ['doctors_live', 'صفحة «الأطباء — مباشر» للجودة والتنفيذي', function () { grantPerm_('doctors_live', ['executive', 'quality']); }],
     ['boxes_view', 'تبويب البوكسات (اطلاع) لمدراء الفروع والتنفيذي', function () { grantPerm_('boxes', ['branch', 'executive']); }],
     ['maint', 'بلاغات الفرع والصيانة: دور «صيانة» + الاطلاع للتنفيذي والجودة والمالية', function () { ensureMgmtRoles_(); grantPerm_('maint', ['executive', 'quality', 'finance']); }],
+    ['ops_role', 'دور «مدير التشغيل» (يرى الأسعار والتقارير والمتابعة — بدل منح مدير الفرع الأسعار)', ensureOpsRole_],
     ['demo', 'أدوات العهدة التجريبية TEST101', function () { seedDemoAssets_(force); }],
     ['item_type', 'قائمة «مستهلك / ماتيريال» في عمود ItemType بالكتالوج', itemTypeDropdown_],
     ['triggers', 'المشغّلات (النسخ الليلي + تغييرات الشيت)', function () { if (typeof ScriptApp !== 'undefined') installTriggers(); }]
@@ -1895,6 +1898,7 @@ function getCatalog_(withPrice) {
     if (str_(r.Category) === FREE_CATEGORY_ && str_(r.FreeStatus) !== FREE_ST.OK) o.freePending = true;
     if (isAssetOwnership_(r.Ownership)) { o.asset = true; o.serialized = isYes_(r.Serialized); }
     const dp = normDept_(r.Department); if (dp) o.dept = dp;
+    if (isYes_(r.Exempt)) o.exempt = true;
     if (withPrice && !priceVisible_()) o.priceHidden = true;
     else if (withPrice) {
       o.price = price_(r.Price) || 0;
@@ -1942,6 +1946,20 @@ function permsOf_(user) {
   return rolePerms_(user.screen, r ? r.Permissions : '');
 }
 
+/**
+ * مدير التشغيل: شاشة الإدارة التنفيذية بصلاحيات تشغيلية ويرى الأسعار (مدير الفرع لا يرى الأسعار إلا بمنح).
+ * يُضاف مرة واحدة من خطوات التجهيز (لو حذفه الأدمن لا يرجع)، والأدمن يعدّل صلاحياته من «الأدوار والشاشات».
+ * فرع في حسابه (Users.Branch) = يرى فرعه فقط، وفارغ = كل الفروع.
+ */
+const OPS_ROLE_ = 'مدير التشغيل';
+const OPS_PERMS_ = ['overview', 'reports', 'monitor', 'doctors_live', 'lab_view', 'assets', 'boxes', 'complaints', 'notices', 'maint'];
+function ensureOpsRole_() {
+  if (read_('Roles').rows.some(function (r) { return str_(r.RoleName) === OPS_ROLE_; })) return;
+  withLock_(function () {
+    if (freshTable_('Roles').rows.some(function (r) { return str_(r.RoleName) === OPS_ROLE_; })) return;
+    append_('Roles', { RoleName: OPS_ROLE_, Screen: 'executive', Permissions: OPS_PERMS_.join(',') });
+  });
+}
 /** أدوار الإدارة الأساسية (جودة / مالية / تنفيذي / أدمن) تُضاف لتبويب Roles إن لم تكن موجودة، لتظهر عند إنشاء المستخدمين */
 function ensureMgmtRoles_() {
   const have = {};
@@ -2194,7 +2212,7 @@ function mapRequest_(r) {
     signature: str_(r.SignatureURL), receiptUrl: str_(r.ReceiptURL),
     rejectionReason: str_(r.RejectionReason),
     cancelReason: str_(r.CancelReason), cancelledAt: r.CancelledAt, cancelledBy: str_(r.CancelledBy),
-    backdated: isBackdated_(r)
+    backdated: isBackdated_(r), exempt: isYes_(r.Exempt)
   };
 }
 
@@ -2435,7 +2453,7 @@ function isEmergencyType_(v) { return /طار|emerg|urgent/i.test(str_(v)); }
 function orderUsage_() {
   const month = riyadh_(Date.now()).slice(0, 7), out = {};
   read_('Requests').rows.forEach(function (r) {
-    if (!str_(r.RequestID) || isOff_(str_(r.Status)) || isBackdated_(r)) return;
+    if (!str_(r.RequestID) || isOff_(str_(r.Status)) || isBackdated_(r) || isYes_(r.Exempt)) return; // الطارئ «مستهلك مستثنى» لا يُحسب
     if (monthOf_(r.SubmittedAt || r.Date) !== month) return;
     const k = orderTarget_(r.Doctor, r.Clinic), br = reqBranch_(r);
     // لكل طبيب: المجموع + لكل فرع («الطبيب|الفرع») — الحد يُطبَّق على كل فرع على حدة (للطبيب بوكس في كل فرع)
@@ -2886,7 +2904,8 @@ function getFinance_(user, opts) {
   const from = parseDay_(opts.from), to = parseDay_(opts.to, true);
   const branch = str_(opts.branch);
   const price = {};
-  getCatalog_(true).forEach(function (c) { price[c.name.toLowerCase()] = Number(c.price) || 0; });
+  // نفس قاعدة التقارير: العهدة لا تُحسب قيمتها كمستهلك (وإلا «التوفير» = المطلوب − المعتمد يتضخم بقيمة العهدة)
+  getCatalog_(true).forEach(function (c) { price[c.name.toLowerCase()] = c.asset ? 0 : (Number(c.price) || 0); });
   const pr = function (n) { return price[str_(n).toLowerCase()] || 0; };
   const all = queryRequests_({}).filter(function (r) { return !isOff_(r.status) && (!branch || r.branch === branch); });
   const inRange = {};
@@ -2895,12 +2914,17 @@ function getFinance_(user, opts) {
     if ((!from || ms >= from.getTime()) && (!to || ms <= to.getTime())) inRange[r.id] = r;
   });
   let requested = 0, received = 0, dispatched = 0;
+  // «المعتمد» = ما اعتمده الطبيب (أو لا يحتاج اعتماده) فقط · ما زال لدى الطبيب يظهر منفصلاً
+  // «التوفير من المراجعة» = المطلوب − المعتمد في الطلبات المعتمدة نفسها
+  let approved = 0, reqCleared = 0, pendingDoc = 0;
   const byType = {};
   read_('RequestItems').rows.forEach(function (it) {
     const r = inRange[str_(it.RequestID)];
     if (!r) return;
     const p = pr(it.ItemName);
     requested += (num_(it.RequestedQty) || 0) * p;
+    if (r.awaitingDoctor) pendingDoc += targetQty_(it) * p;
+    else { approved += targetQty_(it) * p; if (!str_(it.SubstituteOf)) reqCleared += (num_(it.RequestedQty) || 0) * p; }
     if (it.ReceivedQty !== '' && it.ReceivedQty !== null) received += (num_(it.ReceivedQty) || 0) * p;
     const t = r.type || '—';
     byType[t] = round2_((byType[t] || 0) + targetQty_(it) * p);
@@ -2920,8 +2944,8 @@ function getFinance_(user, opts) {
   }
   return {
     from: rep.from, to: rep.to, branch: branch, generatedAt: new Date(),
-    summary: { requests: rep.summary.requests - rep.summary.rejected, requested: round2_(requested), approved: rep.summary.value,
-      dispatched: round2_(dispatched), received: round2_(received), reviewSaving: round2_(Math.max(0, requested - rep.summary.value)),
+    summary: { requests: rep.summary.requests - rep.summary.rejected - rep.summary.cancelled, requested: round2_(requested), approved: round2_(approved), pendingDoctor: round2_(pendingDoc),
+      dispatched: round2_(dispatched), received: round2_(received), reviewSaving: round2_(Math.max(0, reqCleared - approved)),
       avgValue: rep.summary.avgValue, emergency: rep.summary.emergency },
     byType: byType, branches: rep.branches, clinics: rep.clinics, doctors: rep.doctors, billing: rep.billing, docBranches: rep.docBranches, topItems: rep.topItems,
     badPrices: rep.badPrices, trend: trend
@@ -3118,12 +3142,13 @@ function createRequest_(user, payload) {
   if (!items.length) throw new Error('ERR_NO_ITEMS');
   // الطلب من الكتالوج فقط — لا أصناف بأسماء حرة (يُعتمد اسم الكتالوج بحروفه)
   const catalogMaps = function () {
-    const catalog = {}, catDept = {};
+    const catalog = {}, catDept = {}, exempt = {};
     getCatalog_(false).forEach(function (c) {
       catalog[c.name.toLowerCase()] = c.name; catDept[c.name.toLowerCase()] = c.dept || '';
+      if (c.exempt) exempt[c.name] = true;
       (c.aliases || []).forEach(function (a) { catalog[a.toLowerCase()] = c.name; catDept[a.toLowerCase()] = c.dept || ''; }); // الاسم الذي تعرفه الممرضة ← اسم التموين
     });
-    return { catalog: catalog, catDept: catDept };
+    return { catalog: catalog, catDept: catDept, exempt: exempt };
   };
   let maps = catalogMaps();
   // قسم الطلب من عيادته: طلب الأسنان لا يقبل مستهلكات الجلدية والعكس (المشترك مسموح للقسمين)
@@ -3155,7 +3180,10 @@ function createRequest_(user, payload) {
   if (str_(payload.backdate) && !forLab) return createBackdated_(user, payload, { clinic: clinic, branch: branch, doctor: doctor, type: type, dept: dept, items: items });
   // الطبيب المحدد بفروع: لا يُطلب له في فرع لا يعمل به
   if (doctor) { const db = doctorBranches_(doctor); if (db.explicit && db.list.indexOf(branch) === -1) throw new Error('ERR_DOCTOR_BRANCH:' + db.list.join('، ')); }
-  checkOrderRules_(user, type, items.length, orderTarget_(doctor, clinic), branch);
+  // «مستهلك مستثنى»: يُطلب كطارئ أكثر من مرة — لا يُحسب من عدد أصناف الطارئ، والطارئ اللي كل أصنافه مستثناة لا يُحسب من حد الطوارئ
+  const counted = type === 'طارئ' ? items.filter(function (it) { return !maps.exempt[it.name]; }).length : items.length;
+  const exemptReq = type === 'طارئ' && !counted;
+  if (!exemptReq) checkOrderRules_(user, type, counted, orderTarget_(doctor, clinic), branch);
   const rules = getOrderRules_(user, orderTarget_(doctor, clinic), branch); // المتبقي بعد هذا الطلب يرجع للواجهة (تحديث فوري للتنبيه)
 
   // منع الإرسال المزدوج لنفس الطلب خلال دقيقتين
@@ -3189,7 +3217,7 @@ function createRequest_(user, payload) {
     append_('Requests', {
       RequestID: id, Date: now, Clinic: clinic, Branch: branch, Doctor: doctor, Nurse: user.name,
       Type: type, Status: needsReview ? ST.REVIEW : ST.NEW, SubmittedAt: now, ReviewAt: needsReview ? now : '', ClientKey: clientKey, Department: dept,
-      Approver: branchApproval ? BRANCH_APPROVER_ : ''
+      Approver: branchApproval ? BRANCH_APPROVER_ : '', Exempt: exemptReq ? 'نعم' : ''
     });
     items.forEach(function (it) { append_('RequestItems', { RequestID: id, ItemName: it.name, RequestedQty: it.qty }); });
   } catch (e) {
@@ -6037,10 +6065,11 @@ function getStatsReport_(user, opts) {
   });
   const H = 36e5;
   function hrs(a, b) { const x = toMs_(a), y = toMs_(b); return x && y && y >= x ? (y - x) / H : null; }
-  function bucket() { return { requests: 0, approved: 0, rejected: 0, pending: 0, received: 0, emergency: 0, value: 0, qty: 0, approvalHrs: [], fulfilHrs: [] }; }
+  function bucket() { return { requests: 0, approved: 0, rejected: 0, cancelled: 0, pending: 0, received: 0, emergency: 0, value: 0, qty: 0, approvalHrs: [], fulfilHrs: [] }; }
   function avg(a) { return a.length ? round1_(a.reduce(function (x, y) { return x + y; }, 0) / a.length) : null; }
   const sum = bucket(), byDoc = {}, byBranch = {}, byClinic = {}, items = {}, statuses = {};
   const bill = billingIndex_(), byBill = {};
+  const docLines = {}; // الأصناف المكوّنة لقيمة كل طبيب
   const byDocBranch = {}; // صرف كل طبيب في كل فرع (مستهلك / ماتيريال) — ما يُحسب عليه فقط
   let partial = 0;
   const docCharge = {};
@@ -6061,6 +6090,12 @@ function getStatsReport_(user, opts) {
         }
         items[k] = items[k] || { item: n, qty: 0, value: 0, requests: 0 };
         items[k].qty += q; items[k].value = round2_(items[k].value + v); items[k].requests++;
+        // تفصيل قيمة الطبيب: ما الأصناف التي تكوّنها (للتحقق من سعر خطأ أو كمية كبيرة)
+        if (v) {
+          const dl = docLines[r.doctor || CLINIC_ONLY_LABEL] || (docLines[r.doctor || CLINIC_ONLY_LABEL] = {});
+          const ln = dl[k] || (dl[k] = { item: n, qty: 0, price: cat[k] || 0, value: 0, requests: {}, type: ctype[k] || ITEM_TYPES_[0] });
+          ln.qty += q; ln.value = round2_(ln.value + v); ln.requests[r.id] = true;
+        }
       });
     }
     const approvalH = r.backdated ? null : r.approvedAt || r.status === ST.REJECTED ? hrs(r.reviewAt || r.submittedAt, r.reviewedAt || r.approvedAt) : null;
@@ -6077,6 +6112,7 @@ function getStatsReport_(user, opts) {
       byClinic[clinicKey_(r.clinic, r.branch)] = byClinic[clinicKey_(r.clinic, r.branch)] || bucket()].forEach(function (b) {
       b.requests++;
       if (r.status === ST.REJECTED) b.rejected++;
+      else if (r.status === ST.CANCELLED) b.cancelled++;
       else if (r.cleared && r.needsReview) b.approved++;
       if (r.awaitingDoctor) b.pending++;
       if (r.status === ST.RECEIVED) b.received++;
@@ -6089,17 +6125,27 @@ function getStatsReport_(user, opts) {
   function out(name, b) {
     return {
       name: name, requests: b.requests, approved: b.approved, rejected: b.rejected, pending: b.pending, received: b.received,
-      emergency: b.emergency, value: b.value, qty: b.qty, avgValue: b.requests ? round2_(b.value / (b.requests - b.rejected || 1)) : 0,
+      emergency: b.emergency, cancelled: b.cancelled, value: b.value, qty: b.qty, avgValue: b.requests ? round2_(b.value / (b.requests - b.rejected - b.cancelled || 1)) : 0,
       avgApprovalHrs: avg(b.approvalHrs), avgFulfilHrs: avg(b.fulfilHrs),
       rejectRate: b.requests ? Math.round(b.rejected / b.requests * 100) : 0
     };
+  }
+  /** أكبر 5 أصناف في قيمة الطبيب + علامة «تحقق»: صنف واحد يكوّن 40% أو أكثر، أو مستهلك سعر الوحدة فيه 1000 أو أكثر */
+  function topLines(name, total) {
+    return Object.keys(docLines[name] || {}).map(function (k) { return docLines[name][k]; })
+      .sort(function (a, b) { return b.value - a.value; }).slice(0, 5)
+      .map(function (l) {
+        const share = total ? Math.round(l.value / total * 100) : 0;
+        return { item: l.item, qty: l.qty, price: l.price, value: l.value, share: share, requests: Object.keys(l.requests),
+          check: share >= 40 || (l.type === ITEM_TYPES_[0] && l.price >= 1000) };
+      });
   }
   // بدون أسعار: الترتيب بعدد الطلبات والكمية (لا يكشف ترتيب القيمة)
   function list(m) { return Object.keys(m).map(function (k) { return out(k, m[k]); }).sort(function (a, b) { return (NO_PRICES_ ? 0 : b.value - a.value) || b.requests - a.requests || b.qty - a.qty; }); }
   return {
     from: from, to: to, branch: branch, generatedAt: new Date(),
     summary: Object.assign(out('', sum), { partial: partial }),
-    doctors: list(byDoc), branches: list(byBranch), clinics: list(byClinic), statuses: statuses, badPrices: badPrices,
+    doctors: list(byDoc).map(function (d) { d.top = topLines(d.name, d.value); return d; }), branches: list(byBranch), clinics: list(byClinic), statuses: statuses, badPrices: badPrices,
     billing: Object.keys(byBill).map(function (k) { return byBill[k]; }).sort(function (a, b) { return (a.name ? 0 : 1) - (b.name ? 0 : 1) || b.value - a.value; }),
     docBranches: NO_PRICES_ ? { branches: [], rows: [] } : docBranches_(byDocBranch, docCharge), // مبالغ فقط: لا تظهر لمن لا يرى الأسعار
     topItems: Object.keys(items).map(function (k) { return items[k]; }).sort(function (a, b) { return (NO_PRICES_ ? 0 : b.value - a.value) || b.qty - a.qty; }).slice(0, 12)
@@ -6702,7 +6748,7 @@ function getCatalogAdmin_(user) {
     const c = str_(r.Category);
     if (c) cats[c] = true;
     return { name: str_(r.ItemName), commercial: str_(r.CommercialName), category: c, price: price_(r.Price), priceIssue: priceProblem_(r.Price),
-      dept: normDept_(r.Department), type: str_(r.ItemType) || ITEM_TYPES_[0], asset: isAssetOwnership_(r.Ownership), serialized: isYes_(r.Serialized),
+      dept: normDept_(r.Department), type: str_(r.ItemType) || ITEM_TYPES_[0], asset: isAssetOwnership_(r.Ownership), serialized: isYes_(r.Serialized), exempt: isYes_(r.Exempt),
       aliases: aliases[str_(r.ItemName).toLowerCase()] || [] };
   }).sort(function (a, b) { return a.name.localeCompare(b.name); });
   return { items: items, categories: Object.keys(cats).sort(), types: ITEM_TYPES_, depts: DEPTS };
@@ -6716,7 +6762,7 @@ function catalogFields_(it) {
   if (it.price === '' || it.price === null || it.price === undefined || isNaN(p) || p < 0 || p > PRICE_MAX) throw new Error('ERR_BAD_PRICE');
   const type = ITEM_TYPES_.indexOf(str_(it.type)) !== -1 ? str_(it.type) : ITEM_TYPES_[0];
   return { name: name, obj: { ItemName: name, CommercialName: clean_(it.commercial, 120), Category: clean_(it.category, 80), Price: round2_(p),
-    Department: normDept_(it.dept), ItemType: type, Ownership: it.asset ? 'عهدة' : '', Serialized: it.asset && it.serialized ? 'نعم' : '' } };
+    Department: normDept_(it.dept), ItemType: type, Ownership: it.asset ? 'عهدة' : '', Serialized: it.asset && it.serialized ? 'نعم' : '', Exempt: it.exempt ? 'نعم' : '' } };
 }
 
 /** إضافة صنف (orig فارغ) أو تعديله؛ تغيير الاسم ينتقل للطلبات والشحنات والعهدة والأسماء البديلة */
