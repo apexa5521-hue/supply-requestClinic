@@ -3302,6 +3302,12 @@ function receiptsIndex_() {
  * طلب قديم «مرسل/مستلم» بأصناف بلا تاريخ إرسال يُعامل كشحنة واحدة، والمستلم قديماً يُعد كل شحناته مستلمة.
  */
 /** الكمية المستهدفة للصنف = المعتمدة إن حُددت وإلا المطلوبة */
+/** الكمية المستلمة فعلاً (بعد توقيع الممرضة، والمرفوض عند الاستلام = 0) — أساس القيمة في التقارير وحسبة الطبيب */
+function receivedQty_(r) {
+  if (r.ReceivedQty === '' || r.ReceivedQty === null || r.ReceivedQty === undefined) return 0;
+  const n = num_(r.ReceivedQty);
+  return isNaN(n) ? 0 : Math.max(0, Math.min(100000, Math.floor(n)));
+}
 function targetQty_(r) {
   const ss = str_(r.SubStatus);
   if (ss === SUB_ST.PENDING || ss === SUB_ST.NO) return 0; // بديل لم يوافق عليه الطبيب (أو رفضه) لا يُرسل
@@ -5997,7 +6003,8 @@ function getDoctorReport_(user, opts) {
     const items = (byReq[r.id] || []).map(function (it) {
       const name = str_(it.ItemName);
       const c = cat[name.toLowerCase()] || {};
-      const qty = Number(it.ApprovedQty !== '' && it.ApprovedQty !== null && it.ApprovedQty !== undefined ? it.ApprovedQty : it.RequestedQty) || 0;
+      const qty = receivedQty_(it); // المستلم فعلاً — ما لم يصل أو رُفض عند الاستلام لا يُحسب
+      if (!qty) return null;
       const hidden = !!c.priceHidden; // السعر خارج صلاحية الطبيب: لا يظهر ولا يدخل في الإجمالي
       // نوع لا يُحسب على هذا الطبيب (حسبة المالية): يظهر في التقرير بلا قيمة
       const off = !c.asset && !charged_(charge, c.type);
@@ -6014,11 +6021,12 @@ function getDoctorReport_(user, opts) {
       sum.lines++; sum.qty += qty;
       return hidden ? { item: name, commercial: c.commercial || '', category: c.category || '', qty: qty, priceHidden: true, company: !!c.asset, notCharged: off }
         : { item: name, commercial: c.commercial || '', category: c.category || '', qty: qty, price: price, total: total, company: !!c.asset, notCharged: off };
-    });
+    }).filter(Boolean);
     const total = round2_(items.reduce(function (a, i) { return a + (i.total || 0); }, 0));
-    sum.requests++; sum.total = round2_(sum.total + total);
+    if (items.length) sum.requests++;
+    sum.total = round2_(sum.total + total);
     return { id: r.id, date: r.submittedAt || r.date, clinic: r.clinic, branch: r.branch, type: r.type, status: r.status, items: items, total: total };
-  }).sort(function (a, b) { return toMs_(a.date) - toMs_(b.date); });
+  }).filter(function (r) { return r.items.length; }).sort(function (a, b) { return toMs_(a.date) - toMs_(b.date); });
   // العهدة المصروفة على الطبيب (من التموين مباشرة أو من طلباته) — حسب تاريخ الصرف في الفترة
   const showCost = priceVisible_();
   const custody = read_('Assets').rows.map(mapAsset_).filter(function (a) {
@@ -6065,7 +6073,7 @@ function getStatsReport_(user, opts) {
   });
   const H = 36e5;
   function hrs(a, b) { const x = toMs_(a), y = toMs_(b); return x && y && y >= x ? (y - x) / H : null; }
-  function bucket() { return { requests: 0, approved: 0, rejected: 0, cancelled: 0, pending: 0, received: 0, emergency: 0, value: 0, qty: 0, approvalHrs: [], fulfilHrs: [] }; }
+  function bucket() { return { requests: 0, approved: 0, rejected: 0, cancelled: 0, pending: 0, received: 0, valued: 0, emergency: 0, value: 0, qty: 0, approvalHrs: [], fulfilHrs: [] }; }
   function avg(a) { return a.length ? round1_(a.reduce(function (x, y) { return x + y; }, 0) / a.length) : null; }
   const sum = bucket(), byDoc = {}, byBranch = {}, byClinic = {}, items = {}, statuses = {};
   const bill = billingIndex_(), byBill = {};
@@ -6079,7 +6087,8 @@ function getStatsReport_(user, opts) {
     const who = isOff_(r.status) ? '' : billedTo_(r, bill);
     if (!isOff_(r.status)) {
       (byReq[r.id] || []).forEach(function (it) {
-        const q = targetQty_(it), n = str_(it.ItemName), k = n.toLowerCase(), v = round2_(q * (cat[k] || 0));
+        // القيمة على المستلم فعلاً فقط: ما لم يصل أو رُفض عند الاستلام لا يُحسب
+        const q = receivedQty_(it), n = str_(it.ItemName), k = n.toLowerCase(), v = round2_(q * (cat[k] || 0));
         value += v; qty += q;
         if (!who || charged_(docCharge[who], ctype[k])) billValue += v; // حسبة الطبيب: ما لا يُحسب عليه لا يدخل حسابه
         if (who && v && charged_(docCharge[who], ctype[k])) {
@@ -6117,7 +6126,7 @@ function getStatsReport_(user, opts) {
       if (r.awaitingDoctor) b.pending++;
       if (r.status === ST.RECEIVED) b.received++;
       if (r.type === 'طارئ') b.emergency++;
-      b.value = round2_(b.value + value); b.qty += qty;
+      b.value = round2_(b.value + value); b.qty += qty; if (value > 0) b.valued++;
       if (approvalH !== null) b.approvalHrs.push(approvalH);
       if (fulfilH !== null) b.fulfilHrs.push(fulfilH);
     });
@@ -6125,7 +6134,7 @@ function getStatsReport_(user, opts) {
   function out(name, b) {
     return {
       name: name, requests: b.requests, approved: b.approved, rejected: b.rejected, pending: b.pending, received: b.received,
-      emergency: b.emergency, cancelled: b.cancelled, value: b.value, qty: b.qty, avgValue: b.requests ? round2_(b.value / (b.requests - b.rejected - b.cancelled || 1)) : 0,
+      emergency: b.emergency, cancelled: b.cancelled, value: b.value, qty: b.qty, avgValue: b.valued ? round2_(b.value / b.valued) : 0, // متوسط الطلبات المستلمة
       avgApprovalHrs: avg(b.approvalHrs), avgFulfilHrs: avg(b.fulfilHrs),
       rejectRate: b.requests ? Math.round(b.rejected / b.requests * 100) : 0
     };
