@@ -1041,7 +1041,7 @@ function shipSummary(items, ships, req) {
   const left = Math.max(0, tot - sent);
   const done = items.filter(i => i.done && i.sentQty > 0).length, partialN = items.filter(i => i.partial).length;
   return '<div class="ship-sum">' +
-    '<div class="between"><div class="section-title" style="margin:0">' + icon('truck', 'i-sm') + esc(t('ship_title')) + '</div>' +
+    '<div class="between"><div class="section-title ship-heading" style="margin:0">' + icon('truck', 'i-sm') + '<span>' + esc(t('ship_title')) + '</span></div>' +
       (!left ? '<span class="badge" style="--tone:var(--t-green)"><i class="dot"></i>' + esc(t('ship_all_done')) + '</span>'
         : '<span class="hint">' + esc(t('items_done_of', { a: done, b: items.length })) + (partialN ? ' · ' + esc(t('partial_items', { n: partialN })) : '') + '</span>') + '</div>' +
     '<div class="ship-stats"><div><b>' + fmtNum(tot, 0) + '</b><span>' + esc(t('total_units')) + '</span></div>' +
@@ -2609,7 +2609,7 @@ function renderItems() {
       const cls = it._new ? '' : (it._bump ? ' bump' : '');
       const html = '<div class="item-line' + cls + '" data-row="' + i + '"' + (it._new ? '' : ' style="animation:none"') + '>' +
         '<span class="idx">' + (i + 1) + '</span>' +
-        '<div class="grow"><div class="nm">' + esc(it.name) + (c && c.aliases && c.aliases.length ? ' <span class="aka">' + esc(t('aka', { n: c.aliases.join('، ') })) + '</span>' : '') + (c && c.asset && nurseDraft().kind === 'doctor' ? ' <span class="tag as-doc">' + icon('steth', 'i-sm') + esc(t('item_custody_doc')) + '</span>' : '') + '</div>' + (c && (c.commercial || c.category) ? '<div class="mt">' + esc([c.commercial, c.category].filter(Boolean).join(' · ')) + '</div>' : (!c && it.free ? '<div class="mt">' + esc(t('free_tag', { ty: it.type })) + '</div>' : (!c ? '<div class="mt" style="color:var(--t-red)">' + esc(t('not_in_catalog')) + '</div>' : ''))) +
+        '<div class="grow"><div class="nm">' + esc(it.name) + (c && c.aliases && c.aliases.length ? ' <span class="aka">' + esc(t('aka', { n: c.aliases.join('، ') })) + '</span>' : '') + (c && c.asset && nurseDraft().kind === 'doctor' ? ' <span class="tag as-doc">' + icon('steth', 'i-sm') + esc(t('item_custody_doc')) + '</span>' : '') + '</div>' + (c && (c.commercial || mxCatalogCategory(c.category)) ? '<div class="mt">' + esc([c.commercial, mxCatalogCategory(c.category)].filter(Boolean).join(' · ')) + '</div>' : (!c && it.free ? '<div class="mt">' + esc(t('free_tag', { ty: it.type })) + '</div>' : (!c ? '<div class="mt" style="color:var(--t-red)">' + esc(t('not_in_catalog')) + '</div>' : ''))) +
           '<div class="qty-err hidden" role="alert">' + icon('alert', 'i-sm') + '<span>' + esc(t('ERR_QTY_MIN1')) + '</span></div></div>' +
         '<div class="qty"><button type="button" data-act="qtyStep" data-i="' + i + '" data-d="-1" aria-label="-">' + icon('minus', 'i-sm') + '</button>' +
           '<input type="number" inputmode="numeric" min="1" value="' + it.qty + '" data-input="qtySet" data-i="' + i + '" aria-label="' + esc(t('qty')) + '">' +
@@ -2737,7 +2737,7 @@ function setupCombo() {
       nurseDraft().items.forEach(it => { added[it.name.toLowerCase()] = it.qty; });
       list.innerHTML = '<div class="combo-head">' + esc(t(q ? 'items_found' : 'items_all', { n: matches.length, total: S.catalog.length })) + (dept ? ' · ' + esc(t('items_dept_hint', { d: S.lang === 'ar' ? dept : (dept === 'جلدية' ? 'Derma' : 'Dental') })) : '') + '</div>' + opts.map((o, i) =>
         '<div class="combo-opt" role="option" data-i="' + i + '" aria-selected="' + (i === active) + '"><span class="ic">' + icon('package') + '</span><div class="grow"><div class="nm">' + (o.alias ? '<span class="alias-nm">' + hl(o.alias, q) + '</span> <span class="alias-of">' + esc(o.name) + '</span>' : hl(o.name, q)) + ' ' + deptTag(o.c.dept) + '</div>' +
-          ((o.c.commercial || o.c.category || o.c.price) ? '<div class="mt">' + esc([o.c.commercial, o.c.category].filter(Boolean).join(' · ')) + (o.c.price ? ' · ' + fmtNum(o.c.price, 2) + ' ' + esc(t('currency')) : '') + '</div>' : '') +
+          ((o.c.commercial || o.c.category || o.c.price) ? '<div class="mt">' + esc([o.c.commercial, mxCatalogCategory(o.c.category)].filter(Boolean).join(' · ')) + (o.c.price ? ' · ' + fmtNum(o.c.price, 2) + ' ' + esc(t('currency')) : '') + '</div>' : '') +
           akaHtml(o.c) + '</div>' +
           (added[o.name.toLowerCase()] ? '<span class="combo-added">' + icon('check', 'i-sm') + '×' + added[o.name.toLowerCase()] + '</span>' : '') + '</div>').join('') + fl;
     }
@@ -9145,16 +9145,17 @@ VIEWS.new.render=function() {
 };
 const mxLegacyNewMount=VIEWS.new.mount;
 VIEWS.new.mount=function(root){mxLegacyNewMount(root);if($('#mxCatalogCards'))mxRenderCatalog();};
+function mxCatalogCategory(category) { return /^حر\s*[—–-]\s*من الممرضة$/.test(String(category || '').trim()) ? '' : (category || ''); }
 function mxCatalogItems() { const dept=draftDept();return S.catalog.filter(c=>!dept||!c.dept||c.dept===dept); }
 function mxRenderCatalog() {
   const box=$('#mxCatalogCards');if(!box)return;
   const d=nurseDraft(), all=mxCatalogItems(), q=MX.catalogQ.toLowerCase().trim();
-  const cats=Array.from(new Set(all.map(c=>c.category).filter(Boolean)));if(MX.category&&!cats.includes(MX.category))MX.category='';
+  const cats=Array.from(new Set(all.map(c=>mxCatalogCategory(c.category)).filter(Boolean)));if(MX.category&&!cats.includes(MX.category))MX.category='';
   $('#mxCatalogCategories').innerHTML=[['',mxText('الكل','All')]].concat(cats.map(c=>[c,c])).map(c=>'<button type="button" class="chip" data-act="mxCategory" data-value="'+esc(c[0])+'" aria-pressed="'+(MX.category===c[0])+'">'+esc(c[1])+'</button>').join('');
-  const list=all.filter(c=>(!MX.category||c.category===MX.category)&&(!q||[c.name,c.commercial,c.category].concat(c.aliases||[]).join(' ').toLowerCase().includes(q)));
+  const list=all.filter(c=>(!MX.category||mxCatalogCategory(c.category)===MX.category)&&(!q||[c.name,c.commercial,mxCatalogCategory(c.category)].concat(c.aliases||[]).join(' ').toLowerCase().includes(q)));
   box.innerHTML=list.length?list.slice(0,MX.catalogLimit).map(c=>{
     const index=d.items.findIndex(it=>it.name===c.name), it=d.items[index];
-    return '<article class="mx-item-card item-line'+(it?' is-selected':'')+'" data-mx-name="'+esc(c.name)+'"'+(it?' data-row="'+index+'"':'')+'><div class="mx-item-top"><span class="mx-item-icon">'+icon('package','i-lg')+'</span>'+(it?'<span class="mx-selected-mark">'+icon('check','i-sm')+'</span>':'')+'</div><h3>'+esc(c.name)+'</h3><p>'+esc(c.commercial||c.category||'')+'</p>'+
+    return '<article class="mx-item-card item-line'+(it?' is-selected':'')+'" data-mx-name="'+esc(c.name)+'"'+(it?' data-row="'+index+'"':'')+'><div class="mx-item-top"><span class="mx-item-icon">'+icon('package','i-lg')+'</span>'+(it?'<span class="mx-selected-mark">'+icon('check','i-sm')+'</span>':'')+'</div><h3>'+esc(c.name)+'</h3><p>'+esc(c.commercial||mxCatalogCategory(c.category))+'</p>'+
       (it?'<div class="qty"><button type="button" data-act="qtyStep" data-i="'+index+'" data-d="-1" aria-label="'+mxLabel('تقليل الكمية','Decrease quantity')+'">'+icon('minus','i-sm')+'</button><input type="number" inputmode="numeric" min="1" value="'+it.qty+'" data-input="qtySet" data-i="'+index+'" aria-label="'+esc(t('qty'))+'"><button type="button" data-act="qtyStep" data-i="'+index+'" data-d="1" aria-label="'+mxLabel('زيادة الكمية','Increase quantity')+'">'+icon('plus','i-sm')+'</button></div><div class="qty-err hidden" role="alert">'+esc(t('ERR_QTY_MIN1'))+'</div>':'<button type="button" class="btn btn-soft" data-act="mxAddCatalog" data-name="'+esc(c.name)+'">'+icon('plus','i-sm')+mxLabel('إضافة','Add')+'</button>')+'</article>';
   }).join('')+(list.length>MX.catalogLimit?'<button class="btn mx-load-more" data-act="mxMoreCatalog">'+mxLabel('عرض المزيد','Show more')+'</button>':''):emptyState('search',t('no_items_match'));
 }
@@ -9446,8 +9447,9 @@ openModal = function(opts) {
   MXF.root = m; m.el.classList.add('mxf-layer');
   const md = $('.modal', m.el); md.classList.add('mxf-modal'); md.insertAdjacentHTML('afterbegin', mxfRail());
   $('.scrim', m.el).removeAttribute('data-close');
-  const back = $('.modal-head [data-close]', m.el); if (back) { back.removeAttribute('data-close'); back.dataset.act = 'mxfHome'; back.setAttribute('aria-label', mxfText('قائمة مهامي', 'My task list')); }
+  // Keep the native × close handler; returning to the task list is a separate action.
   const foot = $('.modal-foot', m.el);
+  if (foot && MXF.id) foot.insertAdjacentHTML('beforeend', '<button class="btn btn-ghost" data-act="mxfHome">' + mxfText('قائمة مهامي', 'My task list') + '</button>');
   if (foot) foot.insertAdjacentHTML('beforeend', '<button class="btn btn-soft mxf-next" data-act="mxfNext">' + mxfText('الطلب التالي', 'Next task') + icon('chevr', 'i-sm flip') + '</button>');
   const close = opts.onClose;
   opts.onClose = function() {
