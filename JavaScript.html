@@ -9364,6 +9364,14 @@ function mxReportSummary(m){
 const mxReportNewHandler=ACT.mtNew;
 ACT.mtNew=el=>{const before=topModal();const result=mxReportNewHandler(el);const current=topModal();if(current!==before&&current&&current.el.classList.contains('mx-report-form'))mxReportSummary(current);return result;};
 
+const mxLegacyRenderShell=renderShell;
+renderShell=function(){
+ const result=mxLegacyRenderShell();
+ const bar=$('#topbar'),logo=$('.sidebar .masar-wordmark');
+ if(bar&&logo&&!bar.querySelector('.mx-mobile-wordmark')){const copy=logo.cloneNode(true);copy.classList.add('mx-mobile-wordmark');bar.prepend(copy);}
+ return result;
+};
+
 /* =====================================================================
    Boot
    ===================================================================== */

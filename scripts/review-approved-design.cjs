@@ -83,10 +83,10 @@ async function capture(p,name){await p.screenshot({path:path.join(OUT,name+'.png
     if(view==='new'){
      await p.setViewportSize({width:1440,height:1000});
      for(let i=0;i<3;i++){const add=p.locator('[data-act="mxAddCatalog"]').first();if(await add.count())await add.click();}
-     await p.locator('#submitBtn').click();await p.waitForSelector('#mxReviewList:not(.hidden)');
+     await capture(p,'new-selected-desktop');await p.locator('#submitBtn').click();await p.waitForSelector('#mxReviewList:not(.hidden)');
      assert(await p.locator('#itemsList .item-line').count()>0,'Missing review items');
      await capture(p,'review-desktop');
-     await p.setViewportSize({width:390,height:900});await capture(p,'review-mobile');
+     await p.setViewportSize({width:390,height:900});await capture(p,'review-mobile');assert(await p.locator('#submitBtn').evaluate(e=>{const r=e.getBoundingClientRect();return r.top>=0&&r.bottom<innerHeight-65;}),'Mobile confirmation button is outside the viewport');
      const quantity=p.locator('#itemsList [data-input="qtySet"]').first();
      await quantity.fill('0');await p.click('#submitBtn');
      assert(await p.locator('#submitErr:not(.hidden)').count(),'Quantity zero bypassed validation');
@@ -112,7 +112,7 @@ async function capture(p,name){await p.screenshot({path:path.join(OUT,name+'.png
 })().catch(e=>results.failures.push({fatal:e.stack})).finally(async()=>{
  if(browser)await browser.close();
  fs.writeFileSync(path.join(OUT,'results.json'),JSON.stringify(results,null,2));
- const screens=[['overview','النظرة العامة والإحصائيات'],['monitor','الرئيسية'],['requests','الطلبات'],['request-details','تفاصيل الطلب'],['new','إنشاء طلب جديد'],['review','مراجعة الطلب'],['maint','الصيانة والبلاغات'],['maintenance-details','تفاصيل البلاغ'],['new-report','تسجيل بلاغ جديد'],['catalog','المستلزمات'],['branches','الفروع'],['users','المستخدمون'],['settings','الإعدادات'],['reports','التقارير'],['notices','الإشعارات والإعلانات'],['boxes','البوكسات'],['mine','طلباتي']];
+ const screens=[['overview','النظرة العامة والإحصائيات'],['monitor','الرئيسية'],['requests','الطلبات'],['request-details','تفاصيل الطلب'],['new','إنشاء طلب جديد'],['new-selected','إنشاء الطلب بأصناف مختارة'],['review','مراجعة الطلب'],['maint','الصيانة والبلاغات'],['maintenance-details','تفاصيل البلاغ'],['new-report','تسجيل بلاغ جديد'],['catalog','المستلزمات'],['branches','الفروع'],['users','المستخدمون'],['settings','الإعدادات'],['reports','التقارير'],['notices','الإشعارات والإعلانات'],['boxes','البوكسات'],['mine','طلباتي']];
  const rows=screens.filter(x=>fs.existsSync(path.join(OUT,x[0]+'-desktop.png'))).map(x=>'| '+x[1]+' | [الكمبيوتر]('+x[0]+'-desktop.png) | '+(fs.existsSync(path.join(OUT,x[0]+'-mobile.png'))?'[الجوال]('+x[0]+'-mobile.png)':'—')+' |');
  fs.writeFileSync(path.join(OUT,'README.md'),'# معاينة واجهات مسار\n\nهذه لقطات من التطبيق الفعلي ببيانات اختبار في الذاكرة، وليست صورًا مولدة أو بيانات الإنتاج.\n\nالمصدر: '+results.source+'\n\nعدد فحوص العرض: '+results.checks.length+'، الإخفاقات: '+results.failures.length+'، أخطاء المتصفح: '+results.errors.length+'.\n\n| الصفحة | الكمبيوتر | الجوال |\n|---|---|---|\n'+rows.join('\n')+'\n\n[نتائج الفحص التفصيلية](results.json)\n');
  console.log(JSON.stringify({checks:results.checks.length,failures:results.failures,errors:results.errors}));
