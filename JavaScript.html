@@ -3636,6 +3636,7 @@ function loadProcItems(id, silent) {
     S.proc.items[id] = data;
     const exp = document.getElementById('exp-' + id);
     const r = S.proc.list.find(x => x.id === id);
+    if (typeof MXF !== 'undefined' && MXF.root && MXF.id === id && MXF.view === 'requests' && r && data.request) { Object.assign(r, data.request); const state = $('#mxfRecordState', MXF.root.el); if (state) state.innerHTML = badge(r.status, r) + typeTag(r.type, r.exempt); mxfUpdateRail(); }
     if (exp && r) { exp.innerHTML = procItemsHtml(r); animateBars(exp); }
   }).catch(e => { if (!silent) toast(errMsg(e), 'error'); });
 }
@@ -9521,7 +9522,7 @@ async function mxfOpen(id) {
   else if (MXF.view === 'requests') {
     S.proc.expanded.clear(); if ($('#procList')) renderProcList(false);
     const m = openModal({ title: esc(mxfRecordLabel(r)) + ' · <span class="mono">' + esc(id) + '</span>', sub: esc(r.branch || r.clinic || ''), icon: 'package', size: 'lg',
-      body: '<div class="row-wrap">' + badge(r.status, r) + typeTag(r.type, r.exempt) + '</div><div class="req-expand" id="exp-' + esc(id) + '">' + skeletonList(1) + '</div>',
+      body: '<div class="row-wrap" id="mxfRecordState">' + badge(r.status, r) + typeTag(r.type, r.exempt) + '</div><div class="req-expand" id="exp-' + esc(id) + '">' + skeletonList(1) + '</div>',
       foot: '<button class="btn" data-close>' + mxfText('حفظ وتوقف', 'Pause session') + '</button><button class="btn btn-ghost" data-act="detail" data-id="' + esc(id) + '">' + esc(t('details')) + '</button>' });
     call('getRequestItemsFull', id).then(d => { if (m.closing) return; S.proc.items[id] = d; if (d.request) Object.assign(r, d.request); $('#exp-' + CSS.escape(id), m.el).innerHTML = procItemsHtml(r); mxfReviewTools(m, '.dsp-table tbody tr'); animateBars(m.el); }).catch(e => { if (!m.closing) $('.modal-body', m.el).innerHTML = emptyState('alert', errMsg(e)); });
   } else if (MXF.view === 'mine') {
@@ -9563,7 +9564,7 @@ call = function(fn) {
 };
 function mxfSyncDispatch() {
   const m = MXF.root; if (!m || m.closing || MXF.view !== 'requests') return;
-  const native = $('.dsp-btn', m.el), foot = $('.modal-foot', m.el); if (!native || !foot) return;
+  const native = $('.dsp-btn', m.el), foot = $('.modal-foot', m.el); if (!foot) return; if (!native) { const old = $('.mxf-dispatch', foot); if (old) old.remove(); return; }
   let proxy = $('.mxf-dispatch', foot);
   if (!proxy) { foot.insertAdjacentHTML('beforeend', '<button class="btn btn-primary mxf-dispatch" data-act="dispatch" data-id="' + esc(MXF.id) + '"></button>'); proxy = $('.mxf-dispatch', foot); }
   proxy.disabled = native.disabled || MXF.busy;
