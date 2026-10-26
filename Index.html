@@ -2117,6 +2117,108 @@ h1 { font-size:26px; } h2 { font-size:19px; }
  }
 }
 
+
+/* Compact phone density; desktop/tablet sizing and data behavior are unchanged. */
+@media screen and (max-width:600px) {
+ :root { --ui-body:.875rem; --ui-detail:.8125rem; --ui-caption:.75rem; --ui-title:1.375rem; --ui-panel:.75rem; --ui-gap:.75rem; --ui-gutter:.75rem; --mx-gap:.75rem; }
+ body { font-size:14px; line-height:1.6; }
+ .content:has(.mx-page) { padding-top:.75rem; padding-inline:.75rem; }
+ .mx-page { gap:.75rem; }
+ .mx-heading { gap:.5rem; padding:0; }
+ .mx-heading h1,.workspace-head h1 { font-size:22px; line-height:1.4; }
+ .mx-breadcrumb { font-size:11px; margin-bottom:4px; }
+ .mx-heading-actions { gap:6px; }
+ .mx-page h2,.mx-panel-title h2,.mx-filter-panel h2 { font-size:15px; }
+ .mx-page h3,.mx-item-card h3 { font-size:14px; line-height:1.5; }
+ .mx-page .hint,.mx-page .label,.mx-page .field>label { font-size:12px; }
+ .mx-page .btn,.modal .btn { font-size:13px; padding:8px 10px; }
+ .mx-page .btn-primary { min-height:44px; }
+ .mx-page .i,.modal .i { width:16px; height:16px; }
+ .mx-page .i-sm,.modal .i-sm { width:14px; height:14px; }
+ .mx-page .i-lg { width:20px; height:20px; }
+ .mx-page .chip,.mx-page .segmented button { font-size:12px; padding:6px 10px; min-height:38px; }
+ .mx-page .badge,.mx-page .tag { font-size:11px; padding:3px 7px; }
+ .mx-panel-title { padding:12px; }
+ .mx-panel-body { padding:0 12px 12px; }
+ .mx-page .card-head,.mx-page .card-body,.mx-page .card-pad { padding:12px; }
+ .mx-page .table th,.mx-page .table td { font-size:13px; padding:10px 8px; }
+ .mx-metrics { gap:8px; }
+ .mx-metric { padding:10px; gap:8px; }
+ .mx-metric strong { font-size:24px; margin-top:2px; }
+ .mx-metric>div>span { font-size:12px; }
+ .mx-metric-icon { width:28px; height:28px; border-radius:8px; }
+ .mx-metric-icon .i { width:17px; height:17px; }
+ #topbar { min-height:54px; padding:6px 12px; padding-top:calc(6px + env(safe-area-inset-top)); }
+ #topbar .mx-mobile-wordmark { width:5rem; }
+ #topbar .topbar-actions { gap:2px; }
+ #topbar .btn-icon { width:40px; min-width:40px; min-height:40px; }
+ #topbar .i { width:18px; height:18px; }
+ .alerts { gap:8px; }
+ .alerts .alert { padding:8px 10px; font-size:12px; line-height:1.5; gap:8px; }
+ .alerts .alert-ic { width:28px; height:28px; flex:none; }
+ .alerts .alert .btn { min-height:36px; font-size:12px; padding:6px; }
+ .bottom-nav { padding-top:4px; padding-bottom:calc(4px + env(safe-area-inset-bottom)); }
+ .bottom-nav .nav-item { font-size:11px; min-height:48px; gap:2px; padding:4px 2px; }
+ .bottom-nav .nav-item .i { width:18px; height:18px; }
+ .mx-compose-info { gap:8px; grid-template-columns:repeat(2,minmax(0,1fr)); }
+ .mx-proc-notices { padding:3px 9px; border-radius:10px; }
+ .mx-proc-notices>summary { font-size:12px; padding:6px 0; min-height:30px; }
+ .mx-compose-steps { font-size:12px; gap:10px; }
+ .mx-compose-steps b { width:23px; height:23px; }
+ .mx-compose-steps>i { width:32px; }
+ .mx-compose-context>summary { padding:9px 12px; min-height:44px; flex-wrap:nowrap; gap:8px; }
+ .mx-compose-context>summary>strong { font-size:13px; white-space:nowrap; }
+ .mx-compose-context>summary>span { flex-basis:auto; max-width:65%; font-size:12px; text-align:end; }
+ .mx-catalog-toolbar { gap:8px; }
+ .mx-catalog-toolbar>.input-icon .input { min-height:44px; }
+ .mx-categories { flex-wrap:nowrap; overflow-x:auto; max-width:100%; gap:6px; padding-bottom:4px; overscroll-behavior-inline:contain; }
+ .mx-categories>.chip { flex:none; }
+ .mx-catalog-grid { grid-template-columns:repeat(2,minmax(0,1fr)); gap:8px; }
+ .mx-catalog-grid>.mx-item-card { padding:10px; gap:8px; border-radius:12px; }
+ .mx-item-card>p { font-size:11px; min-height:18px; }
+ .mx-selected-mark { width:20px; height:20px; }
+ .mx-item-card .qty { min-width:0; }
+ .mx-item-card .qty button { width:32px; min-width:28px; height:44px; }
+ .mx-item-card .qty input { width:36px; min-width:0; height:44px; }
+ .mx-compose-summary { bottom:calc(3.75rem + env(safe-area-inset-bottom)); padding:10px; border-radius:12px; }
+ .mx-selection-tray>div:first-child { gap:8px; font-size:13px; }
+ #mxTrayCount { font-size:11px; }
+ .mx-compose-actions { display:grid; grid-template-columns:minmax(0,1fr) auto; gap:6px; margin-top:6px; }
+ .mx-compose-actions #submitBtn { width:100%; grid-column:1; grid-row:1; min-height:44px; }
+ .mx-compose-actions>.row { width:auto; grid-column:2; grid-row:1; gap:2px; }
+ .mx-compose-actions>.row .btn { padding:6px; font-size:11px; }
+ .mx-compose.is-review .mx-compose-actions { display:flex; bottom:calc(3.75rem + env(safe-area-inset-bottom)); inset-inline:12px; padding:10px; gap:6px; }
+ .mx-compose.is-review .mx-compose-actions #submitBtn { width:100%; }
+ .mx-compose.is-review #mxBackToItems { min-height:40px; }
+ .mx-review-list .item-line { padding:12px 0; gap:8px; }
+ .mx-review-list .item-line .nm { font-size:14px; }
+ .mx-review-list .item-line .mt { font-size:11px; }
+ .mx-request>.req-main { padding:12px; gap:8px; }
+ .mx-request .req-id { font-size:14px; }
+ .mx-request .req-who,.mx-request-meta { font-size:12px; }
+ .mx-request-tags { margin-top:4px; }
+ .mx-request>.req-actions { margin-inline:12px; padding:8px 0; gap:6px; }
+ .mx-track-node { width:24px; height:24px; }
+ .mx-journey>li { gap:6px; }
+ .mx-journey>li::before { top:11px; }
+ .mx-journey>li>span:last-child { font-size:11px; }
+ .mx-filter-panel { padding:12px; }
+ .mx-filter-panel h2 { margin-bottom:8px; }
+ .mx-filter-panel .proc-grid { gap:8px; }
+ .mx-maint-ticket { padding:12px; gap:12px; }
+ .mx-ring strong { font-size:24px; }
+ .mx-bar-row { font-size:12px; grid-template-columns:5rem minmax(0,1fr) 1.5rem; }
+ .request-detail .modal-head,.mx-form-panel .modal-head { padding:12px; }
+ .request-detail .modal-body,.mx-form-panel .modal-body { padding:12px; gap:12px; }
+ .mx-detail-title { font-size:18px; }
+ .mx-report-preview { padding:12px; }
+ .mx-branch-card { padding:12px; gap:10px; }
+ .mx-branch-card strong { font-size:15px; }
+ .mx-branch-icon { width:36px; height:36px; }
+ /* Retain 16px editable fields to avoid automatic zoom while typing on iOS. */
+ .mx-page input,.mx-page select,.mx-page textarea { font-size:16px; }
+}
+
 </style>
 </head>
 <body>
