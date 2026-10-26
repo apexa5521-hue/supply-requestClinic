@@ -2054,6 +2054,38 @@ h1 { font-size:26px; } h2 { font-size:19px; }
  }
 }
 
+@media screen {
+ .mx-branches #stBox { display:block; }
+ .content:has(.mx-page) { padding-top:1rem; }
+ #view:has(.mx-page)>.nav-sub { margin-bottom:.75rem; padding-bottom:.5rem; border:0; }
+ #view:has(.mx-page)>.nav-sub .segmented { padding:2px; }
+ #view:has(.mx-page)>.nav-sub .segmented button { min-height:2.5rem; }
+ .mx-dashboard .chart-box { height:12rem; }
+ .mx-dashboard .mx-ring-layout { min-height:13rem; }
+}
+
+@media screen {
+ .mx-compose-info { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:1rem; }
+ .mx-compose-info .mx-proc-notices { min-width:0; }
+ .mx-compose-context { border:1px solid var(--border); border-radius:.875rem; background:var(--surface); }
+ .mx-compose-context>summary { display:flex; align-items:center; justify-content:space-between; gap:.75rem; cursor:pointer; padding:1rem 1.25rem; }
+ .mx-compose-context>summary>span { color:var(--muted); font-size:.875rem; }
+ .mx-compose-context>.card { border:0; }
+ .mx-compose-context>.card>.card-head { display:none; }
+ .mx-compose-context #fKind { grid-column:span 2; }
+ .mx-compose-context #fBd { grid-column:1 / -1; }
+ .mx-reports .segmented { overflow:hidden; }
+ .mx-reports .segmented button:focus-visible { outline-offset:-3px; }
+ @media(max-width:900px){
+  .mx-compose-context>summary { flex-wrap:wrap; padding:1rem; }
+  .mx-compose-context>summary>span { flex-basis:100%; }
+  .mx-compose-context #fKind { grid-column:1 / -1; }
+  .mx-reports .table.mstack td { white-space:normal; }
+  .mx-reports .table-wrap:has(>.table.mstack) { overflow-x:auto; }
+ }
+ @media(max-width:359px){.mx-compose-info { grid-template-columns:minmax(0,1fr); gap:.5rem; }}
+}
+
 </style>
 </head>
 <body>

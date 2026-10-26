@@ -9097,9 +9097,9 @@ VIEWS.new.render=function() {
   const sumBody=summary.querySelector('.card-body'); const btn=sumBody.querySelector('#submitBtn');
   btn.dataset.act='mxReview';btn.innerHTML=mxLabel('مراجعة الطلب','Review request')+icon('chevr','i-sm flip');
   return '<div class="mx-page mx-compose">'+mxHeading('<span id="mxComposeTitle">'+esc(t(this.title))+'</span>')+
-    mxTake(old,'#nNotices')+mxTake(old,'.rule-slot')+
+    '<div class="mx-compose-info"><details class="mx-proc-notices"><summary>'+mxLabel('تنبيهات الإدارة','Management notices')+'</summary>'+mxTake(old,'#nNotices')+'</details><details class="mx-proc-notices"><summary>'+mxLabel('قواعد الطلب والتوقيت','Request rules and timing')+'</summary>'+mxTake(old,'.rule-slot')+'</details></div>'+
     '<div class="mx-compose-steps"><span class="active" id="mxStepSelect"><b>1</b>'+mxLabel('اختيار الأصناف','Choose items')+'</span><i></i><span id="mxStepReview"><b>2</b>'+mxLabel('مراجعة وإرسال','Review and send')+'</span></div>'+
-    '<div class="mx-compose-context" id="mxComposeContext">'+(details?details.outerHTML:'')+'</div>'+
+    '<details class="mx-compose-context" id="mxComposeContext" open><summary><strong>'+mxLabel('بيانات الطلب','Request details')+'</strong><span id="mxContextSummary"></span></summary>'+(details?details.outerHTML:'')+'</details>'+
     '<div class="mx-compose-selection" id="mxComposeSelection">'+
       '<div class="mx-catalog-toolbar"><div class="input-icon">'+icon('search')+'<input class="input" id="mxCatalogSearch" data-input="mxCatalogQ" value="'+esc(MX.catalogQ)+'" placeholder="'+esc(t('item_search_ph'))+'" aria-label="'+esc(t('item_search_ph'))+'"></div><div id="mxCatalogCategories" class="mx-categories"></div></div>'+
       '<div id="mxCatalogCards" class="mx-catalog-grid"></div>'+
@@ -9138,7 +9138,10 @@ const mxLegacyRenderSummary=renderSummary;
 renderSummary=function(){
   mxLegacyRenderSummary();
   const count=$('#mxTrayCount');if(!count)return;
-  const d=nurseDraft();count.textContent=mxText(d.items.length+' أصناف',d.items.length+' items');
+  const d=nurseDraft(),context=$('#mxComposeContext'),contextSummary=$('#mxContextSummary');
+  if(contextSummary)contextSummary.textContent=[d.branch,d.kind==='clinic'?d.clinic:d.doctor].filter(Boolean).join(' · ');
+  if(context&&!context.dataset.ready&&(d.kind==='clinic'?d.clinic:d.doctor)){context.open=false;context.dataset.ready='true';}
+count.textContent=mxText(d.items.length+' أصناف',d.items.length+' items');
   $('#mxTrayItems').innerHTML=d.items.slice(0,3).map(it=>'<span>'+esc(it.name)+' <b>× '+it.qty+'</b></span>').join('')+(d.items.length>3?'<span>+'+(d.items.length-3)+'</span>':'');
   $$('.mx-item-card[data-mx-name]').forEach(card=>{
     const it=d.items.find(x=>x.name===card.dataset.mxName), inp=card.querySelector('input');

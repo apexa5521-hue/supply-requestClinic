@@ -48,12 +48,13 @@ async function capture(p,name){await p.screenshot({path:path.join(OUT,name+'.png
     if(view==='overview')await p.waitForSelector('#mxStatusRing .mx-ring',{timeout:10000});
     if(view==='requests')await p.waitForSelector('#procList .mx-request',{timeout:10000});
     if(view==='new')await p.waitForSelector('.mx-item-card',{timeout:10000});
+    if(view==='new'){const doctor=p.locator('#fDoctor');if(await doctor.count()){const option=await doctor.locator('option').evaluateAll(xs=>xs.find(x=>x.value&&!x.disabled)?.value);if(option)await doctor.selectOption(option);} }
     for(const width of [320,390,768,1024,1440,1920]){
      await p.setViewportSize({width,height:width<=768?900:1000});
      await p.evaluate(()=>new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r))));
      const m=await p.evaluate(()=>({width:innerWidth,scroll:document.documentElement.scrollWidth,title:document.querySelector('#view').textContent.trim().length}));
      results.checks.push({role:name,view,...m});
-     if(m.scroll>width+1)console.error('OVERFLOW ELEMENTS',JSON.stringify(await p.evaluate(()=>[...document.querySelectorAll('#view *')].filter(e=>{const r=e.getBoundingClientRect();return r.width&&(r.left< -1||r.right>innerWidth+1)&&!e.closest('.table-wrap,.chips,.segmented');}).slice(0,20).map(e=>({tag:e.tagName,id:e.id,cls:e.className,text:e.textContent.slice(0,60),left:e.getBoundingClientRect().left,right:e.getBoundingClientRect().right})))));assert(m.scroll<=width+1,'Horizontal overflow in '+view+' at '+width+' ('+m.scroll+')');
+     if(m.scroll>width+1)console.error('OVERFLOW ELEMENTS',JSON.stringify(await p.evaluate(()=>[...document.querySelectorAll('#view *')].filter(e=>{const r=e.getBoundingClientRect();return r.width&&(r.left< -1||r.right>innerWidth+1);}).slice(0,20).map(e=>({tag:e.tagName,id:e.id,cls:e.className,text:e.textContent.slice(0,60),left:e.getBoundingClientRect().left,right:e.getBoundingClientRect().right})))));assert(m.scroll<=width+1,'Horizontal overflow in '+view+' at '+width+' ('+m.scroll+')');
      assert(m.title>0,'Empty view '+view);
      if([390,1440].includes(width))await capture(p,view+'-'+(width===390?'mobile':'desktop')+(view==='assets'?'_'+(name==='سارة'?'nurse':'proc'):''));
     }
