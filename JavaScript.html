@@ -1041,7 +1041,7 @@ function shipSummary(items, ships, req) {
   const left = Math.max(0, tot - sent);
   const done = items.filter(i => i.done && i.sentQty > 0).length, partialN = items.filter(i => i.partial).length;
   return '<div class="ship-sum">' +
-    '<div class="between"><div class="section-title" style="margin:0">' + icon('truck', 'i-sm') + esc(t('ship_title')) + '</div>' +
+    '<div class="between"><div class="section-title ship-heading" style="margin:0">' + icon('truck', 'i-sm') + '<span>' + esc(t('ship_title')) + '</span></div>' +
       (!left ? '<span class="badge" style="--tone:var(--t-green)"><i class="dot"></i>' + esc(t('ship_all_done')) + '</span>'
         : '<span class="hint">' + esc(t('items_done_of', { a: done, b: items.length })) + (partialN ? ' · ' + esc(t('partial_items', { n: partialN })) : '') + '</span>') + '</div>' +
     '<div class="ship-stats"><div><b>' + fmtNum(tot, 0) + '</b><span>' + esc(t('total_units')) + '</span></div>' +
