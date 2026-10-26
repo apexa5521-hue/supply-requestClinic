@@ -21,7 +21,7 @@ const results={checks:[],failures:[],errors:[],source:process.env.GITHUB_SHA||'l
 let browser;
 async function capture(p,name){await p.screenshot({path:path.join(OUT,name+'.png'),animations:'disabled',timeout:20000});}
 (async()=>{
- browser=await playwright.chromium.launch({args:['--no-sandbox']});
+ browser=await playwright.chromium.launch({executablePath:process.env.UI_BROWSER_PATH||undefined,args:['--no-sandbox']});
  const roles=[
  ['المدير','1234',['overview','monitor','maint','catalog','users','branches','settings','reports','notices','assetsdash','finance','rules','docadmin','labkpi','reqfix','extorders','nursevoice','surveys']],
  ['علي','3333',['requests','boxes','complaints','assets']],
