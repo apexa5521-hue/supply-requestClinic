@@ -1,0 +1,52 @@
+name: Approved interface review
+on:
+  push:
+    branches: [design/approved-interfaces]
+    paths:
+      - Index.html
+      - JavaScript.html
+      - scripts/review-approved-design.cjs
+      - .github/workflows/approved-interface-review.yml
+permissions:
+  contents: write
+concurrency:
+  group: approved-interface-review
+  cancel-in-progress: true
+jobs:
+  review:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Backend regression tests
+        run: npm test
+      - name: Install browser for interface review
+        run: |
+          npm install --no-save --package-lock=false playwright
+          npx playwright install --with-deps chromium
+      - name: Check real interface and capture screenshots
+        run: node scripts/review-approved-design.cjs
+      - name: Upload interface review
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: approved-interface-review
+          path: review-output/
+      - name: Publish fixture-only screenshots to review branch
+        if: always()
+        env:
+          REVIEW_SHA: ${{ github.sha }}
+        run: |
+          if [ ! -f review-output/results.json ]; then exit 0; fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git fetch origin design/approved-interface-previews || true
+          git checkout -B design/approved-interface-previews
+          mkdir -p design-preview
+          cp review-output/* design-preview/
+          git add -f design-preview/
+          git commit -m "Review approved interfaces from $REVIEW_SHA"
+          git push --force-with-lease origin HEAD:refs/heads/design/approved-interface-previews
