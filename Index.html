@@ -2086,6 +2086,17 @@ h1 { font-size:26px; } h2 { font-size:19px; }
  @media(max-width:359px){.mx-compose-info { grid-template-columns:minmax(0,1fr); gap:.5rem; }}
 }
 
+@media screen{
+ .mx-report-layout { display:grid; grid-template-columns:minmax(0,1fr) 17rem; align-items:start; gap:1.5rem; }
+ .mx-report-fields { display:flex; flex-direction:column; gap:1rem; min-width:0; }
+ .mx-report-preview { background:var(--surface-2); border:1px solid var(--border); border-radius:.875rem; padding:1.25rem; min-width:0; }
+ .mx-report-preview h3 { font-size:1.125rem; margin-bottom:1rem; }
+ .mx-report-summary-row { display:flex; flex-direction:column; gap:.5rem; padding:1rem 0; border-bottom:1px solid var(--border); overflow-wrap:anywhere; }
+ .mx-report-summary-row>span { font-size:.8125rem; color:var(--muted); }
+ .mx-report-summary-row>strong { font-size:.875rem; font-weight:500; }
+ @media(max-width:900px){.mx-report-layout { grid-template-columns:minmax(0,1fr); }.mx-report-preview{padding:1rem;}}
+}
+
 </style>
 </head>
 <body>
