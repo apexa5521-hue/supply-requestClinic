@@ -25,7 +25,7 @@ jobs:
         run: npm test
       - name: Install browser for interface review
         run: |
-          npm install --no-save --package-lock=false playwright
+          npm install --no-save --package-lock=false playwright @fontsource/ibm-plex-sans-arabic
           npx playwright install --with-deps chromium
       - name: Check real interface and capture screenshots
         run: node scripts/review-approved-design.cjs
