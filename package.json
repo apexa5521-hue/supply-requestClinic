@@ -3,7 +3,7 @@
   "private": true,
   "description": "Dev-only: tests for the Apps Script supply request system",
   "scripts": {
-    "test": "node --test tests/backend.test.js",
+    "test": "node --test tests/backend.test.js tests/focus.test.cjs",
     "test:e2e": "node tests/e2e.js",
     "perf": "node tests/perf.js",
     "test:load": "node tests/load.js",
