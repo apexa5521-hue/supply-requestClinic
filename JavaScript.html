@@ -8998,7 +8998,7 @@ const mxLegacyProcView=VIEWS.requests.render;
 VIEWS.requests.render=function() {
   const old=mxTemplate(mxLegacyProcView.call(this));
   return '<div class="mx-page mx-requests">'+mxHeading(esc(t('nav_requests')))+
-    '<div class="mx-proc-notices">'+mxTake(old,'#pNotices')+'</div><div id="mxProcMetrics" class="mx-metrics"></div>'+
+    '<details class="mx-proc-notices"><summary>'+mxLabel('تنبيهات الإدارة','Management notices')+'</summary>'+mxTake(old,'#pNotices')+'</details><div id="mxProcMetrics" class="mx-metrics"></div>'+
     '<div class="mx-request-workspace"><div class="mx-request-main">'+mxTake(old,'#procChips')+mxTake(old,'#procHint')+
       ([...old.children].find(x=>x.classList.contains('between'))||{outerHTML:''}).outerHTML+mxTake(old,'#procList')+'</div><aside class="mx-filter-panel">'+
       '<h2>'+mxLabel('تصفية الطلبات','Filter requests')+'</h2>'+mxTake(old,'#procFilters')+
@@ -9067,7 +9067,7 @@ function mxRenderDashboard() {
   $('#mxBranchBars').innerHTML=mxBars(Object.entries(branches).sort((a,b)=>b[1]-a[1]));
   const end=new Date((S.dash.month||mxDateMonth(new Date()))+'-15T12:00:00Z');
   const trend=Array.from({length:6},(_,i)=>{const date=new Date(end);date.setUTCMonth(date.getUTCMonth()-5+i);const month=date.toISOString().slice(0,7);return {month,count:branchList.filter(r=>mxDateMonth(r.submittedAt||r.date)===month).length};});
-  CHARTS.mxRequests={canvas:'mxTrendChart',tip:'mxTrendTip',type:'line',labels:trend.map(x=>monthLabel(x.month)),data:trend.map(x=>x.count||0),extra:trend.map(x=>x.count||0)};
+  CHARTS.mxRequests=Object.assign(CHARTS.mxRequests||{},{canvas:'mxTrendChart',tip:'mxTrendTip',type:'line',labels:trend.map(x=>monthLabel(x.month)),data:trend.map(x=>x.count||0),unit:mxText('طلب','requests')});
   drawChart(CHARTS.mxRequests,false);mxRenderMaintenance();
 }
 function mxBars(rows) {
@@ -9119,7 +9119,7 @@ function mxCatalogItems() { const dept=draftDept();return S.catalog.filter(c=>!d
 function mxRenderCatalog() {
   const box=$('#mxCatalogCards');if(!box)return;
   const d=nurseDraft(), all=mxCatalogItems(), q=MX.catalogQ.toLowerCase().trim();
-  const cats=Array.from(new Set(all.map(c=>c.category).filter(Boolean)));
+  const cats=Array.from(new Set(all.map(c=>c.category).filter(Boolean)));if(MX.category&&!cats.includes(MX.category))MX.category='';
   $('#mxCatalogCategories').innerHTML=[['',mxText('الكل','All')]].concat(cats.map(c=>[c,c])).map(c=>'<button type="button" class="chip" data-act="mxCategory" data-value="'+esc(c[0])+'" aria-pressed="'+(MX.category===c[0])+'">'+esc(c[1])+'</button>').join('');
   const list=all.filter(c=>(!MX.category||c.category===MX.category)&&(!q||[c.name,c.commercial,c.category].concat(c.aliases||[]).join(' ').toLowerCase().includes(q)));
   box.innerHTML=list.length?list.slice(0,MX.catalogLimit).map(c=>{
@@ -9140,7 +9140,7 @@ renderSummary=function(){
   const count=$('#mxTrayCount');if(!count)return;
   const d=nurseDraft();count.textContent=mxText(d.items.length+' أصناف',d.items.length+' items');
   $('#mxTrayItems').innerHTML=d.items.slice(0,3).map(it=>'<span>'+esc(it.name)+' <b>× '+it.qty+'</b></span>').join('')+(d.items.length>3?'<span>+'+(d.items.length-3)+'</span>':'');
-  $('.mx-item-card[data-mx-name]').forEach(card=>{
+  $$('.mx-item-card[data-mx-name]').forEach(card=>{
     const it=d.items.find(x=>x.name===card.dataset.mxName), inp=card.querySelector('input');
     if(inp&&it&&document.activeElement!==inp)inp.value=it.qty;
   });
@@ -9160,7 +9160,7 @@ function mxSetReview(on) {
 }
 ACT.mxReview=()=>{
   const d=nurseDraft(), err=$('#submitErr');
-  const bad=$('.mx-item-card [data-input="qtySet"]').find(qtyInvalid);
+  const bad=$$('.mx-item-card [data-input="qtySet"]').find(qtyInvalid);
   if(bad){markQty(bad,true);bad.focus();return;}
   if(!d.items.length){err.querySelector('span').textContent=t('err_fill_all');err.classList.remove('hidden');return;}
   err.classList.add('hidden');renderItems();mxSetReview(true);
@@ -9176,7 +9176,7 @@ function mxWrapView(name,title) {
 }
 ['catalog','users','reports','maint','settings','notices','mine','boxes','complaints','assets','finance','docitems','reviews','monitor','doctorslive','rules','docadmin','docprices','labboard','labmine','labdoc','assetsdash','labkpi','freeitems','reqfix','extorders','nursevoice','surveys','workflow'].forEach(v=>mxWrapView(v));
 function mxMarkPanel(m,kind) {
-  if(!m)return;m.el.classList.add('mx-form-panel',kind||'');m.el.querySelector('.modal-head [data-close]').setAttribute('autofocus','');
+  if(!m)return;m.el.classList.add('mx-form-panel');if(kind)m.el.classList.add(kind);m.el.querySelector('.modal-head [data-close]').setAttribute('autofocus','');
 }
 ['caEdit','mtOpen','mtNew'].forEach(key=>{
   const handler=ACT[key];if(!handler)return;
@@ -9207,9 +9207,9 @@ VIEWS.settings.render=function(){
 ACT.mxSettingsTab=el=>{
   const appearance=el.dataset.tab==='appearance';
   $('#mxAppearance').classList.toggle('hidden',!appearance);$('#mxSystemSettings').classList.toggle('hidden',appearance);
-  $('.mx-settings-tabs button').forEach(b=>b.setAttribute('aria-pressed',String(b===el)));
+  $$('.mx-settings-tabs button').forEach(b=>b.setAttribute('aria-pressed',String(b===el)));
 };
-ACT.mxTheme=el=>{S.theme=el.dataset.theme;store.set('theme',S.theme);applyTheme();redrawCharts();$('.mx-theme-choice').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.theme===S.theme)));};
+ACT.mxTheme=el=>{S.theme=el.dataset.theme;store.set('theme',S.theme);applyTheme();redrawCharts();$$('.mx-theme-choice').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.theme===S.theme)));};
 ACT.mxLanguage=el=>{if(S.lang!==el.dataset.lang)toggleLang();};
 
 
@@ -9307,6 +9307,26 @@ VIEWS.notices.render=function(){
       composer.replaceWith(details);details.append(summary,composer);}
   }
   const outer=document.createElement('div');outer.append(root);return outer.innerHTML;
+};
+
+const mxLegacyChartHover=chartHover;
+chartHover=function(cfg,event){
+  if(cfg.canvas!=='mxTrendChart')return mxLegacyChartHover(cfg,event);
+  const c=CHARTS.mxRequests;if(!c||!c._points||!c._points.length)return;
+  const x=event.clientX-event.target.getBoundingClientRect().left;
+  let best=0,distance=Infinity;
+  c._points.forEach((p,i)=>{const d=Math.abs(p.x-x);if(d<distance){best=i;distance=d;}});
+  c._hover=best;c._frame(1);
+  const p=c._points[best],tip=document.getElementById(c.tip);
+  tip.textContent=c.labels[best]+' · '+fmtNum(p.v,0)+' '+mxText('طلب','requests');
+  tip.style.left=p.x+'px';tip.style.top=p.y+'px';tip.classList.add('show');
+};
+const mxLegacyOpenDetail=openDetail;
+openDetail=function(id){
+  const result=mxLegacyOpenDetail(id),m=topModal();
+  $$('.mx-request').forEach(el=>el.classList.toggle('is-active',el.dataset.rid===id));
+  if(m){const close=m.opts.onClose;m.opts.onClose=()=>{if(close&&close()===false)return false;$$('.mx-request.is-active').forEach(el=>el.classList.remove('is-active'));};}
+  return result;
 };
 
 /* =====================================================================

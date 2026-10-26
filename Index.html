@@ -2038,6 +2038,22 @@ h1 { font-size:26px; } h2 { font-size:19px; }
  @media(max-width:359px) { .mx-branch-grid { grid-template-columns:minmax(0,1fr); } }
 }
 
+@media screen {
+ .mx-proc-notices { border:1px solid var(--border); border-radius:.75rem; background:var(--surface); padding:.5rem 1rem; }
+ .mx-proc-notices>summary { cursor:pointer; font-size:.875rem; color:var(--text-2); padding:.375rem 0; }
+ .mx-proc-notices[open]>summary { margin-bottom:.75rem; }
+ .mx-proc-notices #pNotices>.card { border:0; }
+ .mx-request.is-active { border-color:var(--primary)!important; background:color-mix(in srgb,var(--primary-soft) 55%,var(--surface))!important; }
+ .mx-reports #rpFilters>.field,.mx-reports .rp-tile>div { min-width:0; }
+ .mx-reports .rp-tile { overflow-wrap:anywhere; }
+ .mx-reports input,.mx-reports select { max-width:100%; }
+ @media(max-width:900px) {
+  .mx-reports #rpFilters .segmented { display:flex; width:100%; min-width:0; }
+  .mx-reports #rpFilters .segmented button { white-space:normal; flex:1 1 0; min-width:0; }
+  .mx-reports .rp-docbar>.field { min-width:0; flex:1 1 100%; }
+ }
+}
+
 </style>
 </head>
 <body>
