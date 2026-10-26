@@ -1235,6 +1235,7 @@ h1 { font-size:26px; } h2 { font-size:19px; }
   .card-head h2 { font-size:18px; }
   .card-head h2>.i { width:21px; height:21px; }
   .card-pad { padding:24px; }
+  .card,.grid-2>*,.card-body,.table-wrap { min-width:0; }
   .kpis { gap:16px; }
   .kpi { padding:20px; min-height:136px; }
   .kpi::after { display:none; }
@@ -1265,6 +1266,7 @@ h1 { font-size:26px; } h2 { font-size:19px; }
   .req-who { margin-top:10px; }
   .req-side { gap:12px; }
   .req-actions { padding:0 22px 18px; }
+  .more-row .btn { max-width:100%; white-space:normal; text-align:center; line-height:1.6; }
   .req-expand { padding:18px 22px 22px; background:var(--surface-2); border-radius:0 0 15px 15px; }
   .badge { padding:5px 12px; font-size:13px; border-color:transparent; }
   .badge.live .dot { animation:none; }
@@ -1319,6 +1321,9 @@ h1 { font-size:26px; } h2 { font-size:19px; }
   .empty .empty-ic { background:var(--primary-soft); color:var(--primary); border:0; }
   .empty b { font-size:18px; }
   .empty p { font-size:15px; line-height:1.8; }
+  .wf-card,.wf-rolecard,.wf-branch { min-width:0; overflow-wrap:anywhere; }
+  .wf-role,.wf-branch b { flex-wrap:wrap; }
+  .wf-grid { grid-template-columns:repeat(auto-fit,minmax(min(185px,100%),1fr)); }
   .toasts { gap:12px; }
   .toast { padding:15px 18px; font-size:15px; }
   .toast .t-bar { height:2px; }
@@ -1333,6 +1338,7 @@ h1 { font-size:26px; } h2 { font-size:19px; }
   }
   @media(max-width:900px) {
     #view,#view>.stack { gap:16px; }
+    .grid-2 { grid-template-columns:minmax(0,1fr); }
     .new-layout { grid-template-columns:minmax(0,1fr); gap:16px; }
     .summary { position:static; }
     .card-head,.card-body,.card-pad { padding:16px; }
