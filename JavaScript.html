@@ -2136,6 +2136,8 @@ function openDetail(id) {
     title: '<span class="mono">' + esc(id) + '</span>', icon: 'clipboard', size: 'lg',
     body: '<div class="stack">' + skeletonList(2) + '</div>'
   });
+  m.el.classList.add('request-detail');
+  m.el.querySelector('.modal-head [data-close]').setAttribute('autofocus', '');
   // عرض فوري لآخر نسخة معروفة (من التحميل المسبق أو فتح سابق) ثم تحديث صامت من الخادم
   let shown = '';
   const show = d => {
