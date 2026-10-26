@@ -2872,6 +2872,7 @@ function loadMine(silent) {
   return (S.nurse.archive ? call('getMyRequests', { archive: true }) : call('getMyRequests')).then(list => {
     const fresh = changed('mine', list);
     S.nurse.mine = list || []; S.loaded.mine = true;
+    if (typeof MXF !== "undefined") mxfUpdateRail();
     renderNav();
     if (S.view === 'mine' && (fresh || !silent)) renderMineList(!silent);
   }).catch(e => { if (!silent) toast(errMsg(e), 'error'); });
@@ -3290,6 +3291,7 @@ function loadProc(silent) {
   return call('getRequests', S.proc.archive ? { archive: true } : {}).then(list => {
     const fresh = changed('proc', list);
     S.proc.list = list || []; S.loaded.proc = true;
+    if (typeof MXF !== "undefined") mxfUpdateRail();
     const ids = new Set(S.proc.list.map(r => r.id));
     S.proc.selected.forEach(id => { if (!ids.has(id)) S.proc.selected.delete(id); });
     if (S.view === 'requests' && (fresh || !silent)) renderProcList(!silent);
@@ -3634,6 +3636,7 @@ function loadProcItems(id, silent) {
     S.proc.items[id] = data;
     const exp = document.getElementById('exp-' + id);
     const r = S.proc.list.find(x => x.id === id);
+    if (typeof MXF !== 'undefined' && MXF.root && MXF.id === id && MXF.view === 'requests' && r && data.request) { Object.assign(r, data.request); const state = $('#mxfRecordState', MXF.root.el); if (state) state.innerHTML = badge(r.status, r) + typeTag(r.type, r.exempt); mxfUpdateRail(); }
     if (exp && r) { exp.innerHTML = procItemsHtml(r); animateBars(exp); }
   }).catch(e => { if (!silent) toast(errMsg(e), 'error'); });
 }
@@ -5679,6 +5682,7 @@ function loadDoc(silent) {
   return (S.doc.archive ? call('getDoctorRequests', { archive: true }) : call('getDoctorRequests')).then(list => {
     const fresh = changed('doc', list);
     S.doc.list = list || []; S.loaded.doc = true;
+    if (typeof MXF !== "undefined") mxfUpdateRail();
     renderNav();
     if (S.view === 'reviews' && (fresh || !silent)) renderDoc(!silent);
   }).catch(e => { if (!silent) toast(errMsg(e), 'error'); });
@@ -5722,6 +5726,8 @@ ACT.review = el => openReview(el.dataset.id);
 function openReview(id) {
   const r = S.doc.list.find(x => x.id === id) || { id: id };
   const canReview = !!r.awaitingDoctor || r.status === ST.REVIEW;
+  let reviewLoaded = false, reviewSaving = false, reviewSnapshot = '';
+  const reviewSig = items => JSON.stringify(items.map(it => [it.item, it.requestedQty, it.approvedQty, it.rejected, it.notes]));
   const m = openModal({
     title: esc(t('review_title')) + ' · <span class="mono">' + esc(id) + '</span>',
     sub: esc([r.clinic, r.nurse, fmtDate(r.date)].filter(Boolean).join(' · ')), icon: 'steth', size: 'lg',
@@ -5735,12 +5741,13 @@ function openReview(id) {
     foot: '<button class="btn btn-ghost btn-sm" data-act="detail" data-id="' + esc(id) + '">' + icon('eye', 'i-sm') + esc(t('details')) + '</button>' +
       '<button class="btn btn-danger-soft btn-sm" data-act="complaint" data-id="' + esc(id) + '">' + icon('alert', 'i-sm') + esc(t('report')) + '</button><span class="spacer"></span>' +
       (canReview
-        ? '<button class="btn btn-danger" id="rvReject">' + icon('x', 'i-sm') + esc(t('reject')) + '</button><button class="btn btn-primary" id="rvApprove">' + icon('check', 'i-sm') + esc(t('approve')) + '</button>'
+        ? '<button class="btn btn-danger" id="rvReject" disabled>' + icon('x', 'i-sm') + esc(t('reject')) + '</button><button class="btn btn-primary" id="rvApprove" disabled>' + icon('check', 'i-sm') + esc(t('approve')) + '</button>'
         : '<button class="btn" data-close>' + esc(t('close')) + '</button>')
   });
   const cachedItems = peek('getRequestItemsWithCatalog', [id], 60000);
   (cachedItems !== undefined ? Promise.resolve(cachedItems) : call('getRequestItemsWithCatalog', id)).then(items => {
     if (m.closing) return;
+    reviewLoaded = true; reviewSnapshot = reviewSig(items); m.mxfSnapshot = reviewSnapshot;
     let total = 0;
     const qOf = it => Number(it.approvedQty !== '' && it.approvedQty !== null ? it.approvedQty : it.requestedQty) || 0;
     const rows = items.map((it, i) => {
@@ -5758,6 +5765,8 @@ function openReview(id) {
       (canReview ? '<div class="hint" style="margin-top:8px">' + icon('info', 'i-sm') + ' ' + esc(t('doctor_qty_hint')) + '</div>' : '') +
       '<div class="between rv-total" style="margin-top:10px;padding:10px 14px;border-radius:12px;background:var(--primary-soft);color:var(--primary-strong);font-weight:700' + ((total || canReview) && !noPrices() ? '' : ';display:none') + '"><span>' + esc(t('est_total')) + '</span><span class="mono" id="rvTotal">' + fmtNum(total, 2) + ' ' + esc(t('currency')) + '</span></div>';
     if (canReview) {
+      $('#rvApprove', m.el).disabled = false; $('#rvReject', m.el).disabled = false;
+      if (MXF.root === m) { mxfDraftRestore(m); mxfReviewTools(m, '#rvItems tbody tr'); }
       // تعديل الكمية يعيد حساب إجمالي السطر والإجمالي التقديري فوراً
       m.el.addEventListener('input', e => {
         const inp = e.target.closest('.rvQty'); if (!inp) return;
@@ -5776,10 +5785,12 @@ function openReview(id) {
   }).catch(e => { $('#rvItems', m.el).innerHTML = emptyState('alert', errMsg(e)); });
   if (!canReview) return;
   const submit = (decision, btn) => {
+    if (!reviewLoaded || reviewSaving) return;
     const reason = $('#rvReason', m.el).value.trim();
     const err = $('#rvErr', m.el);
     err.classList.add('hidden');
     if (decision === 'رفض' && !reason) { err.querySelector('span').textContent = t('reason_required'); err.classList.remove('hidden'); $('#rvReason', m.el).focus(); return; }
+    if (decision === 'اعتمد' && MXF.root === m && $$('.mxf-check', m.el).some(c => !c.checked)) { err.querySelector('span').textContent = mxfText('أكمل مراجعة جميع الأصناف أولًا.', 'Review all items first.'); err.classList.remove('hidden'); return; }
     let qtys = [];
     if (decision === 'اعتمد') {
       const bad = $$('.rvQty', m.el).find(i => i.value.trim() === '' || !(Math.floor(Number(i.value)) >= 0));
@@ -5788,22 +5799,31 @@ function openReview(id) {
       if (qtys.length && qtys.every(x => x.qty === 0)) { err.querySelector('span').textContent = t('ERR_ALL_ZERO'); err.classList.remove('hidden'); return; }
     }
     const go2 = () => {
+      if (reviewSaving) return;
+      const inFocus = MXF.root === m;
       const notes = $$('.rvNote', m.el).map(i => ({ item: i.dataset.item, note: i.value.trim() })).filter(n => n.note);
-      // تحديث فوري للواجهة؛ الحفظ يكتمل في الخلفية، وعند الفشل نُرجع القائمة من الخادم ونعرض الخطأ
-      const r = S.doc.list.find(x => x.id === id);
-      const prev = r ? r.status : null;
-      if (r) { r.status = decision === 'اعتمد' ? ST.APPROVED : ST.REJECTED; r.awaitingDoctor = false; if (decision === 'رفض') r.rejectionReason = reason; }
-      closeModal(m);
-      if (S.view === 'reviews') renderDoc(false);
-      renderNav();
-      toast(decision === 'اعتمد' ? t('approved_ok') : t('rejected_ok'), decision === 'اعتمد' ? 'success' : 'warning');
-      call('doctorReview', id, decision, reason, notes, qtys).then(() => { loadDoc(true); loadAlerts(); })
-        .catch(e => {
-          if (r && prev) { r.status = prev; r.awaitingDoctor = true; }
-          if (S.view === 'reviews') renderDoc(false);
-          toast(t('save_failed', { id: id }) + ' — ' + errMsg(e), 'error', 6000);
-          loadDoc(true);
-        });
+      reviewSaving = true;
+      $$('#rvApprove,#rvReject', m.el).forEach(b => b.disabled = true);
+      busy(btn, true);
+      const oldClose = m.opts.onClose;
+      m.opts.onClose = () => reviewSaving ? false : oldClose ? oldClose() : undefined;
+      // Fresh read catches edits made while the review form was open; server still owns transition validation.
+      RC.delete(rkey('getRequestItemsWithCatalog', [id]));
+      call('getRequestItemsWithCatalog', id).then(fresh => {
+        if (reviewSig(fresh) !== reviewSnapshot) { if (MXF.root === m) { delete MXF.drafts[mxfKey()]; delete MXF.checks[mxfKey()]; } throw new Error('ERR_CONFLICT'); }
+        return call('doctorReview', id, decision, reason, notes, qtys);
+      }).then(() => {
+        reviewSaving = false;
+        if (MXF.root === m) { delete MXF.drafts[mxfKey()]; delete MXF.checks[mxfKey()]; }
+        m.mxfCommitted = true; closeModal(m);
+        toast(decision === 'اعتمد' ? t('approved_ok') : t('rejected_ok'), decision === 'اعتمد' ? 'success' : 'warning');
+        loadDoc(true).then(() => { if (inFocus && S.user && mxfAccess('reviews') && !MXF.root) mxfWelcome(); }); loadAlerts();
+      }).catch(e => {
+        reviewSaving = false; busy(btn, false);
+        $$('#rvApprove,#rvReject', m.el).forEach(b => b.disabled = false);
+        err.querySelector('span').textContent = errCode(e) === 'ERR_CONFLICT' ? mxfText('تغيّرت بيانات الطلب. احفظ ملاحظاتك وأعد فتح الطلب لمراجعة النسخة الجديدة.', 'This request changed. Keep your notes and reopen it to review the latest version.') : errMsg(e);
+        err.classList.remove('hidden');
+      });
     };
     if (decision === 'رفض') confirmDialog(t('confirm_reject', { id: id }), { danger: true, ok: t('reject'), icon: 'xc' }).then(ok => { if (ok) go2(); });
     else go2();
@@ -9371,6 +9391,193 @@ renderShell=function(){
  if(bar&&logo&&!bar.querySelector('.mx-mobile-wordmark')){const copy=logo.cloneNode(true);copy.classList.add('mx-mobile-wordmark');bar.prepend(copy);}
  return result;
 };
+
+/* MASAR_FOCUS_START — native forms, server-owned states; no demo data. */
+const MXF = { root: null, id: '', view: '', waiting: false, opening: false, busy: false, checks: {}, drafts: {}, events: [], account: '', stale: false };
+const mxfText = (ar, en) => S.lang === 'ar' ? ar : en;
+const mxfDay = () => new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Riyadh', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
+function mxfAccess(view) { return !!S.user && (view !== 'requests' || S.user.screen === 'procurement') && (view !== 'mine' || S.user.screen === 'nurse') && ['reviews', 'requests', 'mine', 'maint', 'labboard', 'labmine', 'labdoc'].indexOf(view) !== -1 && navItems().some(n => n.id === view); }
+function mxfRows() {
+  if (!mxfAccess(MXF.view)) return [];
+  if (MXF.view === 'reviews') return S.doc.list || [];
+  if (MXF.view === 'requests') return S.proc.list || [];
+  if (MXF.view === 'mine') return S.nurse.mine || [];
+  if (MXF.view === 'maint') return MT.list || [];
+  return LAB[MXF.view === 'labboard' ? 'board' : MXF.view === 'labdoc' ? 'doc' : 'mine'] || [];
+}
+function mxfActionable(r, view) {
+  view = view || MXF.view;
+  if (view === 'reviews') return !!r.awaitingDoctor || r.status === ST.REVIEW;
+  if (view === 'requests') return !!r.cleared && [ST.NEW, ST.APPROVED, ST.PREP, ST.VENDOR_RECV].indexOf(r.status) !== -1;
+  if (view === 'mine') return Number(r.pendingShipments) > 0 || r.status === ST.REJECTED;
+  if (view === 'maint') {
+    if (!MT.cfg) return false;
+    const admin = S.user.screen === 'admin', maint = MT.cfg.role === 'maint' || admin, owner = MT.cfg.role === 'branch' || admin;
+    return r.status === MT_ST.PENDING && MT.cfg.canApprove || maint && [MT_ST.NEW, MT_ST.RECEIVED, MT_ST.WORK].indexOf(r.status) !== -1 || owner && r.status === MT_ST.FIXED;
+  }
+  if (view === 'labboard') return (r.items || []).some(it => [LAB_ST.NEW, LAB_ST.RECEIVED, LAB_ST.WORK, LAB_ST.READY, LAB_ST.SENT, LAB_ST.DELIVERED].indexOf(it.status) !== -1);
+  return !!r.toReceive;
+}
+function mxfClosed(r) { return [ST.RECEIVED, ST.CANCELLED].indexOf(r.status) !== -1 || MXF.view === 'maint' && [MT_ST.CLOSED, MT_ST.REJECTED].indexOf(r.status) !== -1 || /^lab/.test(MXF.view) && r.status === LAB_ST.PATIENT; }
+function mxfQueue(waiting) {
+  return mxfRows().filter(r => waiting ? !mxfActionable(r) && !mxfClosed(r) : mxfActionable(r)).slice().sort((a, b) => Number(!!(b.urgent || b.late || b.overdue || b.type === 'طارئ')) - Number(!!(a.urgent || a.late || a.overdue || a.type === 'طارئ')) || (new Date(a.date || a.createdAt).getTime() || 0) - (new Date(b.date || b.createdAt).getTime() || 0));
+}
+function mxfRecordLabel(r) { return r.doctor || r.clinic || r.kind || r.id; }
+function mxfRail() {
+  const active = mxfQueue(false), waiting = mxfQueue(true), rows = MXF.waiting ? waiting : active;
+  return '<aside class="mxf-rail" aria-label="' + mxfText('قائمة مهامك', 'Your tasks') + '"><div class="mxf-rail-head"><small>MasarX / ' + mxfText('مساحة العمل', 'Workspace') + '</small><h2>' + mxfText('ركّز على مهامك', 'Focus on your tasks') + '</h2><p>' + active.length + ' ' + mxfText('تحتاج إجراءك', 'need your action') + '</p><div class="mxf-tabs"><button data-act="mxfTab" data-tab="active" aria-pressed="' + !MXF.waiting + '">' + mxfText('دورك الآن', 'Your turn') + '</button><button data-act="mxfTab" data-tab="waiting" aria-pressed="' + MXF.waiting + '">' + mxfText('بانتظار غيري', 'Waiting') + ' · ' + waiting.length + '</button></div></div><div class="mxf-records">' + rows.map(r => '<button class="mxf-record' + (r.id === MXF.id ? ' selected' : '') + '" data-act="mxfRecord" data-id="' + esc(r.id) + '"' + (r.id === MXF.id ? ' aria-current="true"' : '') + '><span><b dir="ltr">' + esc(r.id) + '</b><small>' + esc(r.urgent || r.type === 'طارئ' ? mxfText('عاجل', 'Urgent') : r.late || r.overdue ? mxfText('متأخر · أولوية', 'Overdue') : mxfText('الأقدم أولًا', 'Oldest first')) + '</small></span><strong>' + esc(mxfRecordLabel(r)) + '</strong><small>' + esc(r.branch || r.clinic || '') + '</small><em>' + esc(statusLabel(r.status)) + '</em></button>').join('') + (!rows.length ? '<div class="mxf-empty">' + mxfText('لا توجد مهام في هذا القسم.', 'No tasks in this section.') + '</div>' : '') + '</div><div class="mxf-rail-foot"><button class="btn" data-act="mxfSummary">' + icon('checkc', 'i-sm') + mxfText('إنجاز جلستي', 'Session progress') + '</button><small>' + mxfText('يُحتسب الإجراء بعد تأكيد الخادم فقط', 'Counted only after server confirmation') + '</small></div></aside>';
+}
+function mxfUpdateRail() {
+  if (!MXF.root || MXF.root.closing) return;
+  const rail = $('.mxf-rail', MXF.root.el); if (rail) rail.outerHTML = mxfRail();
+}
+function mxfToolbar() {
+  const view = S.view, head = $('#view .mx-heading') || $('#view .workspace-head');
+  if (!head || !mxfAccess(view) || head.querySelector('[data-act="mxfStart"]')) return;
+  head.insertAdjacentHTML('beforeend', '<button class="btn btn-primary mxf-launch" data-act="mxfStart">' + icon('route', 'i-sm') + mxfText('ركّز على مهامك', 'Focus on your tasks') + '</button>');
+}
+const mxfGoOriginal = go;
+go = function(view, keepScroll) { const result = mxfGoOriginal(view, keepScroll); mxfToolbar(); return result; };
+const mxfModalOriginal = openModal;
+openModal = function(opts) {
+  const focus = MXF.opening; MXF.opening = false;
+  const m = mxfModalOriginal(opts);
+  if (!focus) return m;
+  MXF.root = m; m.el.classList.add('mxf-layer');
+  const md = $('.modal', m.el); md.classList.add('mxf-modal'); md.insertAdjacentHTML('afterbegin', mxfRail());
+  $('.scrim', m.el).removeAttribute('data-close');
+  const back = $('.modal-head [data-close]', m.el); if (back) { back.removeAttribute('data-close'); back.dataset.act = 'mxfHome'; back.setAttribute('aria-label', mxfText('قائمة مهامي', 'My task list')); }
+  const foot = $('.modal-foot', m.el);
+  if (foot) foot.insertAdjacentHTML('beforeend', '<button class="btn btn-soft mxf-next" data-act="mxfNext">' + mxfText('الطلب التالي', 'Next task') + icon('chevr', 'i-sm flip') + '</button>');
+  const close = opts.onClose;
+  opts.onClose = function() {
+    if (MXF.busy) { toast(mxfText('انتظر تأكيد الحفظ أولًا.', 'Wait for saving to finish.'), 'info'); return false; }
+    if (close && close() === false) return false;
+    if (MXF.root === m) { mxfDraftSave(); MXF.root = null; }
+  };
+  return m;
+};
+async function mxfLoad() {
+  const view = MXF.view;
+  const fn = view === 'reviews' ? 'getDoctorRequests' : view === 'requests' ? 'getRequests' : view === 'mine' ? 'getMyRequests' : '';
+  if (!fn) { if (view === 'maint') return mtLoad(true); if (/^lab/.test(view)) return labLoadList(true); return; }
+  const data = await call(fn);
+  if (view === 'reviews') S.doc.list = data || [];
+  else if (view === 'requests') S.proc.list = data || [];
+  else S.nurse.mine = data || [];
+}
+function mxfKey() { return S.user.name + ':' + MXF.view + ':' + MXF.id; }
+function mxfReviewTools(m, selector) {
+  const host = $('.modal-body', m.el); if (!host || host.querySelector('.mxf-review-tools')) return;
+  host.insertAdjacentHTML('afterbegin', '<section class="mxf-review-tools"><div><b>' + mxfText('مراجعة الأصناف', 'Item review') + '</b><span class="mxf-progress" role="status"></span></div><div class="row-wrap"><button class="btn btn-soft btn-sm" data-act="mxfSelect" data-on="1">' + mxfText('تحديد الكل', 'Select all') + '</button><button class="btn btn-sm" data-act="mxfSelect" data-on="0">' + mxfText('إلغاء تحديد الكل', 'Clear all') + '</button></div><small>' + mxfText('التحديد للمراجعة فقط؛ لا يرسل أصنافًا ولا يغيّر حالة الطلب.', 'Review only; selection does not dispatch items or change status.') + '</small></section>');
+  m.mxfSelector = selector;
+  mxfDecorateChecks(m);
+}
+function mxfDecorateChecks(m) {
+  if (!m || m.closing || !m.mxfSelector) return;
+  const rows = $$(m.mxfSelector, m.el), key = mxfKey();
+  const checks = MXF.checks[key] || (MXF.checks[key] = {});
+  rows.forEach((row, i) => {
+    if (row.querySelector('.mxf-check')) return;
+    const cell = row.querySelector('td'); if (!cell) return;
+    cell.insertAdjacentHTML('afterbegin', '<label class="mxf-check-label"><input class="check mxf-check" type="checkbox" data-change="mxfCheck" data-i="' + i + '"' + (checks[i] ? ' checked' : '') + ' aria-label="' + esc(mxfText('راجعت الصنف ', 'Reviewed item ') + (i + 1)) + '"><span>' + mxfText('تمت المراجعة', 'Reviewed') + '</span></label>');
+  });
+  mxfProgress();
+}
+function mxfProgress() {
+  if (!MXF.root) return;
+  const checks = $$('.mxf-check', MXF.root.el), n = checks.filter(x => x.checked).length;
+  const label = $('.mxf-progress', MXF.root.el); if (label && label.textContent !== n + ' / ' + checks.length) label.textContent = n + ' / ' + checks.length;
+  checks.forEach(c => c.closest('tr').classList.toggle('mxf-checked', c.checked));
+}
+ACT.mxfCheck = el => { (MXF.checks[mxfKey()] || (MXF.checks[mxfKey()] = {}))[el.dataset.i] = el.checked; mxfProgress(); };
+ACT.mxfSelect = el => { if (MXF.busy || !MXF.root) return; $$('.mxf-check:not(:disabled)', MXF.root.el).forEach(c => { c.checked = el.dataset.on === '1'; ACT.mxfCheck(c); }); };
+ACT.mxfTab = el => { if (MXF.busy) return; MXF.waiting = el.dataset.tab === 'waiting'; mxfUpdateRail(); };
+function mxfDraftSave() {
+  const m = MXF.root; if (!m || m.mxfCommitted || !m.el.querySelector('#rvItems')) return;
+  const fields = $$('.rvQty,.rvNote,#rvReason', m.el);
+  MXF.drafts[mxfKey()] = { snapshot: m.mxfSnapshot, fields: fields.map(x => ({ item: x.dataset.item || '', type: x.classList.contains('rvQty') ? 'qty' : x.classList.contains('rvNote') ? 'note' : 'reason', value: x.value })) };
+}
+function mxfDraftRestore(m) {
+  const fields = $$('.rvQty,.rvNote,#rvReason', m.el), draft = MXF.drafts[mxfKey()];
+  if (!draft) return;
+  const same = draft.snapshot === m.mxfSnapshot;
+  if (!same) delete MXF.checks[mxfKey()];
+  draft.fields.forEach(d => { if (!same && d.type === 'qty') return; const el = fields.find(x => (x.dataset.item || '') === d.item && (x.classList.contains('rvQty') ? 'qty' : x.classList.contains('rvNote') ? 'note' : 'reason') === d.type); if (el) el.value = d.value; });
+}
+ACT.mxfHome = () => { if (MXF.busy) return; const old = MXF.root; if (old) { closeModal(old); if (!old.closing) return; old.el.remove(); } mxfWelcome(); };
+function mxfWelcome() {
+  MXF.id = ''; MXF.opening = true;
+  const home = openModal({ title: mxfText('خطوة واضحة، ثم التي بعدها', 'One clear task at a time'), icon: 'route', body: (MXF.events.length ? '<div class="mxf-saved" role="status">' + icon('checkc', 'i-sm') + esc(MXF.events[MXF.events.length - 1].label) + ' · ' + mxfText('أكّد الخادم الحفظ', 'Server confirmed') + '</div>' : '') + '<div class="mxf-welcome">' + icon('checkc') + '<h2>' + mxfText('كل تركيزك على المهمة الحالية', 'Focus on the current task') + '</h2><p>' + mxfText('اختر طلبًا من القائمة. إجراءاتك وصلاحياتك وحالات الطلب تبقى كما هي.', 'Choose a task. Existing permissions and workflow remain in place.') + '</p><button class="btn btn-primary" data-act="mxfNext">' + mxfText('ابدأ المراجعة', 'Start reviewing') + '</button></div>', foot: '<button class="btn" data-close>' + mxfText('حفظ وتوقف', 'Pause session') + '</button>' });
+  $('.modal', home.el).classList.add('mxf-home');
+}
+async function mxfOpen(id) {
+  if (MXF.busy || !mxfAccess(MXF.view)) return;
+  const r = mxfRows().find(x => x.id === id); if (!r) return;
+  mxfDraftSave();
+  const old = MXF.root;
+  if (old) { closeModal(old); if (!old.closing) return; old.el.remove(); }
+  MXF.id = id; MXF.opening = true;
+  if (MXF.view === 'reviews') openReview(id);
+  else if (MXF.view === 'requests') {
+    S.proc.expanded.clear(); if ($('#procList')) renderProcList(false);
+    const m = openModal({ title: esc(mxfRecordLabel(r)) + ' · <span class="mono">' + esc(id) + '</span>', sub: esc(r.branch || r.clinic || ''), icon: 'package', size: 'lg',
+      body: '<div class="row-wrap" id="mxfRecordState">' + badge(r.status, r) + typeTag(r.type, r.exempt) + '</div><div class="req-expand" id="exp-' + esc(id) + '">' + skeletonList(1) + '</div>',
+      foot: '<button class="btn" data-close>' + mxfText('حفظ وتوقف', 'Pause session') + '</button><button class="btn btn-ghost" data-act="detail" data-id="' + esc(id) + '">' + esc(t('details')) + '</button>' });
+    call('getRequestItemsFull', id).then(d => { if (m.closing) return; S.proc.items[id] = d; if (d.request) Object.assign(r, d.request); $('#exp-' + CSS.escape(id), m.el).innerHTML = procItemsHtml(r); mxfReviewTools(m, '.dsp-table tbody tr'); animateBars(m.el); }).catch(e => { if (!m.closing) $('.modal-body', m.el).innerHTML = emptyState('alert', errMsg(e)); });
+  } else if (MXF.view === 'mine') {
+    if (Number(r.pendingShipments) > 0) openReceive(id); else openDetail(id);
+  } else if (MXF.view === 'maint') ACT.mtOpen({ dataset: { id: id } });
+  else openLabCase(id);
+  MXF.opening = false;
+}
+ACT.mxfRecord = el => mxfOpen(el.dataset.id);
+ACT.mxfNext = () => { if (MXF.busy) return; const rows = mxfQueue(false), next = rows.find(r => r.id !== MXF.id); if (next) mxfOpen(next.id); else if (!MXF.id && rows[0]) mxfOpen(rows[0].id); else ACT.mxfSummary(); };
+ACT.mxfStart = async el => {
+  if (!mxfAccess(S.view) || MXF.busy) return;
+  const account = S.user.name + ':' + S.user.screen;
+  if (MXF.account !== account) { MXF.events = []; MXF.checks = {}; MXF.drafts = {}; MXF.account = account; }
+  MXF.view = S.view; MXF.waiting = false;
+  busy(el, true);
+  try { await mxfLoad(); mxfWelcome(); } catch (e) { toast(errMsg(e), 'error'); } finally { busy(el, false); }
+};
+ACT.mxfSummary = () => {
+  const events = MXF.events.filter(e => e.day === mxfDay()), records = new Set(events.map(e => e.id));
+  openModal({ title: mxfText('إنجاز جلستك اليوم', 'Your session today'), icon: 'checkc', body: '<div class="mxf-summary"><strong>' + records.size + '</strong><p>' + mxfText('طلبات أو أعمال حدّثتها بنجاح', 'Tasks updated successfully') + '</p></div>' + (events.length ? events.slice().reverse().map(e => '<div class="mxf-event">' + icon('checkc', 'i-sm') + '<div><b>' + esc(e.label) + '</b><small>' + esc(e.id) + ' · ' + esc(new Date(e.at).toLocaleTimeString(S.lang === 'ar' ? 'ar-SA' : 'en-GB', { hour: '2-digit', minute: '2-digit' })) + '</small></div></div>').join('') : '<p class="hint">' + mxfText('فتح الطلب وتحديد الأصناف وحدهما لا يُحسبان إنجازًا. يظهر هنا ما أكّد الخادم حفظه في هذه الجلسة فقط.', 'Opening tasks and checking items do not count. Only server-confirmed actions in this session appear here.') + '</p>'), foot: '<button class="btn btn-primary" data-close>' + esc(t('close')) + '</button>' });
+};
+const MXF_LABELS = { doctorReview: ['قرار مراجعة محفوظ', 'Review decision saved'], setItemsStatus: ['تحديث حالة الأصناف', 'Item status updated'], dispatchItems: ['شحنة أُرسلت', 'Shipment dispatched'], receiveShipment: ['استلام شحنة موثق', 'Shipment receipt saved'], editRequestItems: ['كميات الطلب معدّلة', 'Quantities updated'], resubmitRequest: ['طلب أُعيد إرساله', 'Request resubmitted'], rejectItems: ['قرار صنف محفوظ', 'Item decision saved'], updateItemApproval: ['كمية معتمدة معدّلة', 'Approved quantity updated'], updateMaintTicket: ['تحديث بلاغ محفوظ', 'Ticket updated'], updateLabItems: ['تحديث عمل المعمل', 'Lab work updated'] };
+const mxfCallOriginal = call;
+call = function(fn) {
+  const args = Array.prototype.slice.call(arguments, 1), tracking = !!MXF.root && !!MXF_LABELS[fn], account = MXF.account, id = MXF.id;
+  if (!tracking) return mxfCallOriginal.apply(null, [fn].concat(args));
+  if (MXF.busy) return Promise.reject(new Error('ERR_CONFLICT'));
+  MXF.busy = true;
+  return mxfCallOriginal.apply(null, [fn].concat(args)).then(data => {
+    if (account === MXF.account) {
+      const label = mxfText.apply(null, MXF_LABELS[fn]), event = { id: id, fn: fn, label: label, at: Date.now(), day: mxfDay() };
+      if (fn !== 'editRequestItems' || data.changed) MXF.events.push(event);
+      delete MXF.drafts[mxfKey()]; delete MXF.checks[mxfKey()];
+      if (MXF.root) { const host = $('.modal-body', MXF.root.el); if (host) { const old = $('.mxf-saved', host); if (old) old.remove(); host.insertAdjacentHTML('afterbegin', '<div class="mxf-saved" role="status">' + icon('checkc', 'i-sm') + esc(label) + ' · ' + mxfText('أكّد الخادم الحفظ', 'Server confirmed') + '</div>'); } }
+    }
+    return data;
+  }).finally(() => { MXF.busy = false; mxfUpdateRail(); });
+};
+function mxfSyncDispatch() {
+  const m = MXF.root; if (!m || m.closing || MXF.view !== 'requests') return;
+  const native = $('.dsp-btn', m.el), foot = $('.modal-foot', m.el); if (!foot) return; if (!native) { const old = $('.mxf-dispatch', foot); if (old) old.remove(); return; }
+  let proxy = $('.mxf-dispatch', foot);
+  if (!proxy) { foot.insertAdjacentHTML('beforeend', '<button class="btn btn-primary mxf-dispatch" data-act="dispatch" data-id="' + esc(MXF.id) + '"></button>'); proxy = $('.mxf-dispatch', foot); }
+  proxy.disabled = native.disabled || MXF.busy;
+  if (!MXF.busy && proxy.innerHTML !== native.innerHTML) proxy.innerHTML = native.innerHTML;
+}
+const mxfDispatchSyncOriginal = syncDispatchBtn;
+syncDispatchBtn = function(exp) { mxfDispatchSyncOriginal(exp); mxfSyncDispatch(); };
+const mxfResetOriginal = resetApp;
+resetApp = function() { MXF.root = null; MXF.events = []; MXF.checks = {}; MXF.drafts = {}; MXF.account = ''; MXF.busy = false; return mxfResetOriginal(); };
+document.addEventListener('input', e => { if (!MXF.root || !MXF.root.el.contains(e.target)) return; mxfDraftSave(); if (e.target.matches('.rvQty')) { const c = e.target.closest('tr').querySelector('.mxf-check'); if (c) { c.checked = false; ACT.mxfCheck(c); } } });
+new MutationObserver(mxfToolbar).observe($('#view'), { childList: true, subtree: true });
+new MutationObserver(() => { if (MXF.root && !MXF.root.closing) { mxfDecorateChecks(MXF.root); mxfSyncDispatch(); const foot = $('.modal-foot', MXF.root.el); if (foot && !foot.querySelector('[data-act="mxfNext"]')) foot.insertAdjacentHTML('beforeend', '<button class="btn btn-soft mxf-next" data-act="mxfNext">' + mxfText('الطلب التالي', 'Next task') + '</button>'); } }).observe($('#modals'), { childList: true, subtree: true });
+/* MASAR_FOCUS_END */
 
 /* =====================================================================
    Boot
