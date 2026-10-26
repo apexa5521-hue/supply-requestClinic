@@ -6,7 +6,7 @@
   "main": "server.mjs",
   "scripts": {
     "start": "node server.mjs",
-    "test": "node --test tests/backend.test.js",
+    "test": "node --test tests/backend.test.js tests/focus.test.cjs",
     "test:e2e": "node tests/e2e.js",
     "test:server": "node server/notify.test.mjs && node server/sync.test.mjs && node server/drive.test.mjs && node server/backup.test.mjs && node server/workbook.test.mjs && node server/store.test.mjs"
   },
