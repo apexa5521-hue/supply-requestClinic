@@ -1925,9 +1925,14 @@ function go(view, keepScroll) {
   $('#pageTitle').textContent = t(v.title);
   $('#pageSub').textContent = v.sub ? t(v.sub) : '';
   const root = $('#view');
+  root.dataset.screen = view;
   root.className = 'stack';
   root.style.gap = '18px';
+  root.style.gap = '18px';
   root.innerHTML = v.render();
+  // Presentation only: the same translated page identity in every workspace.
+  root.insertAdjacentHTML('afterbegin', '<header class="workspace-head"><div><div class="workspace-eyebrow">MasarX <span> / </span>' + esc(t('nav_section')) + '</div><h1>' + esc(t(v.title)) + '</h1>' + (v.sub ? '<p>' + esc(t(v.sub)) + '</p>' : '') + '</div><span class="workspace-mark" aria-hidden="true">' + icon('route') + '</span></header>');
+  // تبويب مختصر: أزرار فرعية أعلى الصفحة للتنقل بين شاشات نفس المجموعة
   // تبويب مختصر: أزرار فرعية أعلى الصفحة للتنقل بين شاشات نفس المجموعة
   const grp = navGroupOf(view);
   if (grp) {
