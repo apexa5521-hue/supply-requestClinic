@@ -1,0 +1,1805 @@
+{
+  "checks": [
+    {
+      "role": "المدير",
+      "view": "overview",
+      "width": 320,
+      "scroll": 320,
+      "title": 2730
+    },
+    {
+      "role": "المدير",
+      "view": "overview",
+      "width": 390,
+      "scroll": 390,
+      "title": 2730
+    },
+    {
+      "role": "المدير",
+      "view": "overview",
+      "width": 768,
+      "scroll": 768,
+      "title": 2730
+    },
+    {
+      "role": "المدير",
+      "view": "overview",
+      "width": 1024,
+      "scroll": 1024,
+      "title": 2730
+    },
+    {
+      "role": "المدير",
+      "view": "overview",
+      "width": 1440,
+      "scroll": 1440,
+      "title": 2730
+    },
+    {
+      "role": "المدير",
+      "view": "overview",
+      "width": 1920,
+      "scroll": 1920,
+      "title": 2730
+    },
+    {
+      "role": "المدير",
+      "view": "overview",
+      "lang": "en",
+      "theme": "dark",
+      "width": 390,
+      "scroll": 390
+    },
+    {
+      "role": "المدير",
+      "view": "overview",
+      "lang": "en",
+      "theme": "dark",
+      "width": 1440,
+      "scroll": 1440
+    },
+    {
+      "role": "المدير",
+      "view": "monitor",
+      "width": 320,
+      "scroll": 320,
+      "title": 2430
+    },
+    {
+      "role": "المدير",
+      "view": "monitor",
+      "width": 390,
+      "scroll": 390,
+      "title": 2430
+    },
+    {
+      "role": "المدير",
+      "view": "monitor",
+      "width": 768,
+      "scroll": 768,
+      "title": 2430
+    },
+    {
+      "role": "المدير",
+      "view": "monitor",
+      "width": 1024,
+      "scroll": 1024,
+      "title": 2430
+    },
+    {
+      "role": "المدير",
+      "view": "monitor",
+      "width": 1440,
+      "scroll": 1440,
+      "title": 2430
+    },
+    {
+      "role": "المدير",
+      "view": "monitor",
+      "width": 1920,
+      "scroll": 1920,
+      "title": 2430
+    },
+    {
+      "role": "المدير",
+      "view": "monitor",
+      "lang": "en",
+      "theme": "dark",
+      "width": 390,
+      "scroll": 390
+    },
+    {
+      "role": "المدير",
+      "view": "monitor",
+      "lang": "en",
+      "theme": "dark",
+      "width": 1440,
+      "scroll": 1440
+    },
+    {
+      "role": "المدير",
+      "view": "maint",
+      "width": 320,
+      "scroll": 320,
+      "title": 741
+    },
+    {
+      "role": "المدير",
+      "view": "maint",
+      "width": 390,
+      "scroll": 390,
+      "title": 741
+    },
+    {
+      "role": "المدير",
+      "view": "maint",
+      "width": 768,
+      "scroll": 768,
+      "title": 741
+    },
+    {
+      "role": "المدير",
+      "view": "maint",
+      "width": 1024,
+      "scroll": 1024,
+      "title": 741
+    },
+    {
+      "role": "المدير",
+      "view": "maint",
+      "width": 1440,
+      "scroll": 1440,
+      "title": 741
+    },
+    {
+      "role": "المدير",
+      "view": "maint",
+      "width": 1920,
+      "scroll": 1920,
+      "title": 741
+    },
+    {
+      "role": "المدير",
+      "view": "maint",
+      "lang": "en",
+      "theme": "dark",
+      "width": 390,
+      "scroll": 390
+    },
+    {
+      "role": "المدير",
+      "view": "maint",
+      "lang": "en",
+      "theme": "dark",
+      "width": 1440,
+      "scroll": 1440
+    },
+    {
+      "role": "المدير",
+      "view": "catalog",
+      "width": 320,
+      "scroll": 320,
+      "title": 927
+    },
+    {
+      "role": "المدير",
+      "view": "catalog",
+      "width": 390,
+      "scroll": 390,
+      "title": 927
+    },
+    {
+      "role": "المدير",
+      "view": "catalog",
+      "width": 768,
+      "scroll": 768,
+      "title": 927
+    },
+    {
+      "role": "المدير",
+      "view": "catalog",
+      "width": 1024,
+      "scroll": 1024,
+      "title": 927
+    },
+    {
+      "role": "المدير",
+      "view": "catalog",
+      "width": 1440,
+      "scroll": 1440,
+      "title": 927
+    },
+    {
+      "role": "المدير",
+      "view": "catalog",
+      "width": 1920,
+      "scroll": 1920,
+      "title": 927
+    },
+    {
+      "role": "المدير",
+      "view": "catalog",
+      "lang": "en",
+      "theme": "dark",
+      "width": 390,
+      "scroll": 390
+    },
+    {
+      "role": "المدير",
+      "view": "catalog",
+      "lang": "en",
+      "theme": "dark",
+      "width": 1440,
+      "scroll": 1440
+    },
+    {
+      "role": "المدير",
+      "view": "users",
+      "width": 320,
+      "scroll": 320,
+      "title": 7848
+    },
+    {
+      "role": "المدير",
+      "view": "users",
+      "width": 390,
+      "scroll": 390,
+      "title": 7848
+    },
+    {
+      "role": "المدير",
+      "view": "users",
+      "width": 768,
+      "scroll": 768,
+      "title": 7848
+    },
+    {
+      "role": "المدير",
+      "view": "users",
+      "width": 1024,
+      "scroll": 1024,
+      "title": 7848
+    },
+    {
+      "role": "المدير",
+      "view": "users",
+      "width": 1440,
+      "scroll": 1440,
+      "title": 7848
+    },
+    {
+      "role": "المدير",
+      "view": "users",
+      "width": 1920,
+      "scroll": 1920,
+      "title": 7848
+    },
+    {
+      "role": "المدير",
+      "view": "users",
+      "lang": "en",
+      "theme": "dark",
+      "width": 390,
+      "scroll": 390
+    },
+    {
+      "role": "المدير",
+      "view": "users",
+      "lang": "en",
+      "theme": "dark",
+      "width": 1440,
+      "scroll": 1440
+    },
+    {
+      "role": "المدير",
+      "view": "branches",
+      "width": 320,
+      "scroll": 320,
+      "title": 2634
+    },
+    {
+      "role": "المدير",
+      "view": "branches",
+      "width": 390,
+      "scroll": 390,
+      "title": 2634
+    },
+    {
+      "role": "المدير",
+      "view": "branches",
+      "width": 768,
+      "scroll": 768,
+      "title": 2634
+    },
+    {
+      "role": "المدير",
+      "view": "branches",
+      "width": 1024,
+      "scroll": 1024,
+      "title": 2634
+    },
+    {
+      "role": "المدير",
+      "view": "branches",
+      "width": 1440,
+      "scroll": 1440,
+      "title": 2634
+    },
+    {
+      "role": "المدير",
+      "view": "branches",
+      "width": 1920,
+      "scroll": 1920,
+      "title": 2634
+    },
+    {
+      "role": "المدير",
+      "view": "branches",
+      "lang": "en",
+      "theme": "dark",
+      "width": 390,
+      "scroll": 390
+    },
+    {
+      "role": "المدير",
+      "view": "branches",
+      "lang": "en",
+      "theme": "dark",
+      "width": 1440,
+      "scroll": 1440
+    },
+    {
+      "role": "المدير",
+      "view": "settings",
+      "width": 320,
+      "scroll": 320,
+      "title": 2803
+    },
+    {
+      "role": "المدير",
+      "view": "settings",
+      "width": 390,
+      "scroll": 390,
+      "title": 2803
+    },
+    {
+      "role": "المدير",
+      "view": "settings",
+      "width": 768,
+      "scroll": 768,
+      "title": 2803
+    },
+    {
+      "role": "المدير",
+      "view": "settings",
+      "width": 1024,
+      "scroll": 1024,
+      "title": 2803
+    },
+    {
+      "role": "المدير",
+      "view": "settings",
+      "width": 1440,
+      "scroll": 1440,
+      "title": 2803
+    },
+    {
+      "role": "المدير",
+      "view": "settings",
+      "width": 1920,
+      "scroll": 1920,
+      "title": 2803
+    },
+    {
+      "role": "المدير",
+      "view": "settings",
+      "lang": "en",
+      "theme": "dark",
+      "width": 390,
+      "scroll": 390
+    },
+    {
+      "role": "المدير",
+      "view": "settings",
+      "lang": "en",
+      "theme": "dark",
+      "width": 1440,
+      "scroll": 1440
+    },
+    {
+      "role": "المدير",
+      "view": "reports",
+      "width": 320,
+      "scroll": 320,
+      "title": 1415
+    },
+    {
+      "role": "المدير",
+      "view": "reports",
+      "width": 390,
+      "scroll": 390,
+      "title": 1415
+    },
+    {
+      "role": "المدير",
+      "view": "reports",
+      "width": 768,
+      "scroll": 768,
+      "title": 1415
+    },
+    {
+      "role": "المدير",
+      "view": "reports",
+      "width": 1024,
+      "scroll": 1024,
+      "title": 1415
+    },
+    {
+      "role": "المدير",
+      "view": "reports",
+      "width": 1440,
+      "scroll": 1440,
+      "title": 1415
+    },
+    {
+      "role": "المدير",
+      "view": "reports",
+      "width": 1920,
+      "scroll": 1920,
+      "title": 1415
+    },
+    {
+      "role": "المدير",
+      "view": "reports",
+      "lang": "en",
+      "theme": "dark",
+      "width": 390,
+      "scroll": 390
+    },
+    {
+      "role": "المدير",
+      "view": "reports",
+      "lang": "en",
+      "theme": "dark",
+      "width": 1440,
+      "scroll": 1440
+    },
+    {
+      "role": "المدير",
+      "view": "notices",
+      "width": 320,
+      "scroll": 320,
+      "title": 267
+    },
+    {
+      "role": "المدير",
+      "view": "notices",
+      "width": 390,
+      "scroll": 390,
+      "title": 267
+    },
+    {
+      "role": "المدير",
+      "view": "notices",
+      "width": 768,
+      "scroll": 768,
+      "title": 267
+    },
+    {
+      "role": "المدير",
+      "view": "notices",
+      "width": 1024,
+      "scroll": 1024,
+      "title": 267
+    },
+    {
+      "role": "المدير",
+      "view": "notices",
+      "width": 1440,
+      "scroll": 1440,
+      "title": 267
+    },
+    {
+      "role": "المدير",
+      "view": "notices",
+      "width": 1920,
+      "scroll": 1920,
+      "title": 267
+    },
+    {
+      "role": "المدير",
+      "view": "notices",
+      "lang": "en",
+      "theme": "dark",
+      "width": 390,
+      "scroll": 390
+    },
+    {
+      "role": "المدير",
+      "view": "notices",
+      "lang": "en",
+      "theme": "dark",
+      "width": 1440,
+      "scroll": 1440
+    },
+    {
+      "role": "المدير",
+      "view": "assetsdash",
+      "width": 320,
+      "scroll": 320,
+      "title": 528
+    },
+    {
+      "role": "المدير",
+      "view": "assetsdash",
+      "width": 390,
+      "scroll": 390,
+      "title": 528
+    },
+    {
+      "role": "المدير",
+      "view": "assetsdash",
+      "width": 768,
+      "scroll": 768,
+      "title": 528
+    },
+    {
+      "role": "المدير",
+      "view": "assetsdash",
+      "width": 1024,
+      "scroll": 1024,
+      "title": 528
+    },
+    {
+      "role": "المدير",
+      "view": "assetsdash",
+      "width": 1440,
+      "scroll": 1440,
+      "title": 528
+    },
+    {
+      "role": "المدير",
+      "view": "assetsdash",
+      "width": 1920,
+      "scroll": 1920,
+      "title": 528
+    },
+    {
+      "role": "المدير",
+      "view": "assetsdash",
+      "lang": "en",
+      "theme": "dark",
+      "width": 390,
+      "scroll": 390
+    },
+    {
+      "role": "المدير",
+      "view": "assetsdash",
+      "lang": "en",
+      "theme": "dark",
+      "width": 1440,
+      "scroll": 1440
+    },
+    {
+      "role": "المدير",
+      "view": "finance",
+      "width": 320,
+      "scroll": 320,
+      "title": 1958
+    },
+    {
+      "role": "المدير",
+      "view": "finance",
+      "width": 390,
+      "scroll": 390,
+      "title": 1958
+    },
+    {
+      "role": "المدير",
+      "view": "finance",
+      "width": 768,
+      "scroll": 768,
+      "title": 1958
+    },
+    {
+      "role": "المدير",
+      "view": "finance",
+      "width": 1024,
+      "scroll": 1024,
+      "title": 1958
+    },
+    {
+      "role": "المدير",
+      "view": "finance",
+      "width": 1440,
+      "scroll": 1440,
+      "title": 1958
+    },
+    {
+      "role": "المدير",
+      "view": "finance",
+      "width": 1920,
+      "scroll": 1920,
+      "title": 1958
+    },
+    {
+      "role": "المدير",
+      "view": "finance",
+      "lang": "en",
+      "theme": "dark",
+      "width": 390,
+      "scroll": 390
+    },
+    {
+      "role": "المدير",
+      "view": "finance",
+      "lang": "en",
+      "theme": "dark",
+      "width": 1440,
+      "scroll": 1440
+    },
+    {
+      "role": "المدير",
+      "view": "rules",
+      "width": 320,
+      "scroll": 320,
+      "title": 2384
+    },
+    {
+      "role": "المدير",
+      "view": "rules",
+      "width": 390,
+      "scroll": 390,
+      "title": 2384
+    },
+    {
+      "role": "المدير",
+      "view": "rules",
+      "width": 768,
+      "scroll": 768,
+      "title": 2384
+    },
+    {
+      "role": "المدير",
+      "view": "rules",
+      "width": 1024,
+      "scroll": 1024,
+      "title": 2384
+    },
+    {
+      "role": "المدير",
+      "view": "rules",
+      "width": 1440,
+      "scroll": 1440,
+      "title": 2384
+    },
+    {
+      "role": "المدير",
+      "view": "rules",
+      "width": 1920,
+      "scroll": 1920,
+      "title": 2384
+    },
+    {
+      "role": "المدير",
+      "view": "rules",
+      "lang": "en",
+      "theme": "dark",
+      "width": 390,
+      "scroll": 390
+    },
+    {
+      "role": "المدير",
+      "view": "rules",
+      "lang": "en",
+      "theme": "dark",
+      "width": 1440,
+      "scroll": 1440
+    },
+    {
+      "role": "المدير",
+      "view": "docadmin",
+      "width": 320,
+      "scroll": 320,
+      "title": 419
+    },
+    {
+      "role": "المدير",
+      "view": "docadmin",
+      "width": 390,
+      "scroll": 390,
+      "title": 419
+    },
+    {
+      "role": "المدير",
+      "view": "docadmin",
+      "width": 768,
+      "scroll": 768,
+      "title": 419
+    },
+    {
+      "role": "المدير",
+      "view": "docadmin",
+      "width": 1024,
+      "scroll": 1024,
+      "title": 419
+    },
+    {
+      "role": "المدير",
+      "view": "docadmin",
+      "width": 1440,
+      "scroll": 1440,
+      "title": 419
+    },
+    {
+      "role": "المدير",
+      "view": "docadmin",
+      "width": 1920,
+      "scroll": 1920,
+      "title": 419
+    },
+    {
+      "role": "المدير",
+      "view": "docadmin",
+      "lang": "en",
+      "theme": "dark",
+      "width": 390,
+      "scroll": 390
+    },
+    {
+      "role": "المدير",
+      "view": "docadmin",
+      "lang": "en",
+      "theme": "dark",
+      "width": 1440,
+      "scroll": 1440
+    },
+    {
+      "role": "المدير",
+      "view": "labkpi",
+      "width": 320,
+      "scroll": 320,
+      "title": 600
+    },
+    {
+      "role": "المدير",
+      "view": "labkpi",
+      "width": 390,
+      "scroll": 390,
+      "title": 600
+    },
+    {
+      "role": "المدير",
+      "view": "labkpi",
+      "width": 768,
+      "scroll": 768,
+      "title": 600
+    },
+    {
+      "role": "المدير",
+      "view": "labkpi",
+      "width": 1024,
+      "scroll": 1024,
+      "title": 600
+    },
+    {
+      "role": "المدير",
+      "view": "labkpi",
+      "width": 1440,
+      "scroll": 1440,
+      "title": 600
+    },
+    {
+      "role": "المدير",
+      "view": "labkpi",
+      "width": 1920,
+      "scroll": 1920,
+      "title": 600
+    },
+    {
+      "role": "المدير",
+      "view": "labkpi",
+      "lang": "en",
+      "theme": "dark",
+      "width": 390,
+      "scroll": 390
+    },
+    {
+      "role": "المدير",
+      "view": "labkpi",
+      "lang": "en",
+      "theme": "dark",
+      "width": 1440,
+      "scroll": 1440
+    },
+    {
+      "role": "المدير",
+      "view": "reqfix",
+      "width": 320,
+      "scroll": 320,
+      "title": 406
+    },
+    {
+      "role": "المدير",
+      "view": "reqfix",
+      "width": 390,
+      "scroll": 390,
+      "title": 406
+    },
+    {
+      "role": "المدير",
+      "view": "reqfix",
+      "width": 768,
+      "scroll": 768,
+      "title": 406
+    },
+    {
+      "role": "المدير",
+      "view": "reqfix",
+      "width": 1024,
+      "scroll": 1024,
+      "title": 406
+    },
+    {
+      "role": "المدير",
+      "view": "reqfix",
+      "width": 1440,
+      "scroll": 1440,
+      "title": 406
+    },
+    {
+      "role": "المدير",
+      "view": "reqfix",
+      "width": 1920,
+      "scroll": 1920,
+      "title": 406
+    },
+    {
+      "role": "المدير",
+      "view": "reqfix",
+      "lang": "en",
+      "theme": "dark",
+      "width": 390,
+      "scroll": 390
+    },
+    {
+      "role": "المدير",
+      "view": "reqfix",
+      "lang": "en",
+      "theme": "dark",
+      "width": 1440,
+      "scroll": 1440
+    },
+    {
+      "role": "المدير",
+      "view": "extorders",
+      "width": 320,
+      "scroll": 320,
+      "title": 213
+    },
+    {
+      "role": "المدير",
+      "view": "extorders",
+      "width": 390,
+      "scroll": 390,
+      "title": 213
+    },
+    {
+      "role": "المدير",
+      "view": "extorders",
+      "width": 768,
+      "scroll": 768,
+      "title": 213
+    },
+    {
+      "role": "المدير",
+      "view": "extorders",
+      "width": 1024,
+      "scroll": 1024,
+      "title": 213
+    },
+    {
+      "role": "المدير",
+      "view": "extorders",
+      "width": 1440,
+      "scroll": 1440,
+      "title": 213
+    },
+    {
+      "role": "المدير",
+      "view": "extorders",
+      "width": 1920,
+      "scroll": 1920,
+      "title": 213
+    },
+    {
+      "role": "المدير",
+      "view": "extorders",
+      "lang": "en",
+      "theme": "dark",
+      "width": 390,
+      "scroll": 390
+    },
+    {
+      "role": "المدير",
+      "view": "extorders",
+      "lang": "en",
+      "theme": "dark",
+      "width": 1440,
+      "scroll": 1440
+    },
+    {
+      "role": "المدير",
+      "view": "nursevoice",
+      "width": 320,
+      "scroll": 320,
+      "title": 230
+    },
+    {
+      "role": "المدير",
+      "view": "nursevoice",
+      "width": 390,
+      "scroll": 390,
+      "title": 230
+    },
+    {
+      "role": "المدير",
+      "view": "nursevoice",
+      "width": 768,
+      "scroll": 768,
+      "title": 230
+    },
+    {
+      "role": "المدير",
+      "view": "nursevoice",
+      "width": 1024,
+      "scroll": 1024,
+      "title": 230
+    },
+    {
+      "role": "المدير",
+      "view": "nursevoice",
+      "width": 1440,
+      "scroll": 1440,
+      "title": 230
+    },
+    {
+      "role": "المدير",
+      "view": "nursevoice",
+      "width": 1920,
+      "scroll": 1920,
+      "title": 230
+    },
+    {
+      "role": "المدير",
+      "view": "nursevoice",
+      "lang": "en",
+      "theme": "dark",
+      "width": 390,
+      "scroll": 390
+    },
+    {
+      "role": "المدير",
+      "view": "nursevoice",
+      "lang": "en",
+      "theme": "dark",
+      "width": 1440,
+      "scroll": 1440
+    },
+    {
+      "role": "المدير",
+      "view": "surveys",
+      "width": 320,
+      "scroll": 320,
+      "title": 395
+    },
+    {
+      "role": "المدير",
+      "view": "surveys",
+      "width": 390,
+      "scroll": 390,
+      "title": 395
+    },
+    {
+      "role": "المدير",
+      "view": "surveys",
+      "width": 768,
+      "scroll": 768,
+      "title": 395
+    },
+    {
+      "role": "المدير",
+      "view": "surveys",
+      "width": 1024,
+      "scroll": 1024,
+      "title": 395
+    },
+    {
+      "role": "المدير",
+      "view": "surveys",
+      "width": 1440,
+      "scroll": 1440,
+      "title": 395
+    },
+    {
+      "role": "المدير",
+      "view": "surveys",
+      "width": 1920,
+      "scroll": 1920,
+      "title": 395
+    },
+    {
+      "role": "المدير",
+      "view": "surveys",
+      "lang": "en",
+      "theme": "dark",
+      "width": 390,
+      "scroll": 390
+    },
+    {
+      "role": "المدير",
+      "view": "surveys",
+      "lang": "en",
+      "theme": "dark",
+      "width": 1440,
+      "scroll": 1440
+    },
+    {
+      "role": "علي",
+      "view": "requests",
+      "width": 320,
+      "scroll": 320,
+      "title": 2801
+    },
+    {
+      "role": "علي",
+      "view": "requests",
+      "width": 390,
+      "scroll": 390,
+      "title": 2801
+    },
+    {
+      "role": "علي",
+      "view": "requests",
+      "width": 768,
+      "scroll": 768,
+      "title": 2801
+    },
+    {
+      "role": "علي",
+      "view": "requests",
+      "width": 1024,
+      "scroll": 1024,
+      "title": 2801
+    },
+    {
+      "role": "علي",
+      "view": "requests",
+      "width": 1440,
+      "scroll": 1440,
+      "title": 2801
+    },
+    {
+      "role": "علي",
+      "view": "requests",
+      "width": 1920,
+      "scroll": 1920,
+      "title": 2801
+    },
+    {
+      "role": "علي",
+      "view": "requests",
+      "lang": "en",
+      "theme": "dark",
+      "width": 390,
+      "scroll": 390
+    },
+    {
+      "role": "علي",
+      "view": "requests",
+      "lang": "en",
+      "theme": "dark",
+      "width": 1440,
+      "scroll": 1440
+    },
+    {
+      "role": "علي",
+      "view": "boxes",
+      "width": 320,
+      "scroll": 320,
+      "title": 354
+    },
+    {
+      "role": "علي",
+      "view": "boxes",
+      "width": 390,
+      "scroll": 390,
+      "title": 354
+    },
+    {
+      "role": "علي",
+      "view": "boxes",
+      "width": 768,
+      "scroll": 768,
+      "title": 354
+    },
+    {
+      "role": "علي",
+      "view": "boxes",
+      "width": 1024,
+      "scroll": 1024,
+      "title": 354
+    },
+    {
+      "role": "علي",
+      "view": "boxes",
+      "width": 1440,
+      "scroll": 1440,
+      "title": 354
+    },
+    {
+      "role": "علي",
+      "view": "boxes",
+      "width": 1920,
+      "scroll": 1920,
+      "title": 354
+    },
+    {
+      "role": "علي",
+      "view": "boxes",
+      "lang": "en",
+      "theme": "dark",
+      "width": 390,
+      "scroll": 390
+    },
+    {
+      "role": "علي",
+      "view": "boxes",
+      "lang": "en",
+      "theme": "dark",
+      "width": 1440,
+      "scroll": 1440
+    },
+    {
+      "role": "علي",
+      "view": "complaints",
+      "width": 320,
+      "scroll": 320,
+      "title": 188
+    },
+    {
+      "role": "علي",
+      "view": "complaints",
+      "width": 390,
+      "scroll": 390,
+      "title": 188
+    },
+    {
+      "role": "علي",
+      "view": "complaints",
+      "width": 768,
+      "scroll": 768,
+      "title": 188
+    },
+    {
+      "role": "علي",
+      "view": "complaints",
+      "width": 1024,
+      "scroll": 1024,
+      "title": 188
+    },
+    {
+      "role": "علي",
+      "view": "complaints",
+      "width": 1440,
+      "scroll": 1440,
+      "title": 188
+    },
+    {
+      "role": "علي",
+      "view": "complaints",
+      "width": 1920,
+      "scroll": 1920,
+      "title": 188
+    },
+    {
+      "role": "علي",
+      "view": "complaints",
+      "lang": "en",
+      "theme": "dark",
+      "width": 390,
+      "scroll": 390
+    },
+    {
+      "role": "علي",
+      "view": "complaints",
+      "lang": "en",
+      "theme": "dark",
+      "width": 1440,
+      "scroll": 1440
+    },
+    {
+      "role": "علي",
+      "view": "assets",
+      "width": 320,
+      "scroll": 320,
+      "title": 378
+    },
+    {
+      "role": "علي",
+      "view": "assets",
+      "width": 390,
+      "scroll": 390,
+      "title": 378
+    },
+    {
+      "role": "علي",
+      "view": "assets",
+      "width": 768,
+      "scroll": 768,
+      "title": 378
+    },
+    {
+      "role": "علي",
+      "view": "assets",
+      "width": 1024,
+      "scroll": 1024,
+      "title": 378
+    },
+    {
+      "role": "علي",
+      "view": "assets",
+      "width": 1440,
+      "scroll": 1440,
+      "title": 378
+    },
+    {
+      "role": "علي",
+      "view": "assets",
+      "width": 1920,
+      "scroll": 1920,
+      "title": 378
+    },
+    {
+      "role": "علي",
+      "view": "assets",
+      "lang": "en",
+      "theme": "dark",
+      "width": 390,
+      "scroll": 390
+    },
+    {
+      "role": "علي",
+      "view": "assets",
+      "lang": "en",
+      "theme": "dark",
+      "width": 1440,
+      "scroll": 1440
+    },
+    {
+      "role": "سارة",
+      "view": "new",
+      "width": 320,
+      "scroll": 320,
+      "title": 1664
+    },
+    {
+      "role": "سارة",
+      "view": "new",
+      "width": 390,
+      "scroll": 390,
+      "title": 1664
+    },
+    {
+      "role": "سارة",
+      "view": "new",
+      "width": 768,
+      "scroll": 768,
+      "title": 1664
+    },
+    {
+      "role": "سارة",
+      "view": "new",
+      "width": 1024,
+      "scroll": 1024,
+      "title": 1664
+    },
+    {
+      "role": "سارة",
+      "view": "new",
+      "width": 1440,
+      "scroll": 1440,
+      "title": 1664
+    },
+    {
+      "role": "سارة",
+      "view": "new",
+      "width": 1920,
+      "scroll": 1920,
+      "title": 1664
+    },
+    {
+      "role": "سارة",
+      "view": "new",
+      "lang": "en",
+      "theme": "dark",
+      "width": 390,
+      "scroll": 390
+    },
+    {
+      "role": "سارة",
+      "view": "new",
+      "lang": "en",
+      "theme": "dark",
+      "width": 1440,
+      "scroll": 1440
+    },
+    {
+      "role": "سارة",
+      "view": "mine",
+      "width": 320,
+      "scroll": 320,
+      "title": 1639
+    },
+    {
+      "role": "سارة",
+      "view": "mine",
+      "width": 390,
+      "scroll": 390,
+      "title": 1639
+    },
+    {
+      "role": "سارة",
+      "view": "mine",
+      "width": 768,
+      "scroll": 768,
+      "title": 1639
+    },
+    {
+      "role": "سارة",
+      "view": "mine",
+      "width": 1024,
+      "scroll": 1024,
+      "title": 1639
+    },
+    {
+      "role": "سارة",
+      "view": "mine",
+      "width": 1440,
+      "scroll": 1440,
+      "title": 1639
+    },
+    {
+      "role": "سارة",
+      "view": "mine",
+      "width": 1920,
+      "scroll": 1920,
+      "title": 1639
+    },
+    {
+      "role": "سارة",
+      "view": "mine",
+      "lang": "en",
+      "theme": "dark",
+      "width": 390,
+      "scroll": 390
+    },
+    {
+      "role": "سارة",
+      "view": "mine",
+      "lang": "en",
+      "theme": "dark",
+      "width": 1440,
+      "scroll": 1440
+    },
+    {
+      "role": "سارة",
+      "view": "assets",
+      "width": 320,
+      "scroll": 320,
+      "title": 366
+    },
+    {
+      "role": "سارة",
+      "view": "assets",
+      "width": 390,
+      "scroll": 390,
+      "title": 366
+    },
+    {
+      "role": "سارة",
+      "view": "assets",
+      "width": 768,
+      "scroll": 768,
+      "title": 366
+    },
+    {
+      "role": "سارة",
+      "view": "assets",
+      "width": 1024,
+      "scroll": 1024,
+      "title": 366
+    },
+    {
+      "role": "سارة",
+      "view": "assets",
+      "width": 1440,
+      "scroll": 1440,
+      "title": 366
+    },
+    {
+      "role": "سارة",
+      "view": "assets",
+      "width": 1920,
+      "scroll": 1920,
+      "title": 366
+    },
+    {
+      "role": "سارة",
+      "view": "assets",
+      "lang": "en",
+      "theme": "dark",
+      "width": 390,
+      "scroll": 390
+    },
+    {
+      "role": "سارة",
+      "view": "assets",
+      "lang": "en",
+      "theme": "dark",
+      "width": 1440,
+      "scroll": 1440
+    },
+    {
+      "role": "سارة",
+      "view": "labmine",
+      "width": 320,
+      "scroll": 320,
+      "title": 228
+    },
+    {
+      "role": "سارة",
+      "view": "labmine",
+      "width": 390,
+      "scroll": 390,
+      "title": 228
+    },
+    {
+      "role": "سارة",
+      "view": "labmine",
+      "width": 768,
+      "scroll": 768,
+      "title": 228
+    },
+    {
+      "role": "سارة",
+      "view": "labmine",
+      "width": 1024,
+      "scroll": 1024,
+      "title": 228
+    },
+    {
+      "role": "سارة",
+      "view": "labmine",
+      "width": 1440,
+      "scroll": 1440,
+      "title": 228
+    },
+    {
+      "role": "سارة",
+      "view": "labmine",
+      "width": 1920,
+      "scroll": 1920,
+      "title": 228
+    },
+    {
+      "role": "سارة",
+      "view": "labmine",
+      "lang": "en",
+      "theme": "dark",
+      "width": 390,
+      "scroll": 390
+    },
+    {
+      "role": "سارة",
+      "view": "labmine",
+      "lang": "en",
+      "theme": "dark",
+      "width": 1440,
+      "scroll": 1440
+    },
+    {
+      "role": "د. خالد",
+      "view": "reviews",
+      "width": 320,
+      "scroll": 320,
+      "title": 475
+    },
+    {
+      "role": "د. خالد",
+      "view": "reviews",
+      "width": 390,
+      "scroll": 390,
+      "title": 475
+    },
+    {
+      "role": "د. خالد",
+      "view": "reviews",
+      "width": 768,
+      "scroll": 768,
+      "title": 475
+    },
+    {
+      "role": "د. خالد",
+      "view": "reviews",
+      "width": 1024,
+      "scroll": 1024,
+      "title": 475
+    },
+    {
+      "role": "د. خالد",
+      "view": "reviews",
+      "width": 1440,
+      "scroll": 1440,
+      "title": 475
+    },
+    {
+      "role": "د. خالد",
+      "view": "reviews",
+      "width": 1920,
+      "scroll": 1920,
+      "title": 475
+    },
+    {
+      "role": "د. خالد",
+      "view": "reviews",
+      "lang": "en",
+      "theme": "dark",
+      "width": 390,
+      "scroll": 390
+    },
+    {
+      "role": "د. خالد",
+      "view": "reviews",
+      "lang": "en",
+      "theme": "dark",
+      "width": 1440,
+      "scroll": 1440
+    },
+    {
+      "role": "د. خالد",
+      "view": "docprices",
+      "width": 320,
+      "scroll": 320,
+      "title": 270
+    },
+    {
+      "role": "د. خالد",
+      "view": "docprices",
+      "width": 390,
+      "scroll": 390,
+      "title": 270
+    },
+    {
+      "role": "د. خالد",
+      "view": "docprices",
+      "width": 768,
+      "scroll": 768,
+      "title": 270
+    },
+    {
+      "role": "د. خالد",
+      "view": "docprices",
+      "width": 1024,
+      "scroll": 1024,
+      "title": 270
+    },
+    {
+      "role": "د. خالد",
+      "view": "docprices",
+      "width": 1440,
+      "scroll": 1440,
+      "title": 270
+    },
+    {
+      "role": "د. خالد",
+      "view": "docprices",
+      "width": 1920,
+      "scroll": 1920,
+      "title": 270
+    },
+    {
+      "role": "د. خالد",
+      "view": "docprices",
+      "lang": "en",
+      "theme": "dark",
+      "width": 390,
+      "scroll": 390
+    },
+    {
+      "role": "د. خالد",
+      "view": "docprices",
+      "lang": "en",
+      "theme": "dark",
+      "width": 1440,
+      "scroll": 1440
+    },
+    {
+      "role": "د. خالد",
+      "view": "labdoc",
+      "width": 320,
+      "scroll": 320,
+      "title": 147
+    },
+    {
+      "role": "د. خالد",
+      "view": "labdoc",
+      "width": 390,
+      "scroll": 390,
+      "title": 147
+    },
+    {
+      "role": "د. خالد",
+      "view": "labdoc",
+      "width": 768,
+      "scroll": 768,
+      "title": 147
+    },
+    {
+      "role": "د. خالد",
+      "view": "labdoc",
+      "width": 1024,
+      "scroll": 1024,
+      "title": 147
+    },
+    {
+      "role": "د. خالد",
+      "view": "labdoc",
+      "width": 1440,
+      "scroll": 1440,
+      "title": 147
+    },
+    {
+      "role": "د. خالد",
+      "view": "labdoc",
+      "width": 1920,
+      "scroll": 1920,
+      "title": 147
+    },
+    {
+      "role": "د. خالد",
+      "view": "labdoc",
+      "lang": "en",
+      "theme": "dark",
+      "width": 390,
+      "scroll": 390
+    },
+    {
+      "role": "د. خالد",
+      "view": "labdoc",
+      "lang": "en",
+      "theme": "dark",
+      "width": 1440,
+      "scroll": 1440
+    },
+    {
+      "role": "فني المعمل",
+      "view": "labboard",
+      "width": 320,
+      "scroll": 320,
+      "title": 306
+    },
+    {
+      "role": "فني المعمل",
+      "view": "labboard",
+      "width": 390,
+      "scroll": 390,
+      "title": 306
+    },
+    {
+      "role": "فني المعمل",
+      "view": "labboard",
+      "width": 768,
+      "scroll": 768,
+      "title": 306
+    },
+    {
+      "role": "فني المعمل",
+      "view": "labboard",
+      "width": 1024,
+      "scroll": 1024,
+      "title": 306
+    },
+    {
+      "role": "فني المعمل",
+      "view": "labboard",
+      "width": 1440,
+      "scroll": 1440,
+      "title": 306
+    },
+    {
+      "role": "فني المعمل",
+      "view": "labboard",
+      "width": 1920,
+      "scroll": 1920,
+      "title": 306
+    },
+    {
+      "role": "فني المعمل",
+      "view": "labboard",
+      "lang": "en",
+      "theme": "dark",
+      "width": 390,
+      "scroll": 390
+    },
+    {
+      "role": "فني المعمل",
+      "view": "labboard",
+      "lang": "en",
+      "theme": "dark",
+      "width": 1440,
+      "scroll": 1440
+    },
+    {
+      "role": "مدير جدة",
+      "view": "maint",
+      "width": 320,
+      "scroll": 320,
+      "title": 469
+    },
+    {
+      "role": "مدير جدة",
+      "view": "maint",
+      "width": 390,
+      "scroll": 390,
+      "title": 469
+    },
+    {
+      "role": "مدير جدة",
+      "view": "maint",
+      "width": 768,
+      "scroll": 768,
+      "title": 469
+    },
+    {
+      "role": "مدير جدة",
+      "view": "maint",
+      "width": 1024,
+      "scroll": 1024,
+      "title": 469
+    },
+    {
+      "role": "مدير جدة",
+      "view": "maint",
+      "width": 1440,
+      "scroll": 1440,
+      "title": 469
+    },
+    {
+      "role": "مدير جدة",
+      "view": "maint",
+      "width": 1920,
+      "scroll": 1920,
+      "title": 469
+    },
+    {
+      "role": "مدير جدة",
+      "view": "maint",
+      "lang": "en",
+      "theme": "dark",
+      "width": 390,
+      "scroll": 390
+    },
+    {
+      "role": "مدير جدة",
+      "view": "maint",
+      "lang": "en",
+      "theme": "dark",
+      "width": 1440,
+      "scroll": 1440
+    }
+  ],
+  "failures": [],
+  "errors": [],
+  "source": "b3274ad26fe5dac620ece0ba0ce99fdb5a9a8570"
+}
