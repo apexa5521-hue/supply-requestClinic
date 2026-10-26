@@ -8961,6 +8961,417 @@ function showDriverTasks(tk) {
 ACT.drvBack = () => showDriverTasks(DRV.tk);
 ACT.drvTasks = () => showDriverTasks(DRV.tk);
 
+
+/* Approved interface implementation. Presentation and client-side navigation only. */
+const MX = { catalogQ:'', category:'', catalogLimit:36, review:false, dashBranch:'', dashList:[], dashLoaded:false, dashMaint:null };
+const mxText = (ar,en) => S.lang === 'ar' ? ar : en;
+const mxLabel = (ar,en) => esc(mxText(ar,en));
+function mxTemplate(html) { const x=document.createElement('template'); x.innerHTML=html; return x.content; }
+function mxTake(root,selector) { const el=root.querySelector(selector); return el ? el.outerHTML : ''; }
+function mxHeading(title,actions) { return '<header class="mx-heading"><div><span class="mx-breadcrumb">MasarX / '+esc(t('nav_section'))+'</span><h1>'+title+'</h1></div><div class="mx-heading-actions">'+(actions||'')+'</div></header>'; }
+function mxPanel(title,body,extra) { return '<section class="mx-panel '+(extra||'')+'"><div class="mx-panel-title"><h2>'+title+'</h2></div><div class="mx-panel-body">'+body+'</div></section>'; }
+function mxMetric(label,value,ic,tone,act) {
+  return '<'+(act?'button type="button" '+act:'div')+' class="mx-metric" style="--mx-tone:'+(tone||'var(--primary)')+'"><div><span>'+label+'</span><strong>'+(value==null?'—':fmtNum(value,0))+'</strong></div><span class="mx-metric-icon">'+icon(ic)+'</span></'+(act?'button':'div')+'>';
+}
+function mxJourney(r) {
+  const stage=procStage(r), rejected=stage==='rejected', cancelled=stage==='cancelled';
+  const cur=({review:1,ready:2,clinic:2,prep:2,partial:3,shipping:3,arrived:4,received:5,rejected:1,cancelled:0})[stage]||0;
+  const labels=S.lang==='ar'?['طلب','اعتماد','تجهيز','إرسال','استلام']:['Request','Approval','Prep','Dispatch','Receipt'];
+  return '<ol class="mx-journey" aria-label="'+esc(t('stg_'+stage))+'">'+labels.map((label,i)=>{
+    const done=i<cur&&!cancelled, current=i===cur&&!cancelled, bad=current&&rejected;
+    return '<li class="'+(done?'done':current?'current':'')+(bad?' bad':'')+'"><span class="mx-track-node">'+(done?icon('check','i-sm'):'')+'</span><span>'+esc(label)+'</span></li>';
+  }).join('')+'</ol>';
+}
+const mxLegacyProcCard=procCard;
+procCard=function(r) {
+  const old=mxTemplate(mxLegacyProcCard(r)), a=old.querySelector('article'), actions=old.querySelector('.req-actions'), expanded=old.querySelector('.req-expand');
+  return '<article class="'+a.className+' mx-request" data-rid="'+esc(r.id)+'"'+reqTone(r)+'><div class="req-main">'+
+    mxTake(old,'.req-main>.check')+
+    '<div class="mx-request-identity"><div class="mx-request-idline"><strong class="req-id">'+esc(r.id)+'</strong>'+badge(r.status,r)+'</div>'+
+      whoLine(r)+'<div class="mx-request-meta">'+branchTag(r.branch)+'<span>'+icon('package','i-sm')+esc(t('items_count',{n:r.itemCount||0}))+'</span><span>'+icon('clock','i-sm')+esc(relTime(r.submittedAt||r.date))+'</span></div>'+
+      '<div class="mx-request-tags">'+typeTag(r.type,r.exempt)+bdTag(r)+arrivedTag(r)+noteTags(r)+'</div></div>'+
+    '<div class="mx-request-route">'+mxJourney(r)+shipTrack(r)+'</div>'+
+    '<button type="button" class="btn btn-primary mx-detail-button" data-act="detail" data-id="'+esc(r.id)+'">'+esc(t('details'))+icon('chevr','i-sm flip')+'</button></div>'+
+    (r.slaLate?slaTag(r):'')+cancelBox(r)+(actions?actions.outerHTML:'')+(expanded?expanded.outerHTML:'')+'</article>';
+};
+const mxLegacyProcView=VIEWS.requests.render;
+VIEWS.requests.render=function() {
+  const old=mxTemplate(mxLegacyProcView.call(this));
+  return '<div class="mx-page mx-requests">'+mxHeading(esc(t('nav_requests')))+
+    '<details class="mx-proc-notices"><summary>'+mxLabel('تنبيهات الإدارة','Management notices')+'</summary>'+mxTake(old,'#pNotices')+'</details><div id="mxProcMetrics" class="mx-metrics"></div>'+
+    '<div class="mx-request-workspace"><div class="mx-request-main">'+mxTake(old,'#procChips')+mxTake(old,'#procHint')+
+      ([...old.children].find(x=>x.classList.contains('between'))||{outerHTML:''}).outerHTML+mxTake(old,'#procList')+'</div><aside class="mx-filter-panel">'+
+      '<h2>'+mxLabel('تصفية الطلبات','Filter requests')+'</h2>'+mxTake(old,'#procFilters')+
+      '<details class="mx-rules"><summary>'+mxLabel('قواعد الطلب ودورته','Rules and monthly cycle')+'</summary>'+mxTake(old,'.rule-slot')+mxTake(old,'#procCycle')+'</details></aside></div>'+
+      mxTake(old,'#bulkbar')+'</div>';
+};
+const mxLegacyProcList=renderProcList;
+renderProcList=function(animate) {
+  mxLegacyProcList(animate);
+  const el=$('#mxProcMetrics'); if(!el)return;
+  const list=procFiltered(true), counts={}; list.forEach(r=>{const k=procStage(r);counts[k]=(counts[k]||0)+1;});
+  el.innerHTML=[
+    [mxText('بانتظار الاعتماد','Awaiting approval'),counts.review||0,'clipboard','var(--t-amber)','review'],
+    [mxText('قيد التجهيز','In preparation'),counts.prep||0,'package','var(--primary)','prep'],
+    [mxText('قيد الإرسال','In transit'),counts.shipping||0,'truck','var(--t-blue)','shipping'],
+    [mxText('مستلم','Received'),counts.received||0,'checkc','var(--t-green)','received']
+  ].map(x=>mxMetric(esc(x[0]),x[1],x[2],x[3],'data-act="procGroup" data-g="'+x[4]+'"')).join('');
+};
+const mxLegacyDetail=renderDetail;
+renderDetail=function(m,d) {
+  mxLegacyDetail(m,d);
+  const body=$('.modal-body',m.el), head=$('.modal-head h2',m.el);
+  if(head)head.innerHTML='<span class="mx-detail-title">'+mxLabel('تفاصيل الطلب','Request details')+'</span><span class="mono">'+esc(d.id||'')+'</span>';
+  if(body) { const old=body.querySelector('.stepper');if(old){const route=document.createElement('div');route.className='mx-detail-route';route.innerHTML=mxJourney(d);old.replaceWith(route);} }
+};
+const mxLegacyOverview=VIEWS.overview.render;
+VIEWS.overview.render=function() {
+  const legacy=mxLegacyOverview.call(this);
+  return '<div class="mx-page mx-dashboard">'+mxHeading(mxLabel('نظرة عامة وإحصائيات','Overview and statistics'),
+    '<select class="select" data-change="mxDashBranch" aria-label="'+esc(t('branch'))+'"><option value="">'+esc(t('all_branches'))+'</option>'+S.branches.map(b=>'<option value="'+esc(b)+'"'+(b===MX.dashBranch?' selected':'')+'>'+esc(b)+'</option>').join('')+'</select><input class="input" type="month" data-change="dashMonth" value="'+esc(S.dash.month)+'" aria-label="'+esc(t('month'))+'"><button class="btn" data-act="dashAll">'+esc(t('all_months'))+'</button>')+
+    '<div class="mx-metrics" id="mxDashMetrics">'+skeletonList(1)+'</div><div class="mx-analytics-grid">'+
+    mxPanel(mxLabel('الطلبات خلال الفترة','Requests over time'),'<p class="hint">'+mxLabel('آخر 6 أشهر — عدد الطلبات','Last 6 months — request count')+'</p><div class="chart-box"><canvas id="mxTrendChart"></canvas><div class="chart-tip" id="mxTrendTip"></div></div>','mx-chart-panel')+
+    mxPanel(mxLabel('توزيع حالات الطلبات','Request status distribution'),'<div id="mxStatusRing">'+skeletonList(1)+'</div>','mx-status-panel')+
+    mxPanel(mxLabel('الطلبات حسب الفرع','Requests by branch'),'<div id="mxBranchBars"></div>','mx-branches-panel')+
+    mxPanel(mxLabel('حالة بلاغات الصيانة','Maintenance reports'),'<div id="mxMaintenanceBars"></div>','mx-maint-panel')+'</div>'+
+    '<details class="mx-advanced"><summary>'+mxLabel('مؤشرات الجودة والتقارير التفصيلية','Quality metrics and detailed reports')+'</summary><div class="mx-legacy-dashboard">'+legacy+'</div></details></div>';
+};
+const mxLegacyLoadDash=loadDash;
+loadDash=function(silent) {
+  MX.dashLoaded=false;
+  mxLegacyLoadDash(silent);
+  call('getRequests',{archive:true}).then(list=>{
+    MX.dashList=list||[]; MX.dashLoaded=true; if(S.view==='overview')mxRenderDashboard();
+  }).catch(e=>{const b=$('#mxDashMetrics');if(b)b.innerHTML=emptyState('alert',errMsg(e));});
+  if(navItems().some(n=>n.id==='maint'))call('getMaintTickets',[{}][0]).then(list=>{MX.dashMaint=list||[];if(S.view==='overview')mxRenderDashboard();}).catch(()=>{MX.dashMaint=null;mxRenderMaintenance();});
+};
+const mxLegacyRenderDash=renderDash;
+renderDash=function(silent){mxLegacyRenderDash(silent);mxRenderDashboard();};
+ACT.mxDashBranch=el=>{MX.dashBranch=el.value;mxRenderDashboard();};
+function mxRenderDashboard() {
+  const root=$('#mxDashMetrics');if(!root||!MX.dashLoaded)return;
+  const branchList=MX.dashList.filter(r=>!MX.dashBranch||r.branch===MX.dashBranch);
+  const list=branchList.filter(r=>!S.dash.month||mxDateMonth(r.submittedAt||r.date)===S.dash.month), counts={};
+  list.forEach(r=>{const k=procStage(r);counts[k]=(counts[k]||0)+1;});
+  root.innerHTML=[
+    [mxText('إجمالي الطلبات','Total requests'),list.length,'clipboard','var(--primary)'],
+    [mxText('طلبات مستلمة','Received requests'),counts.received||0,'checkc','var(--t-green)'],
+    [mxText('طلبات قيد التنفيذ','In progress'),list.filter(r=>!['received','cancelled','rejected'].includes(procStage(r))).length,'truck','var(--t-blue)'],
+    [mxText('بلاغات صيانة مفتوحة','Open maintenance reports'),MX.dashMaint?MX.dashMaint.filter(x=>x.open&&(!MX.dashBranch||x.branch===MX.dashBranch)&&(!S.dash.month||mxDateMonth(x.createdAt)===S.dash.month)).length:null,'alert','var(--t-amber)']
+  ].map((x,i)=>mxMetric(esc(x[0]),x[1],x[2],x[3],'data-act="mxDashboardRequests" data-kind="'+['all','received','active','maint'][i]+'"')).join('');
+  const groups=PROC_GROUPS.filter(g=>g.id!=='all'&&counts[g.id]), total=list.length;
+  let offset=0;
+  const segments=groups.map(g=>{const pct=counts[g.id]/Math.max(total,1)*100;const s='<circle cx="60" cy="60" r="45" fill="none" stroke="'+g.tone+'" stroke-width="18" pathLength="100" stroke-dasharray="'+pct+' '+(100-pct)+'" stroke-dashoffset="'+(-offset)+'" />';offset+=pct;return s;}).join('');
+  $('#mxStatusRing').innerHTML=total?'<div class="mx-ring-layout"><div class="mx-ring"><svg viewBox="0 0 120 120" aria-hidden="true"><circle cx="60" cy="60" r="45" fill="none" stroke="var(--surface-3)" stroke-width="18"/><g transform="rotate(-90 60 60)">'+segments+'</g></svg><div><strong>'+total+'</strong><span>'+mxLabel('طلب','requests')+'</span></div></div><div class="mx-ring-legend">'+groups.map(g=>'<button type="button" data-act="mxDashboardRequests" data-stage="'+g.id+'" style="--mx-tone:'+g.tone+'"><i></i><span>'+esc(t(g.k))+'</span><b>'+counts[g.id]+'</b></button>').join('')+'</div></div>':emptyState('chart',t('no_data'));
+  const branches={};list.forEach(r=>{const b=r.branch||'—';branches[b]=(branches[b]||0)+1;});
+  $('#mxBranchBars').innerHTML=mxBars(Object.entries(branches).sort((a,b)=>b[1]-a[1]));
+  const end=new Date((S.dash.month||mxDateMonth(new Date()))+'-15T12:00:00Z');
+  const trend=Array.from({length:6},(_,i)=>{const date=new Date(end);date.setUTCMonth(date.getUTCMonth()-5+i);const month=date.toISOString().slice(0,7);return {month,count:branchList.filter(r=>mxDateMonth(r.submittedAt||r.date)===month).length};});
+  CHARTS.mxRequests=Object.assign(CHARTS.mxRequests||{},{canvas:'mxTrendChart',tip:'mxTrendTip',type:'line',labels:trend.map(x=>monthLabel(x.month)),data:trend.map(x=>x.count||0),unit:mxText('طلب','requests')});
+  drawChart(CHARTS.mxRequests,false);mxRenderMaintenance();
+}
+function mxBars(rows) {
+  const max=Math.max(1,...rows.map(r=>r[1]));
+  return rows.length?'<div class="mx-bars">'+rows.map(r=>'<div class="mx-bar-row"><span>'+esc(r[0])+'</span><div><i style="width:'+(r[1]/max*100)+'%;background:'+(r[2]||'var(--primary)')+'"></i></div><b>'+r[1]+'</b></div>').join('')+'</div>':emptyState('chart',t('no_data'));
+}
+function mxRenderMaintenance() {
+  const box=$('#mxMaintenanceBars');if(!box)return;
+  if(!MX.dashMaint){box.innerHTML='<p class="hint">'+mxLabel('تظهر بيانات الصيانة حسب صلاحية الحساب.','Maintenance data follows account permissions.')+'</p>';return;}
+  const list=MX.dashMaint.filter(x=>(!MX.dashBranch||x.branch===MX.dashBranch)&&(!S.dash.month||mxDateMonth(x.createdAt)===S.dash.month));
+  box.innerHTML=mxBars([
+    [mxText('جديد / بانتظار الاعتماد','New / awaiting approval'),list.filter(x=>[MT_ST.NEW,MT_ST.PENDING].includes(x.status)).length,'var(--t-amber)'],
+    [mxText('قيد المعالجة','In progress'),list.filter(x=>x.open&&![MT_ST.NEW,MT_ST.PENDING].includes(x.status)).length,'var(--primary)'],
+    [mxText('مغلق','Closed'),list.filter(x=>!x.open).length,'var(--t-green)']
+  ]);
+}
+
+function mxDateMonth(value){const date=toDate(value);if(!date||!Number.isFinite(+date))return "";const p=new Intl.DateTimeFormat("en",{timeZone:"Asia/Riyadh",year:"numeric",month:"2-digit"}).formatToParts(date);return p.find(x=>x.type==="year").value+"-"+p.find(x=>x.type==="month").value;}
+
+ACT.mxDashboardRequests=el=>{
+ const month=S.dash.month,branch=MX.dashBranch,stage=el.dataset.stage,kind=el.dataset.kind;
+ const filter=r=>(!branch||r.branch===branch)&&(!month||mxDateMonth(r.submittedAt||r.date)===month);
+ const list=MX.dashList.filter(filter).filter(r=>stage?procStage(r)===stage:kind==='received'?procStage(r)==='received':kind==='active'?!['received','cancelled','rejected'].includes(procStage(r)):true);
+ const tickets=(MX.dashMaint||[]).filter(x=>x.open&&(!branch||x.branch===branch)&&(!month||mxDateMonth(x.createdAt)===month));
+ const body=kind==='maint'?(tickets.length?tickets.map(x=>'<article class="mx-home-ticket">'+icon('tool')+'<div><strong>'+esc(x.description||x.category)+'</strong><span>'+esc(x.branch)+' · '+esc(x.id)+'</span></div>'+mtBadge(x.status)+'</article>').join(''):emptyState('tool',t('no_data'))):
+  (list.length?list.map(r=>'<button class="mx-home-request" data-act="detail" data-id="'+esc(r.id)+'"><div><strong>'+esc(r.id)+'</strong>'+branchTag(r.branch)+badge(r.status,r)+'</div>'+mxJourney(r)+'</button>').join(''):emptyState('inbox',t('no_requests')));
+ openModal({title:stage?esc(t('stg_'+stage)):kind==='maint'?mxLabel('بلاغات الصيانة المفتوحة','Open maintenance reports'):esc(t('nav_requests')),sub:esc([branch||t('all_branches'),month?monthLabel(month):t('all_months')].join(' · ')),icon:kind==='maint'?'tool':'clipboard',size:'lg',body,foot:'<button class="btn" data-close>'+esc(t('close'))+'</button>'});
+};
+
+
+const mxLegacyNewView=VIEWS.new.render;
+VIEWS.new.render=function() {
+  MX.review=false;
+  const raw=mxLegacyNewView.call(this), old=mxTemplate(raw), layout=old.querySelector('.new-layout');
+  if(!layout)return '<div class="mx-page">'+mxHeading(esc(t(this.title)))+raw+'</div>';
+  const stack=layout.querySelector(':scope>.stack'), details=stack&&stack.querySelector(':scope>.card'), summary=layout.querySelector('.summary'), itemList=old.querySelector('#itemsList'), combo=old.querySelector('#combo'), pkg=old.querySelector('#pkgCard');
+  const sumBody=summary.querySelector('.card-body'); const btn=sumBody.querySelector('#submitBtn');
+  btn.dataset.act='mxReview';btn.innerHTML=mxLabel('مراجعة الطلب','Review request')+icon('chevr','i-sm flip');
+  return '<div class="mx-page mx-compose">'+mxHeading('<span id="mxComposeTitle">'+esc(t(this.title))+'</span>')+
+    '<div class="mx-compose-info"><details class="mx-proc-notices"><summary>'+mxLabel('تنبيهات الإدارة','Management notices')+'</summary>'+mxTake(old,'#nNotices')+'</details><details class="mx-proc-notices"><summary>'+mxLabel('قواعد الطلب والتوقيت','Request rules and timing')+'</summary>'+mxTake(old,'.rule-slot')+'</details></div>'+
+    '<div class="mx-compose-steps"><span class="active" id="mxStepSelect"><b>1</b>'+mxLabel('اختيار الأصناف','Choose items')+'</span><i></i><span id="mxStepReview"><b>2</b>'+mxLabel('مراجعة وإرسال','Review and send')+'</span></div>'+
+    '<details class="mx-compose-context" id="mxComposeContext" open><summary><strong>'+mxLabel('بيانات الطلب','Request details')+'</strong><span id="mxContextSummary"></span></summary>'+(details?details.outerHTML:'')+'</details>'+
+    '<div class="mx-compose-selection" id="mxComposeSelection">'+
+      '<div class="mx-catalog-toolbar"><div class="input-icon">'+icon('search')+'<input class="input" id="mxCatalogSearch" data-input="mxCatalogQ" value="'+esc(MX.catalogQ)+'" placeholder="'+esc(t('item_search_ph'))+'" aria-label="'+esc(t('item_search_ph'))+'"></div><div id="mxCatalogCategories" class="mx-categories"></div></div>'+
+      '<div id="mxCatalogCards" class="mx-catalog-grid"></div>'+
+      '<details class="mx-advanced mx-quick-add"><summary>'+mxLabel('البحث السريع والأصناف الإضافية','Quick search and additional items')+'</summary>'+(combo?combo.outerHTML:'')+'</details>'+
+      (pkg?pkg.outerHTML:'')+'</div>'+
+    '<section class="mx-panel mx-review-list hidden" id="mxReviewList"><div class="mx-panel-title"><h2>'+mxLabel('الأصناف المختارة','Selected items')+'</h2><span class="count-pill" id="itemsCount">0</span></div><div class="mx-panel-body">'+(itemList?itemList.outerHTML:'')+'</div></section>'+
+    '<div class="mx-compose-summary" id="mxComposeSummary">'+
+      '<div class="mx-selection-tray" id="mxSelectionTray"><div><strong>'+esc(t('summary'))+'</strong><span id="mxTrayCount"></span></div><div id="mxTrayItems"></div></div>'+
+      '<div class="mx-review-summary hidden" id="mxReviewSummary"><div id="sumBox"></div></div>'+
+      mxTake(sumBody,'#submitErr')+mxTake(sumBody,'#draftState')+
+      '<div class="mx-compose-actions">'+btn.outerHTML+'<button class="btn hidden" id="mxBackToItems" data-act="mxBackToItems">'+mxLabel('تعديل الأصناف','Edit items')+'</button>'+
+      mxTake(sumBody,'.row')+'</div></div></div>';
+};
+const mxLegacyNewMount=VIEWS.new.mount;
+VIEWS.new.mount=function(root){mxLegacyNewMount(root);if($('#mxCatalogCards'))mxRenderCatalog();};
+function mxCatalogItems() { const dept=draftDept();return S.catalog.filter(c=>!dept||!c.dept||c.dept===dept); }
+function mxRenderCatalog() {
+  const box=$('#mxCatalogCards');if(!box)return;
+  const d=nurseDraft(), all=mxCatalogItems(), q=MX.catalogQ.toLowerCase().trim();
+  const cats=Array.from(new Set(all.map(c=>c.category).filter(Boolean)));if(MX.category&&!cats.includes(MX.category))MX.category='';
+  $('#mxCatalogCategories').innerHTML=[['',mxText('الكل','All')]].concat(cats.map(c=>[c,c])).map(c=>'<button type="button" class="chip" data-act="mxCategory" data-value="'+esc(c[0])+'" aria-pressed="'+(MX.category===c[0])+'">'+esc(c[1])+'</button>').join('');
+  const list=all.filter(c=>(!MX.category||c.category===MX.category)&&(!q||[c.name,c.commercial,c.category].concat(c.aliases||[]).join(' ').toLowerCase().includes(q)));
+  box.innerHTML=list.length?list.slice(0,MX.catalogLimit).map(c=>{
+    const index=d.items.findIndex(it=>it.name===c.name), it=d.items[index];
+    return '<article class="mx-item-card item-line'+(it?' is-selected':'')+'" data-mx-name="'+esc(c.name)+'"'+(it?' data-row="'+index+'"':'')+'><div class="mx-item-top"><span class="mx-item-icon">'+icon('package','i-lg')+'</span>'+(it?'<span class="mx-selected-mark">'+icon('check','i-sm')+'</span>':'')+'</div><h3>'+esc(c.name)+'</h3><p>'+esc(c.commercial||c.category||'')+'</p>'+
+      (it?'<div class="qty"><button type="button" data-act="qtyStep" data-i="'+index+'" data-d="-1" aria-label="'+mxLabel('تقليل الكمية','Decrease quantity')+'">'+icon('minus','i-sm')+'</button><input type="number" inputmode="numeric" min="1" value="'+it.qty+'" data-input="qtySet" data-i="'+index+'" aria-label="'+esc(t('qty'))+'"><button type="button" data-act="qtyStep" data-i="'+index+'" data-d="1" aria-label="'+mxLabel('زيادة الكمية','Increase quantity')+'">'+icon('plus','i-sm')+'</button></div><div class="qty-err hidden" role="alert">'+esc(t('ERR_QTY_MIN1'))+'</div>':'<button type="button" class="btn btn-soft" data-act="mxAddCatalog" data-name="'+esc(c.name)+'">'+icon('plus','i-sm')+mxLabel('إضافة','Add')+'</button>')+'</article>';
+  }).join('')+(list.length>MX.catalogLimit?'<button class="btn mx-load-more" data-act="mxMoreCatalog">'+mxLabel('عرض المزيد','Show more')+'</button>':''):emptyState('search',t('no_items_match'));
+}
+ACT.mxCatalogQ=debounce(el=>{MX.catalogQ=el.value;MX.catalogLimit=36;mxRenderCatalog();},120);
+ACT.mxCategory=el=>{MX.category=el.dataset.value;MX.catalogLimit=36;mxRenderCatalog();};
+ACT.mxMoreCatalog=()=>{MX.catalogLimit+=36;mxRenderCatalog();};
+ACT.mxAddCatalog=el=>{if(mxCatalogItems().some(c=>c.name===el.dataset.name))addItem(el.dataset.name,1);};
+const mxLegacyRenderItems=renderItems;
+renderItems=function(){mxLegacyRenderItems();if($('#mxCatalogCards'))mxRenderCatalog();if(MX.review&&!nurseDraft().items.length)mxSetReview(false);};
+const mxLegacyRenderSummary=renderSummary;
+renderSummary=function(){
+  mxLegacyRenderSummary();
+  const count=$('#mxTrayCount');if(!count)return;
+  const d=nurseDraft(),context=$('#mxComposeContext'),contextSummary=$('#mxContextSummary');
+  if(contextSummary)contextSummary.textContent=[d.branch,d.kind==='clinic'?d.clinic:d.doctor].filter(Boolean).join(' · ');
+  if(context&&!context.dataset.ready&&(d.kind==='clinic'?d.clinic:d.doctor)){context.open=false;context.dataset.ready='true';}
+count.textContent=mxText(d.items.length+' أصناف',d.items.length+' items');
+  $('#mxTrayItems').innerHTML=d.items.slice(0,3).map(it=>'<span>'+esc(it.name)+' <b>× '+it.qty+'</b></span>').join('')+(d.items.length>3?'<span>+'+(d.items.length-3)+'</span>':'');
+  $$('.mx-item-card[data-mx-name]').forEach(card=>{
+    const it=d.items.find(x=>x.name===card.dataset.mxName), inp=card.querySelector('input');
+    if(inp&&it&&document.activeElement!==inp)inp.value=it.qty;
+  });
+};
+function mxSetReview(on) {
+  MX.review=on;
+  const root=$('.mx-compose');if(!root)return;
+  root.classList.toggle('is-review',on);
+  $('#mxComposeTitle').textContent=on?mxText('مراجعة الطلب','Review request'):t(VIEWS.new.title);
+  $('#mxComposeSelection').classList.toggle('hidden',on);$('#mxReviewList').classList.toggle('hidden',!on);
+  $('#mxSelectionTray').classList.toggle('hidden',on);$('#mxReviewSummary').classList.toggle('hidden',!on);
+  $('#mxBackToItems').classList.toggle('hidden',!on);
+  $('#mxStepSelect').classList.toggle('active',!on);$('#mxStepSelect').classList.toggle('done',on);$('#mxStepReview').classList.toggle('active',on);
+  const btn=$('#submitBtn');btn.dataset.act=on?'submitRequest':'mxReview';
+  btn.innerHTML=icon(on?'send':'chevr','i-sm flip')+mxLabel(on?'تأكيد وإرسال الطلب':'مراجعة الطلب',on?'Confirm and send request':'Review request');
+  window.scrollTo({top:0,behavior:REDUCED?'auto':'smooth'});
+}
+ACT.mxReview=()=>{
+  const d=nurseDraft(), err=$('#submitErr');
+  const bad=$$('.mx-item-card [data-input="qtySet"]').find(qtyInvalid);
+  if(bad){markQty(bad,true);bad.focus();return;}
+  if(!d.items.length){err.querySelector('span').textContent=t('err_fill_all');err.classList.remove('hidden');return;}
+  err.classList.add('hidden');renderItems();mxSetReview(true);
+};
+ACT.mxBackToItems=()=>mxSetReview(false);
+
+
+/* Existing forms and commands are retained; only their page composition changes. */
+function mxWrapView(name,title) {
+  const view=VIEWS[name];if(!view)return;
+  const render=view.render;
+  view.render=function(){return '<div class="mx-page mx-'+name+'">'+mxHeading(title?mxLabel(title[0],title[1]):esc(t(this.title)))+'<div class="mx-view-body">'+render.call(this)+'</div></div>';};
+}
+['catalog','users','reports','maint','settings','notices','mine','boxes','complaints','assets','finance','docitems','reviews','monitor','doctorslive','rules','docadmin','docprices','labboard','labmine','labdoc','assetsdash','labkpi','freeitems','reqfix','extorders','nursevoice','surveys','workflow'].forEach(v=>mxWrapView(v));
+function mxMarkPanel(m,kind) {
+  if(!m)return;m.el.classList.add('mx-form-panel');if(kind)m.el.classList.add(kind);m.el.querySelector('.modal-head [data-close]').setAttribute('autofocus','');
+}
+['caEdit','mtOpen','mtNew'].forEach(key=>{
+  const handler=ACT[key];if(!handler)return;
+  ACT[key]=el=>{const before=topModal();const result=handler(el);if(topModal()!==before)mxMarkPanel(topModal(),key==='mtNew'?'mx-report-form':'');return result;};
+});
+const mxLegacyUserModal=openUserModal;
+openUserModal=function(u){const before=topModal();const result=mxLegacyUserModal(u);if(topModal()!==before)mxMarkPanel(topModal(),'mx-user-form');return result;};
+const mxLegacyMtCard=mtCard;
+mtCard=function(x,i) {
+  const old=mxTemplate(mxLegacyMtCard(x,i)), article=old.querySelector('article'), content=old.querySelector('.req-main>.grow');
+  const current=x.status===MT_ST.CLOSED?3:x.status===MT_ST.NEW||x.status===MT_ST.PENDING?0:1;
+  return '<article class="'+article.className+' mx-maint-ticket"><div class="mx-maint-identity">'+(content?content.innerHTML:'')+'</div><div class="mx-maint-status">'+
+    mtBadge(x.status)+'<ol class="mx-maint-track">'+[mxText('جديد','New'),mxText('قيد المعالجة','In progress'),mxText('مغلق','Closed')].map((s,n)=>'<li class="'+(n<current?'done':n===current?'current':'')+'"><i></i><span>'+esc(s)+'</span></li>').join('')+'</ol></div>'+
+    '<button type="button" class="btn btn-soft" data-act="mtOpen" data-id="'+esc(x.id)+'">'+mxLabel('عرض التفاصيل','View details')+icon('chevr','i-sm flip')+'</button></article>';
+};
+const mxLegacyMtRender=mtRender;
+mtRender=function(){mxLegacyMtRender();const list=$('#mtList');if(list)list.classList.add('mx-ticket-list');};
+const mxLegacySettings=VIEWS.settings.render;
+VIEWS.settings.render=function(){
+  const light=S.theme!=='dark';
+  return '<div class="mx-page mx-settings">'+mxHeading(esc(t('nav_settings')))+
+    '<div class="mx-settings-tabs"><button type="button" class="chip" aria-pressed="true" data-act="mxSettingsTab" data-tab="appearance">'+mxLabel('المظهر واللغة','Appearance and language')+'</button><button type="button" class="chip" aria-pressed="false" data-act="mxSettingsTab" data-tab="system">'+mxLabel('إعدادات النظام والفروع','System and branches')+'</button></div>'+
+    '<section class="mx-panel" id="mxAppearance"><div class="mx-panel-body"><h2>'+mxLabel('المظهر','Appearance')+'</h2><div class="mx-theme-options">'+
+    [['light',mxText('فاتح','Light')],['dark',mxText('داكن','Dark')]].map(x=>'<button type="button" class="mx-theme-choice '+x[0]+'" data-act="mxTheme" data-theme="'+x[0]+'" aria-pressed="'+(light===(x[0]==='light'))+'"><span class="mx-theme-preview"><i></i><b></b><em></em></span><strong>'+esc(x[1])+'</strong></button>').join('')+
+    '</div><h2>'+mxLabel('اللغة','Language')+'</h2><div class="mx-language-options"><button class="btn'+(S.lang==='ar'?' btn-soft':'')+'" data-act="mxLanguage" data-lang="ar">العربية</button><button class="btn'+(S.lang==='en'?' btn-soft':'')+'" data-act="mxLanguage" data-lang="en">English</button></div></div></section>'+
+    '<div class="hidden mx-system-settings" id="mxSystemSettings"><div id="stBox" class="stack">'+skeletonList(2)+'</div></div></div>';
+};
+ACT.mxSettingsTab=el=>{
+  const appearance=el.dataset.tab==='appearance';
+  $('#mxAppearance').classList.toggle('hidden',!appearance);$('#mxSystemSettings').classList.toggle('hidden',appearance);
+  $$('.mx-settings-tabs button').forEach(b=>b.setAttribute('aria-pressed',String(b===el)));
+};
+ACT.mxTheme=el=>{S.theme=el.dataset.theme;store.set('theme',S.theme);applyTheme();redrawCharts();$$('.mx-theme-choice').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.theme===S.theme)));};
+ACT.mxLanguage=el=>{if(S.lang!==el.dataset.lang)toggleLang();};
+
+
+/* Branch management inherits the existing administrator Settings permission. */
+const mxLegacyNavItems=navItems;
+navItems=function(){
+  const list=mxLegacyNavItems();
+  return S.user&&S.user.screen==='admin'&&list.some(n=>n.id==='settings')
+    ?list.concat([{id:'branches',k:'st_branches',icon:'pin'}]):list;
+};
+VIEWS.branches={
+  title:'st_branches',
+  render(){return '<div class="mx-page mx-branches">'+mxHeading(esc(t('st_branches')))+'<div id="stBox" class="stack">'+skeletonList(2)+'</div></div>';},
+  mount(){stLoad();},refresh(){stLoad();}
+};
+const mxLegacySettingsRender=stRender;
+stRender=function(){
+  mxLegacySettingsRender();
+  const add=$('#stBox [data-act="stBranchAdd"]'), card=add&&add.closest('.card');
+  if(!card||!SETT.data)return;
+  const body=card.querySelector('.card-body'), original=body.innerHTML;
+  const d=SETT.data;
+  body.innerHTML='<div class="mx-branch-grid">'+(d.branches||[]).map(b=>'<button class="mx-branch-card" type="button" data-act="mxBranchDetails" data-b="'+esc(b)+'">'+
+    '<span class="mx-branch-icon">'+icon('pin','i-lg')+'</span><strong>'+esc(b)+'</strong><span>'+mxLabel('العيادات','Clinics')+' · '+(d.clinics||[]).filter(c=>c.branch===b).length+'</span><em>'+mxLabel('عرض التفاصيل','View details')+'</em></button>').join('')+'</div>'+
+    '<details class="mx-advanced"><summary>'+mxLabel('إضافة وإدارة الفروع','Add and manage branches')+'</summary>'+original+'</details>';
+  if(S.view==='branches'){
+    const parent=card.parentElement;
+    [...parent.children].filter(x=>x!==card).forEach(x=>x.classList.add('hidden'));
+  }
+};
+ACT.mxBranchDetails=el=>{
+  const d=SETT.data,b=el.dataset.b;
+  if(!d||S.user.screen!=='admin')return;
+  const clinics=(d.clinics||[]).map((c,i)=>({c,i})).filter(x=>x.c.branch===b);
+  const m=openModal({title:esc(b),icon:'pin',size:'lg',body:
+    '<h3>'+mxLabel('العيادات التابعة للفرع','Branch clinics')+'</h3>'+
+    (clinics.length?'<div class="mx-branch-clinics">'+clinics.map(x=>'<div class="between"><strong>'+esc(x.c.name)+'</strong><button class="btn" data-act="stClinic" data-i="'+x.i+'">'+esc(t('edit'))+'</button></div>').join('')+'</div>':emptyState('building',t('no_clinics'))),
+    foot:'<button class="btn" data-close>'+esc(t('close'))+'</button>'});
+  mxMarkPanel(m,'mx-branch-detail');
+};
+
+/* The existing monitor remains available below the operational home summary. */
+const mxLegacyMonitorRender=VIEWS.monitor.render, mxLegacyMonitorMount=VIEWS.monitor.mount;
+VIEWS.monitor.render=function(){
+  return '<div class="mx-page mx-home">'+mxHeading(mxLabel('الرئيسية','Home'))+
+    '<div id="mxHomeMetrics" class="mx-metrics">'+skeletonList(1)+'</div><div class="mx-home-grid">'+
+    mxPanel(mxLabel('أحدث الطلبات','Latest requests'),'<div id="mxHomeRequests">'+skeletonList(2)+'</div>')+
+    mxPanel(mxLabel('البلاغات المفتوحة','Open reports'),'<div id="mxHomeTickets">'+skeletonList(1)+'</div>')+'</div>'+
+    '<details class="mx-advanced"><summary>'+mxLabel('متابعة المواعيد والتفاصيل','Delivery monitoring and details')+'</summary>'+mxLegacyMonitorRender.call(this)+'</details></div>';
+};
+VIEWS.monitor.mount=function(root){
+  if(mxLegacyMonitorMount)mxLegacyMonitorMount(root);
+  call('getRequests',{}).then(list=>{
+    const box=$('#mxHomeRequests');if(!box)return;
+    const items=(list||[]).slice().sort((a,b)=>+toDate(b.submittedAt||b.date)-+toDate(a.submittedAt||a.date));
+    const counts={};items.forEach(r=>{const k=procStage(r);counts[k]=(counts[k]||0)+1;});
+    $('#mxHomeMetrics').innerHTML=[
+      [mxText('بانتظار الاعتماد','Awaiting approval'),counts.review||0,'clipboard'],
+      [mxText('قيد التجهيز','In preparation'),counts.prep||0,'package'],
+      [mxText('قيد الإرسال','In transit'),counts.shipping||0,'truck'],
+      [mxText('مستلم','Received'),counts.received||0,'checkc']
+    ].map(x=>mxMetric(esc(x[0]),x[1],x[2])).join('');
+    box.innerHTML=items.length?items.slice(0,4).map(r=>'<button class="mx-home-request" data-act="detail" data-id="'+esc(r.id)+'"><div><strong class="mono">'+esc(r.id)+'</strong>'+branchTag(r.branch)+badge(r.status,r)+'</div>'+mxJourney(r)+'</button>').join(''):emptyState('inbox',t('no_requests'));
+  }).catch(e=>{const b=$('#mxHomeRequests');if(b)b.innerHTML=emptyState('alert',errMsg(e));});
+  if(navItems().some(n=>n.id==='maint'))call('getMaintTickets',{}).then(list=>{
+    const box=$('#mxHomeTickets');if(!box)return;
+    const items=(list||[]).filter(x=>x.open);
+    box.innerHTML=items.length?items.slice(0,4).map(x=>'<div class="mx-home-ticket">'+icon('tool')+'<div><strong>'+esc(x.description||x.category)+'</strong><span>'+esc(x.branch)+' · '+esc(x.id)+'</span></div>'+mtBadge(x.status)+'</div>').join(''):emptyState('checkc',mxText('لا توجد بلاغات مفتوحة','No open reports'));
+  }).catch(()=>{const b=$('#mxHomeTickets');if(b)b.innerHTML=emptyState('alert',mxText('تعذر تحميل البلاغات','Could not load reports'));});
+  else $('#mxHomeTickets').innerHTML='<p class="hint">'+mxLabel('تظهر البلاغات حسب صلاحيات الحساب.','Report access follows account permissions.')+'</p>';
+};
+
+/* Keep user roles, notification routing and backups accessible without crowding the user list. */
+const mxLegacyUsersRender=VIEWS.users.render;
+VIEWS.users.render=function(){
+  const root=mxTemplate(mxLegacyUsersRender.call(this)), body=root.querySelector('.mx-view-body');
+  if(body){
+    const sections=[...body.children];
+    sections.slice(1).forEach(section=>{
+      const details=document.createElement('details');details.className='mx-advanced';
+      const title=section.querySelector('.card-head h2,.card-head h3'), summary=document.createElement('summary');
+      summary.textContent=title?title.textContent:mxText('إعدادات إضافية','More settings');
+      details.append(summary,section);body.insertBefore(details,null);
+    });
+  }
+  const outer=document.createElement('div');outer.append(root);return outer.innerHTML;
+};
+const mxOriginalNoticeRender=VIEWS.notices.render;
+VIEWS.notices.render=function(){
+  const root=mxTemplate(mxOriginalNoticeRender.call(this)), body=root.querySelector('.mx-view-body');
+  if(body){
+    const composer=body.querySelector(':scope>.card');
+    if(composer){const details=document.createElement('details');details.className='mx-advanced';
+      const summary=document.createElement('summary');summary.textContent=mxText('إنشاء إعلان أو تنبيه','Compose an announcement');
+      composer.replaceWith(details);details.append(summary,composer);}
+  }
+  const outer=document.createElement('div');outer.append(root);return outer.innerHTML;
+};
+
+const mxLegacyChartHover=chartHover;
+chartHover=function(cfg,event){
+  if(cfg.canvas!=='mxTrendChart')return mxLegacyChartHover(cfg,event);
+  const c=CHARTS.mxRequests;if(!c||!c._points||!c._points.length)return;
+  const x=event.clientX-event.target.getBoundingClientRect().left;
+  let best=0,distance=Infinity;
+  c._points.forEach((p,i)=>{const d=Math.abs(p.x-x);if(d<distance){best=i;distance=d;}});
+  c._hover=best;c._frame(1);
+  const p=c._points[best],tip=document.getElementById(c.tip);
+  tip.textContent=c.labels[best]+' · '+fmtNum(p.v,0)+' '+mxText('طلب','requests');
+  tip.style.left=p.x+'px';tip.style.top=p.y+'px';tip.classList.add('show');
+};
+const mxLegacyOpenDetail=openDetail;
+openDetail=function(id){
+  const result=mxLegacyOpenDetail(id),m=topModal();
+  $$('.mx-request').forEach(el=>el.classList.toggle('is-active',el.dataset.rid===id));
+  if(m){const close=m.opts.onClose;m.opts.onClose=()=>{if(close&&close()===false)return false;$$('.mx-request.is-active').forEach(el=>el.classList.remove('is-active'));};}
+  return result;
+};
+
+/* Shared five-stage journey also serves nursing and doctor request cards. */
+journeyHtml=function(r){return mxJourney(r);};
+function mxReportSummary(m){
+ const body=$('.modal-body',m.el);if(!body||body.querySelector('.mx-report-layout'))return;
+ const layout=document.createElement('div');layout.className='mx-report-layout';
+ const fields=document.createElement('div');fields.className='mx-report-fields';
+ while(body.firstChild)fields.append(body.firstChild);
+ const preview=document.createElement('aside');preview.className='mx-report-preview';
+ layout.append(fields,preview);body.append(layout);
+ const render=()=>{
+  const rows=[['mtArea',t('mt_area')],['mtSpot',t('mt_spot')],['mtCat',t('mt_cat')],['mtDesc',t('mt_desc')]];
+  preview.innerHTML='<h3>'+mxLabel('مراجعة البلاغ','Review report')+'</h3><div class="sum-row"><span>'+esc(t('branch'))+'</span><b>'+esc((MT.cfg||{}).branch||'—')+'</b></div>'+
+    rows.map(x=>{const e=$('#'+x[0],m.el);return '<div class="mx-report-summary-row"><span>'+esc(x[1])+'</span><strong>'+esc(e&&e.value||'—')+'</strong></div>';}).join('');
+ };
+ body.addEventListener('input',render);body.addEventListener('change',render);
+ const observer=new MutationObserver(render);observer.observe(fields,{childList:true,subtree:true});
+ const close=m.opts.onClose;m.opts.onClose=()=>{if(close&&close()===false)return false;observer.disconnect();};
+ render();
+}
+const mxReportNewHandler=ACT.mtNew;
+ACT.mtNew=el=>{const before=topModal();const result=mxReportNewHandler(el);const current=topModal();if(current!==before&&current&&current.el.classList.contains('mx-report-form'))mxReportSummary(current);return result;};
+
+const mxLegacyRenderShell=renderShell;
+renderShell=function(){
+ const result=mxLegacyRenderShell();
+ const bar=$('#topbar'),logo=$('.sidebar .masar-wordmark');
+ if(bar&&logo&&!bar.querySelector('.mx-mobile-wordmark')){const copy=logo.cloneNode(true);copy.classList.add('mx-mobile-wordmark');bar.prepend(copy);}
+ return result;
+};
+
 /* =====================================================================
    Boot
    ===================================================================== */
