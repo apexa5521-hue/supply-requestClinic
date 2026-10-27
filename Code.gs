@@ -2014,7 +2014,14 @@ function backdateUntil_() {
   return riyadh_(Date.now()).slice(0, 10) <= v ? v : '';
 }
 
+function passwordChangeRecommended_(row) {
+  // An initial/admin-assigned password is not a self-service password change.
+  return !!row && (!row.PasswordChangedAt || verifyPassword_(row.Password, '1234'));
+}
+
 function getConfig_(user) {
+  const account = read_('Users').rows.filter(function (r) { return str_(r.Name) === user.name; })[0];
+  user.passwordChangeRecommended = passwordChangeRecommended_(account);
   // كل العيادات متاحة للجميع في «مستهلكات عيادة» (مثل طلبات التعقيم لأي فرع)؛ عيادات المستخدم تُعرض أولاً
   user.department = userDept_(user);
   return {
@@ -6667,6 +6674,7 @@ function updateUser_(user, name, u) {
   if (u.password) {
     if (String(u.password).length < 4) throw new Error('ERR_WEAK_PASSWORD');
     upd.Password = hashPassword_(latinDigits_(String(u.password)).trim());
+    upd.PasswordChangedAt = ''; // An administrator reset needs a personal change again.
   }
   setCells_(t, row, upd);
   if (roleScreen_(fields.role) === 'nurse') setNurseDoctors_(str_(name), u.doctors);
@@ -7103,7 +7111,7 @@ function saveDoctor_(user, orig, d) {
       const a2 = ut2.rows.filter(function (u) { return loginKey_(u.Name) === loginKey_(login); })[0];
       if (a2) {
         const upd = { DoctorName: name };
-        if (password) { upd.Password = hashPassword_(password); upd.PasswordChangedAt = new Date(); }
+        if (password) { upd.Password = hashPassword_(password); upd.PasswordChangedAt = ''; }
         setMany_(ut2, [{ row: a2, obj: upd }]);
       } else {
         append_('Users', { Name: login, Password: hashPassword_(password), Role: doctorRole_(), DoctorName: name, Department: normDept_(obj.Specialty) });

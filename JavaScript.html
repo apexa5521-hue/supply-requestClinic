@@ -367,7 +367,7 @@ function esc(s) {
 }
 function t(key, vars) {
   // نسخة «بدون أسعار» من النص (المفتاح + _np) تُستخدم تلقائياً لمن لا يرى الأسعار
-  if (S.user && S.user.noPrices && (I18N.ar[key + '_np'] || I18N.en[key + '_np'])) key += '_np';
+  if (S.user && noPrices() && (I18N.ar[key + '_np'] || I18N.en[key + '_np'])) key += '_np';
   let s = (I18N[S.lang] && I18N[S.lang][key]) || (S.lang !== 'ar' && I18N.en[key]) || I18N.ar[key] || key;
   if (vars) Object.keys(vars).forEach(k => { s = s.split('{' + k + '}').join(vars[k]); });
   return s;
@@ -1353,7 +1353,7 @@ ACT.changePassword = () => {
     if (nw.trim().length < 4) { err(t('ERR_WEAK_PASSWORD')); $('#pwNew', m.el).focus(); return; }
     if (nw !== nw2) { err(t('pw_mismatch')); $('#pwNew2', m.el).focus(); return; }
     const b = $('#pwOk', m.el); busy(b, true);
-    call('changePassword', cur, nw).then(() => { closeModal(m); toast(t('pw_changed'), 'success', 4000); })
+    call('changePassword', cur, nw).then(() => { if (S.user) S.user.passwordChangeRecommended = false; closeModal(m); toast(t('pw_changed'), 'success', 4000); renderAlerts(S.alerts || []); call('getConfig').then(cfg => { applyConfig(cfg); session.set({ token: S.token, cfg: cfg }); }).catch(() => {}); })
       .catch(e => { busy(b, false); err(errMsg(e)); if (errCode(e) === 'ERR_WRONG_PASSWORD') { $('#pwCur', m.el).select(); } });
   };
   $('#pwOk', m.el).addEventListener('click', submit);
@@ -1426,7 +1426,7 @@ const PERM_NAV = [
 const PERM_LIST = ['overview', 'monitor', 'doctors_live', 'surveys', 'doctor_prices', 'reports', 'finance', 'prices_edit', 'lab_view', 'assets', 'boxes', 'complaints', 'complaints_close', 'notices', 'order_rules', 'users', 'maint'];
 const WF_NAV = { id: 'workflow', icon: 'route', k: 'nav_workflow' };
 /* طبيبة الجلدية: بدون أي سعر أو قيمة في صفحتها (الخادم لا يرسلها أصلاً) */
-const noPrices = () => !!(S.user && S.user.noPrices);
+const noPrices = () => !!(S.user && (S.user.noPrices || (['doctor', 'branch'].indexOf(S.user.screen) !== -1 && S.user.priceView !== 'all')));
 const isMgmt = () => !!S.user && MGMT_SCREENS.indexOf(S.user.screen) !== -1;
 const hasPerm = p => !!S.user && (S.user.perms || []).indexOf(p) !== -1;
 function navItems() {
@@ -5727,6 +5727,7 @@ function openReview(id) {
   const r = S.doc.list.find(x => x.id === id) || { id: id };
   const canReview = !!r.awaitingDoctor || r.status === ST.REVIEW;
   let reviewLoaded = false, reviewSaving = false, reviewSnapshot = '';
+  let reviewNoPrices = noPrices();
   const reviewSig = items => JSON.stringify(items.map(it => [it.item, it.requestedQty, it.approvedQty, it.rejected, it.notes]));
   const m = openModal({
     title: esc(t('review_title')) + ' · <span class="mono">' + esc(id) + '</span>',
@@ -5735,7 +5736,7 @@ function openReview(id) {
       (r.rejectionReason ? '<div class="reject-box">' + icon('xc') + '<div><b>' + esc(t('rejection_reason')) + ':</b> ' + esc(r.rejectionReason) + '</div></div>' : '') +
       '<div id="rvItems">' + skeletonList(1) + '</div>' +
       (canReview
-        ? '<div class="field"><label for="rvReason">' + esc(t('review_reason')) + '</label><textarea class="textarea" id="rvReason" maxlength="1000" placeholder="' + esc(t('review_reason_ph')) + '"></textarea></div>' +
+        ? '<details class="mxc-reason"><summary>' + esc(t('review_reason')) + '</summary><div class="field"><label for="rvReason">' + esc(t('review_reason')) + '</label><textarea class="textarea" id="rvReason" maxlength="1000" placeholder="' + esc(t('review_reason_ph')) + '"></textarea></div></details>' +
           '<div class="field-error hidden" id="rvErr">' + icon('alert', 'i-sm') + '<span></span></div>'
         : '<div class="hint">' + icon('info', 'i-sm') + ' ' + esc(t('review_readonly')) + '</div>'),
     foot: '<button class="btn btn-ghost btn-sm" data-act="detail" data-id="' + esc(id) + '">' + icon('eye', 'i-sm') + esc(t('details')) + '</button>' +
@@ -5744,26 +5745,29 @@ function openReview(id) {
         ? '<button class="btn btn-danger" id="rvReject" disabled>' + icon('x', 'i-sm') + esc(t('reject')) + '</button><button class="btn btn-primary" id="rvApprove" disabled>' + icon('check', 'i-sm') + esc(t('approve')) + '</button>'
         : '<button class="btn" data-close>' + esc(t('close')) + '</button>')
   });
-  const cachedItems = peek('getRequestItemsWithCatalog', [id], 60000);
+  const priceGatedRole = ['doctor', 'branch'].includes(S.user.screen);
+  if (priceGatedRole) RC.delete(rkey('getRequestItemsWithCatalog', [id]));
+  const cachedItems = priceGatedRole ? undefined : peek('getRequestItemsWithCatalog', [id], 60000);
   (cachedItems !== undefined ? Promise.resolve(cachedItems) : call('getRequestItemsWithCatalog', id)).then(items => {
     if (m.closing) return;
+    reviewNoPrices = noPrices() || items.some(it => it.priceHidden) || (['doctor', 'branch'].includes(S.user.screen) && !items.some(it => Object.prototype.hasOwnProperty.call(it, 'price')));
     reviewLoaded = true; reviewSnapshot = reviewSig(items); m.mxfSnapshot = reviewSnapshot;
     let total = 0;
     const qOf = it => Number(it.approvedQty !== '' && it.approvedQty !== null ? it.approvedQty : it.requestedQty) || 0;
     const rows = items.map((it, i) => {
       const q = qOf(it);
       const line = (Number(it.price) || 0) * q; total += line;
-      return '<tr><td><div style="font-weight:600">' + (it.rejected ? '<s class="muted">' + esc(it.item) + '</s>' : esc(it.item)) + '</div>' + subTag(it, items) + rejTag(it) + ((it.commercial || it.category) ? '<div class="hint">' + esc([it.commercial, it.category].filter(Boolean).join(' · ')) + '</div>' : '') +
+      return '<tr><td class="mxc-item-main"><div style="font-weight:600">' + (it.rejected ? '<s class="muted">' + esc(it.item) + '</s>' : esc(it.item)) + '</div>' + subTag(it, items) + rejTag(it) + ((it.commercial || it.category) ? '<div class="hint">' + esc([it.commercial, it.category].filter(Boolean).join(' · ')) + '</div>' : '') +
         (it.notes && it.notes.length ? '<div class="hint">' + icon('msg', 'i-sm') + ' ' + esc(it.notes.map(n => n.author + ': ' + n.note).join(' · ')) + '</div>' : '') + '</td>' +
         (canReview
-          ? '<td class="num"><div class="hint">' + esc(t('requested')) + ': ' + esc(it.requestedQty) + '</div><input class="input rvQty" type="number" min="0" step="1" inputmode="numeric" value="' + q + '" data-i="' + i + '" data-item="' + esc(it.item) + '" data-orig="' + q + '" aria-label="' + esc(t('qty')) + ' — ' + esc(it.item) + '"></td>'
+          ? '<td class="num mxc-qty-cell"><div class="hint">' + esc(t('requested')) + ': ' + esc(it.requestedQty) + '</div><label class="mxc-qty-label"><span>' + esc(t('approved_qty')) + '</span><input class="input rvQty" type="number" min="0" step="1" inputmode="numeric" value="' + q + '" data-i="' + i + '" data-item="' + esc(it.item) + '" data-orig="' + q + '" aria-label="' + esc(t('qty')) + ' — ' + esc(it.item) + '"></label></td>'
           : '<td class="num">' + esc(q) + '</td>') +
-        (noPrices() ? '' : '<td class="num">' + (it.price ? fmtNum(it.price, 2) : '—') + '</td><td class="num rvLine" data-i="' + i + '">' + (line ? fmtNum(line, 2) : '—') + '</td>') +
-        (canReview ? '<td><input class="input rvNote" data-item="' + esc(it.item) + '" maxlength="500" placeholder="' + esc(t('item_note_ph')) + '" style="width:100%;min-width:140px"></td>' : '') + '</tr>';
+        (reviewNoPrices ? '' : '<td class="num mxc-money-cell">' + (it.price ? fmtNum(it.price, 2) : '—') + '</td><td class="num rvLine mxc-money-cell" data-i="' + i + '">' + (line ? fmtNum(line, 2) : '—') + '</td>') +
+        (canReview ? '<td class="mxc-note-cell"><details class="mxc-note"><summary>' + icon('msg', 'i-sm') + esc(t('item_notes')) + '</summary><input class="input rvNote" data-item="' + esc(it.item) + '" maxlength="500" placeholder="' + esc(t('item_note_ph')) + '" style="width:100%;min-width:140px"></details></td>' : '') + '</tr>';
     }).join('');
-    $('#rvItems', m.el).innerHTML = '<div class="table-wrap"><table class="table rv-table"><thead><tr><th>' + esc(t('items')) + '</th><th class="num">' + esc(canReview ? t('approved_qty') : t('qty')) + '</th>' + (noPrices() ? '' : '<th class="num">' + esc(t('price')) + '</th><th class="num">' + esc(t('est_total')) + '</th>') + (canReview ? '<th>' + esc(t('notes')) + '</th>' : '') + '</tr></thead><tbody>' + rows + '</tbody></table></div>' +
+    $('#rvItems', m.el).innerHTML = '<div class="table-wrap"><table class="table rv-table"><thead><tr><th>' + esc(t('items')) + '</th><th class="num">' + esc(canReview ? t('approved_qty') : t('qty')) + '</th>' + (reviewNoPrices ? '' : '<th class="num">' + esc(t('price')) + '</th><th class="num">' + esc(t('est_total')) + '</th>') + (canReview ? '<th>' + esc(t('notes')) + '</th>' : '') + '</tr></thead><tbody>' + rows + '</tbody></table></div>' +
       (canReview ? '<div class="hint" style="margin-top:8px">' + icon('info', 'i-sm') + ' ' + esc(t('doctor_qty_hint')) + '</div>' : '') +
-      '<div class="between rv-total" style="margin-top:10px;padding:10px 14px;border-radius:12px;background:var(--primary-soft);color:var(--primary-strong);font-weight:700' + ((total || canReview) && !noPrices() ? '' : ';display:none') + '"><span>' + esc(t('est_total')) + '</span><span class="mono" id="rvTotal">' + fmtNum(total, 2) + ' ' + esc(t('currency')) + '</span></div>';
+      (reviewNoPrices ? '' : '<div class="between rv-total" style="margin-top:10px;padding:10px 14px;border-radius:12px;background:var(--primary-soft);color:var(--primary-strong);font-weight:700"><span>' + esc(t('est_total')) + '</span><span class="mono" id="rvTotal">' + fmtNum(total, 2) + ' ' + esc(t('currency')) + '</span></div>');
     if (canReview) {
       $('#rvApprove', m.el).disabled = false; $('#rvReject', m.el).disabled = false;
       if (MXF.root === m) { mxfDraftRestore(m); mxfReviewTools(m, '#rvItems tbody tr'); }
@@ -5776,7 +5780,7 @@ function openReview(id) {
         inp.classList.toggle('invalid', bad);
         inp.classList.toggle('changed', !bad && String(v) !== inp.dataset.orig);
         const line = bad ? 0 : (Number(it.price) || 0) * v;
-        if (noPrices()) return;
+        if (reviewNoPrices) return;
         $('.rvLine[data-i="' + inp.dataset.i + '"]', m.el).textContent = line ? fmtNum(line, 2) : '—';
         const sum = $$('.rvQty', m.el).reduce((a, x) => a + (Number(items[Number(x.dataset.i)].price) || 0) * (Math.max(0, Math.floor(Number(x.value))) || 0), 0);
         $('#rvTotal', m.el).textContent = fmtNum(sum, 2) + ' ' + t('currency');
@@ -5789,7 +5793,7 @@ function openReview(id) {
     const reason = $('#rvReason', m.el).value.trim();
     const err = $('#rvErr', m.el);
     err.classList.add('hidden');
-    if (decision === 'رفض' && !reason) { err.querySelector('span').textContent = t('reason_required'); err.classList.remove('hidden'); $('#rvReason', m.el).focus(); return; }
+    if (decision === 'رفض' && !reason) { err.querySelector('span').textContent = t('reason_required'); err.classList.remove('hidden'); const reasonDetails = $('#rvReason', m.el).closest('details'); if (reasonDetails) reasonDetails.open = true; $('#rvReason', m.el).focus(); return; }
     if (decision === 'اعتمد' && MXF.root === m && $$('.mxf-check', m.el).some(c => !c.checked)) { err.querySelector('span').textContent = mxfText('أكمل مراجعة جميع الأصناف أولًا.', 'Review all items first.'); err.classList.remove('hidden'); return; }
     let qtys = [];
     if (decision === 'اعتمد') {
@@ -9580,6 +9584,108 @@ document.addEventListener('input', e => { if (!MXF.root || !MXF.root.el.contains
 new MutationObserver(mxfToolbar).observe($('#view'), { childList: true, subtree: true });
 new MutationObserver(() => { if (MXF.root && !MXF.root.closing) { mxfDecorateChecks(MXF.root); mxfSyncDispatch(); const foot = $('.modal-foot', MXF.root.el); if (foot && !foot.querySelector('[data-act="mxfNext"]')) foot.insertAdjacentHTML('beforeend', '<button class="btn btn-soft mxf-next" data-act="mxfNext">' + mxfText('الطلب التالي', 'Next task') + '</button>'); } }).observe($('#modals'), { childList: true, subtree: true });
 /* MASAR_FOCUS_END */
+
+/* MASAR_CALM_START: reviewed mobile presentation over existing forms and permissions. */
+const MXC = { read: '', prompted: '', lastAlertList: [] };
+const mxcText = (ar, en) => S.lang === 'ar' ? ar : en;
+function mxcFingerprint(list) { return JSON.stringify((list || []).map(a => [a.code, a.n, a.type])); }
+function mxcBell() {
+  const bar = $('#topbar'); if (!bar || !S.user) return;
+  let b = $('#mxcBell');
+  if (!b) { bar.insertAdjacentHTML('beforeend', '<button class="btn btn-ghost btn-icon mxc-bell" id="mxcBell" data-act="mxcAlerts"></button>'); b = $('#mxcBell'); }
+  const unread = MXC.read !== mxcFingerprint(S.alerts || []) && (S.alerts || []).length > 0;
+  b.innerHTML = icon('bell') + (unread || S.user.passwordChangeRecommended ? '<i class="mxc-unread"></i>' : '');
+  b.setAttribute('aria-label', mxcText('مركز التنبيهات', 'Notification centre'));
+}
+function mxcAlertRows(list) {
+  return (list || []).map(a => {
+    const tg = ALERT_TARGET[a.code], canGo = tg && navItems().some(n => n.id === tg[0]);
+    return '<article class="mxc-notice"><div>' + icon(ALERT_ICON[a.type] || 'info', 'i-sm') + '<span>' + t(a.code === 'alert_rejected' ? bmKey(a.code) : a.code, { n: Number(a.n) || 0 }) + '</span></div>' +
+      (a.code === 'alert_survey' ? '<button class="btn btn-soft btn-sm" data-act="surveyOpen">' + esc(t('sv_open')) + '</button>' : canGo ? '<button class="btn btn-soft btn-sm" data-act="alertGo" data-code="' + esc(a.code) + '">' + esc(t('view')) + '</button>' : '') + '</article>';
+  }).join('');
+}
+function mxcPasswordCard() {
+  return S.user && S.user.passwordChangeRecommended ? '<div class="mxc-password"><span>' + icon('lock', 'i-sm') + '<b>' + mxcText('حدّث كلمة مرور حسابك', 'Update your account password') + '</b></span><button class="btn btn-soft btn-sm" data-act="changePassword">' + mxcText('تغيير الآن', 'Change now') + '</button></div>' : '';
+}
+const mxcRanks = ['alert_overdue_proc', 'alert_urgent_new', 'alert_pending_review', 'alert_to_receive', 'alert_box_arrived', 'alert_lab_late', 'alert_lab_redo', 'alert_lab_new', 'alert_ext_due', 'alert_approved_ready'];
+renderAlerts = function(list) {
+  MXC.lastAlertList = list || [];
+  const box = $('#alerts'); if (!box || !S.user) return;
+  const actionable = (list || []).filter(a => { const tg = ALERT_TARGET[a.code]; return tg && navItems().some(n => n.id === tg[0]); });
+  actionable.sort((a, b) => { const ai = mxcRanks.indexOf(a.code), bi = mxcRanks.indexOf(b.code); return (ai < 0 ? 99 : ai) - (bi < 0 ? 99 : bi); });
+  // One existing category's count, never a sum of overlapping request counts.
+  const first = actionable[0];
+  box.innerHTML = mxcPasswordCard() + (first ? '<div class="mxc-priority"><span>' + icon(first.type === 'danger' ? 'alert' : 'clock', 'i-sm') + '</span><div>' + t(first.code === 'alert_rejected' ? bmKey(first.code) : first.code, { n: Number(first.n) || 0 }) + '</div><button class="btn btn-ghost btn-sm" data-act="alertGo" data-code="' + esc(first.code) + '">' + esc(t('view')) + '</button></div>' : '');
+  mxcBell();
+};
+ACT.mxcAlerts = () => {
+  const m = openModal({ title: mxcText('مركز التنبيهات', 'Notification centre'), icon: 'bell', size: 'sm',
+    body: mxcPasswordCard() + '<p class="hint">' + mxcText('هذه مؤشرات متابعة، وقد يظهر الطلب نفسه في أكثر من مجموعة. لا تُجمع أعدادها.', 'These are workflow indicators. A request may belong to multiple groups; their counts are not additive.') + '</p>' +
+      '<div class="mxc-alert-list">' + (mxcAlertRows(S.alerts || []) || emptyState('checkc', mxcText('لا توجد تنبيهات حالية', 'No current alerts'))) + '</div>' +
+      ((S.notices || []).length ? '<details class="mxc-admin-notices"><summary>' + mxcText('تنبيهات الإدارة', 'Management notices') + '</summary>' + noticesHtml(S.notices) + '</details>' : ''),
+    foot: '<button class="btn btn-soft" data-act="mxcReadAlerts">' + mxcText('تحديد كمطّلع عليها', 'Mark as seen') + '</button><span class="spacer"></span><button class="btn" data-close>' + esc(t('close')) + '</button>' });
+  m.el.classList.add('mxc-alert-dialog');
+};
+ACT.mxcReadAlerts = () => { MXC.read = mxcFingerprint(S.alerts || []); mxcBell(); const m = topModal(); if (m && m.el.classList.contains('mxc-alert-dialog')) closeModal(m); };
+const mxcAlertGoOriginal = ACT.alertGo;
+ACT.alertGo = el => { const m = topModal(); if (m && m.el.classList.contains('mxc-alert-dialog')) closeModal(m); mxcAlertGoOriginal(el); };
+function mxcPasswordPrompt() {
+  if (!S.user || !S.user.passwordChangeRecommended || MXC.prompted === S.user.name || MODALS.length) return;
+  MXC.prompted = S.user.name;
+  const m = openModal({ title: mxcText('حدّث كلمة مرور حسابك', 'Update your account password'), icon: 'lock', size: 'sm',
+    body: '<p>' + mxcText('لم يُسجّل تغيير شخصي لكلمة مرور هذا الحساب، أو ما زالت كلمة التهيئة الافتراضية مستخدمة. اختر كلمة مرور خاصة بك لحماية حسابك.', 'A personal password change has not been recorded for this account, or the system initial password is still in use. Choose your own password to protect your account.') + '</p><p class="hint">' + mxcText('يختفي التذكير بعد نجاح التغيير. لن تتغير معلومات حسابك أو صلاحياته.', 'The reminder disappears after a successful change. Your account details and permissions stay the same.') + '</p>',
+    foot: '<button class="btn" data-close>' + mxcText('لاحقًا', 'Later') + '</button><span class="spacer"></span><button class="btn btn-primary" data-act="mxcChangePassword">' + mxcText('تغيير كلمة المرور', 'Change password') + '</button>' });
+  m.el.classList.add('mxc-password-dialog');
+}
+ACT.mxcChangePassword = () => { const m = topModal(); if (m) closeModal(m); ACT.changePassword(); };
+const mxcChangePasswordOriginal = ACT.changePassword;
+ACT.changePassword = () => { const m = topModal(); if (m && m.el.classList.contains('mxc-alert-dialog')) closeModal(m); mxcChangePasswordOriginal(); };
+const mxcConfigOriginal = applyConfig;
+applyConfig = function(cfg) { mxcConfigOriginal(cfg); if (S.user && !$('#appShell').classList.contains('hidden')) renderAlerts(S.alerts || []); setTimeout(mxcPasswordPrompt, 800); };
+const mxcShellOriginal = renderShell;
+renderShell = function() { const result = mxcShellOriginal(); mxcBell(); return result; };
+function mxcFooter(m) {
+  if (!m || m.closing) return;
+  const foot = $('.modal-foot', m.el); if (!foot) return;
+  let menu = $('.mxc-more', foot);
+  if (!menu) { menu = document.createElement('details'); menu.className = 'mxc-more'; menu.open = innerWidth > 700; menu.innerHTML = '<summary>' + mxcText('المزيد', 'More') + ' ···</summary><div class="mxc-more-content"></div>'; foot.prepend(menu); }
+  const content = $('.mxc-more-content', menu), all = $$('button', foot);
+  const primary = all.find(b => b.id === 'rvApprove') || all.find(b => b.id === 'rOk') || all.find(b => b.classList.contains('mxf-dispatch')) || all.find(b => b.classList.contains('btn-primary') && b.dataset.act !== 'mxfNext') || all.find(b => b.dataset.act === 'mxfNext') || all.find(b => b.hasAttribute('data-close'));
+  all.forEach(b => { if (b === primary) { if (b.parentElement !== foot) foot.appendChild(b); b.classList.add('mxc-primary'); } else { b.classList.remove('mxc-primary'); if (b.parentElement !== content) content.appendChild(b); } });
+  menu.hidden = !content.children.length;
+}
+function mxcCardTables(m) {
+  $$('.dsp-table', m.el).forEach(tb => {
+    $$('tbody tr', tb).forEach(tr => { Array.from(tr.children).forEach((td, i) => { if (!td.classList.contains('mxc-dsp-' + i)) td.classList.add('mxc-dsp-' + i); });
+      const ship = $('.dsp', tr.children[0]);
+      if (ship && !ship.closest('.mxc-ship-select')) { const label = document.createElement('label'); label.className = 'mxc-ship-select'; ship.parentNode.insertBefore(label, ship); label.appendChild(ship); const caption = document.createElement('span'); caption.textContent = mxcText('للشحنة', 'Ship'); label.appendChild(caption); }
+      const name = tr.children[1];
+      if (name && !$('.mxc-item-options', name)) {
+        const buttons = $$('button.link-btn', name);
+        if (buttons.length) { const details = document.createElement('details'); details.className = 'mxc-item-options'; details.innerHTML = '<summary>' + mxcText('خيارات الصنف', 'Item options') + '</summary>'; name.appendChild(details); buttons.forEach(b => details.appendChild(b)); }
+      }
+    });
+  });
+}
+function mxcFocus(m) {
+  if (!m || m.closing) return;
+  if (!m.el.classList.contains('mxc-focus')) {
+    m.el.classList.add('mxc-focus');
+    const title = $('.modal-head h2', m.el), sub = $('.modal-head p', m.el), head = $('.modal-head', m.el);
+    if (MXF.id && title) title.innerHTML = '<span dir="ltr">' + esc(MXF.id) + '</span>';
+    if (sub) { sub.title = sub.textContent; sub.classList.add('mxc-head-sub'); }
+    if (MXF.id && head) head.insertAdjacentHTML('beforeend', '<button class="btn btn-ghost btn-sm mxc-task-switch" data-act="mxfHome">' + mxcText('قائمة المهام', 'Task list') + '</button>');
+  }
+  mxcFooter(m); mxcCardTables(m);
+}
+const mxcModalOriginal = openModal;
+openModal = function(opts) { const m = mxcModalOriginal(opts); if (MXF.root === m) mxcFocus(m); return m; };
+new MutationObserver(() => { if (MXF.root && !MXF.root.closing) mxcFocus(MXF.root); }).observe($('#modals'), { childList: true, subtree: true });
+document.addEventListener('click', e => { if (innerWidth > 700) return; if (!e.target.closest('.mxc-more')) $$('.mxc-more[open]').forEach(x => x.open = false); else if (e.target.closest('.mxc-more button')) { const details = e.target.closest('.mxc-more'); if (details) details.open = false; } });
+const mxcResetOriginal = resetApp;
+resetApp = function() { MXC.prompted = ''; MXC.read = ''; MXC.lastAlertList = []; return mxcResetOriginal(); };
+if (window.matchMedia) matchMedia('(max-width:700px)').addEventListener('change', e => { $$('.mxc-more').forEach(x => x.open = !e.matches); });
+/* MASAR_CALM_END */
 
 /* =====================================================================
    Boot

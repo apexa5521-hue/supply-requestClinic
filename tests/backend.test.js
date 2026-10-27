@@ -3803,3 +3803,38 @@ test('value = what the nurse actually received: approved but not delivered, or r
   const rep = api(q, 'getDoctorReport', { doctor: 'د. خالد' });
   assert.deepEqual(rep.rows.find(r => r.id === id).items.map(i => [i.item, i.qty, i.total]), [['PROPHY PASTE', 6, 360]], 'doctor report lists received lines only');
 });
+
+test('password reminder covers previously logged-in initial accounts and clears only after personal change', () => {
+  const { api, login } = boot();
+  const n = login('سارة', '1111');
+  assert.equal(api(n, 'getConfig').user.passwordChangeRecommended, true);
+  login('سارة', '1111'); // Login hash migration is not a personal password change.
+  assert.equal(api(n, 'getConfig').user.passwordChangeRecommended, true);
+  api(n, 'changePassword', '1111', 'Personal-8452');
+  assert.equal(api(n, 'getConfig').user.passwordChangeRecommended, false);
+  const again = login('سارة', 'Personal-8452');
+  assert.equal(api(again, 'getConfig').user.passwordChangeRecommended, false);
+  const adm = login('المدير', '1234'), u = api(adm, 'getUsers').find(x => x.name === 'سارة');
+  api(adm, 'updateUser', 'سارة', Object.assign({}, u, { password: 'Temporary-5926' }));
+  assert.equal(api(again, 'getConfig').user.passwordChangeRecommended, true);
+  assert.equal(api(login('سارة', 'Temporary-5926'), 'getConfig').user.passwordChangeRecommended, true);
+});
+
+test('system initial password still prompts even when a change timestamp exists', () => {
+  const { api, login } = boot();
+  const n = login('سارة', '1111');
+  api(n, 'changePassword', '1111', '1234');
+  assert.equal(api(n, 'getConfig').user.passwordChangeRecommended, true);
+});
+
+test('doctor and branch prices are hidden unless explicitly granted', () => {
+  const frontend = fs.readFileSync(path.join(__dirname, '..', 'JavaScript.html'), 'utf8');
+  const definition = frontend.match(/const noPrices = [^\n]+/)[0];
+  const visible = user => !new Function('S', definition + '; return noPrices();')({ user });
+  assert.equal(visible({ screen: 'doctor' }), false);
+  assert.equal(visible({ screen: 'doctor', priceView: 'none' }), false);
+  assert.equal(visible({ screen: 'doctor', priceView: 'all' }), true);
+  assert.equal(visible({ screen: 'doctor', priceView: 'all', noPrices: true }), false);
+  assert.equal(visible({ screen: 'branch' }), false);
+  assert.equal(visible({ screen: 'branch', priceView: 'all' }), true);
+});
