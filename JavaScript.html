@@ -1482,6 +1482,7 @@ const VIEWS = {};
 
 function applyConfig(cfg) {
   if (!cfg) return;
+  const wasNoPrices = S.user ? noPrices() : true;
   S.user = cfg.user || S.user;
   S.clinics = cfg.clinics || [];
   S.myClinics = cfg.myClinics || [];
@@ -1491,6 +1492,7 @@ function applyConfig(cfg) {
   S.catalog = cfg.catalog || [];
   S.roles = cfg.roles || [];
   S.hasAdmin = cfg.hasAdmin !== false;
+  if (wasNoPrices !== noPrices()) MODALS.forEach(m => { if (!m.closing && m.refreshReviewPrices) m.refreshReviewPrices(); });
 }
 function enterApp(cfg) {
   applyConfig(cfg);
@@ -5730,6 +5732,27 @@ function renderDoc(animate, keepKpis) {
   animateBars(box);
 }
 ACT.review = el => openReview(el.dataset.id);
+function reviewMoney(m, context) {
+  if (!m || m.closing) return;
+  $$('.rv-table .mxc-money-cell, .rv-total', m.el).forEach(el => el.remove());
+  if (context.priceAccess !== 'all') return;
+  const prices = new Map((context.items || []).map(it => [it.item, Number(it.price) || 0]));
+  (m.reviewItems || []).forEach(it => { it.price = prices.get(it.item) || 0; });
+  const head = $('.rv-table thead tr', m.el); if (!head) return;
+  const notes = $('.mxc-note-cell', m.el);
+  const th = '<th class="num mxc-money-cell">'+esc(t('price'))+'</th><th class="num mxc-money-cell">'+esc(t('est_total'))+'</th>';
+  if (notes) head.lastElementChild.insertAdjacentHTML('beforebegin', th); else head.insertAdjacentHTML('beforeend', th);
+  let total = 0;
+  $$('.rv-table tbody tr', m.el).forEach((row, i) => {
+    const it = (m.reviewItems || [])[i]; if (!it) return;
+    const qty = $('.rvQty', row), q = qty ? Number(qty.value) || 0 : Number(it.approvedQty === '' || it.approvedQty == null ? it.requestedQty : it.approvedQty) || 0;
+    const price = Number(it.price) || 0, value = price * q; total += value;
+    const html = '<td class="num mxc-money-cell">'+fmtNum(price,2)+'</td><td class="num rvLine mxc-money-cell" data-i="'+i+'">'+fmtNum(value,2)+'</td>';
+    const note = $('.mxc-note-cell', row); if (note) note.insertAdjacentHTML('beforebegin', html); else row.insertAdjacentHTML('beforeend', html);
+  });
+  $('#rvItems',m.el).insertAdjacentHTML('beforeend','<div class="between rv-total" style="margin-top:10px;padding:10px 14px;border-radius:12px;background:var(--primary-soft);color:var(--primary-strong);font-weight:700"><span>'+esc(t('est_total'))+'</span><span class="mono" id="rvTotal">'+fmtNum(total,2)+' '+esc(t('currency'))+'</span></div>');
+}
+
 function openReview(id) {
   const r = S.doc.list.find(x => x.id === id) || { id: id };
   const canReview = !!r.awaitingDoctor || r.status === ST.REVIEW;
@@ -5752,12 +5775,20 @@ function openReview(id) {
         ? '<button class="btn btn-danger" id="rvReject" disabled>' + icon('x', 'i-sm') + esc(t('reject')) + '</button><button class="btn btn-primary" id="rvApprove" disabled>' + icon('check', 'i-sm') + esc(t('approve')) + '</button>'
         : '<button class="btn" data-close>' + esc(t('close')) + '</button>')
   });
-  const priceGatedRole = ['doctor', 'branch'].includes(S.user.screen);
-  if (priceGatedRole) RC.delete(rkey('getRequestItemsWithCatalog', [id]));
-  const cachedItems = priceGatedRole ? undefined : peek('getRequestItemsWithCatalog', [id], 60000);
-  (cachedItems !== undefined ? Promise.resolve(cachedItems) : call('getRequestItemsWithCatalog', id)).then(items => {
+  m.refreshReviewPrices = () => {
+    // Fail closed while a changed permission is being verified with the server.
+    if (noPrices()) { reviewNoPrices = true; reviewMoney(m, { priceAccess: 'none', items: [] }); }
+    return call('getDoctorReviewContext', id).then(context => {
+      if (m.closing) return;
+      reviewNoPrices = context.priceAccess !== 'all'; reviewMoney(m, context);
+    }).catch(() => { reviewNoPrices = true; reviewMoney(m, { priceAccess: 'none', items: [] }); });
+  };
+  call('getDoctorReviewContext', id).then(context => {
     if (m.closing) return;
-    reviewNoPrices = noPrices() || items.some(it => it.priceHidden) || (['doctor', 'branch'].includes(S.user.screen) && !items.some(it => Object.prototype.hasOwnProperty.call(it, 'price')));
+    const items = context.items || [];
+    reviewNoPrices = context.priceAccess !== 'all';
+    m.reviewItems = items;
+    if (['doctor', 'branch'].includes(S.user.screen)) { S.user.priceView = reviewNoPrices ? 'none' : 'all'; S.user.noPrices = reviewNoPrices; }
     reviewLoaded = true; reviewSnapshot = reviewSig(items); m.mxfSnapshot = reviewSnapshot;
     let total = 0;
     const qOf = it => Number(it.approvedQty !== '' && it.approvedQty !== null ? it.approvedQty : it.requestedQty) || 0;
@@ -5772,7 +5803,7 @@ function openReview(id) {
         (reviewNoPrices ? '' : '<td class="num mxc-money-cell">' + (it.price ? fmtNum(it.price, 2) : '—') + '</td><td class="num rvLine mxc-money-cell" data-i="' + i + '">' + (line ? fmtNum(line, 2) : '—') + '</td>') +
         (canReview ? '<td class="mxc-note-cell"><details class="mxc-note"><summary>' + icon('msg', 'i-sm') + esc(t('item_notes')) + '</summary><input class="input rvNote" data-item="' + esc(it.item) + '" maxlength="500" placeholder="' + esc(t('item_note_ph')) + '" style="width:100%;min-width:140px"></details></td>' : '') + '</tr>';
     }).join('');
-    $('#rvItems', m.el).innerHTML = '<div class="table-wrap"><table class="table rv-table"><thead><tr><th>' + esc(t('items')) + '</th><th class="num">' + esc(canReview ? t('approved_qty') : t('qty')) + '</th>' + (reviewNoPrices ? '' : '<th class="num">' + esc(t('price')) + '</th><th class="num">' + esc(t('est_total')) + '</th>') + (canReview ? '<th>' + esc(t('notes')) + '</th>' : '') + '</tr></thead><tbody>' + rows + '</tbody></table></div>' +
+    $('#rvItems', m.el).innerHTML = '<div class="table-wrap"><table class="table rv-table"><thead><tr><th>' + esc(t('items')) + '</th><th class="num">' + esc(canReview ? t('approved_qty') : t('qty')) + '</th>' + (reviewNoPrices ? '' : '<th class="num mxc-money-cell">' + esc(t('price')) + '</th><th class="num mxc-money-cell">' + esc(t('est_total')) + '</th>') + (canReview ? '<th>' + esc(t('notes')) + '</th>' : '') + '</tr></thead><tbody>' + rows + '</tbody></table></div>' +
       (canReview ? '<div class="hint" style="margin-top:8px">' + icon('info', 'i-sm') + ' ' + esc(t('doctor_qty_hint')) + '</div>' : '') +
       (reviewNoPrices ? '' : '<div class="between rv-total" style="margin-top:10px;padding:10px 14px;border-radius:12px;background:var(--primary-soft);color:var(--primary-strong);font-weight:700"><span>' + esc(t('est_total')) + '</span><span class="mono" id="rvTotal">' + fmtNum(total, 2) + ' ' + esc(t('currency')) + '</span></div>');
     if (canReview) {
@@ -5781,7 +5812,7 @@ function openReview(id) {
       // تعديل الكمية يعيد حساب إجمالي السطر والإجمالي التقديري فوراً
       m.el.addEventListener('input', e => {
         const inp = e.target.closest('.rvQty'); if (!inp) return;
-        const it = items[Number(inp.dataset.i)];
+        const it = m.reviewItems[Number(inp.dataset.i)];
         const v = Math.floor(Number(inp.value));
         const bad = inp.value.trim() === '' || !(v >= 0);
         inp.classList.toggle('invalid', bad);
@@ -5789,7 +5820,7 @@ function openReview(id) {
         const line = bad ? 0 : (Number(it.price) || 0) * v;
         if (reviewNoPrices) return;
         $('.rvLine[data-i="' + inp.dataset.i + '"]', m.el).textContent = line ? fmtNum(line, 2) : '—';
-        const sum = $$('.rvQty', m.el).reduce((a, x) => a + (Number(items[Number(x.dataset.i)].price) || 0) * (Math.max(0, Math.floor(Number(x.value))) || 0), 0);
+        const sum = $$('.rvQty', m.el).reduce((a, x) => a + (Number(m.reviewItems[Number(x.dataset.i)].price) || 0) * (Math.max(0, Math.floor(Number(x.value))) || 0), 0);
         $('#rvTotal', m.el).textContent = fmtNum(sum, 2) + ' ' + t('currency');
       });
     }
