@@ -9166,7 +9166,7 @@ const mxLegacyNewView=VIEWS.new.render;
 VIEWS.new.render=function() {
   MX.review=false;
   const raw=mxLegacyNewView.call(this), old=mxTemplate(raw), layout=old.querySelector('.new-layout');
-  if(!layout)return '<div class="mx-page">'+mxHeading(esc(t(this.title)))+raw+'</div>';
+  if(!layout||!layout.querySelector('.summary #submitBtn'))return '<div class="mx-page">'+mxHeading(esc(t(this.title)))+raw+'</div>'; // نموذج المعمل له زر إرسال خاص: يُعرض كما هو
   const stack=layout.querySelector(':scope>.stack'), details=stack&&stack.querySelector(':scope>.card'), summary=layout.querySelector('.summary'), itemList=old.querySelector('#itemsList'), combo=old.querySelector('#combo'), pkg=old.querySelector('#pkgCard');
   const sumBody=summary.querySelector('.card-body'); const btn=sumBody.querySelector('#submitBtn');
   btn.dataset.act='mxReview';btn.innerHTML=mxLabel('مراجعة الطلب','Review request')+icon('chevr','i-sm flip');

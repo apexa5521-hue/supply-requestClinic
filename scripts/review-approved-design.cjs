@@ -44,6 +44,8 @@ async function capture(p,name){await p.screenshot({path:path.join(OUT,name+'.png
   await p.waitForSelector('#loginView:not(.hidden)');
   await p.fill('#loginName',name);await p.fill('#loginPass',pass);await p.click('#loginBtn');
   await p.waitForSelector('#appShell:not(.hidden)');await p.evaluate(()=>document.fonts.ready);
+  // تذكير كلمة المرور يظهر تلقائياً بعد الدخول لحسابات الاختبار: «لاحقًا» مثل المستخدم
+  if(await p.waitForSelector('.mxc-password-dialog',{timeout:4000}).catch(()=>null)){await p.click('.mxc-password-dialog .modal-foot [data-close]');await p.waitForSelector('.mxc-password-dialog',{state:'detached'});}
   for(const view of views){
    try{
     await p.evaluate(v=>go(v),view);await p.waitForTimeout(650);
