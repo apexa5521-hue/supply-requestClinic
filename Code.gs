@@ -52,6 +52,7 @@ const SCHEMA = {
   DeletedRequests: ['Timestamp', 'RequestID', 'User', 'Reason', 'Clinic', 'Doctor', 'Nurse', 'Status', 'Total', 'Snapshot', 'RestoredAt', 'RestoredBy'],
   // كل سطر = كمية صنف واحد داخل شحنة واحدة (يسمح بإرسال جزء من كمية الصنف)
   ShipmentItems: ['RequestID', 'Batch', 'ItemName', 'Qty', 'DispatchedAt', 'DispatchedBy', 'ReceivedQty', 'RejectReason', 'RejectPhoto'], // رفض الممرضة لصنف عند الاستلام (السبب + صورة)
+  RequestReturns: ['ReturnID','ClientKey','RequestID','ItemName','Qty','Batch','Reason','CreatedAt','CreatedBy','ReturnDate','Backdated','Status','ReceivedAt','ReceivedBy','Note'],
   Shipments:    ['RequestID', 'Batch', 'ReceivedAt', 'ReceiverName', 'ReceivedBy', 'SignatureURL', 'SignatureFileID', 'ReceiptURL'],
   ItemNotes:    ['Timestamp', 'RequestID', 'ItemName', 'Author', 'Role', 'Note'],
   Log:          ['Timestamp', 'RequestID', 'Action', 'User'],
@@ -635,6 +636,10 @@ const ALL = '*';
 const RULES_SCREENS_ = ['procurement', 'finance', 'executive', 'quality', 'admin'];
 const MGMT = MGMT_SCREENS;
 const API_ = {
+  getRequestReturns:         { screens: ['nurse','doctor','procurement','admin','finance','quality','executive','branch'], fn: getRequestReturns_ },
+  createRequestReturn:       { screens: ['nurse'], fn: createRequestReturn_ },
+  receiveRequestReturn:      { screens: ['procurement'], fn: receiveRequestReturn_ },
+  cancelRequestReturn:       { screens: ['nurse'], fn: cancelRequestReturn_ },
   getConfig:                 { screens: ALL, fn: getConfig_ },
   getOrderRules:             { screens: ALL, fn: getOrderRules_ },
   saveOrderRules:            { screens: RULES_SCREENS_, perm: 'order_rules', fn: saveOrderRules_ },
@@ -1742,7 +1747,7 @@ function doctorIsDerma_(user) {
   const docs = allDoctors_().filter(function (d) { return isMyDoctor_(user, d.name); });
   return docs.length > 0 && docs.every(function (d) { return clinicDept_(d.clinic) === 'جلدية'; });
 }
-const PRICE_KEYS_ = { custodyTotal: 1, price: 1, priceIssue: 1, total: 1, value: 1, avgValue: 1, cost: 1, repairCost: 1, lossValue: 1, activeValue: 1, badPrices: 1, unpriced: 1, lineValue: 1, unitPrice: 1 };
+const PRICE_KEYS_ = { returned: 1, receivedGross: 1, custodyTotal: 1, price: 1, priceIssue: 1, total: 1, value: 1, avgValue: 1, cost: 1, repairCost: 1, lossValue: 1, activeValue: 1, badPrices: 1, unpriced: 1, lineValue: 1, unitPrice: 1 };
 function stripPrices_(v) {
   if (v === null || typeof v !== 'object') return v;
   if (Array.isArray(v)) return v.map(stripPrices_);
@@ -2032,6 +2037,7 @@ function getConfig_(user) {
     catalog: getCatalog_(user.screen !== 'nurse'),
     roles: (user.perms || []).indexOf('users') !== -1 ? getRoles_() : [],
     hasAdmin: (user.perms || []).indexOf('users') !== -1 ? hasAdmin_() : true,
+    returnHistoryEnabled: returnHistoryOpen_(),
     backdateUntil: user.screen === 'nurse' && !user.hk ? backdateUntil_() : '', // الهاوس كيبر: بلا طلبات بأثر رجعي
     orderRules: getOrderRules_(user),
     serverTime: new Date()
@@ -2920,7 +2926,7 @@ function getFinance_(user, opts) {
     const ms = toMs_(r.submittedAt || r.date);
     if ((!from || ms >= from.getTime()) && (!to || ms <= to.getTime())) inRange[r.id] = r;
   });
-  let requested = 0, received = 0, dispatched = 0;
+  let requested = 0, received = 0, returned = 0, dispatched = 0;
   // «المعتمد» = ما اعتمده الطبيب (أو لا يحتاج اعتماده) فقط · ما زال لدى الطبيب يظهر منفصلاً
   // «التوفير من المراجعة» = المطلوب − المعتمد في الطلبات المعتمدة نفسها
   let approved = 0, reqCleared = 0, pendingDoc = 0;
@@ -2932,7 +2938,7 @@ function getFinance_(user, opts) {
     requested += (num_(it.RequestedQty) || 0) * p;
     if (r.awaitingDoctor) pendingDoc += targetQty_(it) * p;
     else { approved += targetQty_(it) * p; if (!str_(it.SubstituteOf)) reqCleared += (num_(it.RequestedQty) || 0) * p; }
-    if (it.ReceivedQty !== '' && it.ReceivedQty !== null) received += (num_(it.ReceivedQty) || 0) * p;
+    received += grossReceivedQty_(it) * p; returned += returnedQty_(it) * p;
     const t = r.type || '—';
     byType[t] = round2_((byType[t] || 0) + targetQty_(it) * p);
   });
@@ -2952,7 +2958,7 @@ function getFinance_(user, opts) {
   return {
     from: rep.from, to: rep.to, branch: branch, generatedAt: new Date(),
     summary: { requests: rep.summary.requests - rep.summary.rejected - rep.summary.cancelled, requested: round2_(requested), approved: round2_(approved), pendingDoctor: round2_(pendingDoc),
-      dispatched: round2_(dispatched), received: round2_(received), reviewSaving: round2_(Math.max(0, reqCleared - approved)),
+      dispatched: round2_(dispatched), received: round2_(Math.max(0, received - returned)), receivedGross: round2_(received), returned: round2_(returned), reviewSaving: round2_(Math.max(0, reqCleared - approved)),
       avgValue: rep.summary.avgValue, emergency: rep.summary.emergency },
     byType: byType, branches: rep.branches, clinics: rep.clinics, doctors: rep.doctors, billing: rep.billing, docBranches: rep.docBranches, topItems: rep.topItems,
     badPrices: rep.badPrices, trend: trend
@@ -3312,8 +3318,7 @@ function receiptsIndex_() {
 /** الكمية المستلمة فعلاً (بعد توقيع الممرضة، والمرفوض عند الاستلام = 0) — أساس القيمة في التقارير وحسبة الطبيب */
 function receivedQty_(r) {
   if (r.ReceivedQty === '' || r.ReceivedQty === null || r.ReceivedQty === undefined) return 0;
-  const n = num_(r.ReceivedQty);
-  return isNaN(n) ? 0 : Math.max(0, Math.min(100000, Math.floor(n)));
+  return Math.max(0, grossReceivedQty_(r) - returnedQty_(r));
 }
 function targetQty_(r) {
   const ss = str_(r.SubStatus);
@@ -4277,7 +4282,7 @@ function adminRemoveItem_(user, requestId, item, reason) {
   requestId = str_(requestId); item = str_(item); reason = clean_(reason, 500);
   if (!reason) throw new Error('ERR_REASON_REQUIRED');
   withLock_(function () {
-    resetMemo_();
+    resetMemo_(); guardNoReturns_(requestId, item);
     const f = findRequest_(requestId);
     const cur = str_(f.row.Status) || ST.NEW;
     if (cur === ST.CANCELLED) throw new Error('ERR_BAD_TRANSITION');
@@ -4324,7 +4329,7 @@ function adminSetItemQty_(user, requestId, item, qty, reason) {
   if (!(Math.floor(q) === q && q >= 0 && q <= 100000)) throw new Error('ERR_BAD_QTY');
   if (!reason) throw new Error('ERR_REASON_REQUIRED');
   withLock_(function () {
-    resetMemo_();
+    resetMemo_(); guardNoReturns_(requestId, item);
     const f = findRequest_(requestId);
     const cur = str_(f.row.Status) || ST.NEW;
     if (cur === ST.CANCELLED) throw new Error('ERR_BAD_TRANSITION');
@@ -4421,7 +4426,7 @@ function adminDeleteRequest_(user, requestId, reason) {
   if (!reason) throw new Error('ERR_REASON_REQUIRED');
   let total = 0;
   withLock_(function () {
-    resetMemo_();
+    resetMemo_(); guardNoReturns_(requestId);
     const f = findRequest_(requestId);
     if (read_('Assets').rows.some(function (a) { return str_(a.RequestID).split('#')[0] === requestId; })) throw new Error('ERR_ITEM_HAS_ASSET');
     if (read_('Boxes').rows.some(function (b) { return boxLoads_(b.Loads).some(function (l) { return l.split('#')[0] === requestId; }); })) throw new Error('ERR_REQ_IN_BOX');
@@ -4785,7 +4790,7 @@ function revertStep_(user, requestId, reason, expected) {
   if (reason.length < 3) throw new Error('ERR_REASON_REQUIRED');
   let out, notify = null;
   withLock_(function () {
-    resetMemo_();
+    resetMemo_(); guardNoReturns_(requestId);
     const p = revertPlan_(requestId), plan = p.plan, f = p.f;
     if (!plan.can) throw new Error(plan.reason);
     // ما عرضته الواجهة يجب أن يطابق الحالة الآن (لا نتراجع عن شيء غيّره شخص آخر للتو)
@@ -5041,6 +5046,8 @@ function receiveShipment_(user, requestId, batch, receivedItems, receiverName, s
     const ri = read_('RequestItems');
     const rows = ri.rows.filter(function (r) { return str_(r.RequestID) === req.id; });
     const ship = pendingShip_(req, shipState_(req, rows), batch);
+    const returnRows = [], returnSeen = {};
+    (receivedItems || []).forEach(function (x) { if (!x || !x.returnItem) return; if (returnSeen[str_(x.name)]) throw new Error('ERR_CONFLICT'); returnSeen[str_(x.name)] = true; if (x.reject) throw new Error('ERR_CONFLICT'); const sent = ship.items.filter(function (it) { return it.item === str_(x.name); })[0]; const q = Number(x.qty); if (!sent || !Number.isInteger(q) || q < 0 || q > Number(sent.qty === undefined ? sent.target : sent.qty)) throw new Error('ERR_BAD_QTY'); const raw = rows.filter(function (r) { return str_(r.ItemName) === str_(x.name); })[0]; returnRows.push(returnRow_(user, req, { item: x.name, qty: x.returnItem.qty, reason: x.returnItem.reason, batch: batch, clientKey: 'receipt:' + req.id + ':' + batch + ':' + x.name }, grossReceivedQty_(raw) + q)); });
     const now = new Date();
     append_('Shipments', {
       RequestID: req.id, Batch: batch, ReceivedAt: now, ReceiverName: receiverName, ReceivedBy: user.name,
@@ -5072,6 +5079,7 @@ function receiveShipment_(user, requestId, batch, receivedItems, receiverName, s
         .reduce(function (a, x) { return a + (Number(x.ReceivedQty) || 0); }, 0);
       return { row: r, obj: { ReceivedQty: total } };
     }));
+    returnRows.forEach(function (r) { append_('RequestReturns', r); logAction_(req.id, 'طلب إعادة للتموين عند الاستلام: ' + r.Qty + ' × ' + r.ItemName, user.name); });
     logAction_(req.id, 'استلام الشحنة ' + batch + ' وتوقيعها (' + ship.items.length + ' صنف)', receiverName + ' (' + user.name + ')');
     const rjNames = Object.keys(rejects).filter(function (n) { return inShip[n]; });
     if (rjNames.length) {
@@ -5175,6 +5183,74 @@ function saveImage_(fileName, dataUrl) {
  *  تفاصيل الطلب ومؤشرات الأداء
  * ===================================================================== */
 
+/* Request returns: physical receipt is independent of the original delivery. */
+function returnHistoryOpen_() { return isYes_(getSetting_('ReturnHistoryEnabled', 'لا')); }
+function returnScope_(user, req) { return canSee_(user, req) && inScope_(req.branch) && (user.screen !== 'procurement' || deptMatch_(userDept_(user), req.department)); }
+function returnQtyIndex_() {
+  if (MEMO_.returnQty) return MEMO_.returnQty;
+  const out = {};
+  read_('RequestReturns').rows.forEach(function (r) { if (str_(r.Status) === 'received') { const k = str_(r.RequestID) + '|' + str_(r.ItemName); out[k] = (out[k] || 0) + Number(r.Qty); } });
+  return (MEMO_.returnQty = out);
+}
+function grossReceivedQty_(r) { const n = num_(r.ReceivedQty); return isNaN(n) ? 0 : Math.max(0, Math.min(100000, Math.floor(n))); }
+function returnedQty_(r) { return Math.min(grossReceivedQty_(r), returnQtyIndex_()[str_(r.RequestID) + '|' + str_(r.ItemName)] || 0); }
+function guardNoReturns_(id, item) { if (read_('RequestReturns').rows.some(function (r) { return str_(r.RequestID) === str_(id) && (!item || str_(r.ItemName) === str_(item)) && /^(pending|received)$/.test(str_(r.Status)); })) throw new Error('ERR_RETURN_LOCKED'); }
+function returnRow_(user, req, p, gross) {
+  p = p || {}; const item = clean_(p.item, 250), q = Number(p.qty), reason = clean_(p.reason, 500), key = clean_(p.clientKey, 300);
+  if (!item || !key || !reason) throw new Error('ERR_REQUIRED');
+  if (!Number.isInteger(q) || q < 1 || q > 100000) throw new Error('ERR_BAD_QTY');
+  if (isOff_(req.status)) throw new Error('ERR_BAD_TRANSITION');
+  const c = getCatalog_(true).filter(function (x) { return x.name === item; })[0];
+  if (!c || c.asset) throw new Error('ERR_RETURN_CONSUMABLE');
+  const row = itemsOf_(req.id).filter(function (r) { return str_(r.ItemName) === item; })[0]; if (!row) throw new Error('ERR_NOT_FOUND');
+  const today = riyadh_(Date.now()).slice(0, 10), date = str_(p.date) || today;
+  const parsed = parseDay_(date);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || !parsed || riyadh_(parsed.getTime()).slice(0, 10) !== date || date > today || date < ymdStr_(req.date)) throw new Error('ERR_BAD_DATE');
+  if (date < today && !returnHistoryOpen_()) throw new Error('ERR_RETURN_HISTORY_CLOSED');
+  const reserved = read_('RequestReturns').rows.filter(function (r) { return str_(r.RequestID) === req.id && str_(r.ItemName) === item && /^(pending|received)$/.test(str_(r.Status)); }).reduce(function (a, r) { return a + Number(r.Qty); }, 0);
+  if (q + reserved > (gross === undefined ? grossReceivedQty_(row) : gross)) throw new Error('ERR_RETURN_QTY');
+  return { ReturnID: 'RTN-' + Utilities.getUuid(), ClientKey: key, RequestID: req.id, ItemName: item, Qty: q, Batch: Number(p.batch) || '', Reason: reason,
+    CreatedAt: new Date(), CreatedBy: user.name, ReturnDate: date, Backdated: date < today, Status: 'pending', ReceivedAt: '', ReceivedBy: '', Note: '' };
+}
+function getRequestReturns_(user, requestId) {
+  const reqs = {}; requestRows_().map(mapRequest_).forEach(function (r) { if (returnScope_(user, r)) reqs[r.id] = r; });
+  const prices = catalogPrices_();
+  return read_('RequestReturns').rows.filter(function (r) { return reqs[str_(r.RequestID)] && (!requestId || str_(r.RequestID) === str_(requestId)); }).map(function (r) {
+    const req = reqs[str_(r.RequestID)], out = { id: str_(r.ReturnID), request: req.id, item: str_(r.ItemName), qty: Number(r.Qty), batch: Number(r.Batch) || 0,
+      reason: str_(r.Reason), date: ymdStr_(r.ReturnDate), backdated: isYes_(r.Backdated), status: str_(r.Status), createdAt: r.CreatedAt, createdBy: str_(r.CreatedBy),
+      receivedAt: r.ReceivedAt, receivedBy: str_(r.ReceivedBy), note: str_(r.Note), doctor: req.doctor, clinic: req.clinic, branch: req.branch };
+    if (priceVisible_()) { out.unitPrice = prices[out.item.toLowerCase()] || 0; out.value = round2_(out.qty * out.unitPrice); }
+    return out;
+  }).sort(function (a, b) { return toMs_(b.createdAt) - toMs_(a.createdAt); });
+}
+function createRequestReturn_(user, requestId, p) {
+  return withLock_(function () {
+    resetMemo_(); const req = guardSee_(user, requestId).req; if (!returnScope_(user, req)) throw new Error('ERR_FORBIDDEN');
+    const existing = read_('RequestReturns').rows.filter(function (r) { return str_(r.ClientKey) === str_(p && p.clientKey); })[0];
+    if (existing) { if (str_(existing.CreatedBy) !== user.name || str_(existing.RequestID) !== req.id || str_(existing.ItemName) !== str_(p.item) || Number(existing.Qty) !== Number(p.qty) || str_(existing.Reason) !== str_(p.reason).trim()) throw new Error('ERR_CONFLICT'); return { id: existing.ReturnID, duplicate: true }; }
+    const row = returnRow_(user, req, p); append_('RequestReturns', row); logAction_(req.id, 'طلب إرجاع ' + row.Qty + ' × ' + row.ItemName + ' — ' + row.Reason, user.name);
+    return { id: row.ReturnID };
+  });
+}
+function receiveRequestReturn_(user, id, decision, note) {
+  return withLock_(function () {
+    resetMemo_(); const t = read_('RequestReturns'), row = t.rows.filter(function (r) { return str_(r.ReturnID) === str_(id); })[0]; if (!row) throw new Error('ERR_NOT_FOUND');
+    const req = guardSee_(user, str_(row.RequestID)).req; if (!returnScope_(user, req)) throw new Error('ERR_FORBIDDEN');
+    if (decision !== 'received' && decision !== 'rejected') throw new Error('ERR_BAD_TRANSITION');
+    if (str_(row.Status) === decision) return { id: id, duplicate: true };
+    if (str_(row.Status) !== 'pending') throw new Error('ERR_CONFLICT');
+    note = clean_(note, 500); if (decision === 'rejected' && !note) throw new Error('ERR_REASON_REQUIRED');
+    if (decision === 'received') { const it = itemsOf_(req.id).filter(function (r) { return str_(r.ItemName) === str_(row.ItemName); })[0]; if (!it || returnedQty_(it) + Number(row.Qty) > grossReceivedQty_(it)) throw new Error('ERR_RETURN_QTY'); }
+    setCells_(t, row, { Status: decision, ReceivedAt: new Date(), ReceivedBy: user.name, Note: note }); delete MEMO_.returnQty;
+    logAction_(req.id, (decision === 'received' ? 'استلام مرتجع وخصم كميته من صافي الحساب: ' : 'رفض طلب مرتجع: ') + row.ReturnID + ' — ' + row.Qty + ' × ' + row.ItemName + (note ? ' — ' + note : ''), user.name);
+    return { id: id, status: decision };
+  });
+}
+function cancelRequestReturn_(user, id) {
+  return withLock_(function () { resetMemo_(); const t = read_('RequestReturns'), row = t.rows.filter(function (r) { return str_(r.ReturnID) === str_(id); })[0]; if (!row) throw new Error('ERR_NOT_FOUND'); guardSee_(user, str_(row.RequestID));
+    if (str_(row.CreatedBy) !== user.name || str_(row.Status) !== 'pending') throw new Error('ERR_CONFLICT'); setCells_(t, row, { Status: 'cancelled', Note: 'ألغته الممرضة', ReceivedAt: new Date(), ReceivedBy: user.name }); logAction_(str_(row.RequestID), 'إلغاء طلب مرتجع ' + id, user.name); return true; });
+}
+
 function getRequestDetail_(user, requestId) {
   const g = guardSee_(user, requestId);
   const req = g.req;
@@ -5193,6 +5269,8 @@ function getRequestDetail_(user, requestId) {
     if (names.alias[k]) it.official = names.alias[k];
     return it;
   });
+  req.returns = getRequestReturns_(user, requestId);
+  req.returnable = st.items.map(function (it) { const raw = itemsOf_(req.id).filter(function (r) { return str_(r.ItemName) === it.item; })[0]; const reserved = read_('RequestReturns').rows.filter(function (r) { return str_(r.RequestID) === req.id && str_(r.ItemName) === it.item && /^(pending|received)$/.test(str_(r.Status)); }).reduce(function (a, r) { return a + Number(r.Qty); }, 0); const c = getCatalog_(true).filter(function (c) { return c.name === it.item; })[0]; return { item: it.item, qty: c && !c.asset && raw ? Math.max(0, grossReceivedQty_(raw) - reserved) : 0 }; });
   req.comments = comments_(requestId);
   req.kpi = kpi_(req);
   req.reversals = read_('Reversals').rows.filter(function (r) { return str_(r.RequestID) === req.id; })
@@ -5406,6 +5484,7 @@ function getNotices_(user) {
 function getAlerts_(user) {
   const now = Date.now();
   const alerts = [];
+  if (user.screen === 'procurement' || user.screen === 'admin') { const pendingReturns = getRequestReturns_(user).filter(function (r) { return r.status === 'pending'; }).length; if (pendingReturns) alerts.push({ type: 'info', code: 'alert_returns_pending', n: pendingReturns }); }
   const reqs = requestRows_().map(mapRequest_);
   function hoursSince(v) { return (now - toMs_(v)) / 36e5; }
   if (user.screen === 'nurse') {
@@ -6011,7 +6090,7 @@ function getDoctorReport_(user, opts) {
       const name = str_(it.ItemName);
       const c = cat[name.toLowerCase()] || {};
       const qty = receivedQty_(it); // المستلم فعلاً — ما لم يصل أو رُفض عند الاستلام لا يُحسب
-      if (!qty) return null;
+      const returned = returnedQty_(it); if (!qty && !returned) return null;
       const hidden = !!c.priceHidden; // السعر خارج صلاحية الطبيب: لا يظهر ولا يدخل في الإجمالي
       // نوع لا يُحسب على هذا الطبيب (حسبة المالية): يظهر في التقرير بلا قيمة
       const off = !c.asset && !charged_(charge, c.type);
@@ -6026,8 +6105,8 @@ function getDoctorReport_(user, opts) {
       top[k] = top[k] || (hidden ? { item: name, qty: 0, priceHidden: true } : { item: name, qty: 0, total: 0 });
       top[k].qty += qty; if (!hidden) top[k].total = round2_(top[k].total + total);
       sum.lines++; sum.qty += qty;
-      return hidden ? { item: name, commercial: c.commercial || '', category: c.category || '', qty: qty, priceHidden: true, company: !!c.asset, notCharged: off }
-        : { item: name, commercial: c.commercial || '', category: c.category || '', qty: qty, price: price, total: total, company: !!c.asset, notCharged: off };
+      return hidden ? { item: name, commercial: c.commercial || '', category: c.category || '', qty: qty, returnedQty: returned, receivedQty: grossReceivedQty_(it), priceHidden: true, company: !!c.asset, notCharged: off }
+        : { item: name, commercial: c.commercial || '', category: c.category || '', qty: qty, returnedQty: returned, receivedQty: grossReceivedQty_(it), price: price, total: total, company: !!c.asset, notCharged: off };
     }).filter(Boolean);
     const total = round2_(items.reduce(function (a, i) { return a + (i.total || 0); }, 0));
     if (items.length) sum.requests++;
@@ -6747,7 +6826,7 @@ function tableWithCols_(name) {
 }
 
 /** أماكن اسم الصنف في باقي التبويبات: تُحدَّث عند تغيير الاسم حتى لا تنقطع الطلبات والعهدة */
-const ITEM_NAME_REFS_ = [['RequestItems', 'ItemName'], ['ShipmentItems', 'ItemName'], ['ItemNotes', 'ItemName'],
+const ITEM_NAME_REFS_ = [['RequestReturns', 'ItemName'], ['RequestItems', 'ItemName'], ['ShipmentItems', 'ItemName'], ['ItemNotes', 'ItemName'],
   ['ClinicStandards', 'Item'], ['Assets', 'Item'], ['AssetTickets', 'Item'], ['ItemsCatalog', 'AliasOf']];
 
 function getCatalogAdmin_(user) {
@@ -7942,6 +8021,7 @@ function setDoctorCharge_(user, doctor, charge) {
 const SETTING_KEYS_ = {
   DriverEmail:       { roles: ['admin'], kind: 'email', note: 'إيميل السواق — يصله تنبيه البوكسات الجاهزة للنقل' },
   AppUrl:            { roles: ['admin'], kind: 'url', note: 'رابط الموقع الذي يدخل منه الفريق — زر «افتح الطلب» في الإيميلات يفتح الطلب مباشرة' },
+  ReturnHistoryEnabled: { roles: ['admin'], kind: 'yesno', note: 'فتح إدخال المرتجعات السابقة بأثر رجعي؛ الخصم فقط عند استلام التموين' },
   BackdateUntil:     { roles: ['admin', 'finance'], kind: 'date', note: 'آخر يوم لإدخال الطلبات السابقة بأثر رجعي (YYYY-MM-DD) — off يقفلها' },
   IteroLab:          { roles: ['admin', 'lab'], kind: 'lab', note: 'معمل سكانات iTero' },
   LabTurnaroundDays: { roles: ['admin', 'lab'], kind: 'int', min: 1, max: 120, note: 'أيام تنفيذ المعمل الافتراضية' },
@@ -7959,7 +8039,7 @@ function settingValue_(key) {
 function getSettingsAdmin_(user) {
   const role = settingsRole_(user);
   const keys = {};
-  Object.keys(SETTING_KEYS_).forEach(function (k) { if (SETTING_KEYS_[k].roles.indexOf(role) !== -1) keys[k] = settingValue_(k); });
+  Object.keys(SETTING_KEYS_).forEach(function (k) { if (SETTING_KEYS_[k].roles.indexOf(role) !== -1) keys[k] = settingValue_(k) || (k === 'ReturnHistoryEnabled' ? 'لا' : ''); });
   const out = { role: role, keys: keys, defaults: { LabTurnaroundDays: LAB_TURNAROUND_DEFAULT, SurveyEveryDays: 50, SurveyOpenDays: 10, BackdateUntil: BACKDATE_UNTIL_DEFAULT_ } };
   if ('IteroLab' in keys) out.labNames = getLabs_().map(function (l) { return l.name; });
   if (role !== 'admin') return out;

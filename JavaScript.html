@@ -2191,6 +2191,7 @@ function renderDetail(m, d) {
         }).join('') + '</tbody></table></div></div>' +
       (d.reversals && d.reversals.length ? '<div><div class="section-title">' + icon('refresh', 'i-sm') + esc(t('rev_title')) + ' · ' + d.reversals.length + '</div><div class="list">' +
         d.reversals.map(x => '<div class="reject-box">' + icon('refresh') + '<div><b>' + esc(revText(x.scope)) + ':</b> ' + esc(revText(x.from)) + (S.lang === 'ar' ? ' ← ' : ' → ') + esc(revText(x.to)) + '<div>' + esc(t('revert_reason')) + ': ' + esc(x.reason) + '</div><div class="hint">' + esc(x.user) + ' · ' + esc(fmtDateTime(x.time)) + '</div></div></div>').join('') + '</div></div>' : '') +
+      (d.returns && d.returns.length ? '<section><div class="section-title">' + icon('refresh','i-sm') + esc(t('nav_returns')) + '</div>' + mrtRows(d.returns,false) + '</section>' : '') +
       '<div><div class="section-title">' + icon('msg', 'i-sm') + esc(t('request_notes')) + '</div>' +
         '<div class="thread" id="dThread">' + commentsHtml(d.comments) + '</div>' +
         '<div class="composer" style="margin-top:10px"><textarea class="textarea" id="dComment" placeholder="' + esc(t('comment_ph')) + '" maxlength="2000"></textarea>' +
@@ -2198,6 +2199,7 @@ function renderDetail(m, d) {
     const foot = document.createElement('div');
     foot.className = 'modal-foot';
     foot.innerHTML =
+      (S.user.screen==='nurse' && (d.returnable||[]).some(r=>r.qty>0) ? '<button class="btn btn-soft btn-sm" data-act="requestReturn" data-id="'+esc(d.id)+'">'+icon('refresh','i-sm')+mrtText('إعادة إلى التموين','Return to procurement')+'</button>' : '') +
       '<button class="btn btn-danger-soft btn-sm" data-act="complaint" data-id="' + esc(d.id) + '">' + icon('alert', 'i-sm') + esc(t('report')) + '</button>' +
       '<button class="btn btn-sm" id="dPrint">' + icon('file', 'i-sm') + esc(t('rep_print')) + '</button>' +
       (d.receiptUrl ? '<a class="btn btn-sm" href="' + esc(d.receiptUrl) + '" target="_blank" rel="noopener">' + icon('image', 'i-sm') + esc((d.shipments || []).length > 1 ? t('merged_receipt') : t('view_receipt')) + '</a>' : '') +
@@ -3057,6 +3059,7 @@ function openReceive(id) {
   const sig = signaturePad($('#sigPad', m.el), $('#sigWrap', m.el));
   $('#sigClear', m.el).addEventListener('click', () => sig.clear());
   let d = null, cur = null;
+  const returnItems = {};
   const rejs = {}; // الأصناف المرفوضة في هذه الشحنة: { اسم: { reason, photo } }
   const pending = () => d.shipments.filter(g => !g.received);
   const isLast = () => d.items.every(i => i.batch) && pending().length === 1;
@@ -3071,15 +3074,17 @@ function openReceive(id) {
         const rj = rejs[it.item];
         return '<tr class="' + (rj ? 'rcv-rejected' : '') + '"><td style="font-weight:600">' + (rj ? '<s class="muted">' + esc(it.item) + '</s><div class="hint sub-tag" style="--tone:var(--t-red)">' + icon('xc', 'i-sm') + esc(t('rcv_rej_tag')) + ' · ' + esc(rj.reason) + '</div>' : esc(it.item)) + '</td>' +
           '<td class="num">' + esc(sentQty(it)) + '</td><td class="num"><input class="input rq" type="number" min="0" inputmode="numeric" data-i="' + i + '" value="' + (rj ? 0 : esc(sentQty(it))) + '"' + (rj ? ' disabled' : '') + '></td>' +
-          '<td class="num"><button type="button" class="btn btn-sm ' + (rj ? 'btn-ghost' : 'btn-danger-soft') + ' rcv-rej" data-item="' + esc(it.item) + '">' + icon(rj ? 'refresh' : 'x', 'i-sm') + esc(t(rj ? 'rcv_unreject' : 'rcv_reject')) + '</button></td></tr>';
+          '<td class="num"><button type="button" class="btn btn-sm ' + (rj ? 'btn-ghost' : 'btn-danger-soft') + ' rcv-rej" data-item="' + esc(it.item) + '">' + icon(rj ? 'refresh' : 'x', 'i-sm') + esc(t(rj ? 'rcv_unreject' : 'rcv_reject')) + '</button>'+(!rj?'<button type="button" class="btn btn-soft btn-sm rcv-return" data-item="'+esc(it.item)+'">'+mrtText(returnItems[it.item]?'إلغاء الإرجاع':'إعادة إلى التموين',returnItems[it.item]?'Cancel return':'Return to procurement')+'</button>'+(returnItems[it.item]?'<div class="hint">'+mrtText('مرتجع بانتظار التموين: ','Pending return: ')+esc(returnItems[it.item].qty)+'</div>':''):'')+'</td></tr>';
       }).join('') +
       '</tbody></table></div><div class="hint" style="margin-top:6px">' + icon('info', 'i-sm') + ' ' + esc(t('rcv_rej_hint')) + '</div>';
     $$('.rcv-rej', m.el).forEach(b => b.addEventListener('click', () => {
       const item = b.dataset.item;
       if (rejs[item]) { delete rejs[item]; render(); return; }
+      if(returnItems[item]) { toast(mrtText('ألغِ طلب الإرجاع أولاً','Cancel the return selection first'),'info'); return; }
       rejectAtReceipt(item).then(r => { if (r) { rejs[item] = r; render(); } });
     }));
-    $$('#rShip .chip', m.el).forEach(b => b.addEventListener('click', () => { cur = pend.find(g => g.batch === Number(b.dataset.b)); Object.keys(rejs).forEach(k => delete rejs[k]); render(); }));
+    $$('.rcv-return',m.el).forEach(b=>b.onclick=()=>{const item=b.dataset.item;if(returnItems[item]){delete returnItems[item];render();return;}const i=cur.items.findIndex(x=>x.item===item),qty=Number($$('.rq',m.el)[i].value);mrtForm({items:[{item,qty}],onSave:p=>{returnItems[item]=p;render();}});});
+    $$('#rShip .chip', m.el).forEach(b => b.addEventListener('click', () => { cur = pend.find(g => g.batch === Number(b.dataset.b)); Object.keys(rejs).forEach(k => delete rejs[k]); Object.keys(returnItems).forEach(k=>delete returnItems[k]); render(); }));
   };
   const apply = det => {
     if (m.closing) return;
@@ -3102,7 +3107,7 @@ function openReceive(id) {
     err.classList.add('hidden');
     const ship = cur, last = isLast();
     const got = $$('.rq', m.el).map(inp => Math.max(0, Math.floor(Number(inp.value) || 0)));
-    const rec = ship.items.map((it, i) => Object.assign({ name: it.item, qty: rejs[it.item] ? 0 : got[i] }, rejs[it.item] ? { reject: rejs[it.item] } : {}));
+    const rec = ship.items.map((it, i) => Object.assign({ name: it.item, qty: rejs[it.item] ? 0 : got[i] }, rejs[it.item] ? { reject: rejs[it.item] } : returnItems[it.item] ? { returnItem: returnItems[it.item] } : {}));
     const sigData = sig.hasInk() ? sig.toDataURL() : '';
     const section = { batch: ship.batch, items: ship.items.map((it, i) => ({ item: it.item, sent: sentQty(it), got: got[i] })), receiver: name, at: new Date(), sig: sig.hasInk() ? sig.canvas : null };
     const rid = id + (d.branch ? ' · \u2068' + d.branch + '\u2069' : ''); // عزل اتجاه النص العربي داخل سطر لاتيني
@@ -4016,6 +4021,7 @@ function reportHtml(d, range) {
     '<table class="table rep-table"><thead><tr><th>' + esc(t('items')) + '</th><th class="num">' + esc(t('qty')) + '</th>' + (np ? '' : '<th class="num">' + esc(t('rep_price')) + '</th><th class="num">' + esc(t('rep_line_total')) + '</th>') + '</tr></thead><tbody>' +
       r.items.map(it => '<tr' + (it.notCharged ? ' class="rep-off"' : '') + '><td><div style="font-weight:600">' + esc(it.item) +
           (it.notCharged ? ' <span class="tag">' + esc(t('ch_not_charged')) + '</span>' : it.company ? ' <span class="tag">' + esc(t('ch_custody_line')) + '</span>' : '') + '</div>' +
+          (it.returnedQty ? '<div class="hint">'+mrtText('استلم التموين مرتجعًا: ','Returned to procurement: ')+fmtNum(it.returnedQty,0)+' · '+mrtText('الكمية أدناه صافية بعد الإرجاع','Quantity below is net of returns')+'</div>' : '') +
           (it.commercial || it.category ? '<div class="hint">' + esc([it.commercial, it.category].filter(Boolean).join(' · ')) + '</div>' : '') + '</td>' +
         '<td class="num">' + fmtNum(it.qty, 0) + '</td>' + (np ? '' : it.priceHidden || it.notCharged || it.company ? '<td class="num muted">—</td><td class="num muted">—</td>' : '<td class="num">' + (it.price ? fmtNum(it.price, 2) : '—') + '</td><td class="num">' + fmtNum(it.total, 2) + '</td>') + '</tr>').join('') +
     '</tbody>' + (np ? '' : '<tfoot><tr><td colspan="3">' + esc(t('rep_subtotal')) + '</td><td class="num">' + fmtNum(r.total, 2) + cur + '</td></tr></tfoot>') + '</table></section>').join('');
@@ -4140,9 +4146,9 @@ function exportReportCsv(d, range) {
   if (!d) return;
   const q = v => '"' + String(v === null || v === undefined ? '' : v).replace(/"/g, '""') + '"';
   const lines = [[t('rep_title'), d.doctor, periodLabel(range)].map(q).join(','),
-    ['#', t('date'), t('branch'), t('clinic'), t('status'), t('items'), t('qty')].concat(noPrices() ? [] : [t('rep_price'), t('rep_line_total')]).map(q).join(',')];
-  d.rows.forEach(r => r.items.forEach(it => lines.push([r.id, fmtDate(r.date), r.branch, r.clinic, statusLabel(r.status), it.item, it.qty].concat(noPrices() ? [] : (it.priceHidden ? ['—', '—'] : [it.price, it.total])).map(q).join(','))));
-  lines.push(['', '', '', '', '', t('rep_total'), d.summary.qty].concat(noPrices() ? [] : ['', d.summary.total]).map(q).join(','));
+    ['#', t('date'), t('branch'), t('clinic'), t('status'), t('items'), mrtText('المستلم الأصلي','Gross received'), mrtText('الكمية المرتجعة للتموين','Returned quantity'), mrtText('صافي الكمية','Net quantity')].concat(noPrices() ? [] : [t('rep_price'), t('rep_line_total')]).map(q).join(',')];
+  d.rows.forEach(r => r.items.forEach(it => lines.push([r.id, fmtDate(r.date), r.branch, r.clinic, statusLabel(r.status), it.item, it.receivedQty === undefined ? it.qty : it.receivedQty, it.returnedQty || 0, it.qty].concat(noPrices() ? [] : (it.priceHidden ? ['—', '—'] : [it.price, it.total])).map(q).join(','))));
+  lines.push(['', '', '', '', '', t('rep_total'), '', '', d.summary.qty].concat(noPrices() ? [] : ['', d.summary.total]).map(q).join(','));
   const blob = new Blob(['\ufeff' + lines.join('\r\n')], { type: 'text/csv;charset=utf-8' });
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
@@ -5455,6 +5461,7 @@ function stField(key, val) {
   const f = ST_KEYS[key], d = SETT.data, id = 'stk_' + key;
   let input;
   if (f.type === 'yesno') input = '<select class="select st-key" id="' + id + '" data-k="' + key + '"><option value="نعم"' + (val !== 'لا' ? ' selected' : '') + '>' + esc(t('st_yes')) + '</option><option value="لا"' + (val === 'لا' ? ' selected' : '') + '>' + esc(t('st_no')) + '</option></select>';
+  else if (f.type === 'date') input = '<input class="st-key" type="hidden" id="'+id+'" data-k="'+key+'" value="'+esc(val)+'"><div class="row-wrap"><select class="select" data-change="mrtSettingDate" data-setting-key="'+key+'" data-setting-mode aria-label="'+esc(t(f.k))+'"><option value="default"'+(!val?' selected':'')+'>'+mrtText('الإعداد الافتراضي','Default')+'</option><option value="date"'+(val&&val!=='off'?' selected':'')+'>'+mrtText('تاريخ محدد','Specific date')+'</option><option value="off"'+(val==='off'?' selected':'')+'>'+mrtText('مغلق','Closed')+'</option></select><input class="input" type="date" id="'+id+'_date" data-change="mrtSettingDate" data-setting-key="'+key+'" value="'+esc(val&&val!=='off'?val:d.defaults[key]||'')+'"'+(val==='off'?' disabled':'')+' aria-label="'+esc(t(f.k))+'"></div>';
   else if (f.type === 'lab') input = '<select class="select st-key" id="' + id + '" data-k="' + key + '"><option value="">' + esc(t('stk_auto')) + '</option>' + (d.labNames || []).map(n => '<option' + (n === val ? ' selected' : '') + '>' + esc(n) + '</option>').join('') + '</select>';
   else input = '<input class="input st-key" id="' + id + '" data-k="' + key + '" type="' + (f.type === 'number' ? 'number' : f.type === 'date' ? 'text' : f.type === 'url' ? 'url' : 'email') + '"' +
     (f.type === 'date' ? ' placeholder="YYYY-MM-DD" dir="ltr"' : '') + (f.min ? ' min="' + f.min + '" max="' + f.max + '"' : '') + ' value="' + esc(val) + '"' +
@@ -6529,7 +6536,8 @@ function fnHtml(d, range) {
     ['steth', 'var(--t-violet)', t('fn_pending_doc'), money(s.pendingDoctor || 0)],
     ['steth', 'var(--t-green)', t('fn_saving'), money(s.reviewSaving)],
     ['truck', 'var(--t-indigo)', t('fn_dispatched'), money(s.dispatched)],
-    ['package', 'var(--t-teal)', t('fn_received'), money(s.received)],
+    ['package', 'var(--t-teal)', mrtText('صافي المستلم بعد المرتجعات','Net received after returns'), money(s.received)],
+    ['refresh', 'var(--t-amber)', mrtText('مرتجعات استلمها التموين','Returns received by procurement'), money(s.returned || 0)],
     ['layers', 'var(--t-violet)', t('rp_avg_request'), money(s.avgValue)],
     ['zap', 'var(--t-red)', t('fn_emergency_value'), money(d.byType['طارئ'] || 0)]
   ];
@@ -6597,8 +6605,8 @@ ACT.fnCsv = () => {
   const q = v => '"' + String(v === null || v === undefined ? '' : v).replace(/"/g, '""') + '"';
   const s = d.summary;
   const lines = [[t('nav_finance'), periodLabel(FN.range), d.branch || t('all_branches')].map(q).join(','), '',
-    [t('fn_requests'), t('fn_requested'), t('fn_approved'), t('fn_saving'), t('fn_dispatched'), t('fn_received')].map(q).join(','),
-    [s.requests, s.requested, s.approved, s.reviewSaving, s.dispatched, s.received].map(q).join(',')];
+    [t('fn_requests'), t('fn_requested'), t('fn_approved'), t('fn_saving'), t('fn_dispatched'), mrtText('صافي المستلم','Net received'), mrtText('قيمة المرتجعات المستلمة','Received return value')].map(q).join(','),
+    [s.requests, s.requested, s.approved, s.reviewSaving, s.dispatched, s.received, s.returned || 0].map(q).join(',')];
   const block = (title, rows) => {
     lines.push('', q(title), [title, t('rep_requests'), t('rp_value'), t('rp_avg_request')].map(q).join(','));
     rows.forEach(r => lines.push([r.name, r.requests - r.rejected, r.value, r.avgValue].map(q).join(',')));
@@ -9686,6 +9694,36 @@ const mxcResetOriginal = resetApp;
 resetApp = function() { MXC.prompted = ''; MXC.read = ''; MXC.lastAlertList = []; return mxcResetOriginal(); };
 if (window.matchMedia) matchMedia('(max-width:700px)').addEventListener('change', e => { $$('.mxc-more').forEach(x => x.open = !e.matches); });
 /* MASAR_CALM_END */
+
+/* MASAR_RETURNS_START */
+Object.assign(I18N.ar, { nav_returns:'مرتجعات الطلبات', sub_returns_np:'متابعة الأصناف المعادة حتى يؤكد التموين استلامها.', sub_returns:'طلب الإرجاع لا يخصم القيمة؛ الخصم بعد تأكيد استلام التموين. الأسعار حسب الكتالوج الحالي.', alert_returns_pending:'<b>{n}</b> مرتجع بانتظار استلام التموين', stk_return_history:'السماح بالمرتجعات السابقة بأثر رجعي', stk_return_history_h:'نعم يفتح تسجيل تاريخ إرجاع سابق. لا يغلق الإدخال السابق فقط؛ تبقى المرتجعات المسجلة متاحة للتموين.', ERR_RETURN_LOCKED:'هذا الطلب مرتبط بمرتجع؛ لا يمكن حذف أصنافه أو التراجع عن شحنته.', ERR_RETURN_CONSUMABLE:'هذه الخاصية للمستهلكات؛ العهدة لها إجراءاتها المستقلة.', ERR_RETURN_QTY:'كمية الإرجاع أكبر من المستلم المتاح أو سبق تسجيلها.', ERR_RETURN_HISTORY_CLOSED:'تسجيل المرتجعات بأثر رجعي مغلق من الإدارة.' });
+Object.assign(I18N.en, { nav_returns:'Request returns', sub_returns_np:'Track returned items until procurement confirms receipt.', sub_returns:'A return request does not credit the doctor until procurement confirms physical receipt. Values follow the current catalogue.', alert_returns_pending:'<b>{n}</b> returns awaiting procurement receipt', stk_return_history:'Allow historical returns', stk_return_history_h:'Yes allows recording a past return date. Closing this only blocks new historical entries; existing returns can still be received.', ERR_RETURN_LOCKED:'A return is linked to this request. Item deletion and shipment reversal are blocked.', ERR_RETURN_CONSUMABLE:'Use the separate custody process for assets. This is for consumables.', ERR_RETURN_QTY:'Return quantity exceeds the available received quantity or is already reserved.', ERR_RETURN_HISTORY_CLOSED:'Historical return entry is closed by the administrator.' });
+const mrtText=(ar,en)=>S.lang==='ar'?ar:en;
+['nurse','doctor','procurement'].forEach(screen=>NAV[screen].push({id:'returns',icon:'refresh',k:'nav_returns'}));
+PERM_NAV.push({id:'returns',icon:'refresh',k:'nav_returns',perm:[],screens:['admin','finance','quality','executive','branch']});
+ALERT_TARGET.alert_returns_pending=['returns'];
+ST_KEYS.ReturnHistoryEnabled={k:'stk_return_history',type:'yesno',hint:'stk_return_history_h'};
+const mrtConfigOriginal=applyConfig;
+applyConfig=function(cfg){mrtConfigOriginal(cfg);S.returnHistoryEnabled=!!(cfg&&cfg.returnHistoryEnabled);};
+const MRT={list:[],filter:'pending',search:''};
+const mrtStatus=s=>({pending:mrtText('بانتظار استلام التموين','Awaiting procurement'),received:mrtText('استلمه التموين · خُصمت القيمة','Received · credited'),rejected:mrtText('لم يُقبل المرتجع','Return rejected'),cancelled:mrtText('ملغي','Cancelled')})[s]||s;
+function mrtRows(list,actions){return (list||[]).map(r=>'<article class="card mrt-card"><div class="between"><b dir="ltr">'+esc(r.request)+'</b><span class="tag" style="--tone:var(--t-'+(r.status==='received'?'green':r.status==='pending'?'amber':'gray')+')">'+esc(mrtStatus(r.status))+'</span></div><h3>'+esc(r.item)+' <span class="muted">× '+esc(r.qty)+'</span></h3><p class="hint">'+esc([r.doctor,r.clinic,r.branch].filter(Boolean).join(' · '))+'</p><p>'+esc(r.reason)+'</p><p class="hint">'+esc(fmtDate(r.date))+' · '+esc(r.createdBy)+(r.backdated?' · '+mrtText('بأثر رجعي','Historical'):'')+'</p>'+(r.status==='received'?'<p class="hint">'+esc(r.receivedBy)+' · '+esc(fmtDateTime(r.receivedAt))+'</p>':'')+(r.note?'<p class="hint">'+esc(r.note)+'</p>':'')+(!noPrices()&&r.value!==undefined?'<div class="mrt-value">'+mrtText(r.status==='received'?'قيمة مسترجعة: ':'قيمة الصنف: ',r.status==='received'?'Returned value: ':'Item value: ')+fmtNum(r.value,2)+' '+esc(t('currency'))+'</div>':'')+(actions?'<div class="row-wrap">'+((S.user.screen==='procurement'||S.user.screen==='admin')&&r.status==='pending'?'<button class="btn btn-primary btn-sm" data-act="mrtReceive" data-id="'+esc(r.id)+'">'+mrtText('استلام المرتجع كاملاً','Receive full return')+'</button><button class="btn btn-danger-soft btn-sm" data-act="mrtReject" data-id="'+esc(r.id)+'">'+mrtText('رفض مع ملاحظة','Reject with note')+'</button>':'')+(S.user.screen==='nurse'&&r.status==='pending'&&r.createdBy===S.user.name?'<button class="btn btn-ghost btn-sm" data-act="mrtCancel" data-id="'+esc(r.id)+'">'+mrtText('إلغاء طلب الإرجاع','Cancel return')+'</button>':'')+'<button class="btn btn-sm" data-act="detail" data-id="'+esc(r.request)+'">'+esc(t('details'))+'</button></div>':'')+'</article>').join('');}
+VIEWS.returns={title:'nav_returns',sub:'sub_returns',render(){return '<section class="card"><div class="card-body"><p class="hint">'+esc(t('sub_returns'))+'</p><div class="row-wrap"><select class="select" data-change="mrtFilter" aria-label="'+esc(t('status'))+'"><option value="pending">'+esc(mrtStatus('pending'))+'</option><option value="received">'+esc(mrtStatus('received'))+'</option><option value="all">'+mrtText('الكل','All')+'</option></select><input class="input" data-input="mrtSearch" placeholder="'+mrtText('ابحث برقم الطلب أو الطبيب أو الصنف','Search request, doctor or item')+'"></div></div></section><div id="mrtList" class="stack">'+skeletonList(2)+'</div>';},mount(){MRT.filter='pending';MRT.search='';mrtLoad();},refresh(){mrtLoad();}};
+function mrtDraw(){const box=$('#mrtList');if(box)box.innerHTML=mrtRows(MRT.list.filter(r=>(MRT.filter==='all'||r.status===MRT.filter)&&(!MRT.search||[r.request,r.item,r.doctor,r.clinic].join(' ').toLowerCase().includes(MRT.search.toLowerCase()))),true)||emptyState('checkc',mrtText('لا توجد مرتجعات في هذا القسم','No returns in this section'));}
+function mrtLoad(){return call('getRequestReturns').then(rows=>{MRT.list=rows||[];mrtDraw();}).catch(e=>{const box=$('#mrtList');if(box)box.innerHTML=emptyState('alert',errMsg(e));});}
+ACT.mrtFilter=el=>{MRT.filter=el.value;mrtDraw();};ACT.mrtSearch=el=>{MRT.search=el.value;mrtDraw();};
+function mrtRefresh(){mrtLoad();loadAlerts();}
+ACT.mrtReceive=async el=>{const r=MRT.list.find(r=>r.id===el.dataset.id);if(!r)return;const ok=await confirmDialog(mrtText('تأكيد استلام '+r.qty+' × '+r.item+' فعليًا وكاملاً؟ ستُخصم هذه الكمية من صافي حساب الطبيب.','Confirm physical receipt of all '+r.qty+' × '+r.item+'? This quantity will be credited to the doctor.'));if(!ok)return;busy(el,true);call('receiveRequestReturn',r.id,'received','').then(()=>{toast(mrtText('تم استلام المرتجع وتحديث صافي القيمة','Return received; net value updated'));mrtRefresh();}).catch(e=>{busy(el,false);toast(errMsg(e),'error');});};
+ACT.mrtReject=el=>{const m=openModal({title:mrtText('سبب عدم قبول المرتجع','Reason for rejecting return'),icon:'msg',size:'sm',body:'<label for="mrtRejectNote">'+esc(t('notes'))+'</label><textarea class="textarea" id="mrtRejectNote" maxlength="500"></textarea>',foot:'<button class="btn" data-close>'+esc(t('cancel'))+'</button><button class="btn btn-danger" id="mrtRejectOk">'+esc(t('confirm'))+'</button>'});$('#mrtRejectOk',m.el).onclick=()=>{const note=$('#mrtRejectNote',m.el).value.trim();if(!note){toast(t('reason_required'),'error');return;}const b=$('#mrtRejectOk',m.el);busy(b,true);call('receiveRequestReturn',el.dataset.id,'rejected',note).then(()=>{closeModal(m);mrtRefresh();}).catch(e=>{busy(b,false);toast(errMsg(e),'error');});};};
+ACT.mrtCancel=async el=>{if(!await confirmDialog(mrtText('إلغاء طلب الإرجاع؟','Cancel this return request?')))return;call('cancelRequestReturn',el.dataset.id).then(mrtRefresh).catch(e=>toast(errMsg(e),'error'));};
+function mrtForm(opts){
+ const m=openModal({title:mrtText('إعادة إلى التموين','Return to procurement'),icon:'refresh',size:'sm',body:'<p class="hint">'+esc(t('sub_returns'))+'</p><div class="field"><label for="mrtItem">'+esc(t('items'))+'</label><select class="select" id="mrtItem">'+opts.items.map((r,i)=>'<option value="'+i+'">'+esc(r.item)+' · '+mrtText('متاح ','Available ')+esc(r.qty)+'</option>').join('')+'</select></div><div class="field"><label for="mrtQty">'+mrtText('كمية الإرجاع','Return quantity')+'</label><input class="input" id="mrtQty" type="number" min="1" step="1" inputmode="numeric" value="1"></div><div class="field"><label for="mrtReason">'+mrtText('سبب الإرجاع','Return reason')+'</label><textarea class="textarea" id="mrtReason" maxlength="500"></textarea></div>'+(opts.history?'<div class="field"><label for="mrtDate">'+mrtText('تاريخ الإرجاع الفعلي (متاح بأثر رجعي)','Actual return date (historical entry enabled)')+'</label><input class="input" id="mrtDate" type="date" min="'+esc(opts.min||'')+'" max="'+todayStr()+'" value="'+todayStr()+'"></div>':'')+'<p class="field-error hidden" id="mrtError"></p>',foot:'<button class="btn" data-close>'+esc(t('cancel'))+'</button><button class="btn btn-primary" id="mrtSave">'+mrtText('تسجيل طلب الإرجاع','Submit return request')+'</button>'});
+ const update=()=>{$('#mrtQty',m.el).max=opts.items[Number($('#mrtItem',m.el).value)].qty;};$('#mrtItem',m.el).onchange=update;update();let saving=false;
+ $('#mrtSave',m.el).onclick=()=>{if(saving)return;const item=opts.items[Number($('#mrtItem',m.el).value)],qty=Number($('#mrtQty',m.el).value),reason=$('#mrtReason',m.el).value.trim(),date=$('#mrtDate',m.el)?$('#mrtDate',m.el).value:todayStr();const err=$('#mrtError',m.el);if(!Number.isInteger(qty)||qty<1||qty>item.qty||!reason||!date){err.textContent=mrtText('تحقق من الكمية والتاريخ واكتب السبب.','Check quantity and date, and enter a reason.');err.classList.remove('hidden');return;}saving=true;busy($('#mrtSave',m.el),true);Promise.resolve().then(()=>opts.onSave({item:item.item,qty,reason,date})).then(()=>closeModal(m)).catch(e=>{saving=false;busy($('#mrtSave',m.el),false);err.textContent=errMsg(e);err.classList.remove('hidden');});};return m;
+}
+ACT.requestReturn=el=>{const id=el.dataset.id,key='return:'+Date.now()+':'+Math.random().toString(36).slice(2);call('getRequestDetail',id).then(d=>{const items=(d.returnable||[]).filter(r=>r.qty>0);if(!items.length){toast(mrtText('لا توجد كمية مستلمة متاحة للإرجاع','No received quantity available to return'),'info');return;}mrtForm({items,min:ymdOf(new Date(d.date)),history:S.returnHistoryEnabled,onSave:p=>call('createRequestReturn',id,Object.assign(p,{clientKey:key})).then(()=>{toast(mrtText('سُجل المرتجع بانتظار استلام التموين','Return submitted; awaiting procurement receipt'));loadAlerts();const detail=MODALS.find(x=>x.el.classList.contains('request-detail'));if(detail)call('getRequestDetail',id).then(d=>renderDetail(detail,d));})});}).catch(e=>toast(errMsg(e),'error'));};
+ACT.mrtSettingDate=el=>{const key=el.dataset.settingKey,hidden=$('#stk_'+key),day=$('#stk_'+key+'_date'),field=hidden.closest('.field'),mode=$('[data-setting-mode]',field);if(el===day)mode.value='date';if(mode.value==='date'&&!day.value)day.value=todayStr();day.disabled=mode.value==='off';hidden.value=mode.value==='off'?'off':mode.value==='default'?'':day.value;hidden.dispatchEvent(new Event('input',{bubbles:true}));};
+/* MASAR_RETURNS_END */
 
 /* MASAR_DATE_PICKER_START: retain native ISO values and existing change handlers. */
 function mxdAllowed(value, min, max) { return !!value && (!min || value >= min) && (!max || value <= max); }
