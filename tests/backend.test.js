@@ -3922,3 +3922,15 @@ test('returns: receipt creates a pending return atomically and preserves full gr
  assert.equal(api(p,'getRequestReturns').length,0,'procurement cannot see another department');
  throwsCode(()=>api(p,'receiveRequestReturn',ret.id,'received',''),'ERR_FORBIDDEN');
 });
+
+test('doctor review context follows live price grants on an existing session and fails closed for uncatalogued items',()=>{
+ const {api,n,a,d,gas,ctx}=returnFixture();
+ api(a,'setDoctorPriceAccess','د. خالد',false);
+ let review=api(d,'getDoctorReviewContext','RET-1');assert.equal(review.priceAccess,'none');assert.equal(review.items[0].price,undefined);assert.equal(review.items[0].priceHidden,true);
+ api(a,'setDoctorPriceAccess','د. خالد',true);
+ review=api(d,'getDoctorReviewContext','RET-1');assert.equal(review.priceAccess,'all');assert.equal(review.items.find(x=>x.item==='PROPHY PASTE').price,60);
+ api(a,'setDoctorPriceAccess','د. خالد',false);
+ review=api(d,'getDoctorReviewContext','RET-1');assert.equal(review.priceAccess,'none');assert.equal(JSON.stringify(review).includes('"price":'),false);
+ const sh=gas.ss.getSheetByName('RequestItems');sh.appendRow(['RET-1','OLD UNCATALOGUED ITEM',1,1,1,new Date()]);ctx.bumpVersion_('RequestItems');
+ review=api(d,'getDoctorReviewContext','RET-1');const old=review.items.find(x=>x.item==='OLD UNCATALOGUED ITEM');assert.equal(old.priceHidden,true);assert.equal(old.price,undefined);
+});
