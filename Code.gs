@@ -2922,9 +2922,14 @@ function getFinance_(user, opts) {
   // نفس قاعدة التقارير: العهدة لا تُحسب قيمتها كمستهلك (وإلا «التوفير» = المطلوب − المعتمد يتضخم بقيمة العهدة)
   getCatalog_(true).forEach(function (c) { price[c.name.toLowerCase()] = c.asset ? 0 : (Number(c.price) || 0); });
   const pr = function (n) { return price[str_(n).toLowerCase()] || 0; };
-  const all = queryRequests_({}).filter(function (r) { return !isOff_(r.status) && (!branch || r.branch === branch); });
-  const inRange = {};
+  const seen = {}; // رقم طلب مكرر (استيراد قديم): أصنافه مربوطة بالرقم فتُحسب مرة واحدة لا مرتين
+  const all = queryRequests_({}).filter(function (r) {
+    if (isOff_(r.status) || (branch && r.branch !== branch) || seen[r.id]) return false;
+    return (seen[r.id] = true);
+  });
+  const byId = {}, inRange = {};
   all.forEach(function (r) {
+    byId[r.id] = r;
     const ms = toMs_(r.submittedAt || r.date);
     if ((!from || ms >= from.getTime()) && (!to || ms <= to.getTime())) inRange[r.id] = r;
   });
@@ -2933,25 +2938,23 @@ function getFinance_(user, opts) {
   // «التوفير من المراجعة» = المطلوب − المعتمد في الطلبات المعتمدة نفسها
   let approved = 0, reqCleared = 0, pendingDoc = 0;
   const byType = {};
+  // اتجاه 12 شهراً (قيمة المعتمد حسب شهر الرفع) — مستقل عن الفترة المختارة، وبنفس قاعدة بطاقة «المعتمد»
+  const byMonth = {};
   read_('RequestItems').rows.forEach(function (it) {
-    const r = inRange[str_(it.RequestID)];
+    const id = str_(it.RequestID), p = pr(it.ItemName);
+    const any = byId[id];
+    if (any && !any.awaitingDoctor) { const m = monthOf_(any.submittedAt || any.date); byMonth[m] = (byMonth[m] || 0) + targetQty_(it) * p; }
+    const r = inRange[id];
     if (!r) return;
-    const p = pr(it.ItemName);
     requested += (num_(it.RequestedQty) || 0) * p;
-    if (r.awaitingDoctor) pendingDoc += targetQty_(it) * p;
-    else { approved += targetQty_(it) * p; if (!str_(it.SubstituteOf)) reqCleared += (num_(it.RequestedQty) || 0) * p; }
     received += grossReceivedQty_(it) * p; returned += returnedQty_(it) * p;
+    if (r.awaitingDoctor) { pendingDoc += targetQty_(it) * p; return; }
+    approved += targetQty_(it) * p;
+    if (!str_(it.SubstituteOf)) reqCleared += (num_(it.RequestedQty) || 0) * p;
     const t = r.type || '—';
-    byType[t] = round2_((byType[t] || 0) + targetQty_(it) * p);
+    byType[t] = round2_((byType[t] || 0) + targetQty_(it) * p); // جزء من «المعتمد»
   });
   read_('ShipmentItems').rows.forEach(function (s) { if (inRange[str_(s.RequestID)]) dispatched += (num_(s.Qty) || 0) * pr(s.ItemName); });
-  // اتجاه 12 شهراً (قيمة المعتمد حسب شهر الرفع) — مستقل عن الفترة المختارة
-  const byMonth = {};
-  const items = itemsByRequest_();
-  all.forEach(function (r) {
-    const m = monthOf_(r.submittedAt || r.date);
-    (items[r.id] || []).forEach(function (it) { byMonth[m] = (byMonth[m] || 0) + targetQty_(it) * pr(it.ItemName); });
-  });
   const now = new Date(), trend = [];
   for (let i = 11; i >= 0; i--) {
     const m = Utilities.formatDate(new Date(now.getFullYear(), now.getMonth() - i, 15), TZ, 'yyyy-MM');
@@ -2961,7 +2964,7 @@ function getFinance_(user, opts) {
     from: rep.from, to: rep.to, branch: branch, generatedAt: new Date(),
     summary: { requests: rep.summary.requests - rep.summary.rejected - rep.summary.cancelled, requested: round2_(requested), approved: round2_(approved), pendingDoctor: round2_(pendingDoc),
       dispatched: round2_(dispatched), received: round2_(Math.max(0, received - returned)), receivedGross: round2_(received), returned: round2_(returned), reviewSaving: round2_(Math.max(0, reqCleared - approved)),
-      avgValue: rep.summary.avgValue, emergency: rep.summary.emergency },
+      avgValue: rep.summary.avgValue, value: rep.summary.value, emergency: rep.summary.emergency },
     byType: byType, branches: rep.branches, clinics: rep.clinics, doctors: rep.doctors, billing: rep.billing, docBranches: rep.docBranches, topItems: rep.topItems,
     badPrices: rep.badPrices, trend: trend
   };
@@ -6256,8 +6259,11 @@ function getStatsReport_(user, opts) {
     if (c.priceIssue) badPrices.push({ item: c.name, issue: c.priceIssue });
   });
   const byReq = itemsByRequest_();
+  const seenId = {}; // رقم طلب مكرر (استيراد قديم): أصنافه مربوطة بالرقم فتُحسب مرة واحدة لا مرتين
   const reqs = queryRequests_({}).filter(function (r) {
     if (branch && r.branch !== branch) return false;
+    if (seenId[r.id]) return false;
+    seenId[r.id] = true;
     const ms = toMs_(r.submittedAt || r.date);
     return (!from || ms >= from.getTime()) && (!to || ms <= to.getTime());
   });

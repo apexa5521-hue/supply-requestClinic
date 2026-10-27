@@ -1591,6 +1591,29 @@ test('monitor: monthly window 15–20 and due on the 1st, emergency target 2h an
   assert.ok(gas.mails.some(x => x.to.includes('mona@example.com')), 'quality gets the digest');
 });
 
+test('finance: tiles agree — trend = approved, share sums to 100%, duplicate request id counted once', () => {
+  const { api, login, gas, ctx } = boot(g => {
+    g.seed('ItemsCatalog', ['ItemName', 'CommercialName', 'Category', 'Price'], [['PROPHY PASTE', '', '', 60], ['DENTAL FLOSS', '', '', 10]]);
+  });
+  const n = login('سارة', '1111');
+  const r1 = api(n, 'createRequest', { doctor: 'د. نورة', type: 'شهري', items: [{ name: 'PROPHY PASTE', qty: 2 }] });
+  api(n, 'createRequest', { doctor: 'د. نورة', type: 'طارئ', items: [{ name: 'DENTAL FLOSS', qty: 3 }] });
+  // صف طلب مكرر بنفس الرقم (من استيراد قديم) لا يضاعف القيمة
+  const sh = gas.ss.getSheetByName('Requests'), h = sh._data[0];
+  const row = sh._data.find(x => x[h.indexOf('RequestID')] === r1.id);
+  assert.ok(row);
+  sh._data.push(row.slice()); ctx.onEdit({ range: { getSheet: () => sh } });
+  receiveAll(gas, ctx);
+  const f = login('نواف', '7777');
+  const fin = api(f, 'getFinance', {});
+  const s = fin.summary;
+  assert.equal(fin.trend[11].value, s.approved, 'trend bar = approved tile');
+  assert.equal(s.approved + s.pendingDoctor, s.requested);
+  assert.ok(fin.byType['طارئ'] <= s.approved);
+  const r2 = x => Math.round(x * 100) / 100;
+  assert.equal(r2(fin.branches.reduce((a, b) => a + b.value, 0)), r2(s.value), 'branch values sum to the share denominator');
+});
+
 test('finance: spend summary and price editing written back to the catalog sheet as a number', () => {
   const { api, login, gas } = boot(g => {
     g.seed('ItemsCatalog', ['ItemName', 'CommercialName', 'Category', 'Price'], [
