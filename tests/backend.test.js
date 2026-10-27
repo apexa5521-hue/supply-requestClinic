@@ -3080,7 +3080,7 @@ test('device rooms (GentleMax / Hydrafacial): clinic consumables only, straight 
   assert.deepEqual([sr.approver, sr.cleared], ['', true]);
 });
 
-test('nurse rejects one item at receipt with a reason and photo: not received, procurement and doctor told', () => {
+test('nurse refusal at receipt stays pending until procurement approval, including legacy clients', () => {
   const { api, login, gas } = boot();
   const n = login('سارة', '1111'), p = login('علي', '3333');
   const PIC = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==';
@@ -3088,15 +3088,20 @@ test('nurse rejects one item at receipt with a reason and photo: not received, p
   api(p, 'bulkUpdateStatus', [id], 'قيد التجهيز');
   api(p, 'dispatchItems', id, ['PROPHY PASTE', 'DENTAL FLOSS']);
   throwsCode(() => api(n, 'receiveShipment', id, 1, [{ name: 'DENTAL FLOSS', qty: 0, reject: { reason: '', photo: PIC } }], '', '', '', ''), 'ERR_REASON_REQUIRED');
-  throwsCode(() => api(n, 'receiveShipment', id, 1, [{ name: 'DENTAL FLOSS', qty: 0, reject: { reason: 'غير مطابق' } }], '', '', '', ''), 'ERR_PHOTO_REQUIRED');
   const res = api(n, 'receiveShipment', id, 1, [{ name: 'PROPHY PASTE', qty: 2 }, { name: 'DENTAL FLOSS', qty: 3, reject: { reason: 'غير مطابق للطلب', photo: PIC } }], '', '', '', '');
-  assert.deepEqual(res.rejected, ['DENTAL FLOSS']);
+  assert.deepEqual(res.rejected, []);
+  assert.equal(res.pendingIssues[0].kind,'reject');
+  const claim=api(p,'getRequestReturns',id)[0];
+  assert.equal(claim.status,'pending');assert.equal(claim.kind,'reject');
+  assert.equal(api(n,'getRequestDetail',id).items.find(i=>i.item==='DENTAL FLOSS').receivedQty,3);
+  assert.equal(api(login('منى','5555'),'getMonitor').rcvRejects.filter(x=>x.id===id).length,0);
+  api(p,'receiveRequestReturn',claim.id,'received','استلام واعتماد الرفض');
   const fl = api(p, 'getRequestItemsFull', id).items.find(i => i.item === 'DENTAL FLOSS');
   assert.equal(fl.rcvRejects[0].reason, 'غير مطابق للطلب');
   assert.ok(fl.rcvRejects[0].photo, 'photo saved');
-  assert.equal(api(n, 'getRequestDetail', id).items.find(i => i.item === 'DENTAL FLOSS').receivedQty, 0, 'counted as not received');
-  assert.ok(api(n, 'getComments', id).some(c => /رفضت الممرضة عند استلام الشحنة 1: DENTAL FLOSS/.test(c.message)));
-  assert.ok(gas.mails.some(m => /رفضت الممرضة صنفاً عند الاستلام/.test(m.subject)), 'procurement emailed');
+  assert.equal(api(n, 'getRequestDetail', id).items.find(i => i.item === 'DENTAL FLOSS').receivedQty, 3, 'original signed receipt stays intact; the approved ledger credits the quantity');
+  assert.ok(api(n, 'getComments', id).some(c => /طلبت الممرضة مراجعة رفض عند استلام الشحنة 1: DENTAL FLOSS/.test(c.message)));
+  assert.ok(gas.mails.some(m => /طلب رفض أو استرجاع بانتظار التموين/.test(m.subject)), 'procurement emailed');
   // report: when, who, request, reason, what was requested
   const rr = api(login('منى', '5555'), 'getMonitor').rcvRejects.find(x => x.id === id);
   assert.deepEqual([rr.requested, rr.requestedQty, rr.reason, rr.batch, rr.substitute], ['DENTAL FLOSS', 3, 'غير مطابق للطلب', 1, false]);
@@ -3203,10 +3208,12 @@ test('item removal: the nurse removes a wrong item after another was received; a
   throwsCode(() => api(login('ريم', '2222'), 'removeMyItems', id, ['DENTAL FLOSS'], 'x'), 'ERR_FORBIDDEN');
   gas.mails.length = 0;
   assert.equal(api(n, 'removeMyItems', id, ['DENTAL FLOSS'], 'طلبته بالغلط').changed, 1);
+  assert.equal(rows(gas,'RequestItems').find(r=>r.RequestID===id&&r.ItemName==='DENTAL FLOSS').RejectAt,'');
+  const claim=api(p,'getRequestReturns',id)[0];assert.equal(claim.source,'undispatched');assert.equal(claim.status,'pending');api(p,'receiveRequestReturn',claim.id,'received','اعتماد رفض الصنف قبل الإرسال');
   const flo = rows(gas, 'RequestItems').find(r => r.RequestID === id && r.ItemName === 'DENTAL FLOSS');
-  assert.deepEqual([Number(flo.RequestedQty), Number(flo.ApprovedQty), flo.RejectBy, flo.RejectNote], [3, 0, 'سارة', 'طلبته بالغلط'], 'soft removal: requested kept, approved 0, who and why');
+  assert.deepEqual([Number(flo.RequestedQty), Number(flo.ApprovedQty), flo.RejectBy, flo.RejectNote], [3, 0, 'علي', 'طلبته بالغلط'], 'only procurement approval changes the original item');
   assert.equal(rows(gas, 'Requests').find(r => r.RequestID === id).Status, 'تم الاستلام', 'nothing left to send and all shipments received: the request completes');
-  assert.ok(gas.mails.some(m => m.to.includes('ali@example.com') && /حذفت الممرضة/.test(m.subject)), 'procurement told not to prepare it');
+  assert.equal(api(login('نواف','7777'),'getFinance',{}).summary.returned,0,'unsent refusal never creates a credit for already received units');
 
   // admin: the full request with values; remove the received item (reason required), then restore it
   let au = api(a, 'getRequestAudit', id);
@@ -3933,4 +3940,101 @@ test('doctor review context follows live price grants on an existing session and
  review=api(d,'getDoctorReviewContext','RET-1');assert.equal(review.priceAccess,'none');assert.equal(JSON.stringify(review).includes('"price":'),false);
  const sh=gas.ss.getSheetByName('RequestItems');sh.appendRow(['RET-1','OLD UNCATALOGUED ITEM',1,1,1,new Date()]);ctx.bumpVersion_('RequestItems');
  review=api(d,'getDoctorReviewContext','RET-1');const old=review.items.find(x=>x.item==='OLD UNCATALOGUED ITEM');assert.equal(old.priceHidden,true);assert.equal(old.price,undefined);
+});
+
+test('return replacement: procurement approval, doctor approval, same-order new leg, nurse receipt, net doctor charge',()=>{
+ const {api,n,p,d,f,other}=returnFixture();
+ const claim=api(n,'createRequestReturn','RET-1',{item:'PROPHY PASTE',qty:2,kind:'return',reason:'الطبيب لا يريد الصنف بعد التوقيع',clientKey:'replacement-return'});
+ const proposal={requestId:'RET-1',returnId:claim.id,substitute:'DENTAL FLOSS',qty:2,note:'بديل مقترح من التموين'};
+ throwsCode(()=>api(p,'proposeSubstitute',proposal),'ERR_CLAIM_APPROVAL_FIRST');
+ throwsCode(()=>api(n,'proposeSubstitute',proposal),'ERR_FORBIDDEN');
+ api(p,'receiveRequestReturn',claim.id,'received','استلمته كاملاً');
+ assert.equal(api(f,'getFinance',{}).summary.received,120);
+ assert.equal(api(p,'proposeSubstitute',proposal).status,'بانتظار الطبيب');
+ assert.equal(api(d,'getDoctorRequests').find(r=>r.id==='RET-1').pendingSubs,1);
+ assert.equal(api(n,'getRequestReturns','RET-1')[0].substitutes[0].item,'DENTAL FLOSS');
+ assert.equal(api(n,'getRequestDetail','RET-1').shipments.length,1,'pending replacement is not a phantom signed legacy shipment');
+ throwsCode(()=>api(p,'dispatchItems','RET-1',[{name:'DENTAL FLOSS',qty:2}]),'ERR_NEEDS_APPROVAL');
+ throwsCode(()=>api(other,'reviewSubstitute','RET-1','DENTAL FLOSS',true,''),'ERR_FORBIDDEN');
+ api(d,'reviewSubstitute','RET-1','DENTAL FLOSS',true,'');
+ let detail=api(n,'getRequestDetail','RET-1');assert.equal(detail.status,'قيد التجهيز');
+ assert.equal(detail.shipments[0].received,true,'old signed delivery remains received after reopening');assert.equal(!!detail.items.find(it=>it.item==='PROPHY PASTE').replaced,false,'partial returned quantity does not strike through the entire original');
+ assert.equal(api(f,'getFinance',{}).summary.received,120,'approval alone never charges the replacement');
+ const shipped=api(p,'dispatchItems','RET-1',[{name:'DENTAL FLOSS',qty:2}]);assert.equal(shipped.batch,2);
+ detail=api(n,'getRequestDetail','RET-1');assert.equal(detail.shipments.find(g=>g.batch===2).items[0].originalBatch,1);
+ assert.equal(detail.shipments.find(g=>g.batch===1).received,true);
+ assert.equal(api(f,'getFinance',{}).summary.received,120,'dispatch alone never charges the replacement');
+ throwsCode(()=>api(n,'receiveShipment','RET-1',2,[{name:'DENTAL FLOSS',qty:2}],'سارة','','',''),'ERR_SIGNATURE_REQUIRED');
+ throwsCode(()=>api(n,'receiveShipment','RET-1',2,[{name:'DENTAL FLOSS',qty:2}],'سارة','invalid-signature','',''),'ERR_SIGNATURE_REQUIRED');
+ api(n,'receiveShipment','RET-1',2,[{name:'DENTAL FLOSS',qty:2}],'سارة','data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==','','');
+ const rep=api(d,'getDoctorReport',{});assert.equal(rep.summary.total,145,'2 original units ×60 plus 2 replacement units ×12.5');
+ assert.equal(api(f,'getFinance',{}).summary.received,145);
+ assert.equal(api(p,'getRequestReturns','RET-1')[0].substitutes[0].receivedQty,2);
+ assert.equal(api(n,'getRequestDetail','RET-1').shipments.length,2,'same order; original and replacement delivery evidence retained');
+});
+
+test('historical refusal and return requests remain visible outside archive; pending refusal does not credit',()=>{
+ const {api,n,p,a,f,gas,ctx}=returnFixture();
+ const sh=gas.ss.getSheetByName('Requests'),at=new Date(Date.now()-120*864e5);['Date','SubmittedAt','SentAt','ReceivedAt'].forEach(k=>sh.getRange(2,sh._data[0].indexOf(k)+1).setValue(at));ctx.bumpVersion_('Requests');
+ api(a,'saveSettingKeys',{ReturnHistoryEnabled:'نعم'});
+ const day=new Date(Date.now()-10*864e5+3*36e5).toISOString().slice(0,10);
+ const c=api(n,'createRequestReturn','RET-1',{item:'PROPHY PASTE',qty:4,kind:'reject',reason:'توثيق رفض سابق بعد توقيع خاطئ',date:day,clientKey:'historical-refusal'});
+ assert.equal(api(f,'getFinance',{}).summary.received,240);
+ assert.equal(api(p,'getRequests').find(r=>r.id==='RET-1').pendingNurseIssues,1,'old request returns to the active claims queue');
+ api(p,'receiveRequestReturn',c.id,'received','تم استلام الصنف فعلياً');
+ assert.equal(api(f,'getFinance',{}).summary.received,0);
+ assert.equal(api(f,'getFinance',{}).summary.returned,240);
+ assert.equal(api(p,'receiveRequestReturn',c.id,'received','').duplicate,true);
+});
+
+test('receipt audit lists the original, claim decision, procurement suggestion and actually received replacement',()=>{
+ const source=fs.readFileSync(path.join(__dirname,'..','JavaScript.html'),'utf8'),helper=source.slice(source.indexOf('function receiptClaimLines('),source.indexOf('function drawReceipt('));
+ const c=vm.createContext({});vm.runInContext(helper,c);
+ const context={returns:[{id:'C1',kind:'reject',item:'ORIGINAL',qty:2,batch:1,reason:'Wrong specification',status:'received',receivedBy:'Procurement',substitutes:[{item:'REPLACEMENT',qty:2,status:'معتمد',note:'Suggested alternative',by:'Procurement'}]}]};
+ const lines=c.receiptClaimLines(context,[{batch:2,receiver:'Nurse Sara',items:[{item:'REPLACEMENT',sent:2,got:2}]}]).join('\n');
+ for(const part of ['ORIGINAL','Wrong specification','Approved and received','REPLACEMENT','Suggested alternative','Nurse Sara','Shipment #2'])assert.ok(lines.includes(part),part);
+ const pending=c.receiptClaimLines({returns:[{kind:'return',item:'OLD',qty:1,reason:'Pending',status:'pending'}]},[]).join('\n');assert.ok(pending.includes('Pending approval'));assert.ok(!pending.includes('Approved and received'));
+ const wrapped=c.receiptWrappedLines('VERY_LONG_UNBROKEN_ITEM_NAME_THAT_MUST_WRAP x',s=>s.length,10);assert.ok(wrapped.every(line=>line.length<=10));
+});
+
+test('doctor refusal of a replacement keeps it unshipped and uncharged; nurse cannot bypass procurement',()=>{
+ const {api,n,p,d,f}=returnFixture();
+ const r=api(n,'createRequestReturn','RET-1',{item:'PROPHY PASTE',qty:4,kind:'reject',reason:'wrong item',clientKey:'replacement-decline'});
+ throwsCode(()=>api(n,'receiveRequestReturn',r.id,'received',''),'ERR_FORBIDDEN');
+ api(p,'receiveRequestReturn',r.id,'received','');api(p,'proposeSubstitute',{returnId:r.id,substitute:'DENTAL FLOSS',qty:4});
+ api(d,'reviewSubstitute','RET-1','DENTAL FLOSS',false,'not suitable');
+ assert.equal(api(f,'getFinance',{}).summary.received,0);
+ assert.equal(api(n,'getRequestDetail','RET-1').items.find(it=>it.item==='DENTAL FLOSS').batch,0);
+ throwsCode(()=>api(p,'dispatchItems','RET-1',[{name:'DENTAL FLOSS',qty:4}]),'ERR_NEEDS_APPROVAL');
+});
+
+test('return claim binds to the selected original shipment and cannot reserve another shipment quantity',()=>{
+ const {api,n,p,f,gas,ctx}=returnFixture(),at=new Date(Date.now()-864e5);
+ gas.seed('ShipmentItems',['RequestID','Batch','ItemName','Qty','DispatchedAt','DispatchedBy','ReceivedQty'],[['RET-1',1,'PROPHY PASTE',1,at,'علي',1],['RET-1',2,'PROPHY PASTE',3,at,'علي',3]]);
+ gas.seed('Shipments',['RequestID','Batch','ReceivedAt','ReceiverName','ReceivedBy','SignatureURL'],[['RET-1',1,at,'سارة','سارة','/files/original_signature'],['RET-1',2,at,'سارة','سارة','']]);ctx.bumpVersion_('ShipmentItems');ctx.bumpVersion_('Shipments');
+ const available=api(n,'getRequestDetail','RET-1').returnable.find(r=>r.item==='PROPHY PASTE');assert.equal(available.batches.length,2);
+ const payload={item:'PROPHY PASTE',kind:'return',qty:2,batch:1,reason:'return selected shipment',clientKey:'batch-too-many'};
+ throwsCode(()=>api(n,'createRequestReturn','RET-1',payload),'ERR_RETURN_QTY');
+ const first=api(n,'createRequestReturn','RET-1',{...payload,qty:1,clientKey:'batch-one'});
+ throwsCode(()=>api(n,'createRequestReturn','RET-1',{...payload,qty:1,clientKey:'batch-one-again'}),'ERR_RETURN_QTY');
+ const second=api(n,'createRequestReturn','RET-1',{...payload,qty:3,batch:2,clientKey:'batch-two'});
+ api(p,'receiveRequestReturn',first.id,'received','');api(p,'receiveRequestReturn',second.id,'received','');assert.equal(api(f,'getFinance',{}).summary.received,0);
+ assert.equal(ctx.signatureId_('/files/original_signature'),'original_signature');assert.equal(ctx.signatureId_('https://drive.google.com/file/d/valid_drive_id/view'),'valid_drive_id');assert.equal(ctx.signatureId_('https://untrusted.example/any'),'');
+});
+
+test('nurse refusal before dispatch requires procurement and supports a doctor-approved replacement without phantom credit',()=>{
+ const {api,login,gas}=boot();const n=login('سارة','1111'),p=login('علي','3333'),d=login('د. خالد','4444'),f=login('نواف','7777');
+ const id=api(n,'createRequest',{clinic:'عيادة الأسنان 1',doctor:'د. خالد',type:'شهري',items:[{name:'PROPHY PASTE',qty:2}]}).id;
+ api(d,'doctorReview',id,'اعتمد','',[],[{item:'PROPHY PASTE',qty:2}]);
+ const requested=api(n,'createRequestReturn',id,{source:'undispatched',kind:'reject',item:'PROPHY PASTE',qty:2,reason:'not needed',clientKey:'unsent-refusal'});assert.equal(requested.pending,true);
+ let row=rows(gas,'RequestItems').find(r=>r.RequestID===id);assert.equal(Number(row.ApprovedQty),2);assert.ok(!row.RejectAt);
+ assert.equal(api(f,'getFinance',{}).summary.received,0);
+ throwsCode(()=>api(p,'dispatchItems',id,[{name:'PROPHY PASTE',qty:2}]),'ERR_RETURN_LOCKED');
+ assert.equal(api(p,'cancelRequests',[id],'cancel while pending').cancelled.length,0);
+ const claim=api(p,'getRequestReturns',id)[0];api(p,'receiveRequestReturn',claim.id,'received','');
+ assert.equal(api(f,'getFinance',{}).summary.returned,0,'nothing was received so no monetary return credit is invented');
+ api(p,'proposeSubstitute',{returnId:claim.id,substitute:'DENTAL FLOSS',qty:2});api(d,'reviewSubstitute',id,'DENTAL FLOSS',true,'');
+ const sent=api(p,'dispatchItems',id,[{name:'DENTAL FLOSS',qty:2}]);assert.equal(sent.batch,1,'no phantom shipment for an unsent refused item');
+ api(n,'receiveShipment',id,1,[{name:'DENTAL FLOSS',qty:2}],'سارة','data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==','','');
+ assert.equal(api(f,'getFinance',{}).summary.received,25);
 });
