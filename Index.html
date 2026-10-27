@@ -2251,6 +2251,27 @@ h1 { font-size:26px; } h2 { font-size:19px; }
 </style>
 <style>@media(max-width:700px){.mxc-focus .mxf-modal .rv-table td{border:0!important}.mxc-focus .mxf-modal .rv-table td.mxc-item-main{padding-inline-start:36px!important}.mxc-focus .modal-body>.row-wrap{flex-wrap:nowrap;gap:6px;overflow-x:auto;margin-bottom:0;min-height:28px}.mxc-focus .modal-body>.row-wrap .badge{font-size:10px;white-space:nowrap;max-width:210px;overflow:hidden;text-overflow:ellipsis;flex:none}.mxc-focus .modal-body>.row-wrap .tag{font-size:10px;white-space:nowrap;flex:none}.mxc-focus #rvItems>.hint{font-size:10px!important;line-height:1.6}.mxc-reason summary{font-size:12px;color:var(--text-2);padding:12px 0;cursor:pointer}.mxc-reason .field{margin-top:8px}}</style>
 <style>@media(max-width:700px){.mxc-focus .mxc-dsp-0:after{display:none}.mxc-focus .mxc-ship-select{display:flex;gap:7px;align-items:center;margin-inline-start:auto;font-size:11px;min-height:40px}.mxc-focus .mxc-ship-select .dsp{width:20px;height:20px}.mxc-focus .mxc-dsp-6:before{white-space:normal;line-height:1.5}.mxc-focus .mxc-dsp-6 .dsp-qty{width:100%!important}.mxc-focus .dsp-table .table-wrap{border:0}}</style>
+<style>
+/* Login illustration: connected stages, compact caption, quiet bottom credit. */
+@media screen and (min-width:901px){
+ .login-brand{overflow:hidden}
+ .login-hero{position:absolute;inset-inline:40px;top:44%;width:auto;margin:0;transform:translateY(-50%)}
+ .login-flow{--flow-gap:16px;display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:var(--flow-gap);height:300px;min-height:0;max-height:none;margin:0}
+ .login-flow>span{width:100%;max-width:none;box-sizing:border-box;overflow:visible}
+ .login-flow>span+span:before{display:none}
+ .login-flow-link{position:absolute;left:calc(-1 * var(--flow-gap));top:50%;width:var(--flow-gap);height:48px;overflow:visible;pointer-events:none}
+ .login-flow-link path{fill:none;stroke:var(--primary);stroke-width:2;vector-effect:non-scaling-stroke;stroke-linecap:round}
+ .login-categories{position:absolute;top:calc(44% + 174px);inset-inline:24px;margin:0;font-size:13px;line-height:1.6}
+ .login-foot{position:absolute;bottom:14px;inset-inline:24px;font-size:9px;line-height:1.5;text-align:center;opacity:.48}
+ @media(max-width:1150px){.login-hero{inset-inline:20px}.login-flow{--flow-gap:10px}}
+ @media(max-height:700px){.login-hero{top:40%}.login-categories{top:calc(40% + 158px)}}
+}
+.app-credit{font-size:9px;opacity:.48}
+</style>
+<style>
+.mxd-field{position:relative;display:inline-flex;vertical-align:middle;min-width:155px;max-width:100%;flex-shrink:1}.field>.mxd-field{display:flex;width:100%}.mxd-native{position:absolute!important;inset:0!important;width:1px!important;height:1px!important;min-height:0!important;padding:0!important;margin:0!important;opacity:0;pointer-events:none}.mxd-trigger{display:flex;align-items:center;justify-content:space-between;gap:12px;width:100%;cursor:pointer;text-align:start;white-space:nowrap;font-size:13px;min-height:44px}.mxd-trigger>.i{color:var(--primary);flex:none}.mxd-trigger.mxd-empty{color:var(--muted)}.mxd-trigger:disabled{opacity:.5;cursor:default}.mxd-value{overflow:hidden;text-overflow:ellipsis}.mxd-dialog .modal{max-width:410px}.mxd-dialog .modal-body{padding:18px}.mxd-gregorian{margin:0 0 14px}.mxd-nav{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:16px;direction:ltr}.mxd-nav>div{display:flex;gap:8px;min-width:0}.mxd-nav .select{min-width:0;font-size:14px;min-height:42px}.mxd-nav .btn{min-width:40px;font-size:24px}.mxd-grid{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:4px}.mxd-weekday{text-align:center;color:var(--muted);font-size:11px;padding-bottom:8px}.mxd-day{appearance:none;min-width:0;min-height:42px;border:1px solid transparent;border-radius:10px;background:transparent;color:var(--text);font:inherit;font-size:14px;cursor:pointer}.mxd-day:hover{background:var(--primary-soft)}.mxd-day[aria-pressed="true"]{background:var(--primary);color:var(--on-primary);font-weight:700}.mxd-day:disabled{opacity:.28;cursor:default;background:transparent}.mxd-day.mxd-today{border-color:var(--primary)}.mxd-months{grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}.mxd-months .mxd-day{min-height:50px;border-color:var(--border);font-size:13px}.mxd-day:focus-visible,.mxd-trigger:focus-visible{outline:2px solid var(--primary);outline-offset:2px}.mxd-dialog .modal-foot{flex-wrap:wrap;gap:6px}.mxd-dialog .modal-foot .btn{font-size:12px;min-height:42px}
+@media(max-width:700px){.mxd-field{min-width:140px}.mxd-dialog .modal{width:calc(100% - 24px);margin:auto;border-radius:18px}.mxd-dialog .modal-head{padding:16px}.mxd-dialog .modal-head h2{font-size:18px}.mxd-dialog .modal-body{padding:16px}.mxd-day{min-height:42px}.mxd-dialog .modal-foot{padding:12px}.mxd-trigger{font-size:12px}}
+</style>
 </head>
 <body>
 
@@ -2334,10 +2355,10 @@ h1 { font-size:26px; } h2 { font-size:19px; }
       <p data-i18n="login_hero_sub"></p>
       <div class="login-flow">
         <span style="animation-delay:.15s"><svg class="i"><use href="#i-cart"/></svg><b data-i18n="flow_1" class="sr-only"></b><em lang="ar" aria-hidden="true">طلب</em><em lang="en" aria-hidden="true">Request</em></span>
-        <span style="animation-delay:.25s"><svg class="i"><use href="#i-check"/></svg><b data-i18n="flow_3" class="sr-only"></b><em lang="ar" aria-hidden="true">اعتماد</em><em lang="en" aria-hidden="true">Approve</em></span>
-        <span style="animation-delay:.35s"><svg class="i"><use href="#i-tool"/></svg><b data-i18n="flow_2" class="sr-only"></b><em lang="ar" aria-hidden="true">تجهيز</em><em lang="en" aria-hidden="true">Prepare</em></span>
-        <span style="animation-delay:.45s"><svg class="i"><use href="#i-truck"/></svg><b data-i18n="flow_4" class="sr-only"></b><em lang="ar" aria-hidden="true">توصيل</em><em lang="en" aria-hidden="true">Deliver</em></span>
-        <span style="animation-delay:.55s"><svg class="i"><use href="#i-package"/></svg><b data-i18n="flow_5" class="sr-only"></b><em lang="ar" aria-hidden="true">استلام</em><em lang="en" aria-hidden="true">Receive</em></span>
+        <span style="animation-delay:.25s"><svg class="i"><use href="#i-check"/></svg><b data-i18n="flow_3" class="sr-only"></b><em lang="ar" aria-hidden="true">اعتماد</em><em lang="en" aria-hidden="true">Approve</em><svg class="login-flow-link" viewBox="0 0 100 48" preserveAspectRatio="none" aria-hidden="true"><path d="M0 48L100 0"/></svg></span>
+        <span style="animation-delay:.35s"><svg class="i"><use href="#i-tool"/></svg><b data-i18n="flow_2" class="sr-only"></b><em lang="ar" aria-hidden="true">تجهيز</em><em lang="en" aria-hidden="true">Prepare</em><svg class="login-flow-link" viewBox="0 0 100 48" preserveAspectRatio="none" aria-hidden="true"><path d="M0 48L100 0"/></svg></span>
+        <span style="animation-delay:.45s"><svg class="i"><use href="#i-truck"/></svg><b data-i18n="flow_4" class="sr-only"></b><em lang="ar" aria-hidden="true">توصيل</em><em lang="en" aria-hidden="true">Deliver</em><svg class="login-flow-link" viewBox="0 0 100 48" preserveAspectRatio="none" aria-hidden="true"><path d="M0 48L100 0"/></svg></span>
+        <span style="animation-delay:.55s"><svg class="i"><use href="#i-package"/></svg><b data-i18n="flow_5" class="sr-only"></b><em lang="ar" aria-hidden="true">استلام</em><em lang="en" aria-hidden="true">Receive</em><svg class="login-flow-link" viewBox="0 0 100 48" preserveAspectRatio="none" aria-hidden="true"><path d="M0 48L100 0"/></svg></span>
       </div>
     </div>
     <div class="login-categories"><span lang="ar">الطلبيات الطبية <i>•</i> الصيانة <i>•</i> البلاغات</span><span lang="en">Medical supplies <i>•</i> Maintenance <i>•</i> Reports</span></div>
