@@ -3838,3 +3838,19 @@ test('doctor and branch prices are hidden unless explicitly granted', () => {
   assert.equal(visible({ screen: 'branch' }), false);
   assert.equal(visible({ screen: 'branch', priceView: 'all' }), true);
 });
+
+test('calendar picker preserves date/month boundaries and leap years', () => {
+  const source = fs.readFileSync(path.join(__dirname, '..', 'JavaScript.html'), 'utf8');
+  const helpers = source.slice(source.indexOf('function mxdAllowed'), source.indexOf('function mxdLocale'));
+  const ctx = vm.createContext({ Date }); vm.runInContext(helpers, ctx);
+  assert.equal(ctx.mxdDays(2024, 2), 29);
+  assert.equal(ctx.mxdDays(2025, 2), 28);
+  assert.equal(ctx.mxdDays(2026, 12), 31);
+  assert.equal(ctx.mxdAllowed('2026-10-27', '2026-10-27', '2026-10-31'), true);
+  assert.equal(ctx.mxdAllowed('2026-10-26', '2026-10-27', ''), false);
+  assert.equal(ctx.mxdAllowed('2026-11-01', '', '2026-10-31'), false);
+  assert.equal(ctx.mxdAllowed('2026-10', '2026-09', '2026-10'), true);
+  assert.equal(ctx.mxdAllowed('2026-11', '', '2026-10'), false);
+  assert.equal(ctx.mxdMonthAllowed('2026-10', '2026-10-27', ''), true);
+  assert.equal(ctx.mxdMonthAllowed('2026-09', '2026-10-27', ''), false);
+});
