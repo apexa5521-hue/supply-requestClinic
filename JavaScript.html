@@ -9488,7 +9488,16 @@ function mxfFilter(r) {
   return (!q || String(r.id || '').toLowerCase().indexOf(q) !== -1) && (!MXF.branch || r.branch === MXF.branch) && (!MXF.spec || mxfSpec(r) === MXF.spec);
 }
 function mxfQueue(waiting) {
-  return mxfRows().filter(mxfFilter).filter(r => waiting ? !mxfActionable(r) && !mxfClosed(r) : mxfActionable(r)).slice().sort((a, b) => Number(!!(b.urgent || b.late || b.overdue || b.type === 'طارئ')) - Number(!!(a.urgent || a.late || a.overdue || a.type === 'طارئ')) || (new Date(a.date || a.createdAt).getTime() || 0) - (new Date(b.date || b.createdAt).getTime() || 0));
+  return mxfRows().filter(mxfFilter).filter(r => waiting ? !mxfActionable(r) && !mxfClosed(r) : mxfActionable(r)).slice().sort((a, b) => Number(!!(b.urgent || b.late || b.overdue || b.type === 'طارئ')) - Number(!!(a.urgent || a.late || a.overdue || a.type === 'طارئ')) || mxfOrderAt(a) - mxfOrderAt(b));
+}
+// ترتيب الطابور: وقت الاعتماد (متى صار الطلب جاهزاً للعمل)، وإلا وقت الرفع — الأقدم أولاً
+function mxfApprovedAt(r) { return r.approvedAt || (r.doctor && r.status !== ST.REJECTED ? r.reviewedAt : '') || ''; }
+function mxfOrderAt(r) { return new Date(mxfApprovedAt(r) || r.submittedAt || r.date || r.createdAt).getTime() || 0; }
+function mxfTimes(r) {
+  const f = v => typeof fmtDateTime === 'function' ? fmtDateTime(v) : String(v);
+  const sub = r.submittedAt || r.date || r.createdAt, ap = mxfApprovedAt(r);
+  return '<span class="mxf-times">' + (sub ? '<span>' + mxfText('رُفع', 'Submitted') + ' <b>' + esc(f(sub)) + '</b></span>' : '') +
+    (ap ? '<span>' + mxfText('اعتُمد', 'Approved') + ' <b>' + esc(f(ap)) + '</b></span>' : r.cleared && !r.doctor ? '<span>' + mxfText('لا يحتاج اعتماداً', 'No approval needed') + '</span>' : '') + '</span>';
 }
 function mxfRecordLabel(r) { return r.doctor || r.clinic || r.kind || r.id; }
 function mxfFiltersHtml() {
@@ -9500,7 +9509,7 @@ function mxfFiltersHtml() {
     (reqView ? '<div class="mxf-spec" role="group" aria-label="' + mxfText('التخصص', 'Specialty') + '">' + specs.map(x => '<button type="button" class="chip" data-act="mxfSpecPick" data-spec="' + x[0] + '" aria-pressed="' + (MXF.spec === x[0]) + '">' + esc(x[1]) + '</button>').join('') + '</div>' : '') + '</div>';
 }
 function mxfRecordsHtml(rows) {
-  return '<div class="mxf-records">' + rows.map(r => '<button class="mxf-record' + (r.id === MXF.id ? ' selected' : '') + '" data-act="mxfRecord" data-id="' + esc(r.id) + '"' + (r.id === MXF.id ? ' aria-current="true"' : '') + '><span><b dir="ltr">' + esc(r.id) + '</b><small>' + esc(r.urgent || r.type === 'طارئ' ? mxfText('عاجل', 'Urgent') : r.late || r.overdue ? mxfText('متأخر · أولوية', 'Overdue') : mxfText('الأقدم أولًا', 'Oldest first')) + '</small></span><strong>' + esc(mxfRecordLabel(r)) + '</strong><small>' + esc(r.branch || r.clinic || '') + '</small><em>' + esc(statusLabel(r.status)) + '</em></button>').join('') + (!rows.length ? '<div class="mxf-empty">' + mxfText('لا توجد مهام في هذا القسم.', 'No tasks in this section.') + '</div>' : '') + '</div>';
+  return '<div class="mxf-records">' + rows.map(r => '<button class="mxf-record' + (r.id === MXF.id ? ' selected' : '') + '" data-act="mxfRecord" data-id="' + esc(r.id) + '"' + (r.id === MXF.id ? ' aria-current="true"' : '') + '><span><b dir="ltr">' + esc(r.id) + '</b><small>' + esc(r.urgent || r.type === 'طارئ' ? mxfText('عاجل', 'Urgent') : r.late || r.overdue ? mxfText('متأخر · أولوية', 'Overdue') : mxfText('حسب وقت الاعتماد', 'By approval time')) + '</small></span><strong>' + esc(mxfRecordLabel(r)) + '</strong><small>' + esc(r.branch || r.clinic || '') + '</small>' + mxfTimes(r) + '<em>' + esc(statusLabel(r.status)) + '</em></button>').join('') + (!rows.length ? '<div class="mxf-empty">' + mxfText('لا توجد مهام في هذا القسم.', 'No tasks in this section.') + '</div>' : '') + '</div>';
 }
 function mxfRail() {
   const active = mxfQueue(false), waiting = mxfQueue(true), rows = MXF.waiting ? waiting : active;
