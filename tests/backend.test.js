@@ -1979,6 +1979,39 @@ test('branch manager: sees only his branch (requests, details, reports, monitor,
   assert.ok(q.includes(riyadh) && q.includes(jeddah));
 });
 
+test('arrival at the branch notifies doctor, operations and that branch manager; receipt notifies procurement and the branch manager', () => {
+  const { api, login, gas } = boot(g => {
+    const ss = g.globals.SpreadsheetApp.getActiveSpreadsheet();
+    ss.getSheetByName('Roles').appendRow(['مدير فرع', 'branch']);
+    ss.getSheetByName('Roles').appendRow(['مدير التشغيل', 'executive']);
+    const users = ss.getSheetByName('Users'); users.getRange(1, 7).setValue('Branch');
+    users.appendRow(['مدير الرياض', '9101', 'مدير فرع', '', 'bm-ruh@example.com', '', 'الرياض']);
+    users.appendRow(['مدير جدة', '9102', 'مدير فرع', '', 'bm-jed@example.com', '', 'جدة']);
+    users.appendRow(['أبو سالم', '9103', 'مدير التشغيل', '', 'ops@example.com', '', '']);
+  });
+  const n = login('سارة', '1111'), dr = login('د. خالد', '4444'), p = login('علي', '3333');
+  const id = api(n, 'createRequest', { doctor: 'د. خالد', type: 'شهري', items: [{ name: 'DENTAL FLOSS', qty: 2 }] }).id;
+  api(dr, 'doctorReview', id, 'اعتمد');
+  api(p, 'bulkUpdateStatus', [id], 'قيد التجهيز');
+  api(p, 'dispatchItems', id, ['DENTAL FLOSS']);
+  const box = api(p, 'getBoxes').boxes[0];
+  assert.equal(box.loads[0].type, 'شهري', 'box loads carry the request type (boxes filter)');
+  gas.mails.length = 0;
+  api(null, 'boxDeliver', { box: box.id, k: box.k, to: 'الرياض', driver: 'أبو فهد', photo: PNG, clientKey: 'dlv-arrive-1' });
+  const arrived = to => gas.mails.some(m => m.to.indexOf(to) !== -1 && /وصل الطلب/.test(m.subject));
+  assert.ok(gas.mails.some(m => m.to === 'sara@example.com' && /وصل بوكس طلبك/.test(m.subject)), 'nurse: box arrived, receive and sign');
+  assert.ok(arrived('khaled@example.com') && arrived('ops@example.com') && arrived('bm-ruh@example.com'), 'doctor, operations and the request branch manager are told');
+  assert.ok(!arrived('bm-jed@example.com'), 'other branch managers are not');
+  gas.mails.length = 0;
+  api(n, 'receiveShipment', id, 1, [{ name: 'DENTAL FLOSS', qty: 2 }], 'سارة', PNG, PNG, PNG);
+  const rcv = to => gas.mails.some(m => m.to.indexOf(to) !== -1 && /تم استلام/.test(m.subject));
+  assert.ok(rcv('ali@example.com') && rcv('bm-ruh@example.com'), 'procurement and the branch manager are told it was received');
+  assert.ok(!rcv('bm-jed@example.com'));
+  // الإدارة تقدر توقف هذه الإشعارات من «أنواع الإشعارات»
+  const types = api(login('المدير', '1234'), 'getNotifyConfig').types.map(x => x.key || x[0] || x.id);
+  assert.ok(JSON.stringify(types).includes('arrived_watch') && JSON.stringify(types).includes('received_watch'));
+});
+
 test('boxes: dispatch loads the doctor box → driver scan delivers with photo → nurse receives → box stays; move on request', () => {
   const { api, login, gas } = boot();
   const reem = login('ريم', '2222'), p = login('علي', '3333');

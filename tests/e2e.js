@@ -403,6 +403,7 @@ function log(msg) { console.log('  ✔ ' + msg); }
   if (otherDoc) { await page.selectOption('[data-change="procDoctor"]', otherDoc); expect(await page.locator(`#procList .req[data-rid="${newId}"]`).count() === 0, 'another doctor hides the request'); }
   await page.selectOption('[data-change="procDoctor"]', '');
   expect(await page.getAttribute(`#procList .req[data-rid="${newId}"]`, 'data-tone') !== null, 'procurement request cards are colored by status');
+  expect((await page.textContent('.input-icon.req-q:has([data-input="procQ"]) .req-prefix')) === 'REQ-', 'request search shows a fixed «REQ-» — the number alone is typed');
   {
     const card = `#procList .req[data-rid="${newId}"]`;
     expect((await page.textContent(`${card} .req-who .who-by`)).includes('سارة'), 'procurement card: the requesting nurse is shown prominently');
@@ -791,7 +792,7 @@ function log(msg) { console.log('  ✔ ' + msg); }
   await page.fill('#dComment', 'تم الاستلام، شكراً');
   await page.click('#dSend');
   await page.waitForSelector('.msg.mine');
-  expect(await page.locator('.modal .mx-detail-route .mx-journey li.done').count() === 5, 'detail journey shows all 5 stages done (received)');
+  expect(await page.locator('.modal .mtk-timeline .step.done').count() === 6 && /\d{2}:\d{2}:\d{2}/.test(await page.textContent('.modal .mtk-timeline')), 'detail timeline: all 6 stages done, each with date and time to the second');
   await shot(page, 'request-detail');
   await page.evaluate(() => { window.print = () => {}; });
   await page.click('#dPrint');

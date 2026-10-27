@@ -2252,6 +2252,20 @@ h1 { font-size:26px; } h2 { font-size:19px; }
 <style>@media(max-width:700px){.mxc-focus .mxf-modal .rv-table td{border:0!important}.mxc-focus .mxf-modal .rv-table td.mxc-item-main{padding-inline-start:36px!important}.mxc-focus .modal-body>.row-wrap{flex-wrap:nowrap;gap:6px;overflow-x:auto;margin-bottom:0;min-height:28px}.mxc-focus .modal-body>.row-wrap .badge{font-size:10px;white-space:nowrap;max-width:210px;overflow:hidden;text-overflow:ellipsis;flex:none}.mxc-focus .modal-body>.row-wrap .tag{font-size:10px;white-space:nowrap;flex:none}.mxc-focus #rvItems>.hint{font-size:10px!important;line-height:1.6}.mxc-reason summary{font-size:12px;color:var(--text-2);padding:12px 0;cursor:pointer}.mxc-reason .field{margin-top:8px}}</style>
 <style>@media(max-width:700px){.mxc-focus .mxc-dsp-0:after{display:none}.mxc-focus .mxc-ship-select{display:flex;gap:7px;align-items:center;margin-inline-start:auto;font-size:11px;min-height:40px}.mxc-focus .mxc-ship-select .dsp{width:20px;height:20px}.mxc-focus .mxc-dsp-6:before{white-space:normal;line-height:1.5}.mxc-focus .mxc-dsp-6 .dsp-qty{width:100%!important}.mxc-focus .dsp-table .table-wrap{border:0}}</style>
 <style>
+/* Request-number search: fixed «REQ-» before the typed number; focus filters; box filters; timeline with seconds. */
+.input-icon.req-q{direction:ltr}.input-icon.req-q>.input{text-align:left}
+.input-icon.req-q>.req-prefix{position:absolute;inset-inline-start:36px;top:50%;transform:translateY(-50%);font-weight:700;font-size:13px;color:var(--primary);pointer-events:none;font-variant-numeric:tabular-nums}
+.input-icon.req-q>.input{padding-inline-start:78px}
+.mxf-filters{display:flex;flex-direction:column;gap:8px;margin-top:12px}.mxf-filters .select{width:100%}
+.mxf-spec{display:flex;flex-wrap:wrap;gap:6px}.mxf-spec .chip{min-height:32px;font-size:12px}
+.bx-filters{gap:8px}.bx-filters .select{width:auto;min-width:150px;flex:1 1 150px}
+.mtk-timeline .s-time{white-space:nowrap;font-size:12px}
+.dsp-table td:has(>.check.dsp)+td,.dsp-table td:has(>.dsp-ok)+td{min-width:9.5rem} /* عمود التشيك لا يضغط اسم الصنف */
+.mtk-timeline{flex-direction:column;align-items:stretch;gap:10px;overflow:visible} /* عمودي: كل مرحلة بتاريخها ووقتها بالثواني مقروءة كاملة */
+.mtk-timeline .step{flex-direction:row;align-items:center;text-align:start;min-width:0;gap:10px}.mtk-timeline .step::before{display:none}.mtk-timeline .s-lbl{flex:1}
+.mtk-timeline .step.todo .s-time{display:none}
+</style>
+<style>
 /* Login illustration: connected stages, compact caption, quiet bottom credit. */
 @media screen and (min-width:901px){
  .login-brand{overflow:hidden}

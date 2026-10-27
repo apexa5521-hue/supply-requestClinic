@@ -3593,12 +3593,13 @@ function procItemsHtml(r) {
   const editable = !r.needsReview && APPROVAL_EDITABLE.indexOf(r.status) !== -1;
   const canDispatch = r.cleared && DISPATCHABLE.indexOf(r.status) !== -1;
   const canItemSt = r.cleared && (canDispatch || r.status === ST.NEW); // بدء تجهيز صنف من «جديد» يجعل الطلب «قيد التجهيز»
+  const canPick = canItemSt; // تشيك لست الأصناف: لحالة الأصناف المحددة (ولإرسالها حين يُسمح بالإرسال)
   const nc = data.noteCounts || {};
   const open = data.items.filter(it => it.remainingQty > 0);
   const rid = esc(r.id);
   return shipSummary(data.items, data.shipments, r) +
     '<div class="table-wrap"><table class="table dsp-table"><thead><tr>' +
-      (canDispatch ? '<th style="width:36px">' + (open.length ? '<input type="checkbox" class="check" data-change="dspAll" data-id="' + rid + '" title="' + esc(t('select_remaining')) + '" aria-label="' + esc(t('select_remaining')) + '">' : '') + '</th>' : '') +
+      (canPick ? '<th style="width:36px">' + (open.length ? '<input type="checkbox" class="check" data-change="dspAll" data-id="' + rid + '" title="' + esc(t('select_remaining')) + '" aria-label="' + esc(t('select_remaining')) + '">' : '') + '</th>' : '') +
       '<th>' + esc(t('items')) + '</th><th class="num">' + esc(t('requested')) + '</th><th class="num">' + esc(t('approved')) + '</th><th>' + esc(t('item_status')) + '</th><th>' + esc(t('sent_progress')) + '</th>' +
       (canDispatch ? '<th class="num">' + esc(t('this_shipment')) + '</th>' : '') + '<th style="width:44px"></th></tr></thead><tbody>' +
     data.items.map(it => {
@@ -3609,7 +3610,7 @@ function procItemsHtml(r) {
       const pct = tgt ? Math.min(100, Math.round(sent / tgt * 100)) : 100;
       const iname = esc(it.item);
       return '<tr class="dsp-row ' + state + '">' +
-        (canDispatch ? '<td>' + (left > 0 ? '<input type="checkbox" class="check dsp" data-change="dspSel" data-id="' + rid + '" data-item="' + iname + '" aria-label="' + iname + '">' : icon('checkc', 'i-sm dsp-ok')) + '</td>' : '') +
+        (canPick ? '<td>' + (left > 0 ? '<input type="checkbox" class="check dsp" data-change="dspSel" data-id="' + rid + '" data-item="' + iname + '" aria-label="' + iname + '">' : icon('checkc', 'i-sm dsp-ok')) + '</td>' : '') +
         '<td><div style="font-weight:600">' + (it.replaced || it.rejected ? '<s class="muted">' + iname + '</s>' : iname) + '</div>' + subTag(it, data.items) + rejTag(it, r.nurse) + rcvRejTag(it) +
           (canItemSt && it.rejected ? '<button type="button" class="link-btn" data-act="rejUndo" data-id="' + rid + '" data-item="' + iname + '">' + icon('refresh', 'i-sm') + esc(t('rej_undo')) + '</button> ' : '') +
           (canItemSt && left > 0 && !it.replaced && !(it.substituteOf && it.subStatus !== SUB_OK)
@@ -3632,10 +3633,10 @@ function procItemsHtml(r) {
           (nc[it.item] ? '<span class="count-pill" style="position:absolute;top:-4px;inset-inline-end:-4px;height:16px;min-width:16px;font-size:10px;background:var(--primary);color:var(--on-primary)">' + nc[it.item] + '</span>' : '') + '</button></td></tr>';
     }).join('') + '</tbody></table></div>' +
     '<div class="row-wrap" style="margin-top:12px">' +
-      (canDispatch && open.length ? '<button class="btn btn-tone btn-sm dsp-btn" style="--tone:var(--t-indigo)" data-act="dispatch" data-id="' + rid + '" disabled>' + icon('truck', 'i-sm') + esc(t('dispatch_selected')) + '<span class="count-pill hidden"></span></button>' +
+      (canPick && open.length ? (canDispatch ? '<button class="btn btn-tone btn-sm dsp-btn" style="--tone:var(--t-indigo)" data-act="dispatch" data-id="' + rid + '" disabled>' + icon('truck', 'i-sm') + esc(t('dispatch_selected')) + '<span class="count-pill hidden"></span></button>' : '') +
         '<select class="select item-st-bulk" data-change="itemStBulk" data-id="' + rid + '" style="width:auto" aria-label="' + esc(t('item_st_bulk')) + '"><option value="*">' + esc(t('item_st_bulk')) + '…</option>' +
           '<option value="">' + esc(t('item_st_none')) + '</option>' + ITEM_ST.map(x => '<option value="' + esc(x) + '">' + esc(statusLabel(x)) + '</option>').join('') + '</select>' +
-        '<span class="hint">' + icon('info', 'i-sm') + ' ' + esc(t('qty_hint')) + '</span>' : '') +
+        (canDispatch ? '<span class="hint">' + icon('info', 'i-sm') + ' ' + esc(t('qty_hint')) + '</span>' : '<span class="hint">' + icon('info', 'i-sm') + ' ' + esc(t('pick_hint')) + '</span>') : '') +
       (!editable ? '<span class="hint">' + icon('lock', 'i-sm') + ' ' + esc(t(r.doctorApproved ? 'qty_by_doctor' : 'approval_locked')) + '</span>' : '') +
     '</div>';
 }
@@ -8766,7 +8767,7 @@ const BX_GROUPS = [
   { id: 'empty', k: 'bx_g_empty', test: b => b.status === BXS.EMPTY, tone: 'var(--t-gray)' },
   { id: 'all', k: 'grp_all' }
 ];
-const BX = { data: null, group: 'all' };
+const BX = { data: null, group: 'all', branch: '', type: '', sort: 'new' };
 /* رابط الصفحة: من Apps Script (رابط النشر) أو من GitHub Pages (نفس الصفحة) */
 function boxBase() {
   const u = BX.data && BX.data.appUrl;
@@ -8788,6 +8789,7 @@ VIEWS.boxes = {
         '<button class="btn btn-soft btn-sm" data-act="bxPrintAll">' + icon('file', 'i-sm') + esc(t('bx_print_all')) + '</button>' +
         '<button class="btn btn-ghost btn-sm" data-act="bxBackfill" title="' + esc(t('bx_backfill_hint')) + '">' + icon('refresh', 'i-sm') + esc(t('bx_backfill')) + '</button></div>') + '</div>' +
         '<div class="card-body stack"><div class="input-icon">' + icon('search') + '<input class="input" id="bxQ" data-input="bxQ" value="' + esc(BX.q || '') + '" placeholder="' + esc(t('bx_search')) + '"></div>' +
+        '<div class="row-wrap bx-filters" id="bxFilters"></div>' +
         '<div class="list" id="bxList">' + skeletonList(2) + '</div></div></section>';
   },
   mount() { bxLoad(); },
@@ -8810,8 +8812,16 @@ function bxRender() {
   // الأحدث أولاً: آخر حركة على البوكس (تحميل، تسليم، طلب نقل…)
   const lastAt = b => Math.max(toDate(b.updatedAt) ? toDate(b.updatedAt).getTime() : 0, toDate(b.loadedAt) ? toDate(b.loadedAt).getTime() : 0,
     b.history && b.history[0] && toDate(b.history[0].time) ? toDate(b.history[0].time).getTime() : 0);
-  const list = all.filter(b => matchGroup(g, b) && (!q || [b.id, b.owner, b.branch, placeLabel(b.location), b.destination].concat((b.loads || []).map(l => l.request)).join(' ').toLowerCase().indexOf(q) !== -1))
-    .sort((a, b) => lastAt(b) - lastAt(a));
+  // الفرع: فرع البوكس أو فروع طلباته · النوع: شهري / طارئ حسب الطلبات المحمّلة
+  const bxBranches = b => [b.branch].concat((b.loads || []).map(l => l.branch)).filter(Boolean);
+  const branches = Array.from(new Set([].concat(...all.map(bxBranches)))).sort();
+  if ($('#bxFilters')) $('#bxFilters').innerHTML =
+    '<select class="select" data-change="bxBranch" aria-label="' + esc(t('branch')) + '"><option value="">' + esc(t('all_branches')) + '</option>' + branches.map(b => '<option' + (b === BX.branch ? ' selected' : '') + ' value="' + esc(b) + '">' + esc(b) + '</option>').join('') + '</select>' +
+    '<select class="select" data-change="bxType" aria-label="' + esc(t('type')) + '"><option value="">' + esc(t('bx_all_types')) + '</option>' + ['شهري', 'طارئ'].map(x => '<option' + (x === BX.type ? ' selected' : '') + ' value="' + x + '">' + esc(t(x === 'طارئ' ? 'type_emergency' : 'type_monthly')) + '</option>').join('') + '</select>' +
+    '<select class="select" data-change="bxSort" aria-label="' + esc(t('bx_sort')) + '"><option value="new"' + (BX.sort !== 'old' ? ' selected' : '') + '>' + esc(t('bx_sort_new')) + '</option><option value="old"' + (BX.sort === 'old' ? ' selected' : '') + '>' + esc(t('bx_sort_old')) + '</option></select>';
+  const list = all.filter(b => matchGroup(g, b) && (!q || [b.id, b.owner, b.branch, placeLabel(b.location), b.destination].concat((b.loads || []).map(l => l.request)).join(' ').toLowerCase().indexOf(q) !== -1)
+      && (!BX.branch || bxBranches(b).indexOf(BX.branch) !== -1) && (!BX.type || (b.loads || []).some(l => l.type === BX.type)))
+    .sort((a, b) => BX.sort === 'old' ? lastAt(a) - lastAt(b) : lastAt(b) - lastAt(a));
   $('#bxList').innerHTML = !all.length ? emptyState('truck', t('bx_none'))
     : !list.length ? emptyState('search', t('no_match'))
     : pageOf('bx', list).map(bxCard).join('') + moreBtn('bx', list.length);
@@ -8833,6 +8843,9 @@ function bxCard(b) {
     '</div></article>';
 }
 ACT.bxGroup = el => { BX.group = el.dataset.g; resetPage('bx'); bxRender(); };
+ACT.bxBranch = el => { BX.branch = el.value; resetPage('bx'); bxRender(); };
+ACT.bxType = el => { BX.type = el.value; resetPage('bx'); bxRender(); };
+ACT.bxSort = el => { BX.sort = el.value; resetPage('bx'); bxRender(); };
 ACT.bxCopy = () => {
   const inp = $('#bxDrvUrl'); if (!inp) return;
   const ok = () => toast(t('bx_copied'), 'success', 2000);
@@ -9438,7 +9451,7 @@ renderShell=function(){
 };
 
 /* MASAR_FOCUS_START — native forms, server-owned states; no demo data. */
-const MXF = { root: null, id: '', view: '', waiting: false, opening: false, busy: false, checks: {}, drafts: {}, events: [], account: '', stale: false };
+const MXF = { root: null, id: '', view: '', waiting: false, opening: false, busy: false, checks: {}, drafts: {}, events: [], account: '', stale: false, q: '', branch: '', spec: '' };
 const mxfText = (ar, en) => S.lang === 'ar' ? ar : en;
 const mxfDay = () => new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Riyadh', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
 function mxfAccess(view) { return !!S.user && (view !== 'requests' || S.user.screen === 'procurement') && (view !== 'mine' || S.user.screen === 'nurse') && ['reviews', 'requests', 'mine', 'maint', 'labboard', 'labmine', 'labdoc'].indexOf(view) !== -1 && navItems().some(n => n.id === view); }
@@ -9464,13 +9477,34 @@ function mxfActionable(r, view) {
   return !!r.toReceive;
 }
 function mxfClosed(r) { return [ST.RECEIVED, ST.CANCELLED].indexOf(r.status) !== -1 || MXF.view === 'maint' && [MT_ST.CLOSED, MT_ST.REJECTED].indexOf(r.status) !== -1 || /^lab/.test(MXF.view) && r.status === LAB_ST.PATIENT; }
+// التخصص من عيادة الطلب: مستهلكات عيادة (بلا طبيب) · جلدية · أسنان
+function mxfSpec(r) {
+  if (!r.doctor) return 'clinic';
+  const d = r.department || (typeof clinicDeptOf === 'function' ? clinicDeptOf(r.clinic) : '');
+  return d === 'جلدية' ? 'derma' : d === 'أسنان' ? 'dental' : 'other';
+}
+function mxfFilter(r) {
+  const q = String(MXF.q || '').trim().toLowerCase().replace(/^req-?/, '');
+  return (!q || String(r.id || '').toLowerCase().indexOf(q) !== -1) && (!MXF.branch || r.branch === MXF.branch) && (!MXF.spec || mxfSpec(r) === MXF.spec);
+}
 function mxfQueue(waiting) {
-  return mxfRows().filter(r => waiting ? !mxfActionable(r) && !mxfClosed(r) : mxfActionable(r)).slice().sort((a, b) => Number(!!(b.urgent || b.late || b.overdue || b.type === 'طارئ')) - Number(!!(a.urgent || a.late || a.overdue || a.type === 'طارئ')) || (new Date(a.date || a.createdAt).getTime() || 0) - (new Date(b.date || b.createdAt).getTime() || 0));
+  return mxfRows().filter(mxfFilter).filter(r => waiting ? !mxfActionable(r) && !mxfClosed(r) : mxfActionable(r)).slice().sort((a, b) => Number(!!(b.urgent || b.late || b.overdue || b.type === 'طارئ')) - Number(!!(a.urgent || a.late || a.overdue || a.type === 'طارئ')) || (new Date(a.date || a.createdAt).getTime() || 0) - (new Date(b.date || b.createdAt).getTime() || 0));
 }
 function mxfRecordLabel(r) { return r.doctor || r.clinic || r.kind || r.id; }
+function mxfFiltersHtml() {
+  const branches = Array.from(new Set(mxfRows().map(r => r.branch).filter(Boolean))).sort();
+  const reqView = ['reviews', 'requests', 'mine'].indexOf(MXF.view) !== -1;
+  const specs = [['', mxfText('الكل', 'All')], ['dental', mxfText('أسنان', 'Dental')], ['derma', mxfText('جلدية', 'Dermatology')], ['clinic', mxfText('مستهلكات عيادة', 'Clinic supplies')]];
+  return '<div class="mxf-filters"><div class="input-icon req-q">' + icon('search') + '<span class="req-prefix" dir="ltr">REQ-</span><input class="input" data-input="mxfQ" dir="ltr" value="' + esc(String(MXF.q || '').replace(/^req-?/i, '')) + '" placeholder="261027-006" aria-label="' + mxfText('بحث برقم الطلب', 'Search by request number') + '"></div>' +
+    (branches.length > 1 || MXF.branch ? '<select class="select" data-change="mxfBranch" aria-label="' + mxfText('الفرع', 'Branch') + '"><option value="">' + mxfText('كل الفروع', 'All branches') + '</option>' + branches.map(b => '<option' + (b === MXF.branch ? ' selected' : '') + ' value="' + esc(b) + '">' + esc(b) + '</option>').join('') + '</select>' : '') +
+    (reqView ? '<div class="mxf-spec" role="group" aria-label="' + mxfText('التخصص', 'Specialty') + '">' + specs.map(x => '<button type="button" class="chip" data-act="mxfSpecPick" data-spec="' + x[0] + '" aria-pressed="' + (MXF.spec === x[0]) + '">' + esc(x[1]) + '</button>').join('') + '</div>' : '') + '</div>';
+}
+function mxfRecordsHtml(rows) {
+  return '<div class="mxf-records">' + rows.map(r => '<button class="mxf-record' + (r.id === MXF.id ? ' selected' : '') + '" data-act="mxfRecord" data-id="' + esc(r.id) + '"' + (r.id === MXF.id ? ' aria-current="true"' : '') + '><span><b dir="ltr">' + esc(r.id) + '</b><small>' + esc(r.urgent || r.type === 'طارئ' ? mxfText('عاجل', 'Urgent') : r.late || r.overdue ? mxfText('متأخر · أولوية', 'Overdue') : mxfText('الأقدم أولًا', 'Oldest first')) + '</small></span><strong>' + esc(mxfRecordLabel(r)) + '</strong><small>' + esc(r.branch || r.clinic || '') + '</small><em>' + esc(statusLabel(r.status)) + '</em></button>').join('') + (!rows.length ? '<div class="mxf-empty">' + mxfText('لا توجد مهام في هذا القسم.', 'No tasks in this section.') + '</div>' : '') + '</div>';
+}
 function mxfRail() {
   const active = mxfQueue(false), waiting = mxfQueue(true), rows = MXF.waiting ? waiting : active;
-  return '<aside class="mxf-rail" aria-label="' + mxfText('قائمة مهامك', 'Your tasks') + '"><div class="mxf-rail-head"><small>MasarX / ' + mxfText('مساحة العمل', 'Workspace') + '</small><h2>' + mxfText('ركّز على مهامك', 'Focus on your tasks') + '</h2><p>' + active.length + ' ' + mxfText('تحتاج إجراءك', 'need your action') + '</p><div class="mxf-tabs"><button data-act="mxfTab" data-tab="active" aria-pressed="' + !MXF.waiting + '">' + mxfText('دورك الآن', 'Your turn') + '</button><button data-act="mxfTab" data-tab="waiting" aria-pressed="' + MXF.waiting + '">' + mxfText('بانتظار غيري', 'Waiting') + ' · ' + waiting.length + '</button></div></div><div class="mxf-records">' + rows.map(r => '<button class="mxf-record' + (r.id === MXF.id ? ' selected' : '') + '" data-act="mxfRecord" data-id="' + esc(r.id) + '"' + (r.id === MXF.id ? ' aria-current="true"' : '') + '><span><b dir="ltr">' + esc(r.id) + '</b><small>' + esc(r.urgent || r.type === 'طارئ' ? mxfText('عاجل', 'Urgent') : r.late || r.overdue ? mxfText('متأخر · أولوية', 'Overdue') : mxfText('الأقدم أولًا', 'Oldest first')) + '</small></span><strong>' + esc(mxfRecordLabel(r)) + '</strong><small>' + esc(r.branch || r.clinic || '') + '</small><em>' + esc(statusLabel(r.status)) + '</em></button>').join('') + (!rows.length ? '<div class="mxf-empty">' + mxfText('لا توجد مهام في هذا القسم.', 'No tasks in this section.') + '</div>' : '') + '</div><div class="mxf-rail-foot"><button class="btn" data-act="mxfSummary">' + icon('checkc', 'i-sm') + mxfText('إنجاز جلستي', 'Session progress') + '</button><small>' + mxfText('يُحتسب الإجراء بعد تأكيد الخادم فقط', 'Counted only after server confirmation') + '</small></div></aside>';
+  return '<aside class="mxf-rail" aria-label="' + mxfText('قائمة مهامك', 'Your tasks') + '"><div class="mxf-rail-head"><small>MasarX / ' + mxfText('مساحة العمل', 'Workspace') + '</small><h2>' + mxfText('ركّز على مهامك', 'Focus on your tasks') + '</h2><p>' + active.length + ' ' + mxfText('تحتاج إجراءك', 'need your action') + '</p><div class="mxf-tabs"><button data-act="mxfTab" data-tab="active" aria-pressed="' + !MXF.waiting + '">' + mxfText('دورك الآن', 'Your turn') + '</button><button data-act="mxfTab" data-tab="waiting" aria-pressed="' + MXF.waiting + '">' + mxfText('بانتظار غيري', 'Waiting') + ' · ' + waiting.length + '</button></div>' + mxfFiltersHtml() + '</div>' + mxfRecordsHtml(rows) + '<div class="mxf-rail-foot"><button class="btn" data-act="mxfSummary">' + icon('checkc', 'i-sm') + mxfText('إنجاز جلستي', 'Session progress') + '</button><small>' + mxfText('يُحتسب الإجراء بعد تأكيد الخادم فقط', 'Counted only after server confirmation') + '</small></div></aside>';
 }
 function mxfUpdateRail() {
   if (!MXF.root || MXF.root.closing) return;
@@ -9538,6 +9572,17 @@ function mxfProgress() {
 }
 ACT.mxfCheck = el => { (MXF.checks[mxfKey()] || (MXF.checks[mxfKey()] = {}))[el.dataset.i] = el.checked; mxfProgress(); };
 ACT.mxfSelect = el => { if (MXF.busy || !MXF.root) return; $$('.mxf-check:not(:disabled)', MXF.root.el).forEach(c => { c.checked = el.dataset.on === '1'; ACT.mxfCheck(c); }); };
+function mxfRefreshList() {
+  if (!MXF.root || MXF.root.closing) return;
+  const rail = $('.mxf-rail', MXF.root.el); if (!rail) return;
+  const active = mxfQueue(false), waiting = mxfQueue(true);
+  const list = $('.mxf-records', rail); if (list) list.outerHTML = mxfRecordsHtml(MXF.waiting ? waiting : active);
+  const count = $('.mxf-rail-head>p', rail); if (count) count.textContent = active.length + ' ' + mxfText('تحتاج إجراءك', 'need your action');
+  const tab = $('[data-tab="waiting"]', rail); if (tab) tab.textContent = mxfText('بانتظار غيري', 'Waiting') + ' · ' + waiting.length;
+}
+ACT.mxfQ = el => { MXF.q = el.value; mxfRefreshList(); };
+ACT.mxfBranch = el => { MXF.branch = el.value; mxfRefreshList(); };
+ACT.mxfSpecPick = el => { MXF.spec = el.dataset.spec; $$('.mxf-spec .chip', MXF.root && MXF.root.el).forEach(b => b.setAttribute('aria-pressed', String(b === el))); mxfRefreshList(); };
 ACT.mxfTab = el => { if (MXF.busy) return; MXF.waiting = el.dataset.tab === 'waiting'; mxfUpdateRail(); };
 function mxfDraftSave() {
   const m = MXF.root; if (!m || m.mxfCommitted || !m.el.querySelector('#rvItems')) return;
@@ -9870,6 +9915,91 @@ function mxdOpen(input) {
 let mxdScheduled = false;
 new MutationObserver(() => { if (mxdScheduled) return; mxdScheduled = true; queueMicrotask(() => { mxdScheduled = false; mxdEnhance(); }); }).observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ['disabled', 'readonly', 'min', 'max', 'value', 'lang'] });
 /* MASAR_DATE_PICKER_END */
+
+/* MASAR_TRACK_START — تشيك لست الأصناف، REQ- في البحث، الخط الزمني بالثواني، صوت وصول الطلب */
+Object.assign(I18N.ar, { pick_hint: 'حدّد الأصناف بالتشيك لست ثم اختر حالتها — الإرسال يتاح بعد اعتماد الطلب', bx_all_types: 'شهري وطارئ', bx_sort: 'الترتيب', bx_sort_new: 'الأحدث أولاً', bx_sort_old: 'الأقدم أولاً' });
+Object.assign(I18N.en, { pick_hint: 'Tick the items, then choose their status. Dispatch opens once the request is cleared.', bx_all_types: 'Monthly and emergency', bx_sort: 'Sort', bx_sort_new: 'Newest first', bx_sort_old: 'Oldest first' });
+const mtkText = (ar, en) => S.lang === 'ar' ? ar : en;
+
+/* بحث رقم الطلب: «REQ-» مكتوبة ثابتة في بداية الحقل، والمستخدم يكتب الرقم فقط */
+const REQ_SEARCH_SEL = '#mineQ, [data-input="procQ"], #rfQ, #bxQ, [data-input="mrtSearch"]';
+function mtkReqPrefix() {
+  $$(REQ_SEARCH_SEL).forEach(input => {
+    let box = input.parentElement;
+    if (box && box.classList.contains('req-q')) return;
+    if (!box || !box.classList.contains('input-icon')) {
+      const wrap = document.createElement('span'); wrap.className = 'input-icon req-q';
+      input.parentNode.insertBefore(wrap, input); wrap.appendChild(input); box = wrap;
+    } else box.classList.add('req-q');
+    const tag = document.createElement('span'); tag.className = 'req-prefix'; tag.dir = 'ltr'; tag.textContent = 'REQ-';
+    box.insertBefore(tag, input);
+    input.value = input.value.replace(/^req-?/i, '');
+    // الحقل يقبل الرقم أو الاسم: التلميح الكامل في title، والظاهر رقم مثال بعد REQ-
+    if (input.placeholder && !input.title) input.title = input.placeholder;
+    input.placeholder = '261027-006';
+  });
+}
+let mtkScheduled = false;
+new MutationObserver(() => { if (mtkScheduled) return; mtkScheduled = true; requestAnimationFrame(() => { mtkScheduled = false; mtkReqPrefix(); }); }).observe(document.body, { childList: true, subtree: true });
+
+/* الخط الزمني في تفاصيل الطلب: كل مرحلة بتاريخها ووقتها بالثواني */
+INTL_OPTS_.stamp = { timeZone: 'Asia/Riyadh', day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit' };
+const fmtStamp = v => { const d = toDate(v); return d ? intl('d', 'stamp').format(d) : ''; };
+function mtkTimeline(r) {
+  const rejected = r.status === ST.REJECTED, cancelled = r.status === ST.CANCELLED;
+  let cur = stMeta(r.status).step;
+  if (cur >= 5 || (cur === 4 && r.arrivedAt)) cur = 6;
+  cur = cur <= 1 ? cur : cur - 1; // مرحلتا «لدى الطبيب» و«اعتماد الطبيب» خطوة واحدة
+  const steps = [
+    [mtkText('رفع الطلب', 'Submitted'), 'clipboard', r.submittedAt],
+    [rejected ? mtkText('رفض الطبيب', 'Rejected') : mtkText('اعتماد الطبيب', 'Doctor approval'), rejected ? 'x' : 'steth', rejected ? r.reviewedAt : (r.approvedAt || r.reviewedAt)],
+    [mtkText('التجهيز', 'Preparation'), 'package', r.prepAt],
+    [mtkText('أُرسل · بانتظار السواق', 'Sent · awaiting driver'), 'truck', r.sentAt || r.lastShipAt],
+    [mtkText('وصل الفرع', 'Arrived at branch'), 'pin', r.arrivedAt],
+    [mtkText('استلام الممرضة', 'Nurse receipt'), 'pen', r.receivedAt]
+  ];
+  let current = -1;
+  const cls = steps.map((s, i) => {
+    if (rejected && i === 1) return 'failed';
+    if (s[2] || i < cur || r.status === ST.RECEIVED) return 'done';
+    if (current < 0 && !rejected && !cancelled) { current = i; return 'current'; }
+    return 'todo';
+  });
+  return '<div class="stepper mtk-timeline">' + steps.map((s, i) => '<div class="step ' + cls[i] + '"><span class="node">' + icon(cls[i] === 'done' ? 'check' : s[1]) + '</span><span class="s-lbl">' + esc(s[0]) + '</span><span class="s-time">' + (s[2] ? esc(fmtStamp(s[2])) : '&nbsp;') + '</span></div>').join('') + '</div>';
+}
+const mtkDetail = renderDetail;
+renderDetail = function(m, d) {
+  mtkDetail(m, d);
+  const route = $('.modal-body .mx-detail-route', m.el);
+  if (route) route.innerHTML = mtkTimeline(d);
+};
+
+/* صوت عند وصول طلب للفرع (للممرضة): يرن مرة عند ظهور وصول جديد، لا عند فتح الصفحة */
+const MTK = { seen: null, user: '' };
+function mtkArrivals(list) { return (list || []).filter(a => a.code === 'alert_box_arrived').reduce((n, a) => n + (Number(a.n) || 0), 0); }
+function mtkChime() {
+  try {
+    const A = window.AudioContext || window.webkitAudioContext; if (!A) return;
+    const ctx = new A(), now = ctx.currentTime;
+    [[880, 0], [1320, 0.18]].forEach(([f, at]) => {
+      const o = ctx.createOscillator(), g = ctx.createGain();
+      o.type = 'sine'; o.frequency.value = f; o.connect(g); g.connect(ctx.destination);
+      g.gain.setValueAtTime(0.0001, now + at); g.gain.exponentialRampToValueAtTime(0.25, now + at + 0.02); g.gain.exponentialRampToValueAtTime(0.0001, now + at + 0.35);
+      o.start(now + at); o.stop(now + at + 0.4);
+    });
+    setTimeout(() => ctx.close(), 1000);
+  } catch (e) { /* الصوت غير متاح */ }
+}
+const mtkAlerts = renderAlerts;
+renderAlerts = function(list) {
+  mtkAlerts(list);
+  if (!S.user) return;
+  const n = mtkArrivals(list);
+  if (MTK.user !== S.user.name) { MTK.user = S.user.name; MTK.seen = n; return; }
+  if (n > MTK.seen) mtkChime();
+  MTK.seen = n;
+};
+/* MASAR_TRACK_END */
 
 /* =====================================================================
    Boot
