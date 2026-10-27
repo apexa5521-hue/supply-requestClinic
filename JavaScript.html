@@ -4254,9 +4254,44 @@ function rpStatsHtml(st, range) {
     ['cart', 'var(--t-teal)', t('rp_value'), fmtNum(s.value, 2) + cur],
     ['checkc', 'var(--t-green)', t('rp_approved_rate'), approvedPct + '%'],
     ['xc', 'var(--t-red)', t('rp_reject_rate'), s.rejectRate + '%'],
-    ['steth', 'var(--t-violet)', t('rp_avg_approval'), hrsTxt(s.avgAppro
-... 3317 bytes omitted ...
- +
+    ['steth', 'var(--t-violet)', t('rp_avg_approval'), hrsTxt(s.avgApprovalHrs)],
+    ['truck', 'var(--t-indigo)', t('rp_avg_fulfil'), hrsTxt(s.avgFulfilHrs)],
+    ['clock', 'var(--t-orange)', t('rp_pending_doc'), fmtNum(s.pending, 0)],
+    ['layers', 'var(--t-amber)', t('grp_partial'), fmtNum(s.partial, 0)]
+  ];
+  const docCols = [
+    { h: t('rep_doctor'), v: r => '<b>' + esc(r.name) + '</b>' },
+    { h: t('rep_requests'), num: 1, v: r => fmtNum(r.requests, 0) },
+    { h: t('rp_approved'), num: 1, v: r => fmtNum(r.approved, 0) },
+    { h: t('st_rejected'), num: 1, v: r => r.rejected ? '<span style="color:var(--t-red);font-weight:700">' + r.rejected + '</span>' : '0' },
+    { h: t('rp_pending_doc'), num: 1, v: r => r.pending ? '<span class="badge" style="--tone:var(--t-violet)"><i class="dot"></i>' + r.pending + '</span>' : '0' },
+    // الضغط على القيمة: الأصناف التي تكوّنها (أكبر 5) مع علامة «تحقق من السعر»
+    { h: t('rp_value'), num: 1, v: r => (r.top && r.top.length ? '<button type="button" class="btn btn-ghost btn-sm rp-val" data-act="rpValWhy" data-doc="' + esc(r.name) + '" title="' + esc(t('rp_val_why')) + '"><b>' + fmtNum(r.value, 2) + '</b>' + (r.top.some(x => x.check) ? ' ' + icon('alert', 'i-sm') : '') + '</button>' : '<b>' + fmtNum(r.value, 2) + '</b>') },
+    { h: t('rp_avg_request'), num: 1, v: r => fmtNum(r.avgValue, 2) },
+    { h: t('rp_avg_approval'), num: 1, v: r => hrsTxt(r.avgApprovalHrs) },
+    { h: '', v: r => '<button class="btn btn-soft btn-sm" data-act="rpDocOf" data-doc="' + esc(r.name) + '">' + icon('file', 'i-sm') + esc(t('rp_report')) + '</button>' }
+  ];
+  const areaCols = k => [
+    { h: t(k), v: r => '<b>' + esc(r.name) + '</b>' },
+    { h: t('rep_requests'), num: 1, v: r => fmtNum(r.requests, 0) },
+    { h: t('rp_value'), num: 1, v: r => fmtNum(r.value, 2) },
+    { h: t('rp_received'), num: 1, v: r => (r.requests ? Math.round(r.received / r.requests * 100) : 0) + '%' },
+    { h: t('rp_avg_fulfil'), num: 1, v: r => hrsTxt(r.avgFulfilHrs) }
+  ];
+  const itemCols = [
+    { h: '#', v: (r) => '' },
+    { h: t('items'), v: r => '<b>' + esc(r.item) + '</b>' },
+    { h: t('rp_in_requests'), num: 1, v: r => fmtNum(r.requests, 0) },
+    { h: t('rep_qty'), num: 1, v: r => fmtNum(r.qty, 0) },
+    { h: t('rp_value'), num: 1, v: r => '<b>' + fmtNum(r.value, 2) + '</b>' }
+  ];
+  const statusRow = Object.keys(st.statuses).map(k => badge(k) + ' <b class="mono">' + st.statuses[k] + '</b>').join('<span class="sep-dot"></span>');
+  return '<div class="between rp-head"><div class="hint">' + icon('calendar', 'i-sm') + ' ' + esc(periodLabel(range)) + (st.branch ? ' · ' + esc(st.branch) : '') + '</div>' +
+      '<button class="btn btn-sm" data-act="rpCsv">' + icon('ext', 'i-sm') + esc(t('rp_export_stats')) + '</button></div>' +
+    badPricesHtml(st.badPrices) +
+    '<div class="rp-tiles">' + noMoneyTiles(tiles).map(x => '<div class="rp-tile" style="--tone:' + x[1] + '"><span class="ic">' + icon(x[0]) + '</span><div><span>' + esc(x[2]) + '</span><b>' + esc(x[3]) + '</b></div></div>').join('') + '</div>' +
+    (statusRow ? '<div class="rp-status">' + statusRow + '</div>' : '') +
+    '<section class="card"><div class="card-head"><h2>' + icon('steth') + esc(t('rp_by_doctor')) + '</h2></div><div class="card-body">' + rpTable(st.doctors, docCols) + '</div></section>' +
     billingHtml(st.billing) +
     '<div class="grid-2">' +
       '<section class="card"><div class="card-head"><h3>' + icon('pin') + esc(t('rp_by_branch')) + '</h3></div><div class="card-body">' + rpTable(st.branches, areaCols('branch')) + '</div></section>' +
