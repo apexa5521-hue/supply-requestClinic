@@ -2201,7 +2201,7 @@ function renderDetail(m, d) {
     const foot = document.createElement('div');
     foot.className = 'modal-foot';
     foot.innerHTML =
-      (S.user.screen==='nurse' && (d.returnable||[]).some(r=>r.qty>0) ? '<button class="btn btn-soft btn-sm" data-act="requestReturn" data-id="'+esc(d.id)+'">'+icon('refresh','i-sm')+mrtText('إعادة إلى التموين','Return to procurement')+'</button>' : '') +
+      (S.user.screen==='nurse' && (d.returnable||[]).some(r=>r.qty>0) ? '<button class="btn btn-soft btn-sm" data-act="requestReturn" data-id="'+esc(d.id)+'">'+icon('refresh','i-sm')+mrtText('طلب رفض / استرجاع','Refuse / return request')+'</button>' : '') +
       '<button class="btn btn-danger-soft btn-sm" data-act="complaint" data-id="' + esc(d.id) + '">' + icon('alert', 'i-sm') + esc(t('report')) + '</button>' +
       '<button class="btn btn-sm" id="dPrint">' + icon('file', 'i-sm') + esc(t('rep_print')) + '</button>' +
       (d.receiptUrl ? '<a class="btn btn-sm" href="' + esc(d.receiptUrl) + '" target="_blank" rel="noopener">' + icon('image', 'i-sm') + esc((d.shipments || []).length > 1 ? t('merged_receipt') : t('view_receipt')) + '</a>' : '') +
@@ -2915,6 +2915,7 @@ function renderMineList(animate) {
         '<div class="req-side">' + badge(r.status, r) + '</div>' +
       '</div>' +
       '<div class="req-actions">' +
+      (r.nurseIssueCount ? '<button class="btn btn-soft btn-sm" data-act="mrtRequestIssues" data-id="'+esc(r.id)+'">'+icon('refresh','i-sm')+mrtText('رفض / استرجاع الأصناف','Item refusal / returns')+(r.pendingNurseIssues?' · '+r.pendingNurseIssues:'')+'</button>' : '') +
         (r.pendingShipments > 0 ? '<button class="btn btn-primary btn-sm" data-act="receive" data-id="' + esc(r.id) + '">' + icon('pen', 'i-sm') + esc(t('receive_btn')) + (r.pendingShipments > 1 ? '<span class="count-pill">' + r.pendingShipments + '</span>' : '') + '</button>' : '') +
         '<button class="btn btn-sm" data-act="detail" data-id="' + esc(r.id) + '">' + icon('eye', 'i-sm') + esc(t('details')) + '</button>' +
         (r.status === ST.REJECTED ? '<button class="btn btn-sm btn-tone" style="--tone:var(--t-violet)" data-act="resubmit" data-id="' + esc(r.id) + '">' + icon('refresh', 'i-sm') + esc(t(bmKey('resubmit'))) + '</button>' : '') +
@@ -3062,7 +3063,6 @@ function openReceive(id) {
   $('#sigClear', m.el).addEventListener('click', () => sig.clear());
   let d = null, cur = null;
   const returnItems = {};
-  const rejs = {}; // الأصناف المرفوضة في هذه الشحنة: { اسم: { reason, photo } }
   const pending = () => d.shipments.filter(g => !g.received);
   const isLast = () => d.items.every(i => i.batch) && pending().length === 1;
   const render = () => {
@@ -3073,20 +3073,12 @@ function openReceive(id) {
       (cur.delivered ? boxAtHtml(cur.delivered) : '') + '<div class="rcv-note' + (isLast() ? ' last' : '') + '">' + icon(isLast() ? 'checkc' : 'truck', 'i-sm') + '<span>' + esc(t(isLast() ? 'rcv_final_note' : 'rcv_partial_note', { n: cur.batch })) + '</span></div>' +
       '<div class="table-wrap"><table class="table"><thead><tr><th>' + esc(t('items')) + '</th><th class="num">' + esc(t('sent_qty')) + '</th><th class="num">' + esc(t('received_qty')) + '</th><th></th></tr></thead><tbody>' +
       cur.items.map((it, i) => {
-        const rj = rejs[it.item];
-        return '<tr class="' + (rj ? 'rcv-rejected' : '') + '"><td style="font-weight:600">' + (rj ? '<s class="muted">' + esc(it.item) + '</s><div class="hint sub-tag" style="--tone:var(--t-red)">' + icon('xc', 'i-sm') + esc(t('rcv_rej_tag')) + ' · ' + esc(rj.reason) + '</div>' : esc(it.item)) + '</td>' +
-          '<td class="num">' + esc(sentQty(it)) + '</td><td class="num"><input class="input rq" type="number" min="0" inputmode="numeric" data-i="' + i + '" value="' + (rj ? 0 : esc(sentQty(it))) + '"' + (rj ? ' disabled' : '') + '></td>' +
-          '<td class="num"><button type="button" class="btn btn-sm ' + (rj ? 'btn-ghost' : 'btn-danger-soft') + ' rcv-rej" data-item="' + esc(it.item) + '">' + icon(rj ? 'refresh' : 'x', 'i-sm') + esc(t(rj ? 'rcv_unreject' : 'rcv_reject')) + '</button>'+(!rj?'<button type="button" class="btn btn-soft btn-sm rcv-return" data-item="'+esc(it.item)+'">'+mrtText(returnItems[it.item]?'إلغاء الإرجاع':'إعادة إلى التموين',returnItems[it.item]?'Cancel return':'Return to procurement')+'</button>'+(returnItems[it.item]?'<div class="hint">'+mrtText('مرتجع بانتظار التموين: ','Pending return: ')+esc(returnItems[it.item].qty)+'</div>':''):'')+'</td></tr>';
-      }).join('') +
-      '</tbody></table></div><div class="hint" style="margin-top:6px">' + icon('info', 'i-sm') + ' ' + esc(t('rcv_rej_hint')) + '</div>';
-    $$('.rcv-rej', m.el).forEach(b => b.addEventListener('click', () => {
-      const item = b.dataset.item;
-      if (rejs[item]) { delete rejs[item]; render(); return; }
-      if(returnItems[item]) { toast(mrtText('ألغِ طلب الإرجاع أولاً','Cancel the return selection first'),'info'); return; }
-      rejectAtReceipt(item).then(r => { if (r) { rejs[item] = r; render(); } });
-    }));
-    $$('.rcv-return',m.el).forEach(b=>b.onclick=()=>{const item=b.dataset.item;if(returnItems[item]){delete returnItems[item];render();return;}const i=cur.items.findIndex(x=>x.item===item),qty=Number($$('.rq',m.el)[i].value);mrtForm({items:[{item,qty}],onSave:p=>{returnItems[item]=p;render();}});});
-    $$('#rShip .chip', m.el).forEach(b => b.addEventListener('click', () => { cur = pend.find(g => g.batch === Number(b.dataset.b)); Object.keys(rejs).forEach(k => delete rejs[k]); Object.keys(returnItems).forEach(k=>delete returnItems[k]); render(); }));
+        const issue = returnItems[it.item];
+        return '<tr><td style="font-weight:600">'+esc(it.item)+(issue?'<div class="hint">'+mrtText('طلب '+(issue.kind==='reject'?'رفض':'استرجاع')+' ×','Pending '+(issue.kind==='reject'?'refusal':'return')+' ×')+esc(issue.qty)+' · '+esc(issue.reason)+'</div>':'')+'</td><td class="num">'+esc(sentQty(it))+'</td><td class="num"><input class="input rq" type="number" min="0" inputmode="numeric" data-i="'+i+'" value="'+esc(sentQty(it))+'"></td><td><button type="button" class="btn btn-soft btn-sm rcv-issue" data-item="'+esc(it.item)+'">'+icon('refresh','i-sm')+mrtText('رفض / استرجاع','Refuse / return')+'</button>'+(issue?'<button type="button" class="btn btn-ghost btn-sm rcv-issue-clear" data-item="'+esc(it.item)+'">'+mrtText('إلغاء الطلب','Clear request')+'</button>':'')+'</td></tr>';
+      }).join('')+'</tbody></table></div><p class="hint">'+mrtText('الرفض أو الاسترجاع هنا طلب مراجعة فقط. لا يصبح نهائيًا ولا يُخصم حتى يعتمد التموين الإجراء ويؤكد الاستلام.','A refusal or return is a review request, not a final decision. Procurement must approve and confirm receipt before any credit.')+'</p>';
+    $$('.rcv-issue',m.el).forEach(b=>b.onclick=()=>{const item=b.dataset.item,i=cur.items.findIndex(x=>x.item===item),qty=Number($$('.rq',m.el)[i].value);mrtForm({items:[{item,qty,batch:cur.batch}],kind:returnItems[item]&&returnItems[item].kind,onSave:p=>{returnItems[item]=p;render();}});});
+    $$('.rcv-issue-clear',m.el).forEach(b=>b.onclick=()=>{delete returnItems[b.dataset.item];render();});
+    $$('#rShip .chip', m.el).forEach(b => b.addEventListener('click', () => { cur = pend.find(g => g.batch === Number(b.dataset.b)); Object.keys(returnItems).forEach(k=>delete returnItems[k]); render(); }));
   };
   const apply = det => {
     if (m.closing) return;
@@ -3109,11 +3101,13 @@ function openReceive(id) {
     err.classList.add('hidden');
     const ship = cur, last = isLast();
     const got = $$('.rq', m.el).map(inp => Math.max(0, Math.floor(Number(inp.value) || 0)));
-    const rec = ship.items.map((it, i) => Object.assign({ name: it.item, qty: rejs[it.item] ? 0 : got[i] }, rejs[it.item] ? { reject: rejs[it.item] } : returnItems[it.item] ? { returnItem: returnItems[it.item] } : {}));
+    const rec = ship.items.map((it, i) => Object.assign({ name: it.item, qty: got[i] }, returnItems[it.item] ? { returnItem: returnItems[it.item] } : {}));
+    if (ship.items.some(it=>it.returnId) && !sig.hasInk()) { err.querySelector('span').textContent=mrtText('توقيع الممرضة مطلوب لاستلام البديل واعتماد حسابه.','Nurse signature is required to receive and charge the replacement.');err.classList.remove('hidden');return; }
     const sigData = sig.hasInk() ? sig.toDataURL() : '';
     const section = { batch: ship.batch, items: ship.items.map((it, i) => ({ item: it.item, sent: sentQty(it), got: got[i] })), receiver: name, at: new Date(), sig: sig.hasInk() ? sig.canvas : null };
     const rid = id + (d.branch ? ' · \u2068' + d.branch + '\u2069' : ''); // عزل اتجاه النص العربي داخل سطر لاتيني
-    const receipt = drawReceipt(rid, [section], false);
+    const receiptContext = Object.assign({}, d, { returns: (d.returns || []).concat(Object.keys(returnItems).map(item => Object.assign({ item, status: 'pending', batch: ship.batch, createdBy: name }, returnItems[item]))) });
+    const receipt = drawReceipt(rid, [section], false, receiptContext);
     const b = $('#rOk', m.el); busy(b, true, t('sending'));
     const merged = !last ? Promise.resolve('') : call('getShipmentSignatures', id)
       .then(list => Promise.all(d.shipments.map(g => {
@@ -3124,41 +3118,17 @@ function openReceive(id) {
           receiver: g.receiver, at: g.receivedAt, sig: img
         }));
       })))
-      .then(sections => drawReceipt(rid, sections, true))
+      .then(sections => drawReceipt(rid, sections, true, receiptContext))
       .catch(() => '');
     merged.then(mr => call('receiveShipment', id, ship.batch, rec, name, sigData, receipt, mr)).then(res => {
       closeModal(m);
-      toast(res.complete ? t('request_complete_ok', { id: id }) : t('shipment_received_ok', { n: ship.batch }));
+      toast((res.pendingIssues||[]).length ? mrtText('سُجل الاستلام وطلب المراجعة بانتظار اعتماد التموين.','Receipt recorded; the claim awaits procurement approval.') : res.complete ? t('request_complete_ok', { id: id }) : t('shipment_received_ok', { n: ship.batch }));
       loadMine(true); loadAlerts();
     }).catch(e => { busy(b, false); err.querySelector('span').textContent = errMsg(e); err.classList.remove('hidden'); });
   });
 }
-/* رفض صنف عند الاستلام: السبب + صورة إلزامية (تُصغَّر قبل الرفع) */
-function rejectAtReceipt(item) {
-  return new Promise(resolve => {
-    let done = false, photo = '';
-    const m = openModal({ title: esc(t('rcv_rej_title')), sub: esc(item), icon: 'x', tone: 'danger', size: 'sm',
-      body: '<div class="field"><label for="rjReason">' + esc(t('rcv_rej_reason')) + '</label><textarea class="input" id="rjReason" rows="2" maxlength="300"></textarea></div>' +
-        '<div class="field"><span class="label">' + esc(t('rcv_rej_photo')) + '</span><label class="drv-photo" id="rjPhoto">' + icon('image') + '<span>' + esc(t('drv_photo_tap')) + '</span><input type="file" accept="image/*" capture="environment" hidden id="rjFile"></label></div>' +
-        '<div class="field-error hidden" id="rjErr">' + icon('alert', 'i-sm') + '<span></span></div>',
-      foot: '<span class="spacer"></span><button class="btn" data-close>' + esc(t('cancel')) + '</button><button class="btn btn-danger" id="rjOk">' + icon('x', 'i-sm') + esc(t('rcv_rej_ok')) + '</button>',
-      onClose: () => { if (!done) resolve(null); } });
-    const fail = msg => { const e = $('#rjErr', m.el); e.querySelector('span').textContent = msg; e.classList.remove('hidden'); };
-    $('#rjFile', m.el).addEventListener('change', e => {
-      const f = e.target.files && e.target.files[0]; if (!f) return;
-      fileToJpeg(f).then(u => { photo = u; const ph = $('#rjPhoto', m.el); ph.classList.add('has'); ph.style.backgroundImage = 'url(' + u + ')'; }).catch(er => fail(errMsg(er)));
-    });
-    $('#rjOk', m.el).addEventListener('click', () => {
-      const reason = $('#rjReason', m.el).value.trim();
-      if (!reason) return fail(t('ERR_REASON_REQUIRED'));
-      if (!photo) return fail(t('ERR_PHOTO_REQUIRED'));
-      done = true; resolve({ reason: reason, photo: photo }); closeModal(m);
-    });
-  });
-}
-/* تفاصيل الطلب والتموين: ما رفضته الممرضة عند الاستلام (السبب + رابط الصورة) */
 function rcvRejTag(it) {
-  return (it.rcvRejects || []).map(x => '<div class="hint sub-tag" style="--tone:var(--t-red)">' + icon('xc', 'i-sm') + '<b>' + esc(t('rcv_rej_tag')) + '</b> · ' + esc(t('shipment_n', { n: x.batch })) + ' · ' + esc(x.reason) +
+  return (it.rcvRejects || []).map(x => '<div class="hint sub-tag" style="--tone:var(--t-red)">' + icon('xc', 'i-sm') + '<b>' + esc(t('rcv_rej_tag')) + '</b> · ' + esc(t('shipment_n', { n: x.batch })) + ' · ×' + esc(x.qty) + ' · ' + esc(x.reason) +
     (x.photo ? ' · <a href="' + esc(x.photo) + '" target="_blank" rel="noopener">' + esc(t('rcv_rej_photo_link')) + '</a>' : '') + '</div>').join('');
 }
 function signaturePad(canvas, wrap) {
@@ -3189,14 +3159,41 @@ function signaturePad(canvas, wrap) {
   requestAnimationFrame(setup);
   return { clear: setup, hasInk: () => ink, toDataURL: () => canvas.toDataURL('image/png'), canvas: canvas };
 }
-/* صورة إيصال: قسم لكل شحنة (أصنافها + المستلم + التوقيع). combined = الإيصال الموحّد للطلب المكتمل */
-function drawReceipt(id, sections, combined) {
+
+function receiptClaimLines(context, sections) {
+  const lines=[];
+  (context && context.returns || []).forEach(r=>{
+    lines.push((r.kind==='reject'?'المطلوب سابقًا / طلب رفض · Original / refusal: ':'المطلوب سابقًا / استرجاع · Original / return: ')+r.item+' ×'+r.qty+(r.batch?' · Original shipment #'+r.batch:''));
+    lines.push('سبب الممرضة / Nurse reason: '+(r.reason||''));
+    lines.push('قرار التموين / Procurement: '+(r.status==='received'?(r.source==='undispatched'?'معتمد قبل الإرسال / Approved before dispatch':'معتمد والاستلام مؤكد / Approved and received'):r.status==='rejected'?'لم يُقبل الطلب / Claim declined':r.status==='cancelled'?'ملغي / Cancelled':'بانتظار الاعتماد / Pending approval')+(r.receivedBy?' · '+r.receivedBy:''));
+    const proposals=(r.substitutes && r.substitutes.length?r.substitutes:(context.items||[]).filter(it=>it.returnId===r.id).map(it=>({item:it.item,qty:it.requestedQty,status:it.subStatus,note:it.subNote,by:it.subBy})))||[];
+    proposals.forEach(p=>{
+      lines.push('اقتراح التموين / Proposed replacement: '+p.item+' ×'+p.qty+' · '+(p.status||'')+(p.by?' · '+p.by:''));
+      if(p.note)lines.push('ملاحظة الاقتراح / Proposal note: '+p.note);
+      const receipts=[];(sections||[]).forEach(s=>(s.items||[]).forEach(it=>{if(it.item===p.item && it.got!=='' && it.got!=null)receipts.push({qty:Number(it.got)||0,receiver:s.receiver,batch:s.batch});}));
+      if(receipts.length)receipts.forEach(x=>lines.push('الصنف الجديد المستلم / Replacement received: '+p.item+' ×'+x.qty+' · Shipment #'+x.batch+' · '+(x.receiver||'')));
+      else lines.push('الصنف البديل لم يُستلم بعد / Replacement not received yet');
+    });
+  });
+  return lines;
+}
+function receiptWrappedLines(text, measure, maxWidth) {
+  const out=[];let line='';String(text||'').split(/\s+/).forEach(word=>{
+    if(measure(word)>maxWidth){if(line){out.push(line);line='';}let chunk='';for(const c of word){if(chunk && measure(chunk+c)>maxWidth){out.push(chunk);chunk='';}chunk+=c;}line=chunk;return;}
+    const next=line?line+' '+word:word;if(line && measure(next)>maxWidth){out.push(line);line=word;}else line=next;
+  });if(line)out.push(line);return out;
+}
+
+function drawReceipt(id, sections, combined, context) {
   try {
-    const rowH = 28, W = 680, sigH = 90;
+    const rowH = 30, W = 800, sigH = 110;
     const secH = s => 34 + rowH + s.items.length * rowH + 30 + sigH + 40;
-    const H = 96 + sections.reduce((h, s) => h + secH(s), 0) + 16;
-    const c = document.createElement('canvas'); c.width = W; c.height = H;
-    const x = c.getContext('2d');
+    const c = document.createElement('canvas'), x = c.getContext('2d');
+    x.font='14px Arial, sans-serif';
+    const audit=receiptClaimLines(context,sections).flatMap(line=>receiptWrappedLines(line,t=>x.measureText(t).width,W-60));
+    const owners=context?[context.doctor?'الطبيب / Doctor: '+context.doctor:'مستهلكات العيادة / Clinic supplies: '+(context.clinic||''),'العيادة / Clinic: '+(context.clinic||''),'الفرع / Branch: '+(context.branch||'')]:[];
+    const H = 110+owners.length*23 + sections.reduce((h,s)=>h+secH(s),0)+(audit.length?55+audit.length*23:0)+16;
+    c.width=W*2;c.height=H*2;x.scale(2,2);
     const when = v => { const d = toDate(v) || new Date(); return intl('d', 'stamp', 'en-GB').format(d); };
     x.fillStyle = '#fff'; x.fillRect(0, 0, W, H);
     x.fillStyle = '#3d8fc8'; x.fillRect(0, 0, W, 10);
@@ -3207,7 +3204,8 @@ function drawReceipt(id, sections, combined) {
     x.fillText('MasarX (مسار اكس) · ' + (combined ? 'Combined receipt' : 'Receipt'), W / 2, 44);
     x.fillStyle = '#555'; x.font = '13px Arial, sans-serif';
     x.fillText(id + '   |   ' + when() + (combined ? '   |   ' + sections.length + ' shipment(s)' : ''), W / 2, 68);
-    let y = 92;
+    let y=94;
+    owners.forEach(line=>{x.font='bold 14px Arial, sans-serif';x.fillStyle='#263e51';x.textAlign='right';x.direction='rtl';x.fillText(line,W-24,y,W-48);y+=23;});x.direction='ltr';
     sections.forEach(s => {
       x.fillStyle = '#3d8fc8'; x.font = 'bold 15px Arial, sans-serif'; x.textAlign = 'left';
       x.fillText('Shipment #' + s.batch, 20, y + 20);
@@ -3242,6 +3240,7 @@ function drawReceipt(id, sections, combined) {
       y += sigH + 32;
       if (combined) { x.strokeStyle = '#e5e9e7'; x.beginPath(); x.moveTo(20, y - 8); x.lineTo(W - 20, y - 8); x.stroke(); }
     });
+    if(audit.length){y+=12;x.direction='rtl';x.textAlign='right';x.fillStyle='#125c83';x.font='bold 17px Arial, sans-serif';x.fillText('سجل الرفض والاسترجاع والبديل / Refusal, return and replacement history',W-30,y,W-60);y+=30;x.font='14px Arial, sans-serif';audit.forEach(line=>{x.fillStyle='#263e51';x.fillText(line,W-30,y,W-60);y+=23;});x.direction='ltr';}
     x.fillStyle = '#3d8fc8'; x.fillRect(0, H - 8, W, 8);
     return c.toDataURL('image/png');
   } catch (e) { console.error(e); return ''; }
@@ -3271,6 +3270,7 @@ ACT.loadArchive = el => {
 function procStage(r) {
   if (r.status === ST.CANCELLED) return 'cancelled';
   if (r.status === ST.REJECTED) return 'rejected';
+  if (r.pendingNurseIssues) return 'nurseissues';
   if (r.status === ST.RECEIVED) return 'received';
   if (r.awaitingDoctor) return 'review';
   if (r.sentQty > 0 && r.remainingQty > 0) return 'partial';
@@ -3281,7 +3281,7 @@ function procStage(r) {
   if (!r.doctorApproved) return !r.doctor && r.clinic !== LAB_SUPPLY ? 'clinic' : 'review';
   return 'ready';
 }
-const PROC_GROUPS = [{ id: 'all', k: 'grp_all' }].concat([
+const PROC_GROUPS = [{ id: 'all', k: 'grp_all' }, { id: 'nurseissues', k: 'stg_nurseissues', tone: 'var(--t-orange)', test: r => procStage(r) === 'nurseissues' }].concat([
   ['review', 'var(--t-violet)'], ['ready', 'var(--t-teal)'], ['clinic', 'var(--t-blue)'], ['prep', 'var(--t-amber)'], ['partial', 'var(--t-orange)'],
   ['shipping', 'var(--t-indigo)'], ['arrived', ARRIVED_TONE], ['received', 'var(--t-green)'], ['rejected', 'var(--t-red)'], ['cancelled', 'var(--t-gray)']
 ].map(x => ({ id: x[0], k: 'stg_' + x[0], tone: x[1], test: r => procStage(r) === x[0] })));
@@ -3486,6 +3486,7 @@ function procCard(r) {
       '<div class="req-side">' + badge(r.status, r) + '</div>' +
     '</div>' +
     '<div class="req-actions">' +
+      (r.nurseIssueCount ? '<button class="btn btn-soft btn-sm" data-act="mrtRequestIssues" data-id="'+esc(r.id)+'">'+icon('refresh','i-sm')+mrtText('رفض / استرجاع الأصناف','Item refusals / returns')+(r.pendingNurseIssues?' · '+r.pendingNurseIssues:'')+'</button>' : '') +
       '<button class="btn btn-sm' + (open ? ' btn-soft' : '') + '" data-act="procToggle" data-id="' + esc(r.id) + '">' + icon('package', 'i-sm') + esc(t('view_items')) + icon('chevd', 'i-sm chev' + (open ? ' open' : '')) + '</button>' +
       '<button class="btn btn-sm btn-ghost" data-act="detail" data-id="' + esc(r.id) + '">' + icon('eye', 'i-sm') + esc(t('details')) + '</button>' +
       (canRevert(r) ? '<button class="btn btn-sm btn-ghost revert-btn" data-act="revertStep" data-id="' + esc(r.id) + '">' + icon('refresh', 'i-sm') + esc(t('revert_step')) + '</button>' : '') +
@@ -3504,7 +3505,7 @@ function subTag(it, all) {
       (it.subNote ? ' · ' + esc(it.subNote) : '') + '</div>';
   }
   const rep = (all || []).find(x => x.substituteOf === it.item && x.subStatus === SUB_OK);
-  return rep ? '<div class="hint sub-tag" style="--tone:var(--t-green)">' + icon('refresh', 'i-sm') + esc(t('sub_replaced', { n: rep.item })) + '</div>' : '';
+  return rep ? '<div class="hint sub-tag" style="--tone:var(--t-green)">' + icon('refresh', 'i-sm') + (rep.returnId ? mrtText('بديل للكمية المرفوضة أو المرتجعة: ','Replacement for refused / returned quantity: ')+esc(rep.item)+' ×'+esc(rep.requestedQty) : esc(t('sub_replaced', { n: rep.item }))) + '</div>' : '';
 }
 /* صنف رفضه التموين: السبب يظهر للطبيب والممرضة والتموين */
 const ADMIN_RM_NOTE = 'حذف إداري: ';
@@ -9732,28 +9733,62 @@ Object.assign(I18N.en, { nav_returns:'Request returns', sub_returns_np:'Track re
 const mrtText=(ar,en)=>S.lang==='ar'?ar:en;
 ['nurse','doctor','procurement'].forEach(screen=>NAV[screen].push({id:'returns',icon:'refresh',k:'nav_returns'}));
 PERM_NAV.push({id:'returns',icon:'refresh',k:'nav_returns',perm:[],screens:['admin','finance','quality','executive','branch']});
-ALERT_TARGET.alert_returns_pending=['returns'];
+ALERT_TARGET.alert_returns_pending=['requests','nurseissues'];
 ST_KEYS.ReturnHistoryEnabled={k:'stk_return_history',type:'yesno',hint:'stk_return_history_h'};
 const mrtConfigOriginal=applyConfig;
 applyConfig=function(cfg){mrtConfigOriginal(cfg);S.returnHistoryEnabled=!!(cfg&&cfg.returnHistoryEnabled);};
 const MRT={list:[],filter:'pending',search:''};
-const mrtStatus=s=>({pending:mrtText('بانتظار استلام التموين','Awaiting procurement'),received:mrtText('استلمه التموين · خُصمت القيمة','Received · credited'),rejected:mrtText('لم يُقبل المرتجع','Return rejected'),cancelled:mrtText('ملغي','Cancelled')})[s]||s;
-function mrtRows(list,actions){return (list||[]).map(r=>'<article class="card mrt-card"><div class="between"><b dir="ltr">'+esc(r.request)+'</b><span class="tag" style="--tone:var(--t-'+(r.status==='received'?'green':r.status==='pending'?'amber':'gray')+')">'+esc(mrtStatus(r.status))+'</span></div><h3>'+esc(r.item)+' <span class="muted">× '+esc(r.qty)+'</span></h3><p class="hint">'+esc([r.doctor,r.clinic,r.branch].filter(Boolean).join(' · '))+'</p><p>'+esc(r.reason)+'</p><p class="hint">'+esc(fmtDate(r.date))+' · '+esc(r.createdBy)+(r.backdated?' · '+mrtText('بأثر رجعي','Historical'):'')+'</p>'+(r.status==='received'?'<p class="hint">'+esc(r.receivedBy)+' · '+esc(fmtDateTime(r.receivedAt))+'</p>':'')+(r.note?'<p class="hint">'+esc(r.note)+'</p>':'')+(!noPrices()&&r.value!==undefined?'<div class="mrt-value">'+mrtText(r.status==='received'?'قيمة مسترجعة: ':'قيمة الصنف: ',r.status==='received'?'Returned value: ':'Item value: ')+fmtNum(r.value,2)+' '+esc(t('currency'))+'</div>':'')+(actions?'<div class="row-wrap">'+((S.user.screen==='procurement'||S.user.screen==='admin')&&r.status==='pending'?'<button class="btn btn-primary btn-sm" data-act="mrtReceive" data-id="'+esc(r.id)+'">'+mrtText('استلام المرتجع كاملاً','Receive full return')+'</button><button class="btn btn-danger-soft btn-sm" data-act="mrtReject" data-id="'+esc(r.id)+'">'+mrtText('رفض مع ملاحظة','Reject with note')+'</button>':'')+(S.user.screen==='nurse'&&r.status==='pending'&&r.createdBy===S.user.name?'<button class="btn btn-ghost btn-sm" data-act="mrtCancel" data-id="'+esc(r.id)+'">'+mrtText('إلغاء طلب الإرجاع','Cancel return')+'</button>':'')+'<button class="btn btn-sm" data-act="detail" data-id="'+esc(r.request)+'">'+esc(t('details'))+'</button></div>':'')+'</article>').join('');}
+function mrtStatus(status, kind) {
+  if (status === 'received') return kind === 'reject' ? mrtText('الرفض معتمد من التموين','Refusal approved by procurement') : mrtText('المرتجع مستلم من التموين','Return received by procurement');
+  return ({ pending:mrtText('بانتظار اعتماد التموين','Awaiting procurement approval'), rejected:mrtText('لم يقبل التموين الطلب','Claim declined by procurement'), cancelled:mrtText('ألغت الممرضة الطلب','Claim cancelled') })[status] || status;
+}
+function mrtRows(list, actions) {
+  return (list || []).map(r => {
+    const canManage = S.user.screen === 'procurement' || S.user.screen === 'admin';
+    const active = (r.substitutes || []).some(s => s.status === SUB_PENDING || s.status === SUB_OK);
+    const replacements = (r.substitutes || []).map(s => '<div class="mrt-replacement"><b>'+mrtText('اقتراح التموين: ','Procurement proposal: ')+esc(s.item)+' × '+esc(s.qty)+'</b><p class="hint">'+esc(s.status)+' · '+esc(s.by)+(s.originalBatch?' · '+mrtText('بديل الشحنة ','Replaces shipment ')+s.originalBatch:'')+'</p>'+(s.note?'<p class="hint">'+esc(s.note)+'</p>':'')+(s.batch?'<p class="hint">'+mrtText('إرسالية البديل ','Replacement delivery ')+s.batch+' · '+mrtText('المستلم بتوقيع الممرضة: ','Received by nurse: ')+esc(s.receivedQty)+'</p>':'')+'</div>').join('');
+    return '<article class="card mrt-card"><div class="between"><b dir="ltr">'+esc(r.request)+'</b><span class="tag">'+esc(mrtStatus(r.status,r.kind))+'</span></div><h3>'+mrtText(r.kind==='reject'?'طلب رفض: ':'طلب استرجاع: ',r.kind==='reject'?'Refusal: ':'Return: ')+esc(r.item)+' × '+esc(r.qty)+'</h3><p class="hint">'+esc([r.doctor,r.clinic,r.branch].filter(Boolean).join(' · '))+'</p><p>'+mrtText('سبب الممرضة: ','Nurse reason: ')+esc(r.reason)+'</p><p class="hint">'+esc(fmtDate(r.date))+' · '+esc(r.createdBy)+(r.batch?' · '+mrtText('الشحنة الأصلية ','Original shipment ')+r.batch:'')+(r.backdated?' · '+mrtText('بأثر رجعي','Historical'):'')+'</p>'+(r.receivedBy?'<p class="hint">'+esc(r.receivedBy)+' · '+esc(fmtDateTime(r.receivedAt))+'</p>':'')+(r.note?'<p class="hint">'+esc(r.note)+'</p>':'')+(!noPrices() && r.value !== undefined?'<div class="mrt-value">'+mrtText(r.source==='undispatched'?'قيمة إيقاف الصرف (لم تُحصّل): ':r.status==='received'?'قيمة مرفوعة من حساب الطبيب: ':'القيمة المعلقة دون خصم: ',r.source==='undispatched'?'Unshipped value (not charged): ':r.status==='received'?'Credited value: ':'Pending value — no credit yet: ')+fmtNum(r.value,2)+' '+esc(t('currency'))+'</div>':'')+replacements+(actions?'<div class="mrt-resolution">'+(canManage && r.status==='pending'?'<button class="btn btn-primary" data-act="mrtReceive" data-id="'+esc(r.id)+'">'+icon('check','i-sm')+mrtText(r.kind==='reject'?'اعتماد الرفض':'اعتماد استلام المرتجع',r.kind==='reject'?'Approve refusal':'Confirm return receipt')+'</button>':'')+(canManage && ['pending','received'].includes(r.status) && !active?'<button class="btn btn-soft" data-act="mrtPropose" data-id="'+esc(r.id)+'"'+(r.status!=='received'?' disabled title="'+mrtText('اعتمد الإجراء واستلام الأصناف أولًا','Approve and confirm receipt first')+'"':'')+'>'+icon('refresh','i-sm')+mrtText('اقتراح بديل للطبيب','Propose replacement')+'</button>':'')+(canManage && (r.substitutes || []).some(s => s.status===SUB_OK && !s.batch)?'<button class="btn btn-primary" data-act="mrtPrepare" data-id="'+esc(r.request)+'">'+mrtText('تجهيز وإرسال البديل','Prepare and dispatch replacement')+'</button>':'')+'</div><div class="row-wrap">'+(canManage && r.status==='pending'?'<button class="btn btn-danger-soft btn-sm" data-act="mrtReject" data-id="'+esc(r.id)+'">'+mrtText('عدم قبول الطلب مع السبب','Decline claim with reason')+'</button>':'')+(S.user.screen==='nurse' && r.status==='pending' && r.createdBy===S.user.name?'<button class="btn btn-ghost btn-sm" data-act="mrtCancel" data-id="'+esc(r.id)+'">'+mrtText('إلغاء طلب المراجعة','Cancel claim')+'</button>':'')+'<button class="btn btn-sm" data-act="detail" data-id="'+esc(r.request)+'">'+esc(t('details'))+'</button></div>':'')+'</article>';
+  }).join('');
+}
+ACT.mrtRequestIssues = el => {
+  const id = el.dataset.id;
+  call('getRequestReturns',id).then(rows => { MRT.list=rows || []; const m=openModal({title:mrtText('رفض واسترجاع الأصناف','Item refusals and returns'),sub:esc(id),icon:'refresh',size:'lg',body:'<p class="hint">'+esc(t('sub_returns'))+'</p><div class="mrt-claim-host stack" data-request="'+esc(id)+'">'+mrtRows(rows,true)+'</div>',foot:'<button class="btn" data-close>'+esc(t('close'))+'</button>'}); });
+};
+ACT.mrtReceive = async el => {
+  const r=MRT.list.find(r=>r.id===el.dataset.id); if(!r)return;
+  const ok=await confirmDialog(mrtText(r.source==='undispatched'?'اعتماد رفض '+r.qty+' × '+r.item+' قبل الإرسال؟ لن تُسجل قيمة مرتجع لأن الكمية لم تُستلم أصلًا.':(r.kind==='reject'?'اعتماد رفض ':'تأكيد استلام مرتجع ')+r.qty+' × '+r.item+' وإعادته فعليًا للتموين؟ بعدها تُرفع هذه الكمية من صافي حساب الطبيب.',(r.source==='undispatched'?'Approve refusal of unsent quantity ':'Confirm procurement approval and physical receipt of ')+r.qty+' × '+r.item+(r.source==='undispatched'?'? No return credit is created for unsent goods.':'? This credits the doctor once.'))); if(!ok)return;
+  busy(el,true);call('receiveRequestReturn',r.id,'received','').then(()=>{toast(mrtText('تم اعتماد الإجراء وتحديث صافي الحساب','Approved; net account updated'));if(S.view==='returns'){MRT.filter='received';const filter=$('[data-change="mrtFilter"]');if(filter)filter.value='received';}mrtRefresh();}).catch(e=>{busy(el,false);toast(errMsg(e),'error');});
+};
+ACT.mrtPropose = el => {
+  const claim=MRT.list.find(r=>r.id===el.dataset.id);if(!claim || claim.status!=='received')return;
+  call('getRequestDetail',claim.request).then(d=>{
+    const names=new Set(d.items.filter(it=>it.subStatus!=='مرفوض' || it.returnId!==claim.id).map(it=>it.item.toLowerCase()));
+    const choices=S.catalog.filter(c=>!c.asset && !c.freePending && c.name!==claim.item && !names.has(c.name.toLowerCase()));
+    const m=openModal({title:mrtText('اقتراح بديل بعد الرفض أو الاسترجاع','Propose a claim replacement'),sub:esc(claim.request+' · '+claim.item),icon:'refresh',size:'sm',body:'<p class="hint">'+mrtText('يراه الطبيب والممرضة. لا يُرسل قبل اعتماد الطبيب، ولا يُحسب قبل استلام الممرضة. البديل من الأصناف غير الموجودة حاليًا في الطلب.','Visible to the doctor and nurse. It cannot ship before doctor approval or be charged before nurse receipt. Choose an item not already present in this order.')+'</p><div class="field"><label for="mrtSubItem">'+mrtText('الصنف البديل','Replacement item')+'</label><select class="select" id="mrtSubItem"><option value="">'+mrtText('اختر الصنف البديل','Choose replacement item')+'</option>'+choices.map(c=>'<option value="'+esc(c.name)+'">'+esc(c.name)+'</option>').join('')+'</select></div><div class="field"><label for="mrtSubQty">'+esc(t('qty'))+'</label><input class="input" id="mrtSubQty" type="number" min="1" max="'+claim.qty+'" step="1" value="'+claim.qty+'"></div><div class="field"><label for="mrtSubNote">'+mrtText('ملاحظة اقتراح التموين','Procurement proposal note')+'</label><textarea class="textarea" id="mrtSubNote" maxlength="500"></textarea></div><div class="field-error hidden" id="mrtSubError"></div>',foot:'<button class="btn" data-close>'+esc(t('cancel'))+'</button><button class="btn btn-primary" id="mrtSubSave">'+mrtText('إرسال الاقتراح','Submit proposal')+'</button>'});
+    $('#mrtSubSave',m.el).onclick=()=>{const item=$('#mrtSubItem',m.el).value,qty=Number($('#mrtSubQty',m.el).value);if(!item || !Number.isInteger(qty) || qty<1 || qty>claim.qty)return;const b=$('#mrtSubSave',m.el);busy(b,true);call('proposeSubstitute',{requestId:claim.request,returnId:claim.id,substitute:item,qty,note:$('#mrtSubNote',m.el).value.trim()}).then(()=>{closeModal(m);toast(mrtText('سُجل الاقتراح في نفس الطلب','Proposal recorded in the same order'));mrtRefresh();}).catch(e=>{busy(b,false);const err=$('#mrtSubError',m.el);err.textContent=errMsg(e);err.classList.remove('hidden');});};
+  }).catch(e=>toast(errMsg(e),'error'));
+};
+ACT.mrtPrepare = async el => { const id=el.dataset.id; MODALS.slice().forEach(closeModal);S.proc.group='all';if(S.view!=='requests')go('requests');await loadProc(true);S.proc.expanded.add(id);renderProcList(false);loadProcItems(id,true); };
+
 VIEWS.returns={title:'nav_returns',sub:'sub_returns',render(){return '<section class="card"><div class="card-body"><p class="hint">'+esc(t('sub_returns'))+'</p><div class="row-wrap"><select class="select" data-change="mrtFilter" aria-label="'+esc(t('status'))+'"><option value="pending">'+esc(mrtStatus('pending'))+'</option><option value="received">'+esc(mrtStatus('received'))+'</option><option value="all">'+mrtText('الكل','All')+'</option></select><input class="input" data-input="mrtSearch" placeholder="'+mrtText('ابحث برقم الطلب أو الطبيب أو الصنف','Search request, doctor or item')+'"></div></div></section><div id="mrtList" class="stack">'+skeletonList(2)+'</div>';},mount(){MRT.filter='pending';MRT.search='';mrtLoad();},refresh(){mrtLoad();}};
 function mrtDraw(){const box=$('#mrtList');if(box)box.innerHTML=mrtRows(MRT.list.filter(r=>(MRT.filter==='all'||r.status===MRT.filter)&&(!MRT.search||[r.request,r.item,r.doctor,r.clinic].join(' ').toLowerCase().includes(MRT.search.toLowerCase()))),true)||emptyState('checkc',mrtText('لا توجد مرتجعات في هذا القسم','No returns in this section'));}
-function mrtLoad(){return call('getRequestReturns').then(rows=>{MRT.list=rows||[];mrtDraw();}).catch(e=>{const box=$('#mrtList');if(box)box.innerHTML=emptyState('alert',errMsg(e));});}
+function mrtLoad(){return call('getRequestReturns').then(rows=>{MRT.list=rows||[];mrtDraw();$$('.mrt-claim-host').forEach(host=>host.innerHTML=mrtRows(MRT.list.filter(r=>r.request===host.dataset.request),true));}).catch(e=>{const box=$('#mrtList');if(box)box.innerHTML=emptyState('alert',errMsg(e));});}
 ACT.mrtFilter=el=>{MRT.filter=el.value;mrtDraw();};ACT.mrtSearch=el=>{MRT.search=el.value;mrtDraw();};
-function mrtRefresh(){mrtLoad();loadAlerts();}
-ACT.mrtReceive=async el=>{const r=MRT.list.find(r=>r.id===el.dataset.id);if(!r)return;const ok=await confirmDialog(mrtText('تأكيد استلام '+r.qty+' × '+r.item+' فعليًا وكاملاً؟ ستُخصم هذه الكمية من صافي حساب الطبيب.','Confirm physical receipt of all '+r.qty+' × '+r.item+'? This quantity will be credited to the doctor.'));if(!ok)return;busy(el,true);call('receiveRequestReturn',r.id,'received','').then(()=>{toast(mrtText('تم استلام المرتجع وتحديث صافي القيمة','Return received; net value updated'));mrtRefresh();}).catch(e=>{busy(el,false);toast(errMsg(e),'error');});};
+function mrtRefresh(){mrtLoad();loadAlerts();if(S.view==='requests')loadProc(true);}
 ACT.mrtReject=el=>{const m=openModal({title:mrtText('سبب عدم قبول المرتجع','Reason for rejecting return'),icon:'msg',size:'sm',body:'<label for="mrtRejectNote">'+esc(t('notes'))+'</label><textarea class="textarea" id="mrtRejectNote" maxlength="500"></textarea>',foot:'<button class="btn" data-close>'+esc(t('cancel'))+'</button><button class="btn btn-danger" id="mrtRejectOk">'+esc(t('confirm'))+'</button>'});$('#mrtRejectOk',m.el).onclick=()=>{const note=$('#mrtRejectNote',m.el).value.trim();if(!note){toast(t('reason_required'),'error');return;}const b=$('#mrtRejectOk',m.el);busy(b,true);call('receiveRequestReturn',el.dataset.id,'rejected',note).then(()=>{closeModal(m);mrtRefresh();}).catch(e=>{busy(b,false);toast(errMsg(e),'error');});};};
 ACT.mrtCancel=async el=>{if(!await confirmDialog(mrtText('إلغاء طلب الإرجاع؟','Cancel this return request?')))return;call('cancelRequestReturn',el.dataset.id).then(mrtRefresh).catch(e=>toast(errMsg(e),'error'));};
 function mrtForm(opts){
- const m=openModal({title:mrtText('إعادة إلى التموين','Return to procurement'),icon:'refresh',size:'sm',body:'<p class="hint">'+esc(t('sub_returns'))+'</p><div class="field"><label for="mrtItem">'+esc(t('items'))+'</label><select class="select" id="mrtItem">'+opts.items.map((r,i)=>'<option value="'+i+'">'+esc(r.item)+' · '+mrtText('متاح ','Available ')+esc(r.qty)+'</option>').join('')+'</select></div><div class="field"><label for="mrtQty">'+mrtText('كمية الإرجاع','Return quantity')+'</label><input class="input" id="mrtQty" type="number" min="1" step="1" inputmode="numeric" value="1"></div><div class="field"><label for="mrtReason">'+mrtText('سبب الإرجاع','Return reason')+'</label><textarea class="textarea" id="mrtReason" maxlength="500"></textarea></div>'+(opts.history?'<div class="field"><label for="mrtDate">'+mrtText('تاريخ الإرجاع الفعلي (متاح بأثر رجعي)','Actual return date (historical entry enabled)')+'</label><input class="input" id="mrtDate" type="date" min="'+esc(opts.min||'')+'" max="'+todayStr()+'" value="'+todayStr()+'"></div>':'')+'<p class="field-error hidden" id="mrtError"></p>',foot:'<button class="btn" data-close>'+esc(t('cancel'))+'</button><button class="btn btn-primary" id="mrtSave">'+mrtText('تسجيل طلب الإرجاع','Submit return request')+'</button>'});
+ const m=openModal({title:mrtText('طلب رفض أو استرجاع','Refusal or return request'),icon:'refresh',size:'sm',body:'<p class="hint">'+esc(t('sub_returns'))+'</p><div class="field"><label for="mrtKind">'+mrtText('نوع الطلب','Request type')+'</label><select class="select" id="mrtKind"><option value="return">'+mrtText('استرجاع مستهلك','Return consumable')+'</option><option value="reject">'+mrtText('رفض مستهلك','Refuse consumable')+'</option></select></div><div class="field"><label for="mrtItem">'+esc(t('items'))+'</label><select class="select" id="mrtItem">'+opts.items.map((r,i)=>'<option value="'+i+'">'+esc(r.item)+(r.batch?' · '+mrtText('الشحنة ','Shipment ')+r.batch:'')+' · '+mrtText('متاح ','Available ')+esc(r.qty)+'</option>').join('')+'</select></div><div class="field"><label for="mrtQty">'+mrtText('الكمية محل الطلب','Claim quantity')+'</label><input class="input" id="mrtQty" type="number" min="1" step="1" inputmode="numeric" value="1"></div><div class="field"><label for="mrtReason">'+mrtText('سبب الرفض أو الاسترجاع','Refusal or return reason')+'</label><textarea class="textarea" id="mrtReason" maxlength="500"></textarea></div>'+(opts.history?'<div class="field"><label for="mrtDate">'+mrtText('تاريخ الإرجاع الفعلي (متاح بأثر رجعي)','Actual return date (historical entry enabled)')+'</label><input class="input" id="mrtDate" type="date" min="'+esc(opts.min||'')+'" max="'+todayStr()+'" value="'+todayStr()+'"></div>':'')+'<p class="field-error hidden" id="mrtError"></p>',foot:'<button class="btn" data-close>'+esc(t('cancel'))+'</button><button class="btn btn-primary" id="mrtSave">'+mrtText('رفع الطلب لمراجعة التموين','Submit for procurement review')+'</button>'});
+ if(opts.kind)$('#mrtKind',m.el).value=opts.kind;if(opts.unshipped){$('#mrtKind',m.el).value='reject';$('#mrtKind option[value="return"]',m.el).disabled=true;}
  const update=()=>{$('#mrtQty',m.el).max=opts.items[Number($('#mrtItem',m.el).value)].qty;};$('#mrtItem',m.el).onchange=update;update();let saving=false;
- $('#mrtSave',m.el).onclick=()=>{if(saving)return;const item=opts.items[Number($('#mrtItem',m.el).value)],qty=Number($('#mrtQty',m.el).value),reason=$('#mrtReason',m.el).value.trim(),date=$('#mrtDate',m.el)?$('#mrtDate',m.el).value:todayStr();const err=$('#mrtError',m.el);if(!Number.isInteger(qty)||qty<1||qty>item.qty||!reason||!date){err.textContent=mrtText('تحقق من الكمية والتاريخ واكتب السبب.','Check quantity and date, and enter a reason.');err.classList.remove('hidden');return;}saving=true;busy($('#mrtSave',m.el),true);Promise.resolve().then(()=>opts.onSave({item:item.item,qty,reason,date})).then(()=>closeModal(m)).catch(e=>{saving=false;busy($('#mrtSave',m.el),false);err.textContent=errMsg(e);err.classList.remove('hidden');});};return m;
+ $('#mrtSave',m.el).onclick=()=>{if(saving)return;const item=opts.items[Number($('#mrtItem',m.el).value)],qty=Number($('#mrtQty',m.el).value),reason=$('#mrtReason',m.el).value.trim(),date=$('#mrtDate',m.el)?$('#mrtDate',m.el).value:todayStr();const err=$('#mrtError',m.el);if(!Number.isInteger(qty)||qty<1||qty>item.qty||!reason||!date){err.textContent=mrtText('تحقق من الكمية والتاريخ واكتب السبب.','Check quantity and date, and enter a reason.');err.classList.remove('hidden');return;}saving=true;busy($('#mrtSave',m.el),true);Promise.resolve().then(()=>opts.onSave({item:item.item,qty,reason,date,kind:$('#mrtKind',m.el).value,batch:item.batch||0,source:item.source||''})).then(()=>closeModal(m)).catch(e=>{saving=false;busy($('#mrtSave',m.el),false);err.textContent=errMsg(e);err.classList.remove('hidden');});};return m;
 }
-ACT.requestReturn=el=>{const id=el.dataset.id,key='return:'+Date.now()+':'+Math.random().toString(36).slice(2);call('getRequestDetail',id).then(d=>{const items=(d.returnable||[]).filter(r=>r.qty>0);if(!items.length){toast(mrtText('لا توجد كمية مستلمة متاحة للإرجاع','No received quantity available to return'),'info');return;}mrtForm({items,min:ymdOf(new Date(d.date)),history:S.returnHistoryEnabled,onSave:p=>call('createRequestReturn',id,Object.assign(p,{clientKey:key})).then(()=>{toast(mrtText('سُجل المرتجع بانتظار استلام التموين','Return submitted; awaiting procurement receipt'));loadAlerts();const detail=MODALS.find(x=>x.el.classList.contains('request-detail'));if(detail)call('getRequestDetail',id).then(d=>renderDetail(detail,d));})});}).catch(e=>toast(errMsg(e),'error'));};
+ACT.requestReturn=el=>{const id=el.dataset.id,key='return:'+Date.now()+':'+Math.random().toString(36).slice(2);call('getRequestDetail',id).then(d=>{const items=(d.returnable||[]).flatMap(r=>(r.batches&&r.batches.length?r.batches.map(b=>({item:r.item,qty:b.qty,batch:b.batch})):[r])).filter(r=>r.qty>0);if(!items.length){toast(mrtText('لا توجد كمية مستلمة متاحة للإرجاع','No received quantity available to return'),'info');return;}mrtForm({items,min:ymdOf(new Date(d.date)),history:S.returnHistoryEnabled,onSave:p=>call('createRequestReturn',id,Object.assign(p,{clientKey:key})).then(()=>{toast(mrtText('سُجل المرتجع بانتظار استلام التموين','Return submitted; awaiting procurement receipt'));loadAlerts();const detail=MODALS.find(x=>x.el.classList.contains('request-detail'));if(detail)call('getRequestDetail',id).then(d=>renderDetail(detail,d));})});}).catch(e=>toast(errMsg(e),'error'));};
 ACT.mrtSettingDate=el=>{const key=el.dataset.settingKey,hidden=$('#stk_'+key),day=$('#stk_'+key+'_date'),field=hidden.closest('.field'),mode=$('[data-setting-mode]',field);if(el===day)mode.value='date';if(mode.value==='date'&&!day.value)day.value=todayStr();day.disabled=mode.value==='off';hidden.value=mode.value==='off'?'off':mode.value==='default'?'':day.value;hidden.dispatchEvent(new Event('input',{bubbles:true}));};
+Object.assign(I18N.ar,{nav_returns:'الرفض والمرتجعات',stg_nurseissues:'أصناف مرفوضة / مرتجعة للمراجعة',sub_returns:'ترفع الممرضة طلب رفض أو استرجاع مع السبب. التموين يعتمد الإجراء والاستلام؛ بعدها يُرفع الصنف من حساب الطبيب. البديل يمر باعتماد الطبيب واستلام الممرضة.',sub_returns_np:'طلبات رفض واسترجاع الأصناف، ومراجعة اقتراحات البدائل حتى استلامها.',ERR_CLAIM_APPROVAL_FIRST:'اعتمد طلب الرفض أو استلام المرتجع أولًا قبل اقتراح البديل.'});
+Object.assign(I18N.en,{nav_returns:'Refusals and returns',stg_nurseissues:'Item refusals / returns to review',sub_returns:'Nurses submit a refusal or return with a reason. Procurement approves and confirms receipt before credit. Replacements require doctor approval and nurse receipt.',sub_returns_np:'Track refusal and return requests, replacement proposals and receipt.',ERR_CLAIM_APPROVAL_FIRST:'Approve the refusal or confirm return receipt before proposing a replacement.'});
+ACT.removeItems=el=>{const id=el.dataset.id,key='refusal:'+Date.now()+':'+Math.random().toString(36).slice(2);call('getRequestDetail',id).then(d=>{const items=(d.items||[]).filter(it=>it.remainingQty>0&&!it.rejected).map(it=>({item:it.item,qty:it.remainingQty,source:'undispatched'}));if(!items.length){toast(t('rm_none'),'info');return;}mrtForm({items,kind:'reject',unshipped:true,onSave:p=>call('createRequestReturn',id,Object.assign(p,{clientKey:key})).then(()=>{toast(mrtText('رُفع طلب الرفض للتموين دون حذف الصنف.','Refusal requested; item unchanged until procurement approval.'));loadMine(true);loadAlerts();})});}).catch(e=>toast(errMsg(e),'error'));};
+Object.assign(I18N.ar,{rm_items:'طلب رفض صنف لم يُرسل',rm_items_h:'طلب الممرضة لا يزيل الصنف؛ ينتظر اعتماد التموين.'});Object.assign(I18N.en,{rm_items:'Request refusal of an unsent item',rm_items_h:'Nurse requests do not remove items; procurement must approve.'});
 /* MASAR_RETURNS_END */
 
 /* MASAR_DATE_PICKER_START: retain native ISO values and existing change handlers. */

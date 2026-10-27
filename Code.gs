@@ -39,7 +39,7 @@ const SCHEMA = {
   // ItemStatus: حالة الصنف داخل الطلبية (قيد التجهيز / بانتظار المندوب / استلم المندوب) قبل إرساله
   RequestItems: ['RequestID', 'ItemName', 'RequestedQty', 'ApprovedQty', 'ReceivedQty', 'DispatchedAt', 'DispatchBatch', 'ItemStatus', 'ItemStatusAt', 'ItemStatusBy',
                  'SubstituteOf', 'SubStatus', 'SubNote', 'SubBy', 'SubAt', // البديل: سطر جديد يشير لاسم الصنف الأصلي
-                 'RejectNote', 'RejectBy', 'RejectAt', 'RejectQty'], // رفض التموين لصنف: السبب يظهر للطبيب والممرضة، والكمية الأصلية للتراجع
+                 'RejectNote', 'RejectBy', 'RejectAt', 'RejectQty', 'ReturnID', 'OriginalBatch'], // رفض التموين لصنف: السبب يظهر للطبيب والممرضة، والكمية الأصلية للتراجع
   // سجل التراجعات: كل تراجع عن خطوة (شحنة أُرسلت بالغلط، حالة طلب، حالة صنف) مع السبب والوقت — تراه الجودة والإدارة
   Reversals:    ['Timestamp', 'RequestID', 'User', 'Role', 'Scope', 'From', 'To', 'Reason', 'Details'],
   // منصة استبيان التمريض: نسخة من كل بلاغ (طلب/شحنة، عهدة) + ما يُرفع من الاستبيان نفسه (لا يذهب للتموين)
@@ -52,7 +52,7 @@ const SCHEMA = {
   DeletedRequests: ['Timestamp', 'RequestID', 'User', 'Reason', 'Clinic', 'Doctor', 'Nurse', 'Status', 'Total', 'Snapshot', 'RestoredAt', 'RestoredBy'],
   // كل سطر = كمية صنف واحد داخل شحنة واحدة (يسمح بإرسال جزء من كمية الصنف)
   ShipmentItems: ['RequestID', 'Batch', 'ItemName', 'Qty', 'DispatchedAt', 'DispatchedBy', 'ReceivedQty', 'RejectReason', 'RejectPhoto'], // رفض الممرضة لصنف عند الاستلام (السبب + صورة)
-  RequestReturns: ['ReturnID','ClientKey','RequestID','ItemName','Qty','Batch','Reason','CreatedAt','CreatedBy','ReturnDate','Backdated','Status','ReceivedAt','ReceivedBy','Note'],
+  RequestReturns: ['ReturnID','ClientKey','RequestID','ItemName','Qty','Batch','Reason','CreatedAt','CreatedBy','ReturnDate','Backdated','Status','ReceivedAt','ReceivedBy','Note','Kind','Photo','Source'],
   Shipments:    ['RequestID', 'Batch', 'ReceivedAt', 'ReceiverName', 'ReceivedBy', 'SignatureURL', 'SignatureFileID', 'ReceiptURL'],
   ItemNotes:    ['Timestamp', 'RequestID', 'ItemName', 'Author', 'Role', 'Note'],
   Log:          ['Timestamp', 'RequestID', 'Action', 'User'],
@@ -2250,7 +2250,7 @@ function queryRequests_(filters) {
     if (filters.doctorUser && !isMyDoctor_(filters.doctorUser, r.doctor)) return false;
     if (filters.month && monthOf_(r.date) !== filters.month) return false;
     if (filters.recent && (r.status === ST.RECEIVED || isOff_(r.status)) &&
-        (Date.now() - toMs_(r.receivedAt || r.reviewedAt || r.date)) > ARCHIVE_DAYS * 864e5) return false;
+        (Date.now() - toMs_(r.receivedAt || r.reviewedAt || r.date)) > ARCHIVE_DAYS * 864e5 && !nurseClaimCounts_(r.id).pending) return false;
     return true;
   }).map(function (r) {
     // الإثراء (الشحنات/المواعيد/حالة الطبيب) يُحسب مرة واحدة لكل طلب في نفس الاستدعاء —
@@ -2259,6 +2259,7 @@ function queryRequests_(filters) {
     if (memo[r.id]) return memo[r.id];
     memo[r.id] = r;
     const st = shipState_(r, byReq[r.id] || []);
+    r.nurseIssueCount = nurseClaimCounts_(r.id).total; r.pendingNurseIssues = nurseClaimCounts_(r.id).pending;
     r.itemCount = st.total;
     r.dispatchedCount = st.dispatched;
     r.partialItems = st.partialItems;
@@ -2293,7 +2294,7 @@ function queryRequests_(filters) {
     if (r.awaitingDoctor && r.status === ST.NEW) r.status = ST.REVIEW; // طلب قديم «جديد» = لدى الطبيب
     r.doctorApproved = r.needsReview && r.cleared;
     r.subs = (byReq[r.id] || []).filter(function (x) { return str_(x.SubstituteOf); }).map(function (x) {
-      return { item: str_(x.ItemName), of: str_(x.SubstituteOf), qty: Number(x.RequestedQty) || 0, status: str_(x.SubStatus), note: str_(x.SubNote), by: str_(x.SubBy), at: x.SubAt };
+      return { returnId: str_(x.ReturnID), originalBatch: Number(x.OriginalBatch) || 0, item: str_(x.ItemName), of: str_(x.SubstituteOf), qty: Number(x.RequestedQty) || 0, status: str_(x.SubStatus), note: str_(x.SubNote), by: str_(x.SubBy), at: x.SubAt };
     });
     r.pendingSubs = r.subs.filter(function (x) { return x.status === SUB_ST.PENDING; }).length;
     Object.assign(r, deadline_(r));
@@ -2377,7 +2378,7 @@ function receiptRejects_(inPeriod) {
       reason: str_(r.RejectReason), photo: str_(r.RejectPhoto), item: str_(r.ItemName), qty: Number(r.Qty) || 0,
       requested: orig || str_(r.ItemName), requestedQty: Number(origRow.RequestedQty) || 0, substitute: !!orig,
       clinic: str_(q.Clinic), doctor: str_(q.Doctor), nurse: str_(q.Nurse), branch: str_(q.Branch), type: str_(q.Type) };
-  }).filter(function (x) { return !inPeriod || inPeriod(x.time); })
+  }).concat(read_('RequestReturns').rows.filter(function (r) { return str_(r.Kind) === 'reject' && str_(r.Source) !== 'undispatched' && str_(r.Status) === 'received' && reqs[str_(r.RequestID)] && (!ids || ids[str_(r.RequestID)]); }).map(function (r) { const q = reqs[str_(r.RequestID)], old = items[str_(r.RequestID) + '|' + str_(r.ItemName)] || {}; return { time: r.ReceivedAt, by: str_(r.ReceivedBy), receiver: str_(r.CreatedBy), id: str_(r.RequestID), batch: Number(r.Batch) || 0, reason: str_(r.Reason), photo: str_(r.Photo), item: str_(r.ItemName), qty: Number(r.Qty), requested: str_(r.ItemName), requestedQty: Number(old.RequestedQty) || 0, substitute: false, clinic: str_(q.Clinic), doctor: str_(q.Doctor), nurse: str_(q.Nurse), branch: str_(q.Branch), type: str_(q.Type) }; })).filter(function (x) { return !inPeriod || inPeriod(x.time); })
     .sort(function (a, b) { return toMs_(b.time) - toMs_(a.time); });
 }
 /** الطلبات المحمّلة الآن في بوكسات (لقياس مرحلة الوصول للفرع) */
@@ -3290,6 +3291,7 @@ function itemsOf_(requestId) {
 
 function mapItem_(r, batches) {
   return {
+    returnId: str_(r.ReturnID), originalBatch: Number(r.OriginalBatch) || 0,
     item: str_(r.ItemName), requestedQty: r.RequestedQty, approvedQty: r.ApprovedQty,
     receivedQty: r.ReceivedQty, dispatchedAt: r.DispatchedAt,
     itemStatus: str_(r.ItemStatus), itemStatusAt: r.ItemStatusAt,
@@ -3361,7 +3363,7 @@ function shipState_(req, rows) {
   const groups = {};
   // صنف حلّ محله بديل معتمد: لا يُرسل منه أكثر مما أُرسل فعلاً (حتى لو تغيّرت كميته المعتمدة لاحقاً) — لا يتكرر مع بديله
   const replaced = {};
-  rows.forEach(function (r) { if (str_(r.SubstituteOf) && str_(r.SubStatus) === SUB_ST.OK) replaced[str_(r.SubstituteOf)] = true; });
+  rows.forEach(function (r) { if (str_(r.SubstituteOf) && !str_(r.ReturnID) && str_(r.SubStatus) === SUB_ST.OK) replaced[str_(r.SubstituteOf)] = true; });
   const items = rows.map(function (r) {
     const it = mapItem_(r, b);
     let target = targetQty_(r);
@@ -3373,13 +3375,13 @@ function shipState_(req, rows) {
       });
     } else {
       let n = it.batch, at = it.dispatchedAt;
-      if (!n && whole) { n = extra || (extra = maxBatch + 1); at = req.sentAt; }
+      if (!n && whole && target > 0 && !str_(r.ReturnID)) { n = extra || (extra = maxBatch + 1); at = req.sentAt; }
       if (n) parts.push({ batch: n, qty: target, at: at, receivedQty: r.ReceivedQty, legacy: true });
     }
     parts.sort(function (x, y) { return x.batch - y.batch; });
     // أصناف رفضتها الممرضة عند الاستلام (غير مطابق / غير مرغوب) مع السبب والصورة
     it.rcvRejects = mine.filter(function (x) { return str_(x.RejectReason); })
-      .map(function (x) { return { batch: Number(x.Batch), reason: str_(x.RejectReason), photo: str_(x.RejectPhoto), qty: Number(x.Qty) || 0 }; });
+      .map(function (x) { return { batch: Number(x.Batch), reason: str_(x.RejectReason), photo: str_(x.RejectPhoto), qty: Number(x.Qty) || 0 }; }).concat(read_('RequestReturns').rows.filter(function (r) { return str_(r.RequestID) === req.id && str_(r.ItemName) === it.item && str_(r.Kind) === 'reject' && str_(r.Source) !== 'undispatched' && str_(r.Status) === 'received'; }).map(function (r) { return { batch: Number(r.Batch) || 0, reason: str_(r.Reason), photo: str_(r.Photo), qty: Number(r.Qty), approvedBy: str_(r.ReceivedBy) }; }));
     if (replaced[it.item] && !str_(r.SubstituteOf)) {
       target = Math.min(target, parts.reduce(function (a, p) { return a + (p.legacy ? 0 : p.qty); }, 0));
       it.replaced = true;
@@ -3390,7 +3392,7 @@ function shipState_(req, rows) {
       const g = groups[p.batch] || (groups[p.batch] = { batch: p.batch, sentAt: p.at, items: [] });
       if (!g.sentAt || (p.at && toMs_(p.at) < toMs_(g.sentAt))) g.sentAt = p.at;
       g.items.push({
-        item: it.item, qty: p.qty, target: target, requestedQty: it.requestedQty, approvedQty: it.approvedQty,
+        item: it.item, returnId: it.returnId, originalBatch: it.originalBatch, substituteOf: it.substituteOf, qty: p.qty, target: target, requestedQty: it.requestedQty, approvedQty: it.approvedQty,
         receivedQty: p.receivedQty === undefined || p.receivedQty === null ? '' : p.receivedQty
       });
     });
@@ -3437,6 +3439,7 @@ function shipState_(req, rows) {
  * يُحدّث تاريخ اكتمال الصنف في RequestItems عند إرسال كامل كميته.
  */
 function writeShipment_(req, rows, st, lines, user, now, boxPick) {
+  if (read_('RequestReturns').rows.some(function (r) { return str_(r.RequestID) === str_(req.id) && str_(r.Status) === 'pending' && str_(r.Source) === 'undispatched' && lines.some(function (l) { return l.name === str_(r.ItemName); }); })) throw new Error('ERR_RETURN_LOCKED');
   const batch = st.maxBatch + 1;
   const sh = sheet_('ShipmentItems');
   const vals = [headerRow_(sh)];
@@ -3537,6 +3540,7 @@ function exportRequestItems_(user, ids) {
  */
 function proposeSubstitute_(user, payload) {
   payload = payload || {};
+  if (payload.returnId) return proposeClaimSubstitute_(user, payload);
   const requestId = str_(payload.requestId), item = str_(payload.item), wanted = str_(payload.substitute);
   if (!requestId || !item || !wanted) throw new Error('ERR_REQUIRED');
   const cat = {};
@@ -3603,7 +3607,13 @@ function reviewSubstitute_(user, requestId, substitute, accept, reason) {
       const origRow = rows.filter(function (r) { return str_(r.ItemName) === of && str_(r.SubStatus) !== SUB_ST.NO; })[0];
       const orig = shipState_(req, rows).items.filter(function (i) { return i.item === of && i.subStatus !== SUB_ST.NO; })[0];
       const ups = [{ row: row, obj: { SubStatus: SUB_ST.OK, ApprovedQty: Number(row.RequestedQty) || 0 } }];
-      if (origRow && orig) ups.push({ row: origRow, obj: { ApprovedQty: orig.sentQty } });
+      if (str_(row.ReturnID)) {
+        const claim = read_('RequestReturns').rows.filter(function (x) { return str_(x.ReturnID) === str_(row.ReturnID); })[0];
+        if (!claim || str_(claim.Status) !== 'received' || Number(row.RequestedQty) > Number(claim.Qty)) throw new Error('ERR_CLAIM_APPROVAL_FIRST');
+        preserveReceivedLegs_(req);
+        if (req.status === ST.RECEIVED || (str_(claim.Source)==='undispatched' && str_(f.row.CancelReason)==='اعتماد رفض الأصناف')) setCells_(f.t, f.row, { Status: ST.PREP, ReceivedAt: '', ApprovedAt: f.row.ApprovedAt || new Date(), CancelReason:'', CancelledAt:'', CancelledBy:'' });
+      }
+      if (!str_(row.ReturnID) && origRow && orig) ups.push({ row: origRow, obj: { ApprovedQty: orig.sentQty } });
       setMany_(t, ups);
     } else {
       setMany_(t, [{ row: row, obj: { SubStatus: SUB_ST.NO, SubNote: [str_(row.SubNote), clean_(reason, 300) ? 'سبب الرفض: ' + clean_(reason, 300) : ''].filter(String).join(' · ') } }]);
@@ -3917,6 +3927,7 @@ function cancelRequests_(user, requestIds, reason) {
       if (!row) { result.skipped.push({ id: id, reason: 'ERR_NOT_FOUND' }); return; }
       const cur = str_(row.Status) || ST.NEW;
       if (CANCELLABLE_.indexOf(cur) === -1) { result.skipped.push({ id: id, from: cur, reason: 'ERR_BAD_TRANSITION' }); return; }
+      if (read_('RequestReturns').rows.some(function (r) { return str_(r.RequestID) === id && str_(r.Status) === 'pending'; })) { result.skipped.push({ id: id, reason: 'ERR_RETURN_LOCKED' }); return; }
       const req = mapRequest_(row);
       const st = shipState_(req, items.filter(function (r) { return str_(r.RequestID) === id; }));
       if (st.ships.length) { result.skipped.push({ id: id, from: cur, reason: 'ERR_HAS_SHIPMENTS' }); return; }
@@ -4203,6 +4214,7 @@ function settleRequest_(f, cur, user, why) {
  * الصنف المستلم لا يُحذف هنا (الأدمن فقط من «تصحيح الطلبات»).
  */
 function removeMyItems_(user, requestId, items, note) {
+  if (user.screen === 'nurse') return submitUnshippedRefusal_(user, requestId, Array.isArray(items) ? items : [items], note);
   requestId = str_(requestId);
   note = clean_(note, 500);
   items = (Array.isArray(items) ? items : [items]).map(str_).filter(String);
@@ -5019,23 +5031,26 @@ function receiveShipment_(user, requestId, batch, receivedItems, receiverName, s
     return st;
   });
   const lastOne = pre.allDispatched && pre.pending === 1;
-  // رفض صنف عند الاستلام: سبب + صورة إلزاميان (يُستلم صفر من هذا الصنف)
-  const rejects = {};
-  (receivedItems || []).forEach(function (it) {
-    if (!it || !it.reject) return;
-    const reason = clean_(it.reject.reason, 300);
-    if (!reason) throw new Error('ERR_REASON_REQUIRED');
-    if (!it.reject.photo) throw new Error('ERR_PHOTO_REQUIRED');
-    rejects[str_(it.name)] = { reason: reason, photo: it.reject.photo };
+  // A nurse files a claim; only procurement can finalize it. Support older clients too.
+  const rejects = {}, preShip = pre.ships.filter(function (g) { return g.batch === batch; })[0];
+  const replacementSignatureRequired = preShip.items.some(function (it) { return !!it.returnId; });
+  if (replacementSignatureRequired && !/^data:image\/png;base64,[A-Za-z0-9+/=]+$/.test(String(signatureDataUrl || ''))) throw new Error('ERR_SIGNATURE_REQUIRED');
+  receivedItems = (receivedItems || []).map(function (source) {
+    const it = Object.assign({}, source); if (!it.reject) return it;
+    const reason = clean_(it.reject.reason, 500); if (!reason) throw new Error('ERR_REASON_REQUIRED');
+    const sent = preShip.items.filter(function (x) { return x.item === str_(it.name); })[0]; if (!sent) throw new Error('ERR_NOT_FOUND');
+    rejects[str_(it.name)] = { reason: reason, photo: it.reject.photo || '' };
+    it.qty = Number(sent.qty); it.returnItem = { kind: 'reject', qty: Number(sent.qty), reason: reason }; delete it.reject; return it;
   });
 
   const tag = requestId + '-S' + batch;
   Object.keys(rejects).forEach(function (n, i) {
-    try { rejects[n].url = saveImage_(tag + '-reject-' + (i + 1), rejects[n].photo).url; } catch (e) { console.error(e); rejects[n].url = ''; }
+    try { if (rejects[n].photo) rejects[n].url = saveImage_(tag + '-reject-' + (i + 1), rejects[n].photo).url; } catch (e) { console.error(e); rejects[n].url = ''; }
     delete rejects[n].photo;
   });
   let sig = { url: '', id: '' }, receiptUrl = '', mergedUrl = '';
   try { if (signatureDataUrl) sig = saveImage_(tag + '-signature', signatureDataUrl); } catch (e) { console.error(e); }
+  if (replacementSignatureRequired && !sig.id) throw new Error('ERR_SIGNATURE_REQUIRED');
   try { if (receiptDataUrl) receiptUrl = saveImage_(tag + '-receipt', receiptDataUrl).url; } catch (e) { console.error(e); }
   try { if (lastOne && mergedReceiptDataUrl) mergedUrl = saveImage_(requestId + '-receipt-all', mergedReceiptDataUrl).url; } catch (e) { console.error(e); }
 
@@ -5047,8 +5062,9 @@ function receiveShipment_(user, requestId, batch, receivedItems, receiverName, s
     const ri = read_('RequestItems');
     const rows = ri.rows.filter(function (r) { return str_(r.RequestID) === req.id; });
     const ship = pendingShip_(req, shipState_(req, rows), batch);
-    const returnRows = [], returnSeen = {};
-    (receivedItems || []).forEach(function (x) { if (!x || !x.returnItem) return; if (returnSeen[str_(x.name)]) throw new Error('ERR_CONFLICT'); returnSeen[str_(x.name)] = true; if (x.reject) throw new Error('ERR_CONFLICT'); const sent = ship.items.filter(function (it) { return it.item === str_(x.name); })[0]; const q = Number(x.qty); if (!sent || !Number.isInteger(q) || q < 0 || q > Number(sent.qty === undefined ? sent.target : sent.qty)) throw new Error('ERR_BAD_QTY'); const raw = rows.filter(function (r) { return str_(r.ItemName) === str_(x.name); })[0]; returnRows.push(returnRow_(user, req, { item: x.name, qty: x.returnItem.qty, reason: x.returnItem.reason, batch: batch, clientKey: 'receipt:' + req.id + ':' + batch + ':' + x.name }, grossReceivedQty_(raw) + q)); });
+    const returnRows = [], returnSeen = {}, receiptNames = {};
+    (receivedItems || []).forEach(function (x) { const n = str_(x && x.name); if (receiptNames[n]) throw new Error('ERR_CONFLICT'); receiptNames[n] = true; });
+    (receivedItems || []).forEach(function (x) { if (!x || !x.returnItem) return; if (returnSeen[str_(x.name)]) throw new Error('ERR_CONFLICT'); returnSeen[str_(x.name)] = true; if (x.reject) throw new Error('ERR_CONFLICT'); const sent = ship.items.filter(function (it) { return it.item === str_(x.name); })[0]; const q = Number(x.qty); if (!sent || !Number.isInteger(q) || q < 0 || q > Number(sent.qty === undefined ? sent.target : sent.qty)) throw new Error('ERR_BAD_QTY'); const raw = rows.filter(function (r) { return str_(r.ItemName) === str_(x.name); })[0]; returnRows.push(returnRow_(user, req, { item: x.name, qty: x.returnItem.qty, reason: x.returnItem.reason, kind: x.returnItem.kind || 'return', batch: batch, clientKey: 'receipt:' + req.id + ':' + batch + ':' + x.name }, grossReceivedQty_(raw) + q)); });
     const now = new Date();
     append_('Shipments', {
       RequestID: req.id, Batch: batch, ReceivedAt: now, ReceiverName: receiverName, ReceivedBy: user.name,
@@ -5060,14 +5076,14 @@ function receiveShipment_(user, requestId, batch, receivedItems, receiverName, s
     const qty = {};
     (receivedItems || []).forEach(function (it) {
       const n = str_(it && it.name);
-      if (inShip[n]) qty[n] = rejects[n] ? 0 : Math.max(0, Math.floor(Number(it.qty) || 0));
+      if (inShip[n]) qty[n] = Math.max(0, Math.floor(Number(it.qty) || 0));
     });
     // المستلم فعلياً لكل صنف داخل هذه الشحنة، ثم مجموعه على الصنف في RequestItems
     const si = read_('ShipmentItems');
     const siRows = si.rows.filter(function (r) { return str_(r.RequestID) === req.id && Number(r.Batch) === batch && str_(r.ItemName) in qty; });
     setMany_(si, siRows.map(function (r) {
       const n = str_(r.ItemName), rj = rejects[n];
-      return { row: r, obj: rj ? { ReceivedQty: 0, RejectReason: rj.reason, RejectPhoto: rj.url } : { ReceivedQty: qty[n] } };
+      return { row: r, obj: { ReceivedQty: qty[n] } };
     }));
     delete MEMO_.sitems;
     const withSi = {};
@@ -5080,14 +5096,14 @@ function receiveShipment_(user, requestId, batch, receivedItems, receiverName, s
         .reduce(function (a, x) { return a + (Number(x.ReceivedQty) || 0); }, 0);
       return { row: r, obj: { ReceivedQty: total } };
     }));
-    returnRows.forEach(function (r) { append_('RequestReturns', r); logAction_(req.id, 'طلب إعادة للتموين عند الاستلام: ' + r.Qty + ' × ' + r.ItemName, user.name); });
+    returnRows.forEach(function (r) { if (rejects[r.ItemName]) r.Photo = rejects[r.ItemName].url || ''; append_('RequestReturns', r); logAction_(req.id, 'طلب إعادة للتموين عند الاستلام: ' + r.Qty + ' × ' + r.ItemName, user.name); });
     logAction_(req.id, 'استلام الشحنة ' + batch + ' وتوقيعها (' + ship.items.length + ' صنف)', receiverName + ' (' + user.name + ')');
     const rjNames = Object.keys(rejects).filter(function (n) { return inShip[n]; });
     if (rjNames.length) {
-      const msg = '⛔ رفضت الممرضة عند استلام الشحنة ' + batch + ': ' + rjNames.map(function (n) { return n + ' (' + rejects[n].reason + ')'; }).join('، ');
+      const msg = 'طلبت الممرضة مراجعة رفض عند استلام الشحنة ' + batch + ': ' + rjNames.map(function (n) { return n + ' (' + rejects[n].reason + ')'; }).join('، ');
       append_('Comments', { Timestamp: now, RequestID: req.id, Author: user.name, Role: user.role, Message: msg });
       logAction_(req.id, msg, user.name);
-      res = { rejected: rjNames, req: req };
+      res = { rejected: [], pendingIssues: rjNames, req: req };
     }
     try { unloadBox_(req.id, batch, user.name, 'استلام الممرضة'); } catch (e) { console.error('unloadBox_', e); }
 
@@ -5103,17 +5119,17 @@ function receiveShipment_(user, requestId, batch, receivedItems, receiverName, s
       logAction_(req.id, 'اكتمل استلام الطلب (' + after.ships.length + ' شحنة)' + (mergedUrl ? ' — إيصال موحّد بكل التواقيع' : ''), user.name);
     }
     res = {
-      rejected: res && res.rejected ? res.rejected : [], _req: req, _items: after.items,
+      rejected: [], pendingIssues: returnRows.map(function (r) { return { id: r.ReturnID, item: r.ItemName, qty: r.Qty, kind: r.Kind, reason: r.Reason }; }), _req: req, _items: after.items,
       complete: complete, batch: batch, pendingShipments: after.pending, notDispatched: after.total - after.dispatched, remainingQty: after.remainingQty,
       receiptUrl: receiptUrl, signatureUrl: sig.url, mergedReceiptUrl: complete ? (mergedUrl || receiptUrl) : ''
     };
   });
   // التموين والطبيب يعرفون فوراً بالصنف المرفوض وسببه
   const r0 = res._req;
-  const rjLines = function (ar) { return res.rejected.map(function (n) { return n + ': ' + rejects[n].reason + (rejects[n].url ? (ar ? ' — الصورة: ' : ' — photo: ') + rejects[n].url : ''); }); };
-  if (res.rejected.length) {
-    nk_('receipt_reject'); notifyProcurement_(r0.department, 'رفضت الممرضة صنفاً عند الاستلام - ' + requestId + ' · Item rejected at receipt', mailMsg_({ order: ['ar', 'en'], id: requestId, req: r0, step: 5, urgent: true,
-      ar: { title: 'رفضت الممرضة صنفاً عند الاستلام', lead: 'الشحنة ' + batch + ' — ' + user.name + ' فحصت الشحنة ورفضت ما يلي:', action: 'راجع السبب والصورة وعالج الصنف (بديل أو إرسال صحيح).', btn: 'افتح في التموين', lines: rjLines(true) },
+  const rjLines = function (ar) { return (res.pendingIssues || []).map(function (x) { return x.item + ' ×' + x.qty + ': ' + x.reason; }); };
+  if ((res.pendingIssues || []).length) {
+    nk_('receipt_reject'); notifyProcurement_(r0.department, 'طلب رفض أو استرجاع بانتظار التموين - ' + requestId + ' · Item rejected at receipt', mailMsg_({ order: ['ar', 'en'], id: requestId, req: r0, step: 5, urgent: true,
+      ar: { title: 'طلب رفض أو استرجاع بانتظار اعتمادك', lead: 'الشحنة ' + batch + ' — ' + user.name + ' طلبت مراجعة الأصناف التالية:', action: 'راجع السبب والصورة وعالج الصنف (بديل أو إرسال صحيح).', btn: 'افتح في التموين', lines: rjLines(true) },
       en: { title: 'The nurse rejected an item at receipt', lead: 'Shipment ' + batch + ': ' + user.name + ' checked it and rejected:', action: 'Check the reason and photo, then sort the item out (substitute or correct item).', btn: 'Open in procurement', lines: rjLines(false) } }));
   }
   // الطبيب: آخر مرحلة — استلمت الممرضة الطلب كاملاً ووقّعت (مع ما رُفض عند الاستلام إن وُجد)
@@ -5147,7 +5163,7 @@ function getShipmentSignatures_(user, requestId) {
   const g = guardSee_(user, requestId);
   const rec = receiptsIndex_()[g.req.id] || {};
   return Object.keys(rec).map(Number).sort(function (a, b) { return a - b; }).map(function (b) {
-    const id = str_(rec[b].SignatureFileID);
+    const id = str_(rec[b].SignatureFileID) || signatureId_(rec[b].SignatureURL);
     let data = '';
     if (id) {
       try { data = 'data:image/png;base64,' + Utilities.base64Encode(DriveApp.getFileById(id).getBlob().getBytes()); } catch (e) { console.error(e); }
@@ -5185,12 +5201,25 @@ function saveImage_(fileName, dataUrl) {
  * ===================================================================== */
 
 /* Request returns: physical receipt is independent of the original delivery. */
+function submitUnshippedRefusal_(user, requestId, items, note, payload) {
+  note=clean_(note,500);if(!note)throw new Error('ERR_REASON_REQUIRED');
+  return withLock_(function(){
+    resetMemo_();const g=guardSee_(user,requestId),req=g.req;if(!returnScope_(user,req))throw new Error('ERR_FORBIDDEN');if(isOff_(req.status)||req.status===ST.RECEIVED)throw new Error('ERR_BAD_TRANSITION');
+    const st=shipState_(req,itemsOf_(req.id)),existing=read_('RequestReturns').rows,planned=[],seen={};
+    (items||[]).forEach(function(input){const name=str_(typeof input==='string'?input:input.item);if(seen[name])return;seen[name]=true;const it=st.items.filter(function(x){return x.item===name;})[0];if(!it)throw new Error('ERR_NOT_FOUND');if(!it.remainingQty)throw new Error('ERR_ITEM_SENT');const q=typeof input==='object'&&input.qty!==undefined?Number(input.qty):it.remainingQty;if(!Number.isInteger(q)||q<1||q>it.remainingQty)throw new Error('ERR_RETURN_QTY');
+      const key=payload&&payload.clientKey||'unshipped:'+req.id+':'+name+':'+it.target+':'+it.sentQty,dup=existing.filter(function(r){return str_(r.ClientKey)===key;})[0];if(dup){if(str_(dup.RequestID)!==req.id||str_(dup.ItemName)!==name||Number(dup.Qty)!==q||str_(dup.Reason)!==note)throw new Error('ERR_CONFLICT');return;}
+      const held=existing.filter(function(r){return str_(r.RequestID)===req.id&&str_(r.ItemName)===name&&str_(r.Source)==='undispatched'&&str_(r.Status)==='pending';}).reduce(function(a,r){return a+Number(r.Qty);},0);if(q+held>it.remainingQty)throw new Error('ERR_RETURN_QTY');
+      planned.push({ReturnID:'RTN-'+Utilities.getUuid(),ClientKey:key,RequestID:req.id,ItemName:name,Qty:q,Batch:'',Kind:'reject',Source:'undispatched',Reason:note,CreatedAt:new Date(),CreatedBy:user.name,ReturnDate:riyadh_(Date.now()).slice(0,10),Backdated:false,Status:'pending'});
+    });if(!Object.keys(seen).length)throw new Error('ERR_NO_ITEMS');planned.forEach(function(r){append_('RequestReturns',r);logAction_(req.id,'طلب رفض قبل الإرسال بانتظار التموين: '+r.ItemName+' ×'+r.Qty+' — '+note,user.name);});return{changed:planned.length,pending:true};
+  });
+}
+
 function returnHistoryOpen_() { return isYes_(getSetting_('ReturnHistoryEnabled', 'لا')); }
 function returnScope_(user, req) { return canSee_(user, req) && inScope_(req.branch) && (user.screen !== 'procurement' || deptMatch_(userDept_(user), req.department)); }
 function returnQtyIndex_() {
   if (MEMO_.returnQty) return MEMO_.returnQty;
   const out = {};
-  read_('RequestReturns').rows.forEach(function (r) { if (str_(r.Status) === 'received') { const k = str_(r.RequestID) + '|' + str_(r.ItemName); out[k] = (out[k] || 0) + Number(r.Qty); } });
+  read_('RequestReturns').rows.forEach(function (r) { if (str_(r.Status) === 'received' && str_(r.Source) !== 'undispatched') { const k = str_(r.RequestID) + '|' + str_(r.ItemName); out[k] = (out[k] || 0) + Number(r.Qty); } });
   return (MEMO_.returnQty = out);
 }
 function grossReceivedQty_(r) { const n = num_(r.ReceivedQty); return isNaN(n) ? 0 : Math.max(0, Math.min(100000, Math.floor(n))); }
@@ -5199,6 +5228,7 @@ function guardNoReturns_(id, item) { if (read_('RequestReturns').rows.some(funct
 function returnRow_(user, req, p, gross) {
   p = p || {}; const item = clean_(p.item, 250), q = Number(p.qty), reason = clean_(p.reason, 500), key = clean_(p.clientKey, 300);
   if (!item || !key || !reason) throw new Error('ERR_REQUIRED');
+  if (p.kind && p.kind !== 'reject' && p.kind !== 'return') throw new Error('ERR_BAD_TRANSITION');
   if (!Number.isInteger(q) || q < 1 || q > 100000) throw new Error('ERR_BAD_QTY');
   if (isOff_(req.status)) throw new Error('ERR_BAD_TRANSITION');
   const c = getCatalog_(true).filter(function (x) { return x.name === item; })[0];
@@ -5208,40 +5238,51 @@ function returnRow_(user, req, p, gross) {
   const parsed = parseDay_(date);
   if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || !parsed || riyadh_(parsed.getTime()).slice(0, 10) !== date || date > today || date < ymdStr_(req.date)) throw new Error('ERR_BAD_DATE');
   if (date < today && !returnHistoryOpen_()) throw new Error('ERR_RETURN_HISTORY_CLOSED');
-  const reserved = read_('RequestReturns').rows.filter(function (r) { return str_(r.RequestID) === req.id && str_(r.ItemName) === item && /^(pending|received)$/.test(str_(r.Status)); }).reduce(function (a, r) { return a + Number(r.Qty); }, 0);
+  const reserved = read_('RequestReturns').rows.filter(function (r) { return str_(r.RequestID) === req.id && str_(r.ItemName) === item && str_(r.Source) !== 'undispatched' && /^(pending|received)$/.test(str_(r.Status)); }).reduce(function (a, r) { return a + Number(r.Qty); }, 0);
   if (q + reserved > (gross === undefined ? grossReceivedQty_(row) : gross)) throw new Error('ERR_RETURN_QTY');
+  if (gross === undefined && Number(p.batch)) { const ship = shipState_(req, itemsOf_(req.id)).ships.filter(function (g) { return g.batch === Number(p.batch) && g.received; })[0]; const line = ship && ship.items.filter(function (it) { return it.item === item; })[0]; if (!line) throw new Error('ERR_NOT_FOUND'); const held = read_('RequestReturns').rows.filter(function (r) { return str_(r.RequestID) === req.id && str_(r.ItemName) === item && Number(r.Batch) === Number(p.batch) && str_(r.Source) !== 'undispatched' && /^(pending|received)$/.test(str_(r.Status)); }).reduce(function (a, r) { return a + Number(r.Qty); }, 0); if (q + held > Number(line.receivedQty || 0)) throw new Error('ERR_RETURN_QTY'); }
   return { ReturnID: 'RTN-' + Utilities.getUuid(), ClientKey: key, RequestID: req.id, ItemName: item, Qty: q, Batch: Number(p.batch) || '', Reason: reason,
-    CreatedAt: new Date(), CreatedBy: user.name, ReturnDate: date, Backdated: date < today, Status: 'pending', ReceivedAt: '', ReceivedBy: '', Note: '' };
+    CreatedAt: new Date(), CreatedBy: user.name, ReturnDate: date, Backdated: date < today, Kind: p.kind === 'reject' ? 'reject' : 'return', Photo: '', Status: 'pending', ReceivedAt: '', ReceivedBy: '', Note: '' };
 }
 function getRequestReturns_(user, requestId) {
   const reqs = {}; requestRows_().map(mapRequest_).forEach(function (r) { if (returnScope_(user, r)) reqs[r.id] = r; });
   const prices = catalogPrices_();
   return read_('RequestReturns').rows.filter(function (r) { return reqs[str_(r.RequestID)] && (!requestId || str_(r.RequestID) === str_(requestId)); }).map(function (r) {
     const req = reqs[str_(r.RequestID)], out = { id: str_(r.ReturnID), request: req.id, item: str_(r.ItemName), qty: Number(r.Qty), batch: Number(r.Batch) || 0,
-      reason: str_(r.Reason), date: ymdStr_(r.ReturnDate), backdated: isYes_(r.Backdated), status: str_(r.Status), createdAt: r.CreatedAt, createdBy: str_(r.CreatedBy),
+      source: str_(r.Source), kind: str_(r.Kind) || 'return', photo: str_(r.Photo), reason: str_(r.Reason), date: ymdStr_(r.ReturnDate), backdated: isYes_(r.Backdated), status: str_(r.Status), createdAt: r.CreatedAt, createdBy: str_(r.CreatedBy),
+      substitutes: itemsOf_(req.id).filter(function (it) { return str_(it.ReturnID) === str_(r.ReturnID); }).map(function (it) { return { item: str_(it.ItemName), qty: Number(it.RequestedQty), status: str_(it.SubStatus), note: str_(it.SubNote), by: str_(it.SubBy), receivedQty: grossReceivedQty_(it), batch: Number(it.DispatchBatch) || 0, originalBatch: Number(it.OriginalBatch) || 0 }; }),
       receivedAt: r.ReceivedAt, receivedBy: str_(r.ReceivedBy), note: str_(r.Note), doctor: req.doctor, clinic: req.clinic, branch: req.branch };
     if (priceVisible_()) { out.unitPrice = prices[out.item.toLowerCase()] || 0; out.value = round2_(out.qty * out.unitPrice); }
     return out;
   }).sort(function (a, b) { return toMs_(b.createdAt) - toMs_(a.createdAt); });
 }
 function createRequestReturn_(user, requestId, p) {
+  if (p && p.source === 'undispatched') { if (p.kind !== 'reject') throw new Error('ERR_BAD_TRANSITION'); return submitUnshippedRefusal_(user, requestId, [{item:p.item,qty:p.qty}], p.reason, p); }
   return withLock_(function () {
     resetMemo_(); const req = guardSee_(user, requestId).req; if (!returnScope_(user, req)) throw new Error('ERR_FORBIDDEN');
     const existing = read_('RequestReturns').rows.filter(function (r) { return str_(r.ClientKey) === str_(p && p.clientKey); })[0];
-    if (existing) { if (str_(existing.CreatedBy) !== user.name || str_(existing.RequestID) !== req.id || str_(existing.ItemName) !== str_(p.item) || Number(existing.Qty) !== Number(p.qty) || str_(existing.Reason) !== str_(p.reason).trim()) throw new Error('ERR_CONFLICT'); return { id: existing.ReturnID, duplicate: true }; }
-    const row = returnRow_(user, req, p); append_('RequestReturns', row); logAction_(req.id, 'طلب إرجاع ' + row.Qty + ' × ' + row.ItemName + ' — ' + row.Reason, user.name);
+    if (existing) { if (str_(existing.CreatedBy) !== user.name || str_(existing.RequestID) !== req.id || str_(existing.ItemName) !== str_(p.item) || Number(existing.Qty) !== Number(p.qty) || str_(existing.Reason) !== str_(p.reason).trim() || (str_(existing.Kind) || 'return') !== (p.kind || 'return')) throw new Error('ERR_CONFLICT'); return { id: existing.ReturnID, duplicate: true }; }
+    const row = returnRow_(user, req, p); if (!row.Batch) { const parts = shipState_(req, itemsOf_(req.id)).items.filter(function (it) { return it.item === row.ItemName; })[0]; row.Batch = parts && parts.batch || ''; } append_('RequestReturns', row); logAction_(req.id, 'طلب إرجاع ' + row.Qty + ' × ' + row.ItemName + ' — ' + row.Reason, user.name);
     return { id: row.ReturnID };
   });
 }
 function receiveRequestReturn_(user, id, decision, note) {
   return withLock_(function () {
     resetMemo_(); const t = read_('RequestReturns'), row = t.rows.filter(function (r) { return str_(r.ReturnID) === str_(id); })[0]; if (!row) throw new Error('ERR_NOT_FOUND');
-    const req = guardSee_(user, str_(row.RequestID)).req; if (!returnScope_(user, req)) throw new Error('ERR_FORBIDDEN');
+    const g=guardSee_(user,str_(row.RequestID)),req=g.req; if (!returnScope_(user, req)) throw new Error('ERR_FORBIDDEN');
     if (decision !== 'received' && decision !== 'rejected') throw new Error('ERR_BAD_TRANSITION');
     if (str_(row.Status) === decision) return { id: id, duplicate: true };
     if (str_(row.Status) !== 'pending') throw new Error('ERR_CONFLICT');
     note = clean_(note, 500); if (decision === 'rejected' && !note) throw new Error('ERR_REASON_REQUIRED');
-    if (decision === 'received') { const it = itemsOf_(req.id).filter(function (r) { return str_(r.ItemName) === str_(row.ItemName); })[0]; if (!it || returnedQty_(it) + Number(row.Qty) > grossReceivedQty_(it)) throw new Error('ERR_RETURN_QTY'); }
+    if (decision === 'received' && str_(row.Source) === 'undispatched') {
+      if (isOff_(req.status)) throw new Error('ERR_BAD_TRANSITION');
+      const ri=read_('RequestItems'),raw=ri.rows.filter(function(r){return str_(r.RequestID)===req.id&&str_(r.ItemName)===str_(row.ItemName);})[0],live=shipState_(req,itemsOf_(req.id)).items.filter(function(it){return it.item===str_(row.ItemName);})[0];
+      if(!raw||!live||Number(row.Qty)>live.remainingQty)throw new Error('ERR_RETURN_QTY');
+      const next=live.target-Number(row.Qty),up={ApprovedQty:next};if(next===live.sentQty){up.RejectAt=new Date();up.RejectBy=user.name;up.RejectNote=str_(row.Reason);up.RejectQty=raw.ApprovedQty;}
+      setCells_(ri,raw,up);const after=shipState_(req,itemsOf_(req.id));
+      if(!after.sentQty&&!after.remainingQty)setCells_(g.f.t,g.f.row,{Status:ST.CANCELLED,CancelledAt:new Date(),CancelledBy:user.name,CancelReason:'اعتماد رفض الأصناف'});
+      else settleRequest_(g.f,str_(g.f.row.Status),user,'اعتماد طلب رفض الممرضة قبل الإرسال');
+    } else if (decision === 'received') { const it = itemsOf_(req.id).filter(function (r) { return str_(r.ItemName) === str_(row.ItemName); })[0]; if (!it || returnedQty_(it) + Number(row.Qty) > grossReceivedQty_(it)) throw new Error('ERR_RETURN_QTY'); }
     setCells_(t, row, { Status: decision, ReceivedAt: new Date(), ReceivedBy: user.name, Note: note }); delete MEMO_.returnQty;
     logAction_(req.id, (decision === 'received' ? 'استلام مرتجع وخصم كميته من صافي الحساب: ' : 'رفض طلب مرتجع: ') + row.ReturnID + ' — ' + row.Qty + ' × ' + row.ItemName + (note ? ' — ' + note : ''), user.name);
     return { id: id, status: decision };
@@ -5250,6 +5291,67 @@ function receiveRequestReturn_(user, id, decision, note) {
 function cancelRequestReturn_(user, id) {
   return withLock_(function () { resetMemo_(); const t = read_('RequestReturns'), row = t.rows.filter(function (r) { return str_(r.ReturnID) === str_(id); })[0]; if (!row) throw new Error('ERR_NOT_FOUND'); guardSee_(user, str_(row.RequestID));
     if (str_(row.CreatedBy) !== user.name || str_(row.Status) !== 'pending') throw new Error('ERR_CONFLICT'); setCells_(t, row, { Status: 'cancelled', Note: 'ألغته الممرضة', ReceivedAt: new Date(), ReceivedBy: user.name }); logAction_(str_(row.RequestID), 'إلغاء طلب مرتجع ' + id, user.name); return true; });
+}
+
+/** Preserve legacy signed delivery legs before reopening an order for a return replacement. */
+function signatureId_(url) {
+  const v = str_(url), local = /^\/files\/([A-Za-z0-9_-]+)(?:\?|$)/.exec(v), drive = /^https:\/\/drive\.google\.com\/file\/d\/([A-Za-z0-9_-]+)/.exec(v);
+  return local ? local[1] : drive ? drive[1] : '';
+}
+function preserveReceivedLegs_(req) {
+  if (req.status !== ST.RECEIVED) return;
+  const rows = itemsOf_(req.id), st = shipState_(req, rows), si = shipItemsIndex_()[req.id] || [], rec = receiptsIndex_()[req.id] || {};
+  st.ships.filter(function (s) { return s.received; }).forEach(function (s) {
+    s.items.forEach(function (it) {
+      if (si.some(function (x) { return str_(x.ItemName) === it.item; })) return;
+      append_('ShipmentItems', { RequestID: req.id, Batch: s.batch, ItemName: it.item, Qty: it.qty, DispatchedAt: s.sentAt || req.sentAt || req.date, DispatchedBy: '', ReceivedQty: it.receivedQty });
+    });
+    if (!rec[s.batch]) append_('Shipments', { RequestID: req.id, Batch: s.batch, ReceivedAt: s.receivedAt || req.receivedAt, ReceiverName: s.receiver || req.nurse, ReceivedBy: s.receiver || req.nurse, SignatureURL: s.signatureUrl, SignatureFileID: signatureId_(s.signatureUrl), ReceiptURL: s.receiptUrl });
+  });
+  delete MEMO_.sitems; delete MEMO_.rcpt;
+}
+/** Counts are separate from the original order status and never finalize a nurse's refusal. */
+function nurseClaimCounts_(id) {
+  if (!MEMO_.nurseClaims) {
+    const out = {};
+    read_('RequestReturns').rows.forEach(function (r) { const k = str_(r.RequestID), a = out[k] || (out[k] = { total: 0, pending: 0 }); a.total++; if (str_(r.Status) === 'pending') a.pending++; });
+    read_('RequestItems').rows.forEach(function (r) { if (str_(r.ReturnID) && str_(r.SubStatus) === SUB_ST.PENDING) { const k = str_(r.RequestID), a = out[k] || (out[k] = { total: 0, pending: 0 }); a.pending++; } });
+    MEMO_.nurseClaims = out;
+  }
+  return MEMO_.nurseClaims[str_(id)] || { total: 0, pending: 0 };
+}
+function proposeClaimSubstitute_(user, payload) {
+  let result;
+  withLock_(function () {
+    resetMemo_();
+    const claim = read_('RequestReturns').rows.filter(function (r) { return str_(r.ReturnID) === str_(payload.returnId); })[0]; if (!claim) throw new Error('ERR_NOT_FOUND');
+    const g = guardSee_(user, str_(claim.RequestID)), req = g.req;
+    if (!returnScope_(user, req)) throw new Error('ERR_FORBIDDEN');
+    if (str_(claim.Status) !== 'received') throw new Error('ERR_CLAIM_APPROVAL_FIRST');
+    if (isOff_(req.status) && !(str_(claim.Source) === 'undispatched' && str_(g.f.row.CancelReason) === 'اعتماد رفض الأصناف')) throw new Error('ERR_BAD_TRANSITION');
+    if (payload.requestId && str_(payload.requestId) !== req.id) throw new Error('ERR_CONFLICT');
+    const cat = getCatalog_(false), proposed = cat.filter(function (c) { return c.name.toLowerCase() === str_(payload.substitute).toLowerCase() && !c.asset && !c.freePending; })[0];
+    if (!proposed) throw new Error('ERR_UNKNOWN_ITEM');
+    if (proposed.name.toLowerCase() === str_(claim.ItemName).toLowerCase()) throw new Error('ERR_SUB_SAME');
+    const t = read_('RequestItems'), rows = t.rows.filter(function (r) { return str_(r.RequestID) === req.id; });
+    const previous = rows.filter(function (r) { return str_(r.ReturnID) === str_(claim.ReturnID); });
+    if (previous.some(function (r) { return str_(r.SubStatus) === SUB_ST.PENDING || str_(r.SubStatus) === SUB_ST.OK; })) throw new Error('ERR_SUB_PENDING');
+    const duplicate = rows.filter(function (r) { return str_(r.ItemName).toLowerCase() === proposed.name.toLowerCase(); })[0];
+    if (duplicate && (str_(duplicate.ReturnID) !== str_(claim.ReturnID) || str_(duplicate.SubStatus) !== SUB_ST.NO || duplicate.DispatchedAt)) throw new Error('ERR_SUB_EXISTS');
+    const qty = Number(payload.qty === undefined || payload.qty === '' ? claim.Qty : payload.qty);
+    if (!Number.isInteger(qty) || qty < 1 || qty > Number(claim.Qty)) throw new Error('ERR_RETURN_QTY');
+    if (req.doctor && !doctorHasAccount_(req.doctor)) throw new Error('ERR_NO_DOCTOR_ACCOUNT');
+    const auto = !req.doctor, note = clean_(payload.note, 500), now = new Date();
+    // Pending return substitutes must not become phantom legacy delivered items.
+    const value = { RequestID: req.id, ItemName: proposed.name, RequestedQty: qty, ApprovedQty: auto ? qty : '', ReceivedQty: '', DispatchedAt: '', DispatchBatch: '', SubstituteOf: str_(claim.ItemName), SubStatus: auto ? SUB_ST.OK : SUB_ST.PENDING, SubNote: (str_(claim.Kind) === 'reject' ? 'رفض الصنف: ' : 'استرجاع الصنف: ') + str_(claim.Reason) + (note ? ' · اقتراح التموين: ' + note : ''), SubBy: user.name, SubAt: now, ReturnID: str_(claim.ReturnID), OriginalBatch: Number(claim.Batch) || 0 };
+    if (auto) preserveReceivedLegs_(req);
+    if (duplicate) setCells_(t, duplicate, value); else append_('RequestItems', value);
+    if (auto && (req.status === ST.RECEIVED || isOff_(req.status))) setCells_(g.f.t, g.f.row, { Status: ST.PREP, ReceivedAt: '', CancelReason:'', CancelledAt:'', CancelledBy:'' });
+    logAction_(req.id, 'اقتراح بديل لطلب ' + str_(claim.Kind || 'return') + ' ' + claim.ReturnID + ': ' + claim.ItemName + ' ← ' + proposed.name + ' ×' + qty + ' — ' + note, user.name);
+    result = { status: auto ? SUB_ST.OK : SUB_ST.PENDING, req: req, item: proposed.name, qty: qty, auto: auto };
+  });
+  if (!result.auto) { nk_('substitute'); notifyUser_(doctorAccounts_()[result.req.doctor], 'بديل بعد رفض أو استرجاع بانتظار موافقتك - ' + result.req.id, mailMsg_({ id: result.req.id, req: result.req, step: 2, ar: { title: 'التموين يقترح بديلًا', lead: result.item + ' ×' + result.qty, action: 'راجع طلب الرفض أو الاسترجاع ووافق على البديل أو ارفضه. لن يُرسل البديل قبل موافقتك.', btn: 'افتح الطلب' }, en: { title: 'Replacement awaiting your approval', lead: result.item + ' ×' + result.qty, action: 'Review the return/refusal and decide. The replacement cannot ship before approval.', btn: 'Open request' } })); }
+  return { status: result.status };
 }
 
 function getRequestDetail_(user, requestId) {
@@ -5271,7 +5373,8 @@ function getRequestDetail_(user, requestId) {
     return it;
   });
   req.returns = getRequestReturns_(user, requestId);
-  req.returnable = st.items.map(function (it) { const raw = itemsOf_(req.id).filter(function (r) { return str_(r.ItemName) === it.item; })[0]; const reserved = read_('RequestReturns').rows.filter(function (r) { return str_(r.RequestID) === req.id && str_(r.ItemName) === it.item && /^(pending|received)$/.test(str_(r.Status)); }).reduce(function (a, r) { return a + Number(r.Qty); }, 0); const c = getCatalog_(true).filter(function (c) { return c.name === it.item; })[0]; return { item: it.item, qty: c && !c.asset && raw ? Math.max(0, grossReceivedQty_(raw) - reserved) : 0 }; });
+  req.returnable = st.items.map(function (it) { const raw = itemsOf_(req.id).filter(function (r) { return str_(r.ItemName) === it.item; })[0]; const reserved = read_('RequestReturns').rows.filter(function (r) { return str_(r.RequestID) === req.id && str_(r.ItemName) === it.item && str_(r.Source) !== 'undispatched' && /^(pending|received)$/.test(str_(r.Status)); }).reduce(function (a, r) { return a + Number(r.Qty); }, 0); const c = getCatalog_(true).filter(function (c) { return c.name === it.item; })[0]; return { item: it.item, qty: c && !c.asset && raw ? Math.max(0, grossReceivedQty_(raw) - reserved) : 0 }; });
+  req.returnable.forEach(function (entry) { entry.batches = st.ships.filter(function (g) { return g.received; }).map(function (g) { const line = g.items.filter(function (it) { return it.item === entry.item; })[0]; const held = read_('RequestReturns').rows.filter(function (r) { return str_(r.RequestID) === req.id && str_(r.ItemName) === entry.item && Number(r.Batch) === g.batch && str_(r.Source) !== 'undispatched' && /^(pending|received)$/.test(str_(r.Status)); }).reduce(function (a, r) { return a + Number(r.Qty); }, 0); return { batch: g.batch, qty: line ? Math.min(entry.qty, Math.max(0, Number(line.receivedQty || 0) - held)) : 0 }; }).filter(function (x) { return x.qty > 0; }); });
   req.comments = comments_(requestId);
   req.kpi = kpi_(req);
   req.reversals = read_('Reversals').rows.filter(function (r) { return str_(r.RequestID) === req.id; })
