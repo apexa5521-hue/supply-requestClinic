@@ -693,6 +693,7 @@ const API_ = {
   bulkUpdateStatus:          { screens: ['procurement'], fn: bulkUpdateStatus_ },
   cancelRequests:            { screens: ['procurement'], fn: cancelRequests_ },
   getDoctorRequests:         { screens: ['doctor', 'branch'], fn: getDoctorRequests_ },
+  getDoctorReviewContext:    { screens: ['doctor', 'procurement'].concat(MGMT), fn: function (user, id) { return { priceAccess: priceVisible_() ? 'all' : 'none', items: getRequestItemsWithCatalog_(user, id) }; } },
   getRequestItemsWithCatalog:{ screens: ['doctor', 'procurement'].concat(MGMT), fn: getRequestItemsWithCatalog_ },
   doctorReview:              { screens: ['doctor', 'branch'], fn: doctorReview_ },
   getRequestItems:           { screens: ALL, fn: getRequestItemsApi_ },
@@ -3718,7 +3719,7 @@ function getRequestItemsWithCatalog_(user, requestId) {
     const c = cat[it.item.toLowerCase()] || {};
     it.commercial = c.commercial || '';
     it.category = c.category || '';
-    if (c.priceHidden) it.priceHidden = true; else it.price = c.price || 0;
+    if (!priceVisible_() || c.priceHidden) it.priceHidden = true; else it.price = c.price || 0;
     it.notes = noteMap[it.item] || [];
     return it;
   });
