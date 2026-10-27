@@ -3113,7 +3113,8 @@ function openReceive(id) {
     const sigData = sig.hasInk() ? sig.toDataURL() : '';
     const section = { batch: ship.batch, items: ship.items.map((it, i) => ({ item: it.item, sent: sentQty(it), got: got[i] })), receiver: name, at: new Date(), sig: sig.hasInk() ? sig.canvas : null };
     const rid = id + (d.branch ? ' · \u2068' + d.branch + '\u2069' : ''); // عزل اتجاه النص العربي داخل سطر لاتيني
-    const receipt = drawReceipt(rid, [section], false);
+    const receiptMeta = { branch: d.branch, clinic: d.clinic, doctor: d.doctor, nurse: d.nurse };
+    const receipt = drawReceipt(rid, [section], false, receiptMeta);
     const b = $('#rOk', m.el); busy(b, true, t('sending'));
     const merged = !last ? Promise.resolve('') : call('getShipmentSignatures', id)
       .then(list => Promise.all(d.shipments.map(g => {
@@ -3124,7 +3125,7 @@ function openReceive(id) {
           receiver: g.receiver, at: g.receivedAt, sig: img
         }));
       })))
-      .then(sections => drawReceipt(rid, sections, true))
+      .then(sections => drawReceipt(rid, sections, true, receiptMeta))
       .catch(() => '');
     merged.then(mr => call('receiveShipment', id, ship.batch, rec, name, sigData, receipt, mr)).then(res => {
       closeModal(m);
@@ -3190,57 +3191,109 @@ function signaturePad(canvas, wrap) {
   return { clear: setup, hasInk: () => ink, toDataURL: () => canvas.toDataURL('image/png'), canvas: canvas };
 }
 /* صورة إيصال: قسم لكل شحنة (أصنافها + المستلم + التوقيع). combined = الإيصال الموحّد للطلب المكتمل */
-function drawReceipt(id, sections, combined) {
+function drawReceipt(id, sections, combined, details) {
   try {
-    const rowH = 28, W = 680, sigH = 90;
-    const secH = s => 34 + rowH + s.items.length * rowH + 30 + sigH + 40;
-    const H = 96 + sections.reduce((h, s) => h + secH(s), 0) + 16;
+    const meta = details || {};
+    const W = 860, rowH = 33, sigH = 138, side = 26;
+    const has = v => v !== undefined && v !== null && String(v).trim() !== '';
+    const value = v => has(v) ? String(v) : '—';
+    const lines = [];
+    if (has(meta.branch)) lines.push(['Branch / الفرع', meta.branch]);
+    if (has(meta.clinic)) lines.push(['Clinic / العيادة', meta.clinic]);
+    if (has(meta.doctor)) lines.push(['Doctor / الطبيب', meta.doctor]);
+    // The nurse who submitted the request and the nurse who signed may differ.
+    if (has(meta.nurse)) lines.push(['Request nurse / ممرضة الطلب', meta.nurse]);
+    const metaH = lines.length ? 18 + lines.length * 30 : 0;
+    const secH = s => 50 + rowH + s.items.length * rowH + 72 + sigH + 42;
+    const H = 112 + metaH + sections.reduce((h, s) => h + secH(s), 0) + 25;
     const c = document.createElement('canvas'); c.width = W; c.height = H;
     const x = c.getContext('2d');
     const when = v => { const d = toDate(v) || new Date(); return intl('d', 'stamp', 'en-GB').format(d); };
+    const rtl = v => /[\u0600-\u06ff]/.test(String(v));
+    const field = (label, text, py) => {
+      x.textAlign = 'left'; x.direction = 'ltr'; x.font = 'bold 15px Arial, sans-serif'; x.fillStyle = '#3b4d5b';
+      x.fillText(label, 32, py);
+      x.font = '15px Arial, sans-serif'; x.fillStyle = '#172c40';
+      x.direction = rtl(text) ? 'rtl' : 'ltr';
+      x.textAlign = rtl(text) ? 'right' : 'left';
+      x.fillText(value(text), rtl(text) ? W - 32 : 270, py, rtl(text) ? W - 300 : W - 310);
+      x.direction = 'ltr';
+    };
     x.fillStyle = '#fff'; x.fillRect(0, 0, W, H);
     x.fillStyle = '#3d8fc8'; x.fillRect(0, 0, W, 10);
-    // client company logo (from #companyLogo in Index.html), top-left of the receipt
     const lg = $('#companyLogo');
-    if (lg && lg.getAttribute('src') && lg.complete && lg.naturalWidth) x.drawImage(lg, 20, 18, 120, Math.round(120 * lg.naturalHeight / lg.naturalWidth));
-    x.textAlign = 'center'; x.fillStyle = '#3d8fc8'; x.font = 'bold 21px Arial, sans-serif';
-    x.fillText('MasarX (مسار اكس) · ' + (combined ? 'Combined receipt' : 'Receipt'), W / 2, 44);
-    x.fillStyle = '#555'; x.font = '13px Arial, sans-serif';
-    x.fillText(id + '   |   ' + when() + (combined ? '   |   ' + sections.length + ' shipment(s)' : ''), W / 2, 68);
-    let y = 92;
+    if (lg && lg.getAttribute('src') && lg.complete && lg.naturalWidth) x.drawImage(lg, 24, 20, 140, Math.round(140 * lg.naturalHeight / lg.naturalWidth));
+    x.textAlign = 'center'; x.direction = 'ltr'; x.fillStyle = '#237cad'; x.font = 'bold 21px Arial, sans-serif';
+    x.fillText('MasarX · ' + (combined ? 'Combined receipt' : 'Shipment receipt'), W / 2 + 40, 45);
+    x.fillStyle = '#536271'; x.font = '14px Arial, sans-serif';
+    x.fillText(String(id) + '   |   ' + when() + (combined ? '   |   ' + sections.length + ' shipment(s)' : ''), W / 2 + 40, 72, W - 220);
+    let y = 106;
+    if (lines.length) {
+      x.fillStyle = '#f2f7fa'; x.fillRect(side, y - 7, W - side * 2, metaH);
+      lines.forEach(([label, val], i) => field(label, val, y + 17 + i * 30));
+      y += metaH + 8;
+    }
     sections.forEach(s => {
-      x.fillStyle = '#3d8fc8'; x.font = 'bold 15px Arial, sans-serif'; x.textAlign = 'left';
-      x.fillText('Shipment #' + s.batch, 20, y + 20);
-      x.fillStyle = '#777'; x.font = '12px Arial, sans-serif'; x.textAlign = 'right';
-      x.fillText('Received ' + when(s.at), W - 20, y + 20);
-      y += 34;
-      x.fillStyle = '#e8f4f0'; x.fillRect(20, y, W - 40, rowH);
-      x.fillStyle = '#3d8fc8'; x.font = 'bold 13px Arial, sans-serif';
-      x.textAlign = 'left'; x.fillText('Item', 30, y + 19);
-      x.textAlign = 'center'; x.fillText('Sent', W - 170, y + 19); x.fillText('Received', W - 70, y + 19);
+      x.fillStyle = '#267fab'; x.font = 'bold 17px Arial, sans-serif'; x.textAlign = 'left';
+      x.fillText('Shipment #' + s.batch, side, y + 23);
+      x.fillStyle = '#64717a'; x.font = '13px Arial, sans-serif'; x.textAlign = 'right';
+      x.fillText('Received ' + when(s.at), W - side, y + 23);
+      y += 50;
+      x.fillStyle = '#e8f4f0'; x.fillRect(side, y, W - side * 2, rowH);
+      x.fillStyle = '#237cad'; x.font = 'bold 14px Arial, sans-serif';
+      x.textAlign = 'left'; x.fillText('Item', side + 12, y + 22);
+      x.textAlign = 'center'; x.fillText('Sent', W - 190, y + 22); x.fillText('Received', W - 78, y + 22);
       y += rowH;
       s.items.forEach((it, i) => {
-        x.fillStyle = i % 2 ? '#fff' : '#fafafa'; x.fillRect(20, y, W - 40, rowH);
-        x.strokeStyle = '#e5e9e7'; x.strokeRect(20, y, W - 40, rowH);
-        x.fillStyle = '#222'; x.font = '13px Arial, sans-serif';
-        x.textAlign = 'left'; x.direction = /[؀-ۿ]/.test(it.item) ? 'rtl' : 'ltr';
-        if (x.direction === 'rtl') { x.textAlign = 'right'; x.fillText(String(it.item), W - 230, y + 19, 400); } else x.fillText(String(it.item), 30, y + 19, 440);
+        x.fillStyle = i % 2 ? '#fff' : '#fafafa'; x.fillRect(side, y, W - side * 2, rowH);
+        x.strokeStyle = '#e5e9e7'; x.strokeRect(side, y, W - side * 2, rowH);
+        x.fillStyle = '#222'; x.font = '14px Arial, sans-serif';
+        x.direction = rtl(it.item) ? 'rtl' : 'ltr';
+        x.textAlign = rtl(it.item) ? 'right' : 'left';
+        x.fillText(String(it.item), rtl(it.item) ? W - 280 : side + 12, y + 22, W - 330);
         x.direction = 'ltr'; x.textAlign = 'center';
-        x.fillText(String(it.sent), W - 170, y + 19);
+        x.fillText(String(it.sent), W - 190, y + 22);
         x.fillStyle = it.got !== '' && Number(it.got) < Number(it.sent) ? '#c93a3a' : '#222';
-        x.fillText(String(it.got === '' ? '—' : it.got), W - 70, y + 19);
+        x.fillText(String(it.got === '' ? '—' : it.got), W - 78, y + 22);
         y += rowH;
       });
-      y += 22;
-      x.fillStyle = '#333'; x.font = 'bold 13px Arial, sans-serif'; x.textAlign = 'left';
-      x.fillText('Receiver: ', 30, y);
-      x.font = '13px Arial, sans-serif'; x.fillText(String(s.receiver || '—'), 100, y);
-      y += 8;
-      x.strokeStyle = '#d8dfdb'; x.strokeRect(30, y, 240, sigH);
-      if (s.sig) x.drawImage(s.sig, 30, y, 240, sigH);
-      x.fillStyle = '#888'; x.font = '11px Arial, sans-serif'; x.fillText(s.sig ? 'Signature' : 'No signature', 30, y + sigH + 16);
-      y += sigH + 32;
-      if (combined) { x.strokeStyle = '#e5e9e7'; x.beginPath(); x.moveTo(20, y - 8); x.lineTo(W - 20, y - 8); x.stroke(); }
+      y += 20;
+      field('Received by / المستلمة', s.receiver, y + 18);
+      y += 44;
+      const sigX = side + 8, sigY = y, sigW = 440;
+      x.fillStyle = '#fff'; x.fillRect(sigX, sigY, sigW, sigH);
+      x.strokeStyle = '#b7cbd7'; x.lineWidth = 1.5; x.strokeRect(sigX, sigY, sigW, sigH);
+      if (s.sig) {
+        // Trim empty signature-pad margins so short signatures remain large and legible.
+        try {
+          const sw = s.sig.naturalWidth || s.sig.width, sh = s.sig.naturalHeight || s.sig.height;
+          const sample = document.createElement('canvas'); sample.width = sw; sample.height = sh;
+          const sc = sample.getContext('2d', { willReadFrequently: true });
+          sc.drawImage(s.sig, 0, 0, sw, sh);
+          const pixels = sc.getImageData(0, 0, sw, sh).data;
+          let minX = sw, minY = sh, maxX = -1, maxY = -1;
+          for (let py = 0; py < sh; py += 2) for (let px = 0; px < sw; px += 2) {
+            const k = (py * sw + px) * 4;
+            if (pixels[k + 3] > 70 && pixels[k] < 155 && pixels[k + 1] < 155 && pixels[k + 2] < 155) {
+              minX = Math.min(minX, px); maxX = Math.max(maxX, px);
+              minY = Math.min(minY, py); maxY = Math.max(maxY, py);
+            }
+          }
+          if (maxX >= minX && maxY >= minY) {
+            const pad = 10;
+            minX = Math.max(0, minX - pad); minY = Math.max(0, minY - pad);
+            maxX = Math.min(sw, maxX + pad); maxY = Math.min(sh, maxY + pad);
+            const cw = Math.max(1, maxX - minX), ch = Math.max(1, maxY - minY);
+            const scale = Math.min((sigW - 32) / cw, (sigH - 22) / ch, 4);
+            const dw = cw * scale, dh = ch * scale;
+            x.drawImage(s.sig, minX, minY, cw, ch, sigX + (sigW - dw) / 2, sigY + (sigH - dh) / 2, dw, dh);
+          } else x.drawImage(s.sig, sigX + 12, sigY + 12, sigW - 24, sigH - 24);
+        } catch (e) { x.drawImage(s.sig, sigX + 12, sigY + 12, sigW - 24, sigH - 24); }
+      }
+      x.fillStyle = '#596e7b'; x.font = '13px Arial, sans-serif'; x.direction = 'ltr'; x.textAlign = 'left';
+      x.fillText(s.sig ? 'Receiver signature / توقيع المستلمة' : 'No signature / لا يوجد توقيع', sigX, sigY + sigH + 21);
+      y += sigH + 42;
+      if (combined) { x.strokeStyle = '#e5e9e7'; x.beginPath(); x.moveTo(side, y - 8); x.lineTo(W - side, y - 8); x.stroke(); }
     });
     x.fillStyle = '#3d8fc8'; x.fillRect(0, H - 8, W, 8);
     return c.toDataURL('image/png');
