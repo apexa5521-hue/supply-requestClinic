@@ -2213,6 +2213,7 @@ function log(msg) { console.log('  ✔ ' + msg); }
     for (const v of views) {
       await m.evaluate(v => go(v), v);
       await m.waitForTimeout(900);
+      await m.evaluate(() => document.querySelectorAll('#view details.mx-advanced').forEach(d => { d.open = true; })); // الأقسام المطوية تُفحص مفتوحة
       await shot(m, 'mobile-' + name + '-' + v, true);
       await mCheck(m, name + ' / ' + v);
     }
