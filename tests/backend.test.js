@@ -2908,7 +2908,7 @@ test('settings in the app: admin edits clinics, labs, lists, keys, survey; finan
   const a = login('المدير', '1234'), f = login('نواف', '7777'), p = login('علي', '3333');
   let st = api(a, 'getSettingsAdmin');
   assert.ok(st.clinics.length && st.labs.length && st.workTypes.length && st.materials.length && st.questions.length);
-  assert.deepEqual(Object.keys(st.keys).sort(), ['AppUrl', 'BackdateUntil', 'DriverEmail', 'IteroLab', 'LabTurnaroundDays', 'SurveyEnabled', 'SurveyEveryDays', 'SurveyOpenDays', 'SurveyStart'].sort());
+  assert.deepEqual(Object.keys(st.keys).sort(), ['AppUrl', 'BackdateUntil', 'DriverEmail', 'IteroLab', 'LabTurnaroundDays', 'ReturnHistoryEnabled', 'SurveyEnabled', 'SurveyEveryDays', 'SurveyOpenDays', 'SurveyStart'].sort());
   // finance: only the backdate key
   assert.deepEqual(Object.keys(api(f, 'getSettingsAdmin').keys), ['BackdateUntil']);
   throwsCode(() => api(f, 'saveSettingKeys', { DriverEmail: 'x@y.com' }), 'ERR_FORBIDDEN');
@@ -3853,4 +3853,72 @@ test('calendar picker preserves date/month boundaries and leap years', () => {
   assert.equal(ctx.mxdAllowed('2026-11', '', '2026-10'), false);
   assert.equal(ctx.mxdMonthAllowed('2026-10', '2026-10-27', ''), true);
   assert.equal(ctx.mxdMonthAllowed('2026-09', '2026-10-27', ''), false);
+});
+
+function returnFixture() {
+  const g=boot(gas=>{
+    const at=new Date(Date.now()-10*864e5);
+    gas.seed('Requests',['RequestID','Date','Clinic','Doctor','Nurse','Type','Status','SubmittedAt','SentAt','ReceivedAt'],[['RET-1',at,'عيادة الأسنان 1','د. خالد','سارة','شهري','تم الاستلام',at,at,at]]);
+    gas.seed('RequestItems',['RequestID','ItemName','RequestedQty','ApprovedQty','ReceivedQty','DispatchedAt'],[['RET-1','PROPHY PASTE',4,4,4,at],['RET-1','Handpiece Low Speed',1,1,1,at]]);
+  });
+  return Object.assign(g,{n:g.login('سارة','1111'),p:g.login('علي','3333'),a:g.login('المدير','1234'),d:g.login('د. خالد','4444'),f:g.login('نواف','7777'),other:g.login('ريم','2222')});
+}
+test('returns: reserve pending quantity; credit once only after physical procurement receipt',()=>{
+ const {api,n,p,a,d,f,other}=returnFixture();
+ const payload={item:'PROPHY PASTE',qty:2,reason:'صنف غير المطلوب',clientKey:'return-test-1'};
+ assert.equal(api(f,'getFinance',{}).summary.received,240);
+ const r=api(n,'createRequestReturn','RET-1',payload);
+ assert.equal(api(f,'getFinance',{}).summary.received,240,'pending return never credits');
+ assert.equal(api(n,'createRequestReturn','RET-1',payload).duplicate,true);
+ throwsCode(()=>api(n,'createRequestReturn','RET-1',{...payload,qty:3,clientKey:'return-over'}),'ERR_RETURN_QTY');
+ throwsCode(()=>api(other,'createRequestReturn','RET-1',payload),'ERR_FORBIDDEN');
+ throwsCode(()=>api(n,'receiveRequestReturn',r.id,'received',''),'ERR_FORBIDDEN');
+ throwsCode(()=>api(a,'adminDeleteRequest','RET-1','delete old'),'ERR_RETURN_LOCKED');
+ api(p,'receiveRequestReturn',r.id,'received','استلمت الكمية كاملة');
+ assert.equal(api(p,'receiveRequestReturn',r.id,'received','').duplicate,true);
+ let fin=api(f,'getFinance',{}); assert.equal(fin.summary.received,120);assert.equal(fin.summary.returned,120);assert.equal(fin.summary.receivedGross,240);
+ assert.equal(fin.billing.find(x=>x.name==='د. خالد').value,120);
+ const rep=api(d,'getDoctorReport',{});assert.equal(rep.summary.total,120);
+ assert.equal(api(n,'getRequestDetail','RET-1').items.find(x=>x.item==='PROPHY PASTE').receivedQty,4,'original receipt stays intact');
+ api(f,'setItemPrice','PROPHY PASTE',100);
+ fin=api(f,'getFinance',{});assert.equal(fin.summary.received,200);assert.equal(fin.summary.returned,200,'same current catalogue pricing on both sides');
+ api(a,'setDoctorPriceAccess','د. خالد',false);
+ const hidden=api(d,'getRequestReturns');assert.equal(hidden[0].value,undefined);assert.equal(hidden[0].unitPrice,undefined);
+ api(a,'setDoctorPriceAccess','د. خالد',true);assert.equal(api(d,'getRequestReturns')[0].value,200,'price grant applies to past returns too');
+});
+test('returns: historical gate, rejection, cancellation, and invalid quantities',()=>{
+ const {api,n,p,a}=returnFixture();const old=new Date(Date.now()-5*864e5);const day=new Date(+old+3*36e5).toISOString().slice(0,10);
+ const base={item:'PROPHY PASTE',qty:1,reason:'سبق إرجاعه بالتفاهم',clientKey:'old-return',date:day};
+ assert.equal(api(a,'getSettingsAdmin').keys.ReturnHistoryEnabled,'لا');
+ throwsCode(()=>api(n,'createRequestReturn','RET-1',base),'ERR_RETURN_HISTORY_CLOSED');
+ api(a,'saveSettingKeys',{ReturnHistoryEnabled:'نعم'});
+ const r=api(n,'createRequestReturn','RET-1',base);api(a,'saveSettingKeys',{ReturnHistoryEnabled:'لا'});
+ throwsCode(()=>api(n,'createRequestReturn','RET-1',{...base,clientKey:'old-after-close'}),'ERR_RETURN_HISTORY_CLOSED');
+ throwsCode(()=>api(p,'receiveRequestReturn',r.id,'rejected',''),'ERR_REASON_REQUIRED');
+ api(p,'receiveRequestReturn',r.id,'rejected','لم يصل الصنف');
+ const next=api(n,'createRequestReturn','RET-1',{...base,date:'',clientKey:'next',qty:4});api(n,'cancelRequestReturn',next.id);
+ const fresh=api(n,'createRequestReturn','RET-1',{...base,date:'',clientKey:'fresh',qty:4});assert.ok(fresh.id);
+ throwsCode(()=>api(n,'createRequestReturn','RET-1',{...base,date:'',clientKey:'asset',item:'Handpiece Low Speed'}),'ERR_RETURN_CONSUMABLE');
+ throwsCode(()=>api(n,'createRequestReturn','RET-1',{...base,date:'',clientKey:'decimal',qty:1.5}),'ERR_BAD_QTY');
+});
+
+test('returns: receipt creates a pending return atomically and preserves full gross receipt until procurement confirms',()=>{
+ const {api,gas,login,ctx}=boot(gas=>{
+   const at=new Date(Date.now()-864e5);
+   gas.seed('Requests',['RequestID','Date','Clinic','Doctor','Nurse','Type','Status','SubmittedAt','SentAt'],[['RET-SHIP',at,'عيادة الأسنان 1','د. خالد','سارة','شهري','تم الإرسال',at,at]]);
+   gas.seed('RequestItems',['RequestID','ItemName','RequestedQty','ApprovedQty','ReceivedQty','DispatchedAt'],[['RET-SHIP','PROPHY PASTE',4,4,'',at]]);
+ });
+ const n=login('سارة','1111'),p=login('علي','3333'),f=login('نواف','7777');
+ const batch=api(n,'getRequestDetail','RET-SHIP').shipments[0].batch;
+ const bad=[{name:'PROPHY PASTE',qty:4,returnItem:{qty:5,reason:'غير المطلوب'}}];
+ throwsCode(()=>api(n,'receiveShipment','RET-SHIP',batch,bad,'سارة','','',''),'ERR_RETURN_QTY');
+ assert.equal(api(n,'getRequestReturns').length,0);assert.equal(api(n,'getRequestDetail','RET-SHIP').shipments[0].received,false);
+ const rec=[{name:'PROPHY PASTE',qty:4,returnItem:{qty:2,reason:'غير المطلوب'}}];
+ api(n,'receiveShipment','RET-SHIP',batch,rec,'سارة','','','');
+ const ret=api(p,'getRequestReturns')[0];assert.equal(ret.qty,2);assert.equal(ret.status,'pending');
+ assert.equal(api(f,'getFinance',{}).summary.received,240);
+ api(p,'receiveRequestReturn',ret.id,'received','');assert.equal(api(f,'getFinance',{}).summary.received,120);
+ const users=gas.ss.getSheetByName('Users');const headers=users._data[0],row=users._data.findIndex(r=>r[0]==='علي');users.getRange(row+1,headers.indexOf('Department')+1).setValue('جلدية');ctx.bumpVersion_('Users');
+ assert.equal(api(p,'getRequestReturns').length,0,'procurement cannot see another department');
+ throwsCode(()=>api(p,'receiveRequestReturn',ret.id,'received',''),'ERR_FORBIDDEN');
 });
