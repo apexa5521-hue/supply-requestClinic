@@ -1437,7 +1437,7 @@ function loadsInfo_(loads) {
   read_('Requests').rows.forEach(function (r) { if (want[str_(r.RequestID)]) reqs[str_(r.RequestID)] = r; });
   return loads.map(function (k) {
     const id = k.split('#')[0], r = reqs[id];
-    return { request: id, batch: Number(k.split('#')[1]) || 0, clinic: r ? str_(r.Clinic) : '', branch: r ? reqBranch_(r) : '', nurse: r ? str_(r.Nurse) : '' };
+    return { request: id, batch: Number(k.split('#')[1]) || 0, clinic: r ? str_(r.Clinic) : '', branch: r ? reqBranch_(r) : '', nurse: r ? str_(r.Nurse) : '', type: r ? str_(r.Type) : '' };
   });
 }
 /** لمن يُسلَّم البوكس: الممرضة (رافعة الطلب) وعيادتها، بدون تكرار — يظهر للسواق في المهام وعند مسح الـ QR */
@@ -1508,6 +1508,15 @@ function boxDeliver_(p) {
         action: 'Check the items, enter what you received, reject anything that does not match (with a photo), then sign.', btn: 'Open receipt', foot: 'You received this because you raised the request. Automatic message, please do not reply.' },
       ar: { title: 'وصل بوكس طلبك إلى فرع ' + to, lead: 'سلّم السواق ' + driver + ' البوكس ' + str_(pre.BoxID) + ' (الشحنة ' + l.batch + ').',
         action: 'افحصي الأصناف، اكتبي الكمية المستلمة، ارفضي أي صنف غير مطابق مع صورة، ثم وقّعي.', btn: 'افتح الاستلام', foot: 'وصلك هذا الإيميل لأنك رفعتِ الطلب. رسالة آلية، لا تردي عليها.' } }));
+    // للمتابعة: الطبيب ومدير التشغيل وإدارة الفرع — الطلب في الفرع بانتظار استلام الممرضة
+    if (!r) return;
+    const br = l.branch || to, doc = str_(r.Doctor), docAcc = doc ? doctorAccounts_()[doc] : '';
+    nk_('arrived_watch');
+    notifyNames_([docAcc].concat(opsManagers_(), branchManagers_(br)), 'وصل الطلب ' + l.request + ' إلى فرع ' + br + ' · Request arrived at the branch', mailMsg_({ order: ['ar', 'en'], id: l.request, req: mapRequest_(r), step: 4,
+      ar: { title: 'وصل الطلب إلى فرع ' + br, lead: 'سلّم السواق ' + driver + ' البوكس ' + str_(pre.BoxID) + ' (الشحنة ' + l.batch + ')، والطلب بانتظار استلام الممرضة ' + str_(r.Nurse) + ' وتوقيعها.',
+        btn: 'افتح الطلب', foot: 'وصلك هذا للمتابعة (الطبيب / التشغيل / إدارة الفرع). لا يحتاج منك إجراء.' },
+      en: { title: 'The request reached the ' + br + ' branch', lead: 'Driver ' + driver + ' delivered box ' + str_(pre.BoxID) + ' (shipment ' + l.batch + '). It is waiting for nurse ' + str_(r.Nurse) + ' to receive and sign.',
+        btn: 'Open request', foot: 'Sent for follow-up (doctor / operations / branch management). No action needed.' } }));
   });
   return { ok: true, box: boxInfo_(p) };
 }
@@ -2922,9 +2931,14 @@ function getFinance_(user, opts) {
   // نفس قاعدة التقارير: العهدة لا تُحسب قيمتها كمستهلك (وإلا «التوفير» = المطلوب − المعتمد يتضخم بقيمة العهدة)
   getCatalog_(true).forEach(function (c) { price[c.name.toLowerCase()] = c.asset ? 0 : (Number(c.price) || 0); });
   const pr = function (n) { return price[str_(n).toLowerCase()] || 0; };
-  const all = queryRequests_({}).filter(function (r) { return !isOff_(r.status) && (!branch || r.branch === branch); });
-  const inRange = {};
+  const seen = {}; // رقم طلب مكرر (استيراد قديم): أصنافه مربوطة بالرقم فتُحسب مرة واحدة لا مرتين
+  const all = queryRequests_({}).filter(function (r) {
+    if (isOff_(r.status) || (branch && r.branch !== branch) || seen[r.id]) return false;
+    return (seen[r.id] = true);
+  });
+  const byId = {}, inRange = {};
   all.forEach(function (r) {
+    byId[r.id] = r;
     const ms = toMs_(r.submittedAt || r.date);
     if ((!from || ms >= from.getTime()) && (!to || ms <= to.getTime())) inRange[r.id] = r;
   });
@@ -2933,25 +2947,23 @@ function getFinance_(user, opts) {
   // «التوفير من المراجعة» = المطلوب − المعتمد في الطلبات المعتمدة نفسها
   let approved = 0, reqCleared = 0, pendingDoc = 0;
   const byType = {};
+  // اتجاه 12 شهراً (قيمة المعتمد حسب شهر الرفع) — مستقل عن الفترة المختارة، وبنفس قاعدة بطاقة «المعتمد»
+  const byMonth = {};
   read_('RequestItems').rows.forEach(function (it) {
-    const r = inRange[str_(it.RequestID)];
+    const id = str_(it.RequestID), p = pr(it.ItemName);
+    const any = byId[id];
+    if (any && !any.awaitingDoctor) { const m = monthOf_(any.submittedAt || any.date); byMonth[m] = (byMonth[m] || 0) + targetQty_(it) * p; }
+    const r = inRange[id];
     if (!r) return;
-    const p = pr(it.ItemName);
     requested += (num_(it.RequestedQty) || 0) * p;
-    if (r.awaitingDoctor) pendingDoc += targetQty_(it) * p;
-    else { approved += targetQty_(it) * p; if (!str_(it.SubstituteOf)) reqCleared += (num_(it.RequestedQty) || 0) * p; }
     received += grossReceivedQty_(it) * p; returned += returnedQty_(it) * p;
+    if (r.awaitingDoctor) { pendingDoc += targetQty_(it) * p; return; }
+    approved += targetQty_(it) * p;
+    if (!str_(it.SubstituteOf)) reqCleared += (num_(it.RequestedQty) || 0) * p;
     const t = r.type || '—';
-    byType[t] = round2_((byType[t] || 0) + targetQty_(it) * p);
+    byType[t] = round2_((byType[t] || 0) + targetQty_(it) * p); // جزء من «المعتمد»
   });
   read_('ShipmentItems').rows.forEach(function (s) { if (inRange[str_(s.RequestID)]) dispatched += (num_(s.Qty) || 0) * pr(s.ItemName); });
-  // اتجاه 12 شهراً (قيمة المعتمد حسب شهر الرفع) — مستقل عن الفترة المختارة
-  const byMonth = {};
-  const items = itemsByRequest_();
-  all.forEach(function (r) {
-    const m = monthOf_(r.submittedAt || r.date);
-    (items[r.id] || []).forEach(function (it) { byMonth[m] = (byMonth[m] || 0) + targetQty_(it) * pr(it.ItemName); });
-  });
   const now = new Date(), trend = [];
   for (let i = 11; i >= 0; i--) {
     const m = Utilities.formatDate(new Date(now.getFullYear(), now.getMonth() - i, 15), TZ, 'yyyy-MM');
@@ -2961,7 +2973,7 @@ function getFinance_(user, opts) {
     from: rep.from, to: rep.to, branch: branch, generatedAt: new Date(),
     summary: { requests: rep.summary.requests - rep.summary.rejected - rep.summary.cancelled, requested: round2_(requested), approved: round2_(approved), pendingDoctor: round2_(pendingDoc),
       dispatched: round2_(dispatched), received: round2_(Math.max(0, received - returned)), receivedGross: round2_(received), returned: round2_(returned), reviewSaving: round2_(Math.max(0, reqCleared - approved)),
-      avgValue: rep.summary.avgValue, emergency: rep.summary.emergency },
+      avgValue: rep.summary.avgValue, value: rep.summary.value, emergency: rep.summary.emergency },
     byType: byType, branches: rep.branches, clinics: rep.clinics, doctors: rep.doctors, billing: rep.billing, docBranches: rep.docBranches, topItems: rep.topItems,
     badPrices: rep.badPrices, trend: trend
   };
@@ -3503,7 +3515,28 @@ function getRequestItemsFull_(user, requestId) {
   st.items.forEach(function (it) { if (it.done && it.sentQty > 0) dispatchStatus[it.item] = true; });
   const notes = {};
   itemNotes_(requestId).forEach(function (n) { notes[n.item] = (notes[n.item] || 0) + 1; });
+  // الطلبية الخارجية لكل صنف (المورّد والموعد المتوقع): داخلية للتموين والأدمن فقط — لا تصل للطبيب أو التمريض أو الفروع
+  if (user.screen === 'procurement' || user.screen === 'admin') {
+    const ext = itemExtOrders_(requestId);
+    st.items.forEach(function (it) { if (ext[it.item]) it.ext = ext[it.item]; });
+  }
   return { items: st.items, shipments: st.ships, dispatchStatus: dispatchStatus, noteCounts: notes, request: req };
+}
+/** آخر طلبية خارجية (غير ملغاة) لكل صنف في الطلب: { اسم الصنف: { order, supplier, status, expected, arrivedAt, late, lateDays } } */
+function itemExtOrders_(requestId) {
+  const want = {};
+  read_('ExtOrderItems').rows.forEach(function (r) { if (str_(r.RequestID) === str_(requestId) && str_(r.OrderID)) (want[str_(r.OrderID)] = want[str_(r.OrderID)] || []).push(str_(r.ItemName)); });
+  const ids = Object.keys(want); if (!ids.length) return {};
+  const today = riyadh_(Date.now()), out = {};
+  read_('ExtOrders').rows.filter(function (r) { return want[str_(r.OrderID)] && str_(r.Status) !== EO_ST.CANCELLED && str_(r.Status) !== EO_ST.DRAFT; })
+    .map(function (r) { return mapExtOrder_(r, {}, today); })
+    .sort(function (a, b) { return toMs_(a.createdAt) - toMs_(b.createdAt); })
+    .forEach(function (o) {
+      want[o.id].forEach(function (name) {
+        out[name] = { order: o.id, supplier: o.supplier, status: o.status, arrived: o.status === EO_ST.ARRIVED, expected: o.expected, arrivedAt: o.arrivedAt || '', sentAt: o.sentAt || '', late: o.late, lateDays: o.lateDays };
+      });
+    });
+  return out;
 }
 
 /**
@@ -5132,6 +5165,16 @@ function receiveShipment_(user, requestId, batch, receivedItems, receiverName, s
       ar: { title: 'طلب رفض أو استرجاع بانتظار اعتمادك', lead: 'الشحنة ' + batch + ' — ' + user.name + ' طلبت مراجعة الأصناف التالية:', action: 'راجع السبب والصورة وعالج الصنف (بديل أو إرسال صحيح).', btn: 'افتح في التموين', lines: rjLines(true) },
       en: { title: 'The nurse rejected an item at receipt', lead: 'Shipment ' + batch + ': ' + user.name + ' checked it and rejected:', action: 'Check the reason and photo, then sort the item out (substitute or correct item).', btn: 'Open in procurement', lines: rjLines(false) } }));
   }
+  // للمتابعة: التموين (قسم الطلب) ومدير الفرع — تم الاستلام بتوقيع الممرضة
+  nk_('received_watch');
+  const rcvMail = mailMsg_({ order: ['ar', 'en'], id: requestId, req: r0, step: 5,
+    ar: { title: res.complete ? 'تم استلام الطلب كاملاً' : 'تم استلام الشحنة ' + batch, lead: user.name + ' استلمت ' + (res.complete ? 'الطلب' : 'الشحنة ' + batch) + ' ووقّعت' + (r0.branch ? ' — فرع ' + r0.branch : '') + '.',
+      btn: 'افتح الطلب', foot: 'وصلك هذا للمتابعة (التموين / إدارة الفرع). لا يحتاج منك إجراء.' },
+    en: { title: res.complete ? 'The request was fully received' : 'Shipment ' + batch + ' was received', lead: user.name + ' received ' + (res.complete ? 'the request' : 'shipment ' + batch) + ' and signed' + (r0.branch ? ' (' + r0.branch + ' branch)' : '') + '.',
+      btn: 'Open request', foot: 'Sent for follow-up (procurement / branch management). No action needed.' } });
+  const rcvSubject = (res.complete ? 'تم استلام الطلب ' : 'تم استلام شحنة من الطلب ') + requestId + ' · Received';
+  notifyProcurement_(r0.department, rcvSubject, rcvMail);
+  nk_('received_watch'); notifyNames_(branchManagers_(r0.branch), rcvSubject, rcvMail);
   // الطبيب: آخر مرحلة — استلمت الممرضة الطلب كاملاً ووقّعت (مع ما رُفض عند الاستلام إن وُجد)
   if (res.complete && r0.doctor && doctorAccounts_()[r0.doctor]) {
     const its = res._items.filter(function (i) { return i.target > 0 || (i.rcvRejects || []).length; });
@@ -5824,6 +5867,18 @@ function notifyPerm_(perm, subject, body) {
   }), subject, body);
 }
 
+/** إيميل وإشعار لمجموعة أسماء حسابات (بلا تكرار) */
+function notifyNames_(names, subject, body) {
+  const want = {};
+  (names || []).forEach(function (n) { if (str_(n)) want[str_(n)] = true; });
+  const users = read_('Users').rows.filter(function (u) { return want[str_(u.Name)]; });
+  return users.length ? deliver_(users, subject, body) : false;
+}
+/** مدير التشغيل (كل الفروع) */
+function opsManagers_() {
+  return read_('Users').rows.filter(function (u) { return str_(u.Name) && str_(u.Role) === OPS_ROLE_; }).map(function (u) { return str_(u.Name); });
+}
+
 function notifyUser_(name, subject, body) {
   const u = read_('Users').rows.filter(function (r) { return str_(r.Name) === str_(name); })[0];
   return u ? deliver_([u], subject, body) : false;
@@ -5845,7 +5900,9 @@ const NOTIFY_TYPES_ = [
   ['shipped', 'إرسال الطلب أو شحنة جزئية', 'الممرضة', 'الإرسال'],
   ['driver', 'مهام نقل البوكسات', 'السائق', 'الوصول للفرع'],
   ['box_arrived', 'وصول البوكس للفرع', 'الممرضة', 'الوصول للفرع'],
+  ['arrived_watch', 'وصول الطلب للفرع — للمتابعة', 'الطبيب ومدير التشغيل ومدير الفرع', 'الوصول للفرع'],
   ['received', 'استلام الممرضة للطلب', 'الطبيب', 'الاستلام'],
+  ['received_watch', 'تم الاستلام — للمتابعة', 'التموين ومدير الفرع', 'الاستلام'],
   ['receipt_reject', 'رفض صنف عند الاستلام', 'التموين', 'الاستلام'],
   ['reverted', 'التراجع عن خطوة', 'الممرضة', 'كل المراحل'],
   ['nudge', 'تنبيه طلب متأخر (من المتابعة)', 'صاحب المرحلة', 'كل المراحل'],
@@ -6256,8 +6313,11 @@ function getStatsReport_(user, opts) {
     if (c.priceIssue) badPrices.push({ item: c.name, issue: c.priceIssue });
   });
   const byReq = itemsByRequest_();
+  const seenId = {}; // رقم طلب مكرر (استيراد قديم): أصنافه مربوطة بالرقم فتُحسب مرة واحدة لا مرتين
   const reqs = queryRequests_({}).filter(function (r) {
     if (branch && r.branch !== branch) return false;
+    if (seenId[r.id]) return false;
+    seenId[r.id] = true;
     const ms = toMs_(r.submittedAt || r.date);
     return (!from || ms >= from.getTime()) && (!to || ms <= to.getTime());
   });

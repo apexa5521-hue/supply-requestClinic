@@ -1591,6 +1591,29 @@ test('monitor: monthly window 15–20 and due on the 1st, emergency target 2h an
   assert.ok(gas.mails.some(x => x.to.includes('mona@example.com')), 'quality gets the digest');
 });
 
+test('finance: tiles agree — trend = approved, share sums to 100%, duplicate request id counted once', () => {
+  const { api, login, gas, ctx } = boot(g => {
+    g.seed('ItemsCatalog', ['ItemName', 'CommercialName', 'Category', 'Price'], [['PROPHY PASTE', '', '', 60], ['DENTAL FLOSS', '', '', 10]]);
+  });
+  const n = login('سارة', '1111');
+  const r1 = api(n, 'createRequest', { doctor: 'د. نورة', type: 'شهري', items: [{ name: 'PROPHY PASTE', qty: 2 }] });
+  api(n, 'createRequest', { doctor: 'د. نورة', type: 'طارئ', items: [{ name: 'DENTAL FLOSS', qty: 3 }] });
+  // صف طلب مكرر بنفس الرقم (من استيراد قديم) لا يضاعف القيمة
+  const sh = gas.ss.getSheetByName('Requests'), h = sh._data[0];
+  const row = sh._data.find(x => x[h.indexOf('RequestID')] === r1.id);
+  assert.ok(row);
+  sh._data.push(row.slice()); ctx.onEdit({ range: { getSheet: () => sh } });
+  receiveAll(gas, ctx);
+  const f = login('نواف', '7777');
+  const fin = api(f, 'getFinance', {});
+  const s = fin.summary;
+  assert.equal(fin.trend[11].value, s.approved, 'trend bar = approved tile');
+  assert.equal(s.approved + s.pendingDoctor, s.requested);
+  assert.ok(fin.byType['طارئ'] <= s.approved);
+  const r2 = x => Math.round(x * 100) / 100;
+  assert.equal(r2(fin.branches.reduce((a, b) => a + b.value, 0)), r2(s.value), 'branch values sum to the share denominator');
+});
+
 test('finance: spend summary and price editing written back to the catalog sheet as a number', () => {
   const { api, login, gas } = boot(g => {
     g.seed('ItemsCatalog', ['ItemName', 'CommercialName', 'Category', 'Price'], [
@@ -1954,6 +1977,39 @@ test('branch manager: sees only his branch (requests, details, reports, monitor,
   assert.ok(all.includes(riyadh) && all.includes(jeddah));
   const q = api(login('منى', '5555'), 'getRequests', {}).map(r => r.id);
   assert.ok(q.includes(riyadh) && q.includes(jeddah));
+});
+
+test('arrival at the branch notifies doctor, operations and that branch manager; receipt notifies procurement and the branch manager', () => {
+  const { api, login, gas } = boot(g => {
+    const ss = g.globals.SpreadsheetApp.getActiveSpreadsheet();
+    ss.getSheetByName('Roles').appendRow(['مدير فرع', 'branch']);
+    ss.getSheetByName('Roles').appendRow(['مدير التشغيل', 'executive']);
+    const users = ss.getSheetByName('Users'); users.getRange(1, 7).setValue('Branch');
+    users.appendRow(['مدير الرياض', '9101', 'مدير فرع', '', 'bm-ruh@example.com', '', 'الرياض']);
+    users.appendRow(['مدير جدة', '9102', 'مدير فرع', '', 'bm-jed@example.com', '', 'جدة']);
+    users.appendRow(['أبو سالم', '9103', 'مدير التشغيل', '', 'ops@example.com', '', '']);
+  });
+  const n = login('سارة', '1111'), dr = login('د. خالد', '4444'), p = login('علي', '3333');
+  const id = api(n, 'createRequest', { doctor: 'د. خالد', type: 'شهري', items: [{ name: 'DENTAL FLOSS', qty: 2 }] }).id;
+  api(dr, 'doctorReview', id, 'اعتمد');
+  api(p, 'bulkUpdateStatus', [id], 'قيد التجهيز');
+  api(p, 'dispatchItems', id, ['DENTAL FLOSS']);
+  const box = api(p, 'getBoxes').boxes[0];
+  assert.equal(box.loads[0].type, 'شهري', 'box loads carry the request type (boxes filter)');
+  gas.mails.length = 0;
+  api(null, 'boxDeliver', { box: box.id, k: box.k, to: 'الرياض', driver: 'أبو فهد', photo: PNG, clientKey: 'dlv-arrive-1' });
+  const arrived = to => gas.mails.some(m => m.to.indexOf(to) !== -1 && /وصل الطلب/.test(m.subject));
+  assert.ok(gas.mails.some(m => m.to === 'sara@example.com' && /وصل بوكس طلبك/.test(m.subject)), 'nurse: box arrived, receive and sign');
+  assert.ok(arrived('khaled@example.com') && arrived('ops@example.com') && arrived('bm-ruh@example.com'), 'doctor, operations and the request branch manager are told');
+  assert.ok(!arrived('bm-jed@example.com'), 'other branch managers are not');
+  gas.mails.length = 0;
+  api(n, 'receiveShipment', id, 1, [{ name: 'DENTAL FLOSS', qty: 2 }], 'سارة', PNG, PNG, PNG);
+  const rcv = to => gas.mails.some(m => m.to.indexOf(to) !== -1 && /تم استلام/.test(m.subject));
+  assert.ok(rcv('ali@example.com') && rcv('bm-ruh@example.com'), 'procurement and the branch manager are told it was received');
+  assert.ok(!rcv('bm-jed@example.com'));
+  // الإدارة تقدر توقف هذه الإشعارات من «أنواع الإشعارات»
+  const types = api(login('المدير', '1234'), 'getNotifyConfig').types.map(x => x.key || x[0] || x.id);
+  assert.ok(JSON.stringify(types).includes('arrived_watch') && JSON.stringify(types).includes('received_watch'));
 });
 
 test('boxes: dispatch loads the doctor box → driver scan delivers with photo → nurse receives → box stays; move on request', () => {
@@ -3439,6 +3495,13 @@ test('external orders: pick items from a request, group by supplier, RFQ snapsho
   r = api(p, 'extOrderStatus', oid, 'sent', today);
   o = r.orders.find(x => x.id === oid);
   assert.deepEqual([o.status, o.expected, o.late], ['أُرسل للمندوب', today, false]);
+  // حالة الصنف في الطلب: الطلبية الخارجية (المورّد والموعد) تظهر للتموين والأدمن فقط
+  const extOf = tok => (api(tok, 'getRequestItemsFull', id).items.find(i => i.item === 'PROPHY PASTE') || {}).ext;
+  assert.deepEqual([extOf(p).supplier, extOf(p).expected, extOf(p).arrived], ['مؤسسة النهدي', today, false], 'procurement sees the supplier and the expected date on the item');
+  assert.equal(extOf(a).supplier, 'مؤسسة النهدي');
+  assert.equal(extOf(login('منى', '5555')), undefined, 'quality does not get supplier names');
+  assert.equal(extOf(login('فيصل', '6666')), undefined, 'executive does not get supplier names');
+  assert.ok(!JSON.stringify(api(n, 'getRequestDetail', id)).includes('مؤسسة النهدي'), 'the nurse never sees the supplier');
   throwsCode(() => api(p, 'deleteExtOrder', oid), 'ERR_BAD_TRANSITION');
   // reminder on the expected day — once a day
   gas.mails.length = 0;
@@ -3453,6 +3516,7 @@ test('external orders: pick items from a request, group by supplier, RFQ snapsho
   assert.equal(st.orders[0].rfq.items[0].qty, 6);
   assert.equal(st.canEdit, false);
   api(p, 'extOrderStatus', oid, 'arrived');
+  assert.equal(extOf(p).arrived, true, 'item shows «received from supplier» once the order arrives');
   st = api(a, 'getExtOrders');
   assert.deepEqual([st.stats[0].arrived, st.stats[0].onTimeRate, st.orders[0].status], [1, 100, 'وصل']);
   // drafts can be deleted
