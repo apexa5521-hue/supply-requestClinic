@@ -10073,6 +10073,18 @@ Object.assign(I18N.ar, { pick_print: 'طباعة قائمة التجهيز', pic
   pick_qty: 'المطلوب تجهيزه', pick_before: 'المرسل سابقاً', pick_by: 'جهّزه', pick_checked_by: 'راجعه', ship_print_this: 'اطبع الشحنة #{n}' });
 Object.assign(I18N.en, { pick_print: 'Print prep list', pick_print_h: 'A sheet for whoever prepares the order: the ticked items, or everything still left if none is ticked', pick_title: 'Prep list — shipment #{n}', pick_all_left: 'All remaining items', pick_selected: 'Ticked items only',
   pick_qty: 'To prepare', pick_before: 'Sent before', pick_by: 'Prepared by', pick_checked_by: 'Checked by', ship_print_this: 'Print shipment #{n}' });
+/* الجوال: عند ظهور الكيبورد يُخفى الشريط السفلي والملخص العائم حتى لا يزاحما الكتابة */
+(function () {
+  const typing = el => el && (el.tagName === 'TEXTAREA' || (el.tagName === 'INPUT' && !/^(checkbox|radio|button|submit|file|range|color|hidden)$/i.test(el.type)) || el.isContentEditable);
+  const set = () => {
+    const small = innerWidth <= 700, vv = window.visualViewport;
+    const kb = small && (typing(document.activeElement) || (vv && vv.height < innerHeight * 0.72));
+    document.body.classList.toggle('kb-open', !!kb);
+  };
+  document.addEventListener('focusin', set);
+  document.addEventListener('focusout', () => setTimeout(set, 120));
+  if (window.visualViewport) visualViewport.addEventListener('resize', set);
+})();
 /* MASAR_TRACK_END */
 
 /* =====================================================================

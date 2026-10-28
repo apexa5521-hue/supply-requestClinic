@@ -2252,6 +2252,37 @@ h1 { font-size:26px; } h2 { font-size:19px; }
 <style>@media(max-width:700px){.mxc-focus .mxf-modal .rv-table td{border:0!important}.mxc-focus .mxf-modal .rv-table td.mxc-item-main{padding-inline-start:36px!important}.mxc-focus .modal-body>.row-wrap{flex-wrap:nowrap;gap:6px;overflow-x:auto;margin-bottom:0;min-height:28px}.mxc-focus .modal-body>.row-wrap .badge{font-size:10px;white-space:nowrap;max-width:210px;overflow:hidden;text-overflow:ellipsis;flex:none}.mxc-focus .modal-body>.row-wrap .tag{font-size:10px;white-space:nowrap;flex:none}.mxc-focus #rvItems>.hint{font-size:10px!important;line-height:1.6}.mxc-reason summary{font-size:12px;color:var(--text-2);padding:12px 0;cursor:pointer}.mxc-reason .field{margin-top:8px}}</style>
 <style>@media(max-width:700px){.mxc-focus .mxc-dsp-0:after{display:none}.mxc-focus .mxc-ship-select{display:flex;gap:7px;align-items:center;margin-inline-start:auto;font-size:11px;min-height:40px}.mxc-focus .mxc-ship-select .dsp{width:20px;height:20px}.mxc-focus .mxc-dsp-6:before{white-space:normal;line-height:1.5}.mxc-focus .mxc-dsp-6 .dsp-qty{width:100%!important}.mxc-focus .dsp-table .table-wrap{border:0}}</style>
 <style>
+/* Phone ordering: a plain list instead of square cards, a slim summary bar, and no floating bars while the keyboard is open. */
+@media screen and (max-width:700px){
+ .mx-catalog-grid{display:flex!important;flex-direction:column;gap:0!important;border:1px solid var(--border);border-radius:14px;overflow:hidden;background:var(--surface)}
+ .mx-catalog-grid>.mx-item-card{display:grid!important;grid-template-columns:minmax(0,1fr) auto;grid-template-areas:"name ctl" "sub ctl" "err err";align-items:center;gap:2px 12px;padding:12px 14px!important;border:0!important;border-bottom:1px solid var(--border)!important;border-radius:0!important;min-height:64px}
+ .mx-catalog-grid>.mx-item-card:last-of-type{border-bottom:0!important}
+ .mx-catalog-grid>.mx-item-card.is-selected{background:color-mix(in srgb,var(--primary-soft) 55%,var(--surface));box-shadow:inset 3px 0 0 var(--primary)}
+ [dir="rtl"] .mx-catalog-grid>.mx-item-card.is-selected{box-shadow:inset -3px 0 0 var(--primary)}
+ .mx-catalog-grid .mx-item-top{display:none}
+ .mx-catalog-grid .mx-item-card>h3{grid-area:name;margin:0;font-size:14px;line-height:1.45}
+ .mx-catalog-grid .mx-item-card>p{grid-area:sub;margin:0;min-height:0!important;font-size:12px}
+ .mx-catalog-grid .mx-item-card>.qty{grid-area:ctl;width:auto!important;margin:0!important;align-self:center}
+ .mx-catalog-grid .mx-item-card>.qty button{width:36px!important;flex:none!important;min-height:36px}
+ .mx-catalog-grid .mx-item-card>.qty input{width:42px!important}
+ .mx-catalog-grid .mx-item-card>.btn{grid-area:ctl;width:auto!important;margin:0!important;min-height:40px;padding:6px 14px}
+ .mx-catalog-grid .mx-item-card>.qty-err{grid-area:err}
+ .mx-catalog-grid>.mx-load-more{border-radius:0;border:0;border-top:1px solid var(--border);width:100%}
+ /* شريط ملخص نحيف أثناء اختيار الأصناف: العدد + «مراجعة الطلب» فقط (الحفظ تلقائي) */
+ .mx-compose:not(.is-review) .mx-compose-summary{display:flex;align-items:center;gap:10px;padding:8px 10px!important;border-radius:14px}
+ .mx-compose:not(.is-review) .mx-compose-summary>#draftState,.mx-compose:not(.is-review) .mx-compose-actions>.row{display:none!important}
+ .mx-compose:not(.is-review) .mx-selection-tray{flex:1;min-width:0}
+ .mx-compose:not(.is-review) .mx-selection-tray strong{font-size:13px}
+ .mx-compose:not(.is-review) .mx-compose-actions{margin:0!important;flex:none;width:auto}
+ .mx-compose:not(.is-review) .mx-compose-actions #submitBtn{width:auto!important;min-height:44px;padding-inline:16px}
+ .mx-compose:not(.is-review) .mx-compose-summary>.field-error{position:absolute;bottom:100%;inset-inline:0;margin:0 0 6px}
+ /* الكيبورد مفتوح: لا شريط سفلي ولا ملخص عائم فوق الحقل */
+ body.kb-open .bottom-nav,body.kb-open .mxc-bell{display:none!important}
+ body.kb-open .mx-compose-summary{position:static!important;box-shadow:none}
+ body.kb-open .content{padding-bottom:16px!important}
+}
+</style>
+<style>
 /* Request-number search: fixed «REQ-» before the typed number; focus filters; box filters; timeline with seconds. */
 .input-icon.req-q{direction:ltr}.input-icon.req-q>.input{text-align:left}
 .input-icon.req-q>.req-prefix{position:absolute;inset-inline-start:36px;top:50%;transform:translateY(-50%);font-weight:700;font-size:13px;color:var(--primary);pointer-events:none;font-variant-numeric:tabular-nums}
