@@ -10087,6 +10087,35 @@ Object.assign(I18N.en, { pick_print: 'Print prep list', pick_print_h: 'A sheet f
 })();
 /* MASAR_TRACK_END */
 
+/* الرابط الأساسي للنظام · الرابط القديم على GitHub Pages يبقى احتياطياً عند تعطل الأساسي فقط */
+const MAIN_URL = 'https://masar-app-hc96.onrender.com/';
+const isBackupSite = () => /(^|\.)github\.io$/i.test(location.hostname);
+function backupChosen() { try { return sessionStorage.getItem('sf_backup_ok') === '1'; } catch (e) { return false; } }
+function showMoveNotice(req) {
+  const go = MAIN_URL + (req && /^[\w-]{3,40}$/.test(req) ? '?req=' + encodeURIComponent(req) : '');
+  const el = document.createElement('div');
+  el.className = 'move-notice'; el.setAttribute('role', 'dialog'); el.setAttribute('aria-modal', 'true'); el.setAttribute('aria-labelledby', 'mvTitle');
+  el.innerHTML = '<div class="move-card"><span class="move-ic">' + icon('route') + '</span>' +
+    '<h1 id="mvTitle">الرجاء استخدام الرابط الجديد</h1><p>نظام مسار انتقل إلى رابط جديد. ارفع طلباتك وتابعها من الرابط الجديد فقط — هذا الرابط قديم.</p>' +
+    '<h2 dir="ltr">Please use the new link</h2><p dir="ltr">MasarX has moved. Submit and follow your requests on the new link only — this one is the old link.</p>' +
+    '<a class="btn btn-primary btn-lg btn-block" id="mvGo" href="' + esc(go) + '">' + icon('ext', 'i-sm') + '<span class="two-lang"><b>افتح الرابط الجديد</b><small dir="ltr">Open the new link</small></span></a>' +
+    '<div class="move-url" dir="ltr">' + esc(MAIN_URL) + '</div>' +
+    '<button type="button" class="btn btn-ghost btn-sm" id="mvStay"><span class="two-lang"><span>الرابط الجديد لا يعمل؟ استخدم الاحتياطي</span><small dir="ltr">New link down? Use the backup</small></span></button></div>';
+  document.body.appendChild(el);
+  $('#mvGo', el).focus();
+  $('#mvStay', el).addEventListener('click', () => {
+    if (!window.confirm('استخدم الرابط الاحتياطي فقط إذا كان الرابط الجديد لا يعمل.\nUse the backup only if the new link is not working.')) return;
+    try { sessionStorage.setItem('sf_backup_ok', '1'); } catch (e) { /* */ }
+    location.reload();
+  });
+}
+function showBackupBar() {
+  const bar = document.createElement('div');
+  bar.className = 'backup-bar'; bar.setAttribute('role', 'status');
+  bar.innerHTML = '<span class="two-lang"><span>أنت على الرابط الاحتياطي — استخدمه فقط عند تعطل الرابط الجديد</span><small dir="ltr">Backup link: use it only while the new link is down</small></span><a href="' + esc(MAIN_URL) + '">الرابط الجديد · New link</a>';
+  document.body.prepend(bar);
+}
+
 /* =====================================================================
    Boot
    ===================================================================== */
@@ -10101,7 +10130,10 @@ Object.assign(I18N.en, { pick_print: 'Print prep list', pick_print_h: 'A sheet f
     if (p.driver) { done(); showDriverTasks(p.driver); return; }
     // زر «افتح الطلب» في الإيميل: يفتح تفاصيل الطلب بعد الدخول
     if (p.req && /^[\w-]{3,40}$/.test(p.req)) S.pendingReq = p.req;
+    // الرابط القديم (GitHub Pages) احتياطي فقط: نوجّه المستخدم للرابط الأساسي (Render)
+    if (isBackupSite() && !backupChosen()) { done(); showMoveNotice(p.req); return; }
     startApp();
+    if (isBackupSite()) showBackupBar();
   });
   function startApp() {
   // البنغالي والهندي لصفحة السواق فقط — باقي النظام عربي/إنجليزي
