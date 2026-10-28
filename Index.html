@@ -2252,6 +2252,18 @@ h1 { font-size:26px; } h2 { font-size:19px; }
 <style>@media(max-width:700px){.mxc-focus .mxf-modal .rv-table td{border:0!important}.mxc-focus .mxf-modal .rv-table td.mxc-item-main{padding-inline-start:36px!important}.mxc-focus .modal-body>.row-wrap{flex-wrap:nowrap;gap:6px;overflow-x:auto;margin-bottom:0;min-height:28px}.mxc-focus .modal-body>.row-wrap .badge{font-size:10px;white-space:nowrap;max-width:210px;overflow:hidden;text-overflow:ellipsis;flex:none}.mxc-focus .modal-body>.row-wrap .tag{font-size:10px;white-space:nowrap;flex:none}.mxc-focus #rvItems>.hint{font-size:10px!important;line-height:1.6}.mxc-reason summary{font-size:12px;color:var(--text-2);padding:12px 0;cursor:pointer}.mxc-reason .field{margin-top:8px}}</style>
 <style>@media(max-width:700px){.mxc-focus .mxc-dsp-0:after{display:none}.mxc-focus .mxc-ship-select{display:flex;gap:7px;align-items:center;margin-inline-start:auto;font-size:11px;min-height:40px}.mxc-focus .mxc-ship-select .dsp{width:20px;height:20px}.mxc-focus .mxc-dsp-6:before{white-space:normal;line-height:1.5}.mxc-focus .mxc-dsp-6 .dsp-qty{width:100%!important}.mxc-focus .dsp-table .table-wrap{border:0}}</style>
 <style>
+/* Old GitHub Pages link: move notice to the main (Render) link; backup bar when used on purpose. */
+.move-notice{position:fixed;inset:0;z-index:200;display:grid;place-items:center;padding:16px;background:var(--bg);overflow:auto}
+.move-card{width:100%;max-width:520px;background:var(--surface);border:1px solid var(--border);border-radius:20px;padding:28px 24px;display:flex;flex-direction:column;gap:12px;text-align:center;box-shadow:var(--shadow-md)}
+.move-card .move-ic{align-self:center;display:grid;place-items:center;width:64px;height:64px;border-radius:18px;background:var(--primary-soft);color:var(--primary)}.move-card .move-ic .i{width:30px;height:30px}
+.move-card h1{font-size:24px;line-height:1.4}.move-card h2{font-size:19px;margin-top:6px}.move-card p{color:var(--text-2);font-size:15px;line-height:1.7}
+.move-card #mvGo{margin-top:10px;justify-content:center}.move-url{font-family:monospace;font-size:13px;color:var(--muted);word-break:break-all}
+.move-card #mvStay{align-self:center;color:var(--muted);font-size:12px}
+.backup-bar{position:sticky;top:0;z-index:90;display:flex;flex-wrap:wrap;gap:6px 12px;align-items:center;justify-content:center;padding:8px 12px;background:var(--t-amber);color:#fff;font-size:13px;font-weight:600;text-align:center}
+.backup-bar a{color:#fff;text-decoration:underline}
+.two-lang{display:flex;flex-direction:column;align-items:center;gap:2px;line-height:1.35}.two-lang small{font-size:.8em;font-weight:500;opacity:.9}
+</style>
+<style>
 /* Phone ordering: a plain list instead of square cards, a slim summary bar, and no floating bars while the keyboard is open. */
 @media screen and (max-width:700px){
  .mx-catalog-grid{display:flex!important;flex-direction:column;gap:0!important;border:1px solid var(--border);border-radius:14px;overflow:hidden;background:var(--surface)}
