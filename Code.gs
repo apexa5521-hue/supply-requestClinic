@@ -3515,7 +3515,28 @@ function getRequestItemsFull_(user, requestId) {
   st.items.forEach(function (it) { if (it.done && it.sentQty > 0) dispatchStatus[it.item] = true; });
   const notes = {};
   itemNotes_(requestId).forEach(function (n) { notes[n.item] = (notes[n.item] || 0) + 1; });
+  // الطلبية الخارجية لكل صنف (المورّد والموعد المتوقع): داخلية للتموين والأدمن فقط — لا تصل للطبيب أو التمريض أو الفروع
+  if (user.screen === 'procurement' || user.screen === 'admin') {
+    const ext = itemExtOrders_(requestId);
+    st.items.forEach(function (it) { if (ext[it.item]) it.ext = ext[it.item]; });
+  }
   return { items: st.items, shipments: st.ships, dispatchStatus: dispatchStatus, noteCounts: notes, request: req };
+}
+/** آخر طلبية خارجية (غير ملغاة) لكل صنف في الطلب: { اسم الصنف: { order, supplier, status, expected, arrivedAt, late, lateDays } } */
+function itemExtOrders_(requestId) {
+  const want = {};
+  read_('ExtOrderItems').rows.forEach(function (r) { if (str_(r.RequestID) === str_(requestId) && str_(r.OrderID)) (want[str_(r.OrderID)] = want[str_(r.OrderID)] || []).push(str_(r.ItemName)); });
+  const ids = Object.keys(want); if (!ids.length) return {};
+  const today = riyadh_(Date.now()), out = {};
+  read_('ExtOrders').rows.filter(function (r) { return want[str_(r.OrderID)] && str_(r.Status) !== EO_ST.CANCELLED && str_(r.Status) !== EO_ST.DRAFT; })
+    .map(function (r) { return mapExtOrder_(r, {}, today); })
+    .sort(function (a, b) { return toMs_(a.createdAt) - toMs_(b.createdAt); })
+    .forEach(function (o) {
+      want[o.id].forEach(function (name) {
+        out[name] = { order: o.id, supplier: o.supplier, status: o.status, arrived: o.status === EO_ST.ARRIVED, expected: o.expected, arrivedAt: o.arrivedAt || '', sentAt: o.sentAt || '', late: o.late, lateDays: o.lateDays };
+      });
+    });
+  return out;
 }
 
 /**

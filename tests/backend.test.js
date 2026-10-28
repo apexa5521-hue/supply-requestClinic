@@ -3495,6 +3495,13 @@ test('external orders: pick items from a request, group by supplier, RFQ snapsho
   r = api(p, 'extOrderStatus', oid, 'sent', today);
   o = r.orders.find(x => x.id === oid);
   assert.deepEqual([o.status, o.expected, o.late], ['أُرسل للمندوب', today, false]);
+  // حالة الصنف في الطلب: الطلبية الخارجية (المورّد والموعد) تظهر للتموين والأدمن فقط
+  const extOf = tok => (api(tok, 'getRequestItemsFull', id).items.find(i => i.item === 'PROPHY PASTE') || {}).ext;
+  assert.deepEqual([extOf(p).supplier, extOf(p).expected, extOf(p).arrived], ['مؤسسة النهدي', today, false], 'procurement sees the supplier and the expected date on the item');
+  assert.equal(extOf(a).supplier, 'مؤسسة النهدي');
+  assert.equal(extOf(login('منى', '5555')), undefined, 'quality does not get supplier names');
+  assert.equal(extOf(login('فيصل', '6666')), undefined, 'executive does not get supplier names');
+  assert.ok(!JSON.stringify(api(n, 'getRequestDetail', id)).includes('مؤسسة النهدي'), 'the nurse never sees the supplier');
   throwsCode(() => api(p, 'deleteExtOrder', oid), 'ERR_BAD_TRANSITION');
   // reminder on the expected day — once a day
   gas.mails.length = 0;
@@ -3509,6 +3516,7 @@ test('external orders: pick items from a request, group by supplier, RFQ snapsho
   assert.equal(st.orders[0].rfq.items[0].qty, 6);
   assert.equal(st.canEdit, false);
   api(p, 'extOrderStatus', oid, 'arrived');
+  assert.equal(extOf(p).arrived, true, 'item shows «received from supplier» once the order arrives');
   st = api(a, 'getExtOrders');
   assert.deepEqual([st.stats[0].arrived, st.stats[0].onTimeRate, st.orders[0].status], [1, 100, 'وصل']);
   // drafts can be deleted

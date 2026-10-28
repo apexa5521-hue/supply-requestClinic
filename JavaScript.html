@@ -3620,10 +3620,7 @@ function procItemsHtml(r) {
             ? '<button type="button" class="link-btn" data-act="subItem" data-id="' + rid + '" data-item="' + iname + '">' + icon('refresh', 'i-sm') + esc(t('sub_add')) + '</button>' : '') +
         '</td><td class="num">' + esc(it.requestedQty) + '</td>' +
         '<td class="num">' + (editable && !it.replaced && !it.rejected ? '<input class="input" type="number" min="0" inputmode="numeric" value="' + esc(appr) + '" data-change="approveQty" data-id="' + rid + '" data-item="' + iname + '">' : esc(appr)) + '</td>' +
-        '<td>' + (canItemSt && left > 0
-          ? '<select class="select item-st" data-change="itemSt" data-id="' + rid + '" data-item="' + iname + '" data-was="' + esc(it.itemStatus || '') + '" aria-label="' + esc(t('item_status')) + '">' +
-              '<option value="">' + esc(t('item_st_none')) + '</option>' + ITEM_ST.map(x => '<option value="' + esc(x) + '"' + (x === it.itemStatus ? ' selected' : '') + '>' + esc(statusLabel(x)) + '</option>').join('') + '</select>'
-          : itemStChip(it)) + '</td>' +
+        '<td>' + itemStCell(it, canItemSt && left > 0, rid, iname) + '</td>' +
         '<td><div class="qty-prog ' + state + '"><div class="qp-line"><b>' + esc(t('sent_of', { a: fmtNum(sent, 0), b: fmtNum(tgt, 0) })) + '</b>' +
           (left > 0 ? '<span class="qp-left">' + esc(t('left_n', { n: fmtNum(left, 0) })) + '</span>' : '<span class="qp-ok">' + esc(t(sent ? 'item_done' : 'item_zero')) + '</span>') + '</div>' +
           '<div class="progress"><i data-w="' + (sent ? Math.max(6, pct) : 0) + '%"></i></div>' +
@@ -3785,6 +3782,20 @@ function syncDispatchBtn(exp) {
 }
 /* حالة كل صنف داخل الطلبية + التراجع عن خطوة (السبب إلزامي ويُسجَّل للجودة والإدارة) */
 const ITEM_ST = [ST.PREP, ST.VENDOR_WAIT, ST.VENDOR_RECV];
+/* حالة الصنف: شارة ملونة منذ متى، والطلبية الخارجية (المورّد والموعد) للتموين فقط؛ الضغط على الشارة يفتح التغيير */
+function itemStCell(it, editable, rid, iname) {
+  const ext = !it.done && it.ext;
+  const eff = ext ? (ext.arrived ? ST.VENDOR_RECV : ST.VENDOR_WAIT) : it.itemStatus;
+  const since = !ext && it.itemStatus && it.itemStatusAt ? '<span class="it-since">' + esc(relTime(it.itemStatusAt)) + '</span>' : '';
+  const chip = it.done && it.sentQty ? '<span class="muted" style="font-size:12.5px">' + esc(t('item_st_sent')) + '</span>'
+    : (eff ? badge(eff) : '<span class="badge it-none" style="--tone:var(--t-gray)"><i class="dot"></i>' + esc(t('item_st_none')) + '</span>') + since;
+  const extLine = ext ? '<div class="it-ext' + (ext.late && !ext.arrived ? ' late' : '') + '">' + icon('cart', 'i-sm') + '<span>' + esc(ext.supplier || '—') + ' · ' +
+    esc(ext.arrived ? t('it_ext_arrived', { d: fmtDate(ext.arrivedAt) }) : ext.late ? t('it_ext_late', { n: ext.lateDays }) : ext.expected ? t('it_ext_due', { d: fmtDate(ext.expected) }) : t('it_ext_sent')) + '</span></div>' : '';
+  if (!editable) return chip + extLine;
+  return '<details class="it-st"><summary title="' + esc(t('it_change')) + '">' + chip + icon('pen', 'i-sm it-edit') + '</summary>' +
+    '<select class="select item-st" data-change="itemSt" data-id="' + rid + '" data-item="' + iname + '" data-was="' + esc(it.itemStatus || '') + '" aria-label="' + esc(t('item_status')) + '">' +
+    '<option value="">' + esc(t('item_st_none')) + '</option>' + ITEM_ST.map(x => '<option value="' + esc(x) + '"' + (x === it.itemStatus ? ' selected' : '') + '>' + esc(statusLabel(x)) + '</option>').join('') + '</select></details>' + extLine;
+}
 function itemStChip(it) {
   if (it.done && it.sentQty) return '<span class="muted" style="font-size:12.5px">' + esc(t('item_st_sent')) + '</span>';
   return it.itemStatus ? badge(it.itemStatus) : '<span class="muted" style="font-size:12.5px">—</span>';
@@ -9926,6 +9937,16 @@ new MutationObserver(() => { if (mxdScheduled) return; mxdScheduled = true; queu
 /* MASAR_DATE_PICKER_END */
 
 /* MASAR_TRACK_START — تشيك لست الأصناف، REQ- في البحث، الخط الزمني بالثواني، صوت وصول الطلب */
+// المورّد الخارجي داخلي: التموين والأدمن يرون «المورّد الخارجي»، وغيرهم يرى «توفّر الصنف» بلا أسماء
+Object.assign(I18N.ar, { item_st_none: 'لم يبدأ', st_vendor_wait: 'بانتظار المورّد الخارجي', st_vendor_recv: 'وصل من المورّد', st_vendor_wait_pub: 'بانتظار توفّر الصنف', st_vendor_recv_pub: 'توفّر الصنف',
+  act_vendor_wait: 'بانتظار المورّد الخارجي', act_vendor_recv: 'وصل من المورّد', stamp_vendor_wait: 'بانتظار توفّر الصنف', stamp_vendor_recv: 'توفّر الصنف',
+  it_change: 'تغيير الحالة', it_ext_due: 'متوقع {d}', it_ext_late: 'متأخر {n} يوم', it_ext_arrived: 'وصل {d}', it_ext_sent: 'أُرسل للمورّد' });
+Object.assign(I18N.en, { item_st_none: 'Not started', st_vendor_wait: 'Awaiting external supplier', st_vendor_recv: 'Received from supplier', st_vendor_wait_pub: 'Awaiting stock', st_vendor_recv_pub: 'Item available',
+  act_vendor_wait: 'Awaiting external supplier', act_vendor_recv: 'Received from supplier', stamp_vendor_wait: 'Awaiting stock', stamp_vendor_recv: 'Item available',
+  it_change: 'Change status', it_ext_due: 'due {d}', it_ext_late: '{n} day(s) late', it_ext_arrived: 'arrived {d}', it_ext_sent: 'sent to supplier' });
+const mtkInternal = () => !!S.user && (S.user.screen === 'procurement' || S.user.screen === 'admin');
+Object.defineProperty(STATUS[ST.VENDOR_WAIT], 'k', { get: () => mtkInternal() ? 'st_vendor_wait' : 'st_vendor_wait_pub' });
+Object.defineProperty(STATUS[ST.VENDOR_RECV], 'k', { get: () => mtkInternal() ? 'st_vendor_recv' : 'st_vendor_recv_pub' });
 Object.assign(I18N.ar, { pick_hint: 'حدّد الأصناف بالتشيك لست ثم اختر حالتها — الإرسال يتاح بعد اعتماد الطلب', bx_all_types: 'شهري وطارئ', bx_sort: 'الترتيب', bx_sort_new: 'الأحدث أولاً', bx_sort_old: 'الأقدم أولاً' });
 Object.assign(I18N.en, { pick_hint: 'Tick the items, then choose their status. Dispatch opens once the request is cleared.', bx_all_types: 'Monthly and emergency', bx_sort: 'Sort', bx_sort_new: 'Newest first', bx_sort_old: 'Oldest first' });
 const mtkText = (ar, en) => S.lang === 'ar' ? ar : en;

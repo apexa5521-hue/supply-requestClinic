@@ -1211,11 +1211,15 @@ function log(msg) { console.log('  ✔ ' + msg); }
   await openView(page, 'requests');
   await page.waitForSelector('[data-rid="' + stId + '"] [data-act="procToggle"]');
   await page.click('[data-rid="' + stId + '"] .req-actions [data-act="procToggle"]');
-  await page.waitForSelector('#exp-' + stId + ' .item-st[data-item="DENTAL FLOSS"]');
+  await page.waitForSelector('#exp-' + stId + ' .item-st[data-item="DENTAL FLOSS"]', { state: 'attached' });
+  // حالة الصنف شارة: الضغط عليها يفتح التغيير
+  const openSt = () => page.evaluate(id => document.querySelectorAll('#exp-' + id + ' details.it-st').forEach(d => { d.open = true; }), stId);
+  await openSt();
   await page.selectOption('#exp-' + stId + ' .item-st[data-item="DENTAL FLOSS"]', 'بانتظار المندوب');
   expect(await toastHas(page, 'حُدّثت حالة 1 صنف'), 'procurement sets a status for one item inside the request');
   await page.waitForTimeout(300);
   expect(await page.inputValue('#exp-' + stId + ' .item-st[data-item="DENTAL FLOSS"]') === 'بانتظار المندوب' && await page.inputValue('#exp-' + stId + ' .item-st[data-item="PROPHY PASTE"]') === '', 'each item keeps its own status');
+  await openSt();
   await page.selectOption('#exp-' + stId + ' .item-st[data-item="DENTAL FLOSS"]', 'قيد التجهيز');
   await page.waitForSelector('.modal #rvReason');
   await page.click('.modal [data-close]');
