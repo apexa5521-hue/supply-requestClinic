@@ -3630,6 +3630,7 @@ function procItemsHtml(r) {
           (nc[it.item] ? '<span class="count-pill" style="position:absolute;top:-4px;inset-inline-end:-4px;height:16px;min-width:16px;font-size:10px;background:var(--primary);color:var(--on-primary)">' + nc[it.item] + '</span>' : '') + '</button></td></tr>';
     }).join('') + '</tbody></table></div>' +
     '<div class="row-wrap" style="margin-top:12px">' +
+      (canPick && open.length ? '<button class="btn btn-soft btn-sm" data-act="pickPrint" data-id="' + rid + '" title="' + esc(t('pick_print_h')) + '">' + icon('file', 'i-sm') + esc(t('pick_print')) + '</button>' : '') +
       (canPick && open.length ? (canDispatch ? '<button class="btn btn-tone btn-sm dsp-btn" style="--tone:var(--t-indigo)" data-act="dispatch" data-id="' + rid + '" disabled>' + icon('truck', 'i-sm') + esc(t('dispatch_selected')) + '<span class="count-pill hidden"></span></button>' : '') +
         '<select class="select item-st-bulk" data-change="itemStBulk" data-id="' + rid + '" style="width:auto" aria-label="' + esc(t('item_st_bulk')) + '"><option value="*">' + esc(t('item_st_bulk')) + '…</option>' +
           '<option value="">' + esc(t('item_st_none')) + '</option>' + ITEM_ST.map(x => '<option value="' + esc(x) + '">' + esc(statusLabel(x)) + '</option>').join('') + '</select>' +
@@ -3893,7 +3894,8 @@ ACT.dispatch = el => {
   if (!boxes) return;
   busy(el, true, t('sending'));
   call('dispatchItems', id, lines, boxes[id]).then(res => {
-    toast(res.allSent ? t('dispatch_all_done') : t('dispatch_partial', { n: res.count, u: fmtNum(res.units, 0), r: fmtNum(res.remainingQty, 0), b: res.batch }));
+    toast(res.allSent ? t('dispatch_all_done') : t('dispatch_partial', { n: res.count, u: fmtNum(res.units, 0), r: fmtNum(res.remainingQty, 0), b: res.batch }), 'success', 12000);
+    mtkShipPrintBtn(id, res.batch);
     loadProcItems(id, true); loadProc(true); loadAlerts(); BX.data = null;
   }).catch(e => { busy(el, false); toast(errMsg(e), 'error'); });
   });
@@ -10029,6 +10031,48 @@ renderAlerts = function(list) {
   if (n > MTK.seen) mtkChime();
   MTK.seen = n;
 };
+/* قائمة التجهيز: ورقة لمن يجهّز الطلب — الأصناف المحددة (أو كل المتبقي) بالكمية المطلوب تجهيزها الآن */
+ACT.pickPrint = el => {
+  const id = el.dataset.id, exp = document.getElementById('exp-' + id), data = S.proc.items[id], r = S.proc.list.find(x => x.id === id);
+  if (!exp || !data || !r) return;
+  const checked = $$('.dsp:checked', exp).map(c => c.dataset.item);
+  const qtyOf = name => { const inp = $('.dsp-qty[data-item="' + CSS.escape(name) + '"]', exp); const v = inp ? Math.floor(Number(inp.value)) : NaN; return v >= 1 ? v : null; };
+  const lines = data.items.filter(it => (it.remainingQty || 0) > 0 && !it.replaced && !it.rejected && (!checked.length || checked.indexOf(it.item) !== -1))
+    .map(it => ({ item: it.item, official: it.official || it.item, qty: qtyOf(it.item) || it.remainingQty, sent: it.sentQty || 0, target: it.target || 0, st: it.ext && it.ext.arrived ? ST.VENDOR_RECV : it.ext ? ST.VENDOR_WAIT : it.itemStatus }));
+  if (!lines.length) { toast(t('select_item'), 'warning'); return; }
+  printReport(pickPrintHtml(r, lines, (data.shipments || []).length + 1, !checked.length));
+};
+function pickPrintHtml(r, lines, nextBatch, allLeft) {
+  const logo = ($('#companyLogo') && $('#companyLogo').getAttribute('src')) ? '<img class="rep-logo" src="' + $('#companyLogo').src + '" alt="Client company logo">' : '';
+  const units = lines.reduce((a, l) => a + l.qty, 0);
+  const head = '<div class="rep-head">' + logo + '<div class="rep-meta"><h2>' + esc(t('pick_title', { n: nextBatch })) + ' <span class="mono">' + esc(r.id) + '</span></h2>' +
+    '<div class="row-wrap">' + typeTag(r.type, r.exempt) + '<span class="hint">' + esc(t(allLeft ? 'pick_all_left' : 'pick_selected')) + '</span></div>' +
+    '<div class="muted">' + esc(t('rep_generated')) + ' ' + esc(fmtDateTime(new Date())) + ' · ' + esc(S.user.name) + '</div></div></div>';
+  const meta = '<dl class="meta-grid">' + [[t('branch'), r.branch], [t('clinic'), r.clinic], [t('doctor'), docLabel(r)], [t('nurse'), r.nurse]]
+    .map(x => '<div><dt>' + esc(x[0]) + '</dt><dd>' + esc(x[1] || '—') + '</dd></div>').join('') + '</dl>';
+  const rows = lines.map((l, k) => '<tr><td class="muted" style="width:1%">' + (k + 1) + '</td><td style="font-weight:600">' + esc(l.official) + (l.official !== l.item ? ' <span class="muted">(' + esc(l.item) + ')</span>' : '') + '</td>' +
+    '<td class="num"><b>' + fmtNum(l.qty, 0) + '</b></td><td class="num">' + esc(t('sent_of', { a: fmtNum(l.sent, 0), b: fmtNum(l.target, 0) })) + '</td><td>' + (l.st ? esc(statusLabel(l.st)) : '') + '</td><td class="rep-check"></td></tr>').join('');
+  const table = '<section class="rep-req"><table class="table rep-table"><thead><tr><th>#</th><th>' + esc(t('items')) + '</th><th class="num">' + esc(t('pick_qty')) + '</th><th class="num">' + esc(t('pick_before')) + '</th><th>' + esc(t('item_status')) + '</th><th>✓</th></tr></thead>' +
+    '<tbody>' + rows + '</tbody><tfoot><tr><td colspan="2">' + esc(t('rep_total')) + ' · ' + esc(t('items')) + ' ' + lines.length + '</td><td class="num">' + fmtNum(units, 0) + '</td><td colspan="3"></td></tr></tfoot></table></section>';
+  const sign = '<div class="rep-sign">' + [t('pick_by'), t('pick_checked_by')].map(x => '<div><b>' + esc(x) + '</b><span>' + esc(t('req_print_sign')) + '</span></div>').join('') + '</div>';
+  return '<div class="rep">' + head + meta + table + sign + '</div>';
+}
+/* بعد الإرسال: زر «اطبع هذه الشحنة» داخل رسالة النجاح */
+function mtkShipPrintBtn(id, batch) {
+  const el = $('#toasts .toast:last-child'); if (!el || !batch) return;
+  el.querySelector('.grow').insertAdjacentHTML('beforeend', ' <button type="button" class="btn btn-soft btn-sm mtk-toast-btn">' + icon('file', 'i-sm') + esc(t('ship_print_this', { n: batch })) + '</button>');
+  el.querySelector('.mtk-toast-btn').addEventListener('click', () => mtkPrintShipment(id, batch));
+}
+function mtkPrintShipment(id, batch, tries) {
+  const ctx = SHIP_CTX[id], g = ctx && ctx.ships.find(x => x.batch === Number(batch));
+  if (!g) { if ((tries || 0) < 10) setTimeout(() => mtkPrintShipment(id, batch, (tries || 0) + 1), 400); else toast(t('ERR_NOT_FOUND'), 'error'); return; }
+  const name = n => { const it = ctx.items.find(x => x.item === n); return (it && it.official) || n; };
+  printReport(shipmentPrintHtml(ctx.req, g, name));
+}
+Object.assign(I18N.ar, { pick_print: 'طباعة قائمة التجهيز', pick_print_h: 'ورقة لمن يجهّز الطلب: الأصناف المحددة، أو كل المتبقي إن لم تحدد شيئاً', pick_title: 'قائمة تجهيز — الشحنة #{n}', pick_all_left: 'كل الأصناف المتبقية', pick_selected: 'الأصناف المحددة فقط',
+  pick_qty: 'المطلوب تجهيزه', pick_before: 'المرسل سابقاً', pick_by: 'جهّزه', pick_checked_by: 'راجعه', ship_print_this: 'اطبع الشحنة #{n}' });
+Object.assign(I18N.en, { pick_print: 'Print prep list', pick_print_h: 'A sheet for whoever prepares the order: the ticked items, or everything still left if none is ticked', pick_title: 'Prep list — shipment #{n}', pick_all_left: 'All remaining items', pick_selected: 'Ticked items only',
+  pick_qty: 'To prepare', pick_before: 'Sent before', pick_by: 'Prepared by', pick_checked_by: 'Checked by', ship_print_this: 'Print shipment #{n}' });
 /* MASAR_TRACK_END */
 
 /* =====================================================================

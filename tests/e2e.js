@@ -642,6 +642,16 @@ function log(msg) { console.log('  ✔ ' + msg); }
   await page.waitForSelector(`#exp-${newId} .ship-sum .ship`);
   expect((await page.textContent(`#exp-${newId} .dsp-row.partial .qp-left`)).includes('باقي 3'), 'item row shows its remaining quantity');
   expect(await page.locator(`#exp-${newId} .dsp-row.done .dsp-ok`).count() === 1, 'fully-sent item is ticked as complete');
+  // ورقة الشحنة من رسالة النجاح مباشرة، وقائمة تجهيز المتبقي لمن يجهّز الطلب
+  await page.evaluate(() => { window.print = () => {}; });
+  expect(await page.locator('#toasts .mtk-toast-btn').count() >= 1, 'success message offers «print this shipment»');
+  await page.click('#toasts .mtk-toast-btn');
+  await page.waitForFunction(() => /#1/.test(document.getElementById('printArea').textContent));
+  expect((await page.textContent('#printArea')).includes('DENTAL FLOSS'), 'shipment #1 sheet prints from the toast');
+  await page.click(`#exp-${newId} [data-act="pickPrint"]`);
+  await page.waitForFunction(() => /#2/.test(document.getElementById('printArea').textContent));
+  const pick = await page.textContent('#printArea');
+  expect(pick.includes('MICRO BRUSH FINE') && !pick.includes('DENTAL FLOSS'), 'prep list prints only what is left (for whoever prepares shipment #2)');
   await page.click('.chip[data-g="partial"]');
   expect(await page.locator(`#procList .req[data-rid="${newId}"]`).count() === 1, '"partially sent" filter lists the request');
   await page.click('.topbar [data-act="sync"]');
