@@ -135,18 +135,62 @@ function log(msg) { console.log('  ✔ ' + msg); }
     await page.click('#loginBtn');
     await page.waitForSelector('#appShell:not(.hidden)');
     await page.waitForTimeout(400);
+    await skipPasswordPrompt(page);
+  }
+  // تذكير كلمة المرور يظهر تلقائياً بعد الدخول لحسابات الاختبار (كلمات التهيئة): «لاحقًا» مثل المستخدم
+  async function skipPasswordPrompt(page) {
+    if (await page.waitForSelector('.mxc-password-dialog', { timeout: 2500 }).catch(() => null)) {
+      await page.click('.mxc-password-dialog .modal-foot [data-close]');
+      await page.waitForSelector('.mxc-password-dialog', { state: 'detached' });
+    }
+  }
+  // التنبيهات: الأهم فقط أعلى الصفحة، والبقية في مركز التنبيهات (الجرس) — يبحث في الاثنين
+  async function bellText(page) {
+    // مركز تنبيهات مفتوح من قبل (فتحنا منه نافذة أخرى): نغلقه أولاً حتى تُقرأ القائمة الحالية
+    while (await page.$('.mxc-alert-dialog')) { await page.click('.mxc-alert-dialog .modal-foot [data-close]'); await page.waitForTimeout(300); }
+    await page.click('#mxcBell');
+    await page.waitForSelector('.mxc-alert-dialog .mxc-alert-list');
+    const txt = await page.textContent('.mxc-alert-dialog .mxc-alert-list');
+    await page.click('.mxc-alert-dialog .modal-foot [data-close]');
+    await page.waitForSelector('.mxc-alert-dialog', { state: 'detached' });
+    return txt;
+  }
+  async function alertHas(page, text) {
+    for (let k = 0; k < 8; k++) {
+      if (((await page.textContent('#alerts').catch(() => '')) || '').includes(text)) return true;
+      if ((await bellText(page)).includes(text)) return true;
+      await page.waitForTimeout(800);
+    }
+    return false;
+  }
+  // الطلب الجديد خطوتان: اختيار الأصناف ثم «مراجعة وإرسال» — الزر نفسه ينتقل للمراجعة ثم يرسل
+  async function reviewStep(page) {
+    if (!(await page.isVisible('#mxReviewList'))) { await page.click('#submitBtn'); await page.waitForSelector('#mxReviewList:not(.hidden)'); }
+  }
+  // شاشة الطلب الجديد: «بيانات الطلب» و«البحث السريع» مطويان — يفتحهما مثل المستخدم قبل استخدام حقولهما
+  async function openCompose(page) {
+    await page.waitForTimeout(150);
+    // ready = فتحه المستخدم بنفسه، فلا يُطوى تلقائياً بعد اختيار الطبيب
+    await page.evaluate(() => { document.querySelectorAll('#mxComposeContext, .mx-compose .mx-quick-add, .mx-compose .mx-proc-notices').forEach(d => { d.open = true; d.dataset.ready = 'true'; }); });
   }
   // فتح شاشة من القائمة: مباشرة، أو من تبويبها المختصر ثم الزر الفرعي أعلى الصفحة · «سير العمل» من زر المساعدة
   async function openView(page, v) {
     if (v === 'workflow') { await page.click('#wfBtn'); return; }
     if (await page.locator('.sidebar [data-view="' + v + '"]').count()) {
       await page.click('.sidebar [data-view="' + v + '"]');
-      if (await page.evaluate(id => S.view === id, v)) return;
     } else await page.click('.sidebar [data-members~="' + v + '"]');
-    await page.click('.nav-sub [data-seg-name="navSub"][data-v="' + v + '"]');
+    if (!(await page.evaluate(id => S.view === id, v))) await page.click('.nav-sub [data-seg-name="navSub"][data-v="' + v + '"]');
+    // التصميم الجديد يطوي التفاصيل المتقدمة (مثل «متابعة المواعيد والتفاصيل»): نفتحها مثل المستخدم
+    await page.waitForTimeout(120);
+    await page.evaluate(() => document.querySelectorAll('#view details.mx-advanced').forEach(d => { d.open = true; }));
   }
   async function logout(page) {
-    await page.click('.sidebar [data-act="logout"]');
+    // نافذة مفتوحة تلقائياً (الاستبيان أو تذكير كلمة المرور): «لاحقاً» قبل الخروج
+    // قد تظهر متأخرة: نعيد المحاولة بعد إغلاقها
+    for (let k = 0; ; k++) {
+      while (await page.$('#modals .modal')) { await page.keyboard.press('Escape'); await page.waitForTimeout(300); }
+      try { await page.click('.sidebar [data-act="logout"]', { timeout: 3000 }); break; } catch (e) { if (k >= 4) throw e; }
+    }
     await page.waitForSelector('#loginView:not(.hidden)');
   }
   async function toastText(page) {
@@ -178,12 +222,15 @@ function log(msg) { console.log('  ✔ ' + msg); }
   await login(page, 'سارة', '1111');
   expect(await page.isVisible('text=طلب جديد'), 'nurse lands on the new-request screen');
   await page.waitForSelector('#fDoctor option[value="د. خالد"]', { state: 'attached' });
+  await openCompose(page);
   expect(!(await page.$('#fClinic')) && await page.isVisible('#fDocClinic'), 'doctor request: clinic dropdown, then the doctor');
   const docClinicOpts = await page.$$eval('#fDocClinic option', os => os.map(o => o.textContent));
   expect(docClinicOpts.length >= 1 && !docClinicOpts.some(x => /Sterilization|فرز|Triage/i.test(x)), 'doctor request clinics exclude sterilization/triage: ' + docClinicOpts.join(' | '));
   const docGroups = await page.$$eval('#fDoctor optgroup', gs => gs.map(g => g.label));
   expect(docGroups.length === 0 || (docGroups[0] === 'أطبائي' && docGroups[docGroups.length - 1] === 'باقي الأطباء'), 'doctors: her own doctors first, then this clinic, then every other doctor — ' + docGroups.join(' | '));
+  await openCompose(page);
   await page.click('[data-seg-name="reqKind"][data-v="clinic"]');
+  await openCompose(page);
   await page.waitForSelector('#fClinic');
   expect(!(await page.$('#fDoctor')), 'clinic consumables: clinic instead of doctor');
   const groups = await page.$$eval('#fClinic optgroup', gs => gs.map(g => g.label + ':' + g.children.length));
@@ -196,7 +243,9 @@ function log(msg) { console.log('  ✔ ' + msg); }
   expect((await page.textContent('#sterilNote')).includes('جدة') && await page.inputValue('#fBranch') === 'جدة', 'choosing sterilization shows where it is (branch) and sets the branch');
   await shot(page, 'new-sterilization');
   await shot(page, 'new-clinic-consumables');
+  await openCompose(page);
   await page.click('[data-seg-name="reqKind"][data-v="doctor"]');
+  await openCompose(page);
   await page.waitForSelector('#fDoctor option[value="د. خالد"]', { state: 'attached' });
   // الأقسام: عيادة الجلدية ترى مستهلكات الجلدية والمشتركة فقط، وكل صنف عليه تصنيفه
   const clinicVal = n => page.$eval('#fDocClinic', (sel, n) => [...sel.querySelectorAll('option')].find(x => x.textContent === n).value, n);
@@ -237,54 +286,62 @@ function log(msg) { console.log('  ✔ ' + msg); }
   expect(await page.locator('#comboList .combo-free-opt').count() === 2, 'free item: add as consumable or material');
   await shot(page, 'new-free-item');
   await page.click('#comboList .combo-free-opt[data-free="مستهلك"]');
+  // الأصناف المختارة تُراجع في الخطوة الثانية «مراجعة وإرسال»
+  const toReview = async () => { if (!(await page.isVisible('#mxReviewList'))) { await page.click('#submitBtn'); await page.waitForSelector('#mxReviewList:not(.hidden)'); } };
+  const toItems = async () => { if (await page.isVisible('#mxBackToItems')) { await page.click('#mxBackToItems'); await page.waitForSelector('#mxComposeSelection:not(.hidden)'); } await openCompose(page); };
+  await toReview();
   await page.waitForSelector('#itemsList .item-line:has-text("شاش معقم")');
   expect((await page.textContent('#itemsList')).includes('صنف حر'), 'free item marked on the request line');
   await page.locator('#itemsList .item-line:has-text("شاش معقم") [data-act="rmItem"]').click();
-  await page.keyboard.press('Escape');
+  await toItems();
   await page.fill('#itemSearch', 'etchant');
   await page.waitForSelector('#comboList .combo-opt');
   await page.keyboard.press('Enter');
   await page.keyboard.press('Escape');
-  await page.click('.item-line:nth-child(1) [data-d="1"]');
-  await page.click('.item-line:nth-child(1) [data-d="1"]');
   await page.waitForSelector('#pkgCard:not(.hidden) .pkg-chip');
   await page.click('.pkg-chip >> nth=0');
-  expect(await page.locator('.item-line').count() >= 3, 'items added via catalog search and doctor package');
-  expect((await page.inputValue('.item-line:nth-child(1) input')) === '3', 'qty stepper increments');
+  await toReview();
+  const L1 = '#itemsList .item-line:nth-child(1)';
+  await page.click(L1 + ' [data-d="1"]');
+  await page.click(L1 + ' [data-d="1"]');
+  expect(await page.locator('#itemsList .item-line').count() >= 3, 'items added via catalog search and doctor package');
+  expect((await page.inputValue(L1 + ' input')) === '3', 'qty stepper increments');
   // الكمية صفر: خطأ واضح ويُمنع الإرسال
-  // القائمة قد تُعاد رسمها بعد إضافة البكج: نعيد كتابة الصفر حتى يثبت
   // إضافة البكج قد ترسم القائمة متأخراً فترجع الكمية: نعيد الصفر حتى يبقى ثانية كاملة مع رسالته
-  const zeroHolds = () => page.evaluate(() => { const l = document.querySelector('.item-line:nth-child(1)'); return !!l && l.querySelector('input').value === '0' && !!l.querySelector('.qty-err:not(.hidden)'); });
+  const zeroHolds = () => page.evaluate(sel => { const l = document.querySelector(sel); return !!l && l.querySelector('input').value === '0' && !!l.querySelector('.qty-err:not(.hidden)'); }, L1);
   for (let k = 0; k < 6; k++) {
-    await page.fill('.item-line:nth-child(1) input', '0');
-    await page.dispatchEvent('.item-line:nth-child(1) input', 'input');
+    await page.fill(L1 + ' input', '0');
+    await page.dispatchEvent(L1 + ' input', 'input');
     await page.waitForTimeout(1000);
     if (await zeroHolds()) break;
   }
   // القائمة قد تُرسم من جديد لحظة الفحص: ننتظر الرسالة بدل فحصها مرة واحدة
-  const zeroErr = await page.waitForFunction(() => { const e = document.querySelector('.item-line:nth-child(1) .qty-err'); return !!e && !e.classList.contains('hidden') && e.offsetParent !== null && e.textContent.includes('أقل كمية 1'); }, null, { timeout: 5000 }).then(() => true, () => false);
+  const zeroErr = await page.waitForFunction(sel => { const e = document.querySelector(sel + ' .qty-err'); return !!e && !e.classList.contains('hidden') && e.offsetParent !== null && e.textContent.includes('أقل كمية 1'); }, L1, { timeout: 5000 }).then(() => true, () => false);
   expect(zeroErr, 'zero quantity shows "minimum is 1"');
   await page.click('#submitBtn');
   expect((await page.textContent('#submitErr')).includes('لا يمكن طلب صفر'), 'submit is blocked while a quantity is zero');
   await shot(page, 'nurse-qty-zero');
-  await page.fill('.item-line:nth-child(1) input', '3');
-  await page.dispatchEvent('.item-line:nth-child(1) input', 'input');
-  expect(!(await page.isVisible('.item-line:nth-child(1) .qty-err')), 'error clears once the quantity is valid');
+  await page.fill(L1 + ' input', '3');
+  await page.dispatchEvent(L1 + ' input', 'input');
+  expect(!(await page.isVisible(L1 + ' .qty-err')), 'error clears once the quantity is valid');
   await shot(page, 'nurse-new-request', true);
   await page.click('#submitBtn');
   let tt = await toastText(page);
   expect(/تم إرسال الطلب REQ-/.test(tt), 'request submitted: ' + tt);
   const newId = /REQ-[\d-]+/.exec(tt)[0];
-  expect(await page.locator('.item-line').count() === 0, 'form is cleared after submit');
+  expect(await page.locator('#itemsList .item-line').count() === 0, 'form is cleared after submit');
   // طلب سابق بأثر رجعي (خاصية مؤقتة): يُسجَّل مستلَماً بتاريخه ويظهر بعلامة «أثر رجعي»
+  await openCompose(page);
   expect(await page.isVisible('#fBackdate'), 'backdate option is shown while the window is open');
   await page.check('#fBackdate');
   await page.waitForSelector('#fBdDate');
+  await openCompose(page);
   await page.fill('#itemSearch', 'floss'); await page.waitForSelector('.combo-opt'); await page.keyboard.press('Enter'); await page.keyboard.press('Escape');
+  await toReview();
   await page.click('#submitBtn');
   expect((await page.textContent('#submitErr')).includes('تاريخ الطلب الفعلي'), 'backdated request needs its actual date');
   const bdDay = new Date(Date.now() - 20 * 864e5 + 3 * 36e5).toISOString().slice(0, 10);
-  await page.fill('#fBdDate', bdDay); await page.dispatchEvent('#fBdDate', 'change');
+  await page.evaluate(v => { const i = document.getElementById('fBdDate'); i.value = v; i.dispatchEvent(new Event('change', { bubbles: true })); }, bdDay);
   expect((await page.textContent('#sumBox')).includes('أثر رجعي'), 'summary shows the backdated date');
   await shot(page, 'nurse-backdated-form');
   await page.evaluate(() => document.querySelectorAll('.toast').forEach(x => x.remove()));
@@ -292,6 +349,7 @@ function log(msg) { console.log('  ✔ ' + msg); }
   tt = await toastText(page);
   expect(/بأثر رجعي/.test(tt), 'backdated request recorded: ' + tt);
   const bdId = /REQ-[\d-]+/.exec(tt)[0];
+  await openCompose(page);
   await page.uncheck('#fBackdate');
 
   await openView(page, 'mine');
@@ -345,15 +403,16 @@ function log(msg) { console.log('  ✔ ' + msg); }
   if (otherDoc) { await page.selectOption('[data-change="procDoctor"]', otherDoc); expect(await page.locator(`#procList .req[data-rid="${newId}"]`).count() === 0, 'another doctor hides the request'); }
   await page.selectOption('[data-change="procDoctor"]', '');
   expect(await page.getAttribute(`#procList .req[data-rid="${newId}"]`, 'data-tone') !== null, 'procurement request cards are colored by status');
+  expect((await page.textContent('.input-icon.req-q:has([data-input="procQ"]) .req-prefix')) === 'REQ-', 'request search shows a fixed «REQ-» — the number alone is typed');
   {
     const card = `#procList .req[data-rid="${newId}"]`;
     expect((await page.textContent(`${card} .req-who .who-by`)).includes('سارة'), 'procurement card: the requesting nurse is shown prominently');
-    expect(await page.locator(`${card} .jr .jr-step`).count() === 6 && await page.locator(`${card} .jr .jr-step.done`).count() >= 1, 'procurement card: 6-step journey with the done steps');
-    expect((await page.textContent(`${card} .jr-now`)).includes('المطلوب الآن'), 'procurement card: «needed now» box');
-    expect(await page.locator(`${card} .jr-items span`).count() >= 1, 'procurement card: items preview');
+    expect(await page.locator(`${card} .mx-journey li`).count() === 5 && await page.locator(`${card} .mx-journey li.done`).count() >= 1, 'procurement card: 5-step journey with the done steps');
+    expect(await page.locator(`${card} .mx-journey li.current`).count() === 1, 'procurement card: current step marked');
+    expect(/\d/.test(await page.textContent(`${card} .mx-request-meta`)), 'procurement card: items count');
   }
   // الطلب الجديد لدى الطبيب أولاً: التموين يراه لكن لا يستطيع تجهيزه
-  expect(await page.isVisible('.alert.warning:has-text("لدى الطبيب")'), 'procurement is alerted that an emergency awaits doctor approval');
+  expect(await alertHas(page, 'لدى الطبيب'), 'procurement is alerted that an emergency awaits doctor approval');
   expect((await page.textContent(`.req[data-rid="${newId}"] .badge`)).includes('جديد · لم يعتمده الطبيب بعد'), 'new request goes straight to doctor review');
   await page.check(`.req[data-rid="${newId}"] .req-main > .check`);
   await page.waitForSelector('#bulkbar.show');
@@ -412,9 +471,9 @@ function log(msg) { console.log('  ✔ ' + msg); }
   await page.click('#svSend');
   expect(await page.isVisible('#svErr:not(.hidden)') && await page.locator('.sv-q.missing').count() === 12, 'required questions are flagged');
   await page.click('.modal [data-close]');
-  await page.waitForSelector('#alerts .alert:has-text("استبيان الرضا") [data-act="surveyOpen"]');
-  expect(true, 'after «Later» the survey stays as a notice at the top');
-  await page.click('[data-act="surveyOpen"]');
+  expect(await alertHas(page, 'استبيان الرضا'), 'after «Later» the survey stays as a notice');
+  await page.click('#mxcBell');
+  await page.click('.mxc-alert-dialog [data-act="surveyOpen"]');
   await page.waitForSelector('.modal .sv-form');
   for (let i = 0; i < 11; i++) await page.click('.modal .sv-stars >> nth=' + i + ' >> .sv-b >> nth=3');
   await page.click('.modal .sv-nps .sv-b[data-v="9"]');
@@ -422,8 +481,8 @@ function log(msg) { console.log('  ✔ ' + msg); }
   await shot(page, 'doctor-survey');
   await page.click('#svSend');
   expect(await toastHas(page, 'وصلنا رأيك'), 'doctor submits the survey');
-  await page.waitForFunction(() => !document.querySelector('#alerts [data-act="surveyOpen"]'));
-  expect(true, 'the notice disappears after answering');
+  await page.waitForTimeout(800);
+  expect(!(await bellText(page)).includes('استبيان الرضا'), 'the notice disappears after answering');
   await page.waitForSelector('#docList .req');
   await shot(page, 'doctor-reviews');
   expect((await page.textContent(`#docList .req:has([data-id="${newId}"]) .who-by`)).includes('سارة'), 'doctor card: who requested it for the doctor');
@@ -432,6 +491,7 @@ function log(msg) { console.log('  ✔ ' + msg); }
   await page.waitForSelector('#rvItems table');
   await page.click('#rvReject');
   expect(await page.isVisible('#rvErr:not(.hidden)'), 'rejecting without a reason is blocked');
+  await page.click('.mxc-note >> nth=0 >> summary'); // ملاحظة الصنف مطوية تحت «ملاحظات الصنف»
   await page.fill('.rvNote >> nth=0', 'يفضل النوع الشمعي');
   // الطبيب يعدّل كمية الخيط (3 → 2) قبل الاعتماد والإجمالي يتحدث فوراً
   const tot0 = await page.textContent('#rvTotal');
@@ -510,7 +570,7 @@ function log(msg) { console.log('  ✔ ' + msg); }
 
   await page.waitForTimeout(300);
   await page.click('.chip[data-g="all"]');
-  expect((await page.textContent(`.req[data-rid="${newId}"] .stage-at`)).includes('بدأ التجهيز'), 'card time follows the stage: "prep started"');
+  expect((await page.textContent(`.req[data-rid="${newId}"] .mx-journey li.current`)).includes('تجهيز'), 'card journey follows the stage: prep is the current step');
   await page.click(`.req[data-rid="${newId}"] .req-actions [data-act="procToggle"]`);
   await page.waitForSelector(`#exp-${newId} .dsp-table`);
   expect(await page.locator(`#exp-${newId} input[data-change="approveQty"]`).count() === 0 && (await page.textContent(`#exp-${newId}`)).includes('كما اعتمدها الطبيب'),
@@ -582,11 +642,20 @@ function log(msg) { console.log('  ✔ ' + msg); }
   await page.waitForSelector(`#exp-${newId} .ship-sum .ship`);
   expect((await page.textContent(`#exp-${newId} .dsp-row.partial .qp-left`)).includes('باقي 3'), 'item row shows its remaining quantity');
   expect(await page.locator(`#exp-${newId} .dsp-row.done .dsp-ok`).count() === 1, 'fully-sent item is ticked as complete');
+  // ورقة الشحنة من رسالة النجاح مباشرة، وقائمة تجهيز المتبقي لمن يجهّز الطلب
+  await page.evaluate(() => { window.print = () => {}; });
+  expect(await page.locator('#toasts .mtk-toast-btn').count() >= 1, 'success message offers «print this shipment»');
+  await page.click('#toasts .mtk-toast-btn');
+  await page.waitForFunction(() => /#1/.test(document.getElementById('printArea').textContent));
+  expect((await page.textContent('#printArea')).includes('DENTAL FLOSS'), 'shipment #1 sheet prints from the toast');
+  await page.click(`#exp-${newId} [data-act="pickPrint"]`);
+  await page.waitForFunction(() => /#2/.test(document.getElementById('printArea').textContent));
+  const pickSheet = await page.textContent('#printArea');
+  expect(pickSheet.includes('MICRO BRUSH FINE') && !pickSheet.includes('DENTAL FLOSS'), 'prep list prints only what is left (for whoever prepares shipment #2)');
   await page.click('.chip[data-g="partial"]');
   expect(await page.locator(`#procList .req[data-rid="${newId}"]`).count() === 1, '"partially sent" filter lists the request');
   await page.click('.topbar [data-act="sync"]');
-  await page.waitForSelector('.alert:has-text("مُرسل جزئياً")');
-  expect(true, 'procurement alert shows partially-sent requests with quantities left');
+  expect(await alertHas(page, 'مُرسل جزئياً'), 'procurement alert shows partially-sent requests with quantities left');
   await shot(page, 'proc-partial-dispatch');
   await page.click('.chip[data-g="all"]');
   await page.waitForSelector(`#exp-${newId} .dsp`);
@@ -667,7 +736,7 @@ function log(msg) { console.log('  ✔ ' + msg); }
 
   // ---------- Nurse receives ----------
   await login(page, 'سارة', '1111');
-  expect(await page.isVisible('.alert.info'), 'nurse is alerted about a request to receive');
+  expect(await alertHas(page, 'استلام'), 'nurse is alerted about a request to receive');
   await openView(page, 'mine');
   expect(await page.textContent(`.req:has-text("${newId}") [data-act="receive"] .count-pill`) === '2', 'receive button shows 2 shipments waiting');
   expect(await page.isVisible(`.req:has-text("${newId}") .tag.arrived`), 'request card shows «وصل الفرع» after the driver delivery');
@@ -688,6 +757,8 @@ function log(msg) { console.log('  ✔ ' + msg); }
   await page.waitForTimeout(300);
   const sign = async (dx) => {
     const pad = await page.$('#sigPad');
+    await pad.scrollIntoViewIfNeeded();
+    await page.waitForTimeout(250); // النافذة تكمل حركة الفتح قبل التوقيع
     const bb = await pad.boundingBox();
     await page.mouse.move(bb.x + 40, bb.y + 110);
     await page.mouse.down();
@@ -725,13 +796,13 @@ function log(msg) { console.log('  ✔ ' + msg); }
   await page.hover(`.req:has-text("${newId}") [data-act="detail"]`);
   await page.waitForTimeout(500); // التحميل المسبق عند تمرير المؤشر
   await page.click(`.req:has-text("${newId}") [data-act="detail"]`);
-  expect(await page.isVisible('.modal .stepper'), 'details open instantly after hover-prefetch (no loading skeleton)');
-  await page.waitForSelector('.stepper');
+  expect(await page.isVisible('.modal .mx-detail-route'), 'details open instantly after hover-prefetch (no loading skeleton)');
+  await page.waitForSelector('.mx-detail-route');
   expect(await page.locator('.modal .ship-list .ship').count() === 2, 'nurse sees both shipments in the request detail');
   await page.fill('#dComment', 'تم الاستلام، شكراً');
   await page.click('#dSend');
   await page.waitForSelector('.msg.mine');
-  expect(await page.locator('.step.done').count() === 7, 'detail stepper shows all 7 stages done (incl. at branch)');
+  expect(await page.locator('.modal .mtk-timeline .step.done').count() === 6 && /\d{2}:\d{2}:\d{2}/.test(await page.textContent('.modal .mtk-timeline')), 'detail timeline: all 6 stages done, each with date and time to the second');
   await shot(page, 'request-detail');
   await page.evaluate(() => { window.print = () => {}; });
   await page.click('#dPrint');
@@ -764,11 +835,13 @@ function log(msg) { console.log('  ✔ ' + msg); }
   await login(page, 'سارة', '1111');
   await page.evaluate(() => { AUTO_SEND.delay = 600; const d = nurseDraft(); d.kind = 'doctor'; saveDraft(); go('new'); });
   await page.waitForSelector('#fDoctor option[value="د. خالد"]', { state: 'attached' });
+  await openCompose(page);
   await page.click('#itemSearch');
   await page.fill('#itemSearch', 'floss');
   await page.keyboard.press('Enter');
   await page.keyboard.press('Escape');
   const before = await page.evaluate(() => __gas.dump('Requests').length);
+  await reviewStep(page);
   await page.evaluate(() => { window.__failWrites = 6; }); // الإرسال + 3 إعادات تلقائية + محاولتان مجدولتان
   await page.click('#submitBtn');
   await page.waitForSelector('#submitErr:not(.hidden)', { timeout: 20000 });
@@ -783,7 +856,9 @@ function log(msg) { console.log('  ✔ ' + msg); }
   // ---------- Lab: nurse → lab (internal/external) → clinic → redo; doctor follows ----------
   await login(page, 'سارة', '1111');
   await page.evaluate(() => go('new'));
+  await openCompose(page);
   await page.click('[data-seg-name="reqKind"][data-v="lab"]');
+  await openCompose(page);
   await page.waitForSelector('#lDoctor option[value="د. خالد"]', { state: 'attached' });
   await page.selectOption('#lDoctor', 'د. خالد');
   expect(!(await page.$('#lPatient')) && await page.inputValue('#lScan') !== '' && await page.inputValue('#lBranch') === 'الرياض', 'lab form: file No. only, scan date defaults to today, branch from the doctor clinic');
@@ -809,7 +884,9 @@ function log(msg) { console.log('  ✔ ' + msg); }
   expect(/^LAB-\d{6}-\d{3}$/.test(labId), 'nurse sees the case in her lab list (' + labId + ')');
   // iTero: تبويب ثالث بجانب حالة جديدة والإعادة — تاريخ السكان، رقم الآيتيرو، رقم الملف، الطبيب ثم إرسال
   await page.evaluate(() => go('new'));
+  await openCompose(page);
   await page.click('[data-seg-name="reqKind"][data-v="lab"]');
+  await openCompose(page);
   await page.click('[data-seg-name="labMode"][data-v="itero"]');
   await page.waitForSelector('#lItero');
   expect(!(await page.$('#lLines')) && await page.isVisible('#lScan') && await page.isVisible('#lFile'), 'iTero tab: scan date, iTero No., file No., doctor — no work lines');
@@ -869,7 +946,7 @@ function log(msg) { console.log('  ✔ ' + msg); }
     const all = await page.evaluate(() => { window.dispatchEvent(new Event('beforeprint')); const h = document.getElementById('tblTest'); const n = [h.querySelectorAll('tbody tr').length, h.querySelector('tbody tr:last-child').textContent]; h.remove(); return n; });
     expect(first === 50 && second === 250 && all[0] === 330 && all[1] === '329', 'long tables: 50 rows, +200 on «show more», all rows when printing');
   }
-  expect(await page.isVisible('.alert:has-text("إرسالية جديدة")'), 'lab gets a new-case alert');
+  expect(await alertHas(page, 'إرسالية جديدة'), 'lab gets a new-case alert');
   await page.click('.lab-card [data-act="labDo"][data-a="start"][data-items="' + labId + '-1"]');
   expect(await toastHas(page, 'بدأ العمل'), 'lab started item 1 in-house');
   await page.click('.lab-card [data-act="labDo"][data-a="external"][data-items="' + labId + '-2"]');
@@ -931,12 +1008,14 @@ function log(msg) { console.log('  ✔ ' + msg); }
   // مسؤول المعمل يطلب مستهلكات للمعمل: بلا طبيب أو اعتماد، والتموين يسلّمها مباشرة بلا بوكس
   await login(page, 'فني المعمل', '8888');
   await openView(page, 'new');
+  await openCompose(page);
   await page.waitForSelector('#itemSearch');
-  expect(!(await page.$('#fDoctor')) && !(await page.$('#fKind')) && (await page.textContent('.new-layout')).includes('مستهلكات المعمل'), 'lab form: no doctor or clinic, «lab supplies» only');
+  expect(!(await page.$('#fDoctor')) && !(await page.$('#fKind')) && (await page.textContent('#view')).includes('مستهلكات المعمل'), 'lab form: no doctor or clinic, «lab supplies» only');
   await page.fill('#itemSearch', 'floss');
   await page.waitForSelector('#comboList .combo-opt');
   await page.keyboard.press('Enter');
   await page.keyboard.press('Escape');
+  await reviewStep(page);
   await page.click('#submitBtn');
   expect(await toastHas(page, 'تم إرسال'), 'lab submitted a supply request');
   const labSupId = await page.evaluate(() => __gas.dump('Requests').slice(-1)[0][0]);
@@ -1073,7 +1152,7 @@ function log(msg) { console.log('  ✔ ' + msg); }
   await shot(page, 'assets-nurse', true);
   await logout(page);
   await login(page, 'علي', '3333');
-  expect(await page.isVisible('.alert:has-text("بلاغ أداة جديد")'), 'procurement gets a new-tool-ticket alert');
+  expect(await alertHas(page, 'بلاغ أداة جديد'), 'procurement gets a new-tool-ticket alert');
   await openView(page, 'assets');
   await page.click('[data-seg-name="asTab"][data-v="tickets"]');
   await page.waitForSelector('#asTickets .req');
@@ -1142,11 +1221,15 @@ function log(msg) { console.log('  ✔ ' + msg); }
   await openView(page, 'requests');
   await page.waitForSelector('[data-rid="' + stId + '"] [data-act="procToggle"]');
   await page.click('[data-rid="' + stId + '"] .req-actions [data-act="procToggle"]');
-  await page.waitForSelector('#exp-' + stId + ' .item-st[data-item="DENTAL FLOSS"]');
+  await page.waitForSelector('#exp-' + stId + ' .item-st[data-item="DENTAL FLOSS"]', { state: 'attached' });
+  // حالة الصنف شارة: الضغط عليها يفتح التغيير
+  const openSt = () => page.evaluate(id => document.querySelectorAll('#exp-' + id + ' details.it-st').forEach(d => { d.open = true; }), stId);
+  await openSt();
   await page.selectOption('#exp-' + stId + ' .item-st[data-item="DENTAL FLOSS"]', 'بانتظار المندوب');
   expect(await toastHas(page, 'حُدّثت حالة 1 صنف'), 'procurement sets a status for one item inside the request');
   await page.waitForTimeout(300);
   expect(await page.inputValue('#exp-' + stId + ' .item-st[data-item="DENTAL FLOSS"]') === 'بانتظار المندوب' && await page.inputValue('#exp-' + stId + ' .item-st[data-item="PROPHY PASTE"]') === '', 'each item keeps its own status');
+  await openSt();
   await page.selectOption('#exp-' + stId + ' .item-st[data-item="DENTAL FLOSS"]', 'قيد التجهيز');
   await page.waitForSelector('.modal #rvReason');
   await page.click('.modal [data-close]');
@@ -1249,7 +1332,7 @@ function log(msg) { console.log('  ✔ ' + msg); }
   }
   await shot(page, 'dashboard-status-list');
   await page.click('.modal tbody tr >> nth=0 >> [data-act="detail"]');
-  await page.waitForSelector('.modal .stepper');
+  await page.waitForSelector('.modal .mx-detail-route');
   expect(true, 'a request in the status list opens its details');
   await page.keyboard.press('Escape'); await page.waitForTimeout(250);
   await page.keyboard.press('Escape'); await page.waitForTimeout(300);
@@ -1341,7 +1424,7 @@ function log(msg) { console.log('  ✔ ' + msg); }
   await page.waitForSelector('#fnBody .rp-tile');
   const fNav = await page.$$eval('.sidebar .nav-item', els => [].concat(...els.map(e => (e.dataset.members ? e.dataset.members.split(' ') : [e.dataset.view]))));
   expect(fNav[0] === 'finance' && !fNav.includes('users') && !fNav.includes('complaints'), 'finance lands on its own screen: ' + fNav.join(','));
-  expect(await page.locator('#fnBody .rp-tile').count() === 9, 'finance shows 9 money figures (incl. awaiting doctor approval)');
+  expect(await page.locator('#fnBody .rp-tile').count() === 10, 'finance shows 10 money figures (incl. awaiting doctor approval, net received and returns)');
   await page.waitForSelector('#fnPrices tr:has-text("Itero Sleeve") .price-in');
   await page.fill('#fnPrices tr:has-text("Itero Sleeve") .price-in', '320');
   await page.click('#fnPrices tr:has-text("Itero Sleeve") [data-act="priceSave"]');
@@ -1452,6 +1535,8 @@ function log(msg) { console.log('  ✔ ' + msg); }
   const branches = await page.evaluate(() => call('getRequests', {}).then(l => Array.from(new Set(l.map(r => r.branch)))));
   expect(branches.every(b => b === 'جدة'), 'branch manager only gets his branch requests (' + branches.join(',') + ')');
   await page.evaluate(() => go('monitor'));
+  await page.waitForTimeout(120);
+  await page.evaluate(() => document.querySelectorAll('#view details.mx-advanced').forEach(d => { d.open = true; }));
   await page.waitForSelector('#monBody .rp-tiles');
   await shot(page, 'branch-manager-monitor', true);
   // البوكسات (اطلاع): بلا رابط السواق ولا أزرار النقل والستيكر، وبحث بالطبيب
@@ -1603,7 +1688,9 @@ function log(msg) { console.log('  ✔ ' + msg); }
   await logout(page);
   await login(page, 'سارة', '1111');
   await openView(page, 'new');
+  await openCompose(page);
   await page.click('[data-seg-name="reqKind"][data-v="doctor"]');
+  await openCompose(page);
   await page.waitForSelector('#itemSearch');
   await page.fill('#itemSearch', 'gloves');
   await page.waitForSelector('#comboList .alias-nm');
@@ -1803,12 +1890,13 @@ function log(msg) { console.log('  ✔ ' + msg); }
   await login(page, 'هيفاء HK', '3030');
   const hkNav = await page.$$eval('.sidebar .nav-item', els => [].concat(...els.map(e => (e.dataset.members ? e.dataset.members.split(' ') : [e.dataset.view]))));
   expect(hkNav.join(',') === 'new,mine', 'housekeeper sees only New request and My requests: ' + hkNav.join(','));
-  await openView(page, 'new'); await page.waitForSelector('#fKind');
+  await openView(page, 'new'); await openCompose(page); await page.waitForSelector('#fKind');
   expect(await page.isHidden('[data-seg-name="reqKind"]') && (await page.textContent('#fKind')).includes('التموين مباشرة'), 'no doctor option — the request is for a place, straight to procurement');
   expect(!(await page.$('#fClinic')) && await page.isDisabled('#fBranch') && await page.inputValue('#fBranch') === 'جدة' && !(await page.$('#fBackdate')),
     'housekeeper form: her branch fixed (no clinic, no past requests)');
   await shot(page, 'housekeeper-new');
   await page.fill('#itemSearch', 'floss'); await page.waitForSelector('.combo-opt'); await page.keyboard.press('Enter'); await page.keyboard.press('Escape');
+  await reviewStep(page);
   await page.click('#submitBtn');
   // رقم الطلب من رسالة «تم إرسال الطلب» تحديداً (قد تبقى رسائل سابقة على الشاشة)
   const hkToast = await page.waitForFunction(() => [...document.querySelectorAll('.toast')].map(x => x.textContent).find(x => /تم إرسال الطلب/.test(x)) || null).then(h => h.jsonValue());
@@ -1829,6 +1917,7 @@ function log(msg) { console.log('  ✔ ' + msg); }
   // ---------- Settings in the app (no sheet): admin adds a clinic and sets the driver email; finance sees only the backdate ----------
   await login(page, 'المدير', '1234');
   await openView(page, 'settings');
+  await page.click('[data-act="mxSettingsTab"][data-tab="system"]'); // إعدادات النظام في تبويبها
   await page.waitForSelector('#stk_DriverEmail');
   await page.fill('#stk_DriverEmail', 'driver@clinic.sa');
   await page.click('[data-act="stSaveKeys"]');
@@ -1896,7 +1985,8 @@ function log(msg) { console.log('  ✔ ' + msg); }
   await logout(page);
   await login(page, 'نواف', '7777');
   await openView(page, 'settings');
-  await page.waitForSelector('#stk_BackdateUntil');
+  await page.click('[data-act="mxSettingsTab"][data-tab="system"]'); // إعدادات النظام في تبويبها
+  await page.waitForSelector('#stk_BackdateUntil', { state: 'attached' }); // التاريخ يُختار بقوائم منسدلة والقيمة في حقل مخفي
   expect(await page.locator('.st-key').count() === 1 && !(await page.isVisible('[data-act="stClinic"]')), 'finance sees only the past-requests date');
   await logout(page);
 
@@ -1925,10 +2015,13 @@ function log(msg) { console.log('  ✔ ' + msg); }
   await logout(page);
   await login(page, 'سارة', '1111');
   await openView(page, 'new');
+  await openCompose(page);
   await page.waitForSelector('.rule-slot .rule-bar.in');
   const bar = await page.textContent('.rule-slot .rule-bar');
   expect(bar.includes('أنت داخل نافذة الطلب الشهري') && (bar.includes('الطارئ المتبقي لـ') || bar.includes('الحد لكل طبيب')) && bar.includes('6 ساعة') && bar.includes('1 أصناف'), 'nurse sees window, emergency left and limits — ' + bar);
+  await openCompose(page);
   await page.click('[data-seg-name="reqKind"][data-v="doctor"]');
+  await openCompose(page);
   await page.waitForSelector('#fDoctor option[value="د. خالد"]', { state: 'attached' });
   await page.click('[data-seg-name="reqType"][data-v="طارئ"]');
   await page.fill('#itemSearch', 'صنف غير موجود أبداً');
@@ -1936,6 +2029,7 @@ function log(msg) { console.log('  ✔ ' + msg); }
   expect(!(await page.isVisible('.combo-free')), 'free items locked: nurse gets no «add a free item» option');
   await page.keyboard.press('Escape');
   for (const q of ['floss', 'prophy']) { await page.fill('#itemSearch', q); await page.waitForSelector('.combo-opt'); await page.keyboard.press('Enter'); await page.keyboard.press('Escape'); }
+  await reviewStep(page);
   await page.click('#submitBtn');
   const em = await page.textContent('#submitErr');
   expect(em.includes('عدد المستهلكات للطلب الطارئ') && em.includes('التموين') && em.includes('المتبقي من الطلبات الطارئة لهذا الطبيب'), 'too many items for an emergency: clear message + emergencies left — ' + em);
@@ -2019,7 +2113,11 @@ function log(msg) { console.log('  ✔ ' + msg); }
   // ---------- Onboarding tour & workflow ----------
   {
     const tp = await newPage(null, true);
+    // بكلمة التهيئة يظهر تذكير كلمة المرور أولاً (ولا تُفتح الجولة فوقه): نغيّرها ثم ندخل من جديد
     await login(tp, 'سارة', '1111');
+    await tp.evaluate(() => call('changePassword', '1111', 'Sara-Tour-2026'));
+    await logout(tp);
+    await login(tp, 'سارة', 'Sara-Tour-2026');
     await tp.waitForSelector('.tour-card', { timeout: 5000 });
     expect((await tp.innerText('.tour-card h3')).includes('أهلاً'), 'tour opens automatically on first login (Arabic)');
     await shot(tp, 'tour-welcome');
@@ -2036,7 +2134,7 @@ function log(msg) { console.log('  ✔ ' + msg); }
     await tp.waitForTimeout(400);
     expect(!(await tp.isVisible('.tour-card')), 'skip closes the tour');
     await logout(tp);
-    await login(tp, 'سارة', '1111');
+    await login(tp, 'سارة', 'Sara-Tour-2026');
     await tp.waitForTimeout(1500);
     expect(!(await tp.isVisible('.tour-card')), 'tour does not reappear after skipping');
     await tp.click('.topbar [data-act="toggleLang"]');
@@ -2057,6 +2155,7 @@ function log(msg) { console.log('  ✔ ' + msg); }
     await shot(tp, 'workflow', true);
     await logout(tp);
     await login(tp, 'علي', '3333');
+    await tp.evaluate(() => startTour()); // بعد تذكير كلمة المرور لا تبدأ الجولة تلقائياً: تُفتح من «إعادة الجولة»
     await tp.waitForSelector('.tour-card');
     await tp.click('[data-tour="next"]'); await tp.waitForTimeout(400);
     await tp.click('[data-tour="next"]'); await tp.waitForTimeout(700);
@@ -2067,6 +2166,7 @@ function log(msg) { console.log('  ✔ ' + msg); }
     await tp.context().close();
     const tm = await newPage({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true }, true);
     await login(tm, 'د. خالد', '4444');
+    await tm.evaluate(() => startTour()); // بعد تذكير كلمة المرور لا تبدأ الجولة تلقائياً: تُفتح من «إعادة الجولة»
     await tm.waitForSelector('.tour-card');
     await tm.click('[data-tour="next"]'); await tm.waitForTimeout(600);
     await shot(tm, 'mobile-tour');
@@ -2087,7 +2187,7 @@ function log(msg) { console.log('  ✔ ' + msg); }
   await m.waitForSelector('#mineList .req');
   await shot(m, 'mobile-nurse-mine');
   await m.click('#mineList .req-main >> nth=0');
-  await m.waitForSelector('.stepper');
+  await m.waitForSelector('.mx-detail-route');
   await shot(m, 'mobile-detail-sheet');
   const hScroll = await m.evaluate(() => document.documentElement.scrollWidth > window.innerWidth + 1);
   expect(!hScroll, 'no horizontal page scroll on mobile');
@@ -2100,10 +2200,10 @@ function log(msg) { console.log('  ✔ ' + msg); }
     document.querySelectorAll('body *').forEach(el => {
       if (!el.getClientRects().length || getComputedStyle(el).visibility === 'hidden') return;
       const r = el.getBoundingClientRect();
-      if (r.width && (r.right > W + 1 || r.left < -1) && !scroller(el) && !el.closest('#bottomNav,.tour-card,.chart-tip,.sidebar')) out.push((el.id ? '#' + el.id : el.className && typeof el.className === 'string' ? '.' + el.className.split(' ').join('.') : el.tagName) + ' [' + Math.round(r.left) + '..' + Math.round(r.right) + ']');
+      if (r.width && (r.right > W + 1 || r.left < -1) && !scroller(el) && !el.closest('#bottomNav,.tour-card,.chart-tip,.sidebar,.masar-wordmark')) out.push((el.id ? '#' + el.id : el.className && typeof el.className === 'string' ? '.' + el.className.split(' ').join('.') : el.tagName) + ' [' + Math.round(r.left) + '..' + Math.round(r.right) + ']');
     });
     // أي عنصر أعرض من الشاشة (أعلى مستوى فقط) خارج حاويات التمرير المقصودة
-    Array.from(document.querySelectorAll('body *')).filter(el => el.getClientRects().length && el.getBoundingClientRect().width > W + 1 && !scroller(el) && !el.closest('#bottomNav,.sidebar,.table-wrap,.chips,.tour-card') && !Array.from(el.children).some(c => c.getBoundingClientRect().width > W + 1))
+    Array.from(document.querySelectorAll('body *')).filter(el => el.getClientRects().length && el.getBoundingClientRect().width > W + 1 && !scroller(el) && !el.closest('#bottomNav,.sidebar,.table-wrap,.chips,.tour-card,.masar-wordmark') && !Array.from(el.children).some(c => c.getBoundingClientRect().width > W + 1))
       .slice(0, 5).forEach(el => out.unshift('WIDE ' + (el.id ? '#' + el.id : el.tagName) + ' w=' + Math.round(el.getBoundingClientRect().width)));
     return { scroll: document.documentElement.scrollWidth > W + 1, out: out.slice(0, 8) };
   });
@@ -2128,13 +2228,14 @@ function log(msg) { console.log('  ✔ ' + msg); }
     for (const v of views) {
       await m.evaluate(v => go(v), v);
       await m.waitForTimeout(900);
+      await m.evaluate(() => document.querySelectorAll('#view details.mx-advanced').forEach(d => { d.open = true; })); // الأقسام المطوية تُفحص مفتوحة
       await shot(m, 'mobile-' + name + '-' + v, true);
       await mCheck(m, name + ' / ' + v);
     }
   };
   await mRole('علي', '3333', ['requests', 'complaints']);
   await m.click('#procList .req-main >> nth=0').catch(() => {});
-  if (await m.$('.modal .stepper')) { await mCheck(m, 'procurement detail'); await m.keyboard.press('Escape'); }
+  if (await m.$('.modal .mx-detail-route')) { await mCheck(m, 'procurement detail'); await m.keyboard.press('Escape'); }
   await mRole('د. خالد', '4444', ['reviews']);
   // بطاقة الطبيب على الجوال: شريط «البوكس في» تحت تفاصيل الطلب بعرض البطاقة (لا يضغط النص في عمود ضيق)
   const boxCard = await m.evaluate(() => {
