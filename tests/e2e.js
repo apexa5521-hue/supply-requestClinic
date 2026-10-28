@@ -650,8 +650,8 @@ function log(msg) { console.log('  ✔ ' + msg); }
   expect((await page.textContent('#printArea')).includes('DENTAL FLOSS'), 'shipment #1 sheet prints from the toast');
   await page.click(`#exp-${newId} [data-act="pickPrint"]`);
   await page.waitForFunction(() => /#2/.test(document.getElementById('printArea').textContent));
-  const pick = await page.textContent('#printArea');
-  expect(pick.includes('MICRO BRUSH FINE') && !pick.includes('DENTAL FLOSS'), 'prep list prints only what is left (for whoever prepares shipment #2)');
+  const pickSheet = await page.textContent('#printArea');
+  expect(pickSheet.includes('MICRO BRUSH FINE') && !pickSheet.includes('DENTAL FLOSS'), 'prep list prints only what is left (for whoever prepares shipment #2)');
   await page.click('.chip[data-g="partial"]');
   expect(await page.locator(`#procList .req[data-rid="${newId}"]`).count() === 1, '"partially sent" filter lists the request');
   await page.click('.topbar [data-act="sync"]');
