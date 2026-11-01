@@ -1409,6 +1409,7 @@ function log(msg) { console.log('  ✔ ' + msg); }
   // بيانات الاختبار مؤرخة بأيام قبل اليوم: «الكل» حتى لا يتوقف الفحص على يوم الشهر (أول الشهر قد يكون الشهر الحالي فاضياً)
   await page.selectOption('#monMode', 'all');
   await page.waitForTimeout(800);
+  await page.evaluate(() => document.querySelectorAll('#view details.mx-advanced').forEach(d => { d.open = true; })); // الصفحة تُرسم من جديد فتنطوي التفاصيل
   await page.waitForSelector('#monBody .rp-tile');
   expect(await page.locator('#monBody [data-act="monNudge"]').count() >= 1, 'overdue requests are listed with a nudge button');
   expect((await page.textContent('#monBody')).includes('مؤشرات أداء المراحل') && await page.locator('#monBody table:has-text("بدء التجهيز") tbody tr').count() === 5, 'stage performance indicators: 5 stages against their targets');
