@@ -8228,7 +8228,7 @@ function openUserModal(u) {
           ['', 'أسنان', 'جلدية'].map(v => '<option value="' + v + '"' + ((u.department || '') === v ? ' selected' : '') + '>' + esc(v ? t(v === 'جلدية' ? 'dept_derma_staff' : 'dept_dental_staff') : t('dept_all')) + '</option>').join('') + '</select></div>' +
       '</div>' +
       '<div class="field hidden" id="uBranchWrap"><label for="uBranch">' + esc(t('branch')) + ' <span class="hint">· ' + esc(t('user_branch_hint')) + '</span></label><select class="select" id="uBranch">' +
-        [''].concat(S.branches || []).map(v => '<option value="' + esc(v) + '"' + ((u.branch || '') === v ? ' selected' : '') + '>' + esc(v || t('all_branches')) + '</option>').join('') + '</select></div>' +
+        [''].concat(S.branches || []).concat(u.branch && (S.branches || []).indexOf(u.branch) === -1 ? [u.branch] : []).map(v => '<option value="' + esc(v) + '"' + ((u.branch || '') === v ? ' selected' : '') + '>' + esc(v ? (v === u.branch && (S.branches || []).indexOf(v) === -1 ? v + ' — ' + t('u_branch_unknown') : v) : t('all_branches')) + '</option>').join('') + '</select></div>' +
       '<div class="field hidden" id="uPvWrap"><label for="uPriceView">' + icon('cart', 'i-sm') + ' ' + esc(t('pv_label')) + ' <span class="hint">· ' + esc(t('pv_hint')) + '</span></label><select class="select" id="uPriceView">' +
         ['', 'all'].map(v => '<option value="' + v + '"' + ((u.priceView === 'all' ? 'all' : '') === v ? ' selected' : '') + '>' + esc(t('pv_' + (v || 'auto'))) + '</option>').join('') + '</select></div>' +
       '<div class="field hidden" id="uDocWrap"><label for="uDoctor">' + esc(t('linked_doctor')) + ' <span class="hint">· ' + esc(t('linked_doctor_hint')) + '</span></label>' +
@@ -8254,7 +8254,7 @@ function openUserModal(u) {
     $('#uDocWrap', m.el).classList.toggle('hidden', sc !== 'doctor');
     $('#uPvWrap', m.el).classList.toggle('hidden', sc !== 'doctor' && sc !== 'branch');
     $('#uDeptWrap', m.el).classList.toggle('hidden', ['procurement', 'doctor'].indexOf(sc) === -1);
-    $('#uBranchWrap', m.el).classList.toggle('hidden', (MGMT_SCREENS.indexOf(sc) === -1 && sc !== 'housekeeper') || sc === 'admin');
+    $('#uBranchWrap', m.el).classList.toggle('hidden', (MGMT_SCREENS.indexOf(sc) === -1 && sc !== 'housekeeper') || sc === 'admin' || $('#uRole', m.el).value === OPS_ROLE); // مدير التشغيل: كل الفروع دائماً
   };
   // معاينة الربط مباشرة: لمن سيرتبط الحساب، أو تنبيه أحمر إن لم يطابق أي طبيب
   // «طبيب جديد»: اسم الطبيب مقترح من اسم الحساب (Dr.Thunayan ← Dr. Thunayan) ويمكن تعديله
@@ -10087,6 +10087,9 @@ function mtkPrintShipment(id, batch, tries) {
   const name = n => { const it = ctx.items.find(x => x.item === n); return (it && it.official) || n; };
   printReport(shipmentPrintHtml(ctx.req, g, name));
 }
+const OPS_ROLE = 'مدير التشغيل';
+Object.assign(I18N.ar, { u_branch_unknown: 'غير موجود في قائمة الفروع' });
+Object.assign(I18N.en, { u_branch_unknown: 'not in the branch list' });
 Object.assign(I18N.ar, { ca_month_limit: 'حد الطلب الشهري لكل طبيب', ca_month_limit_h: '0 = مفتوح. أكثر من صفر = أقصى كمية من هذا الصنف للطبيب في طلباته الشهرية خلال الشهر (الطارئ لا يُحسب).',
   month_limit_tag: 'حد شهري {n}', ERR_ITEM_MONTH_LIMIT: 'تجاوز الحد الشهري لصنف «{item}» لهذا الطبيب: الحد {limit} والمتبقي هذا الشهر {left}' });
 Object.assign(I18N.en, { ca_month_limit: 'Monthly limit per doctor', ca_month_limit_h: '0 = open. Above zero = the most of this item a doctor can get in his monthly requests in a month (emergency not counted).',

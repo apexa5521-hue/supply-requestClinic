@@ -2024,6 +2024,23 @@ test('branch manager: sees only his branch (requests, details, reports, monitor,
   assert.ok(q.includes(riyadh) && q.includes(jeddah));
 });
 
+test('operations manager is never limited to one branch, even with an old branch left on the account', () => {
+  const { api, login } = boot(g => {
+    const ss = g.globals.SpreadsheetApp.getActiveSpreadsheet();
+    ss.getSheetByName('Roles').appendRow(['مدير التشغيل', 'executive']);
+    ss.getSheetByName('Roles').appendRow(['مدير فرع', 'branch']);
+    const users = ss.getSheetByName('Users'); users.getRange(1, 7).setValue('Branch');
+    users.appendRow(['معاذ', '9201', 'مدير التشغيل', '', 'ops2@example.com', '', 'جدة']);
+    users.appendRow(['مدير جدة', '9202', 'مدير فرع', '', 'bmj@example.com', '', 'جدة']);
+  });
+  const n = login('سارة', '1111');
+  api(n, 'createRequest', { doctor: 'د. نورة', type: 'شهري', items: [{ name: 'PROPHY PASTE', qty: 1 }] });          // الرياض
+  api(login('ريم', '2222'), 'createRequest', { doctor: 'د. سعد', type: 'طارئ', items: [{ name: 'DENTAL FLOSS', qty: 1 }] }); // جدة
+  const br = tok => Array.from(new Set(api(tok, 'getRequests', {}).map(r => r.branch))).sort().join(',');
+  assert.equal(br(login('معاذ', '9201')), ['الرياض', 'جدة'].sort().join(','), 'operations manager sees every branch');
+  assert.equal(br(login('مدير جدة', '9202')), 'جدة', 'a branch manager stays limited to his branch');
+});
+
 test('arrival at the branch notifies doctor, operations and that branch manager; receipt notifies procurement and the branch manager', () => {
   const { api, login, gas } = boot(g => {
     const ss = g.globals.SpreadsheetApp.getActiveSpreadsheet();

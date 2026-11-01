@@ -1702,7 +1702,8 @@ function userBranch_(user) {
   return r ? str_(r.Branch) : '';
 }
 function applyScope_(user) {
-  SCOPE_BRANCH_ = MGMT_SCREENS.indexOf(user.screen) !== -1 && user.screen !== 'admin' ? userBranch_(user) : '';
+  // مدير التشغيل يتابع كل الفروع دائماً — لا يُحصر بفرع حتى لو بقي فرع قديم مسجّلاً في حسابه
+  SCOPE_BRANCH_ = MGMT_SCREENS.indexOf(user.screen) !== -1 && user.screen !== 'admin' && str_(user.role) !== OPS_ROLE_ ? userBranch_(user) : '';
   user.branch = SCOPE_BRANCH_;
   PRICE_VIEW_ = userPriceView_(user);
   NO_PRICES_ = PRICE_VIEW_ === 'none';
