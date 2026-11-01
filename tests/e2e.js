@@ -504,14 +504,15 @@ function log(msg) { console.log('  ✔ ' + msg); }
   await page.waitForTimeout(400);
   // تقرير الطبيب
   await page.click('#docReportBtn');
-  await page.waitForSelector('.rep .rep-tiles');
-  expect(await page.locator('.rep .rep-req').count() >= 1, 'doctor report lists the requests with items');
-  expect(/\d/.test(await page.textContent('.rep-grand b')), 'doctor report shows a grand total');
-  expect(await page.isVisible('.rep-logo'), 'report header carries the client logo');
+  await page.waitForSelector('.modal #repGo');
+  // التقرير على المستلم فعلاً: «تراكمي حتى اليوم» فيه الطلبات المستلمة مهما كان يوم الشهر (أول الشهر قد يكون الشهر الحالي فاضياً)
   await page.click('[data-seg-name="repMode"][data-v="cum"]');
   expect(await page.isVisible('#repTo') && !(await page.isVisible('#repMonth')), 'cumulative mode asks for an end date');
   await page.click('#repGo');
   await page.waitForSelector('.rep .rep-tiles');
+  expect(await page.locator('.rep .rep-req').count() >= 1, 'doctor report lists the requests with items');
+  expect(/\d/.test(await page.textContent('.rep-grand b')), 'doctor report shows a grand total');
+  expect(await page.isVisible('.rep-logo'), 'report header carries the client logo');
   await shot(page, 'doctor-report');
   await page.evaluate(() => { window.print = () => {}; });
   await page.click('#repPrint');
