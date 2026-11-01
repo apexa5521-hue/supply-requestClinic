@@ -1614,6 +1614,51 @@ test('finance: tiles agree — trend = approved, share sums to 100%, duplicate r
   assert.equal(r2(fin.branches.reduce((a, b) => a + b.value, 0)), r2(s.value), 'branch values sum to the share denominator');
 });
 
+test('doctor charge: price locked at receipt — a later catalog price change does not rewrite past charges', () => {
+  const { api, login, gas } = boot(g => {
+    g.seed('ItemsCatalog', ['ItemName', 'CommercialName', 'Category', 'Price'], [['PROPHY PASTE', '', '', 60], ['DENTAL FLOSS', '', '', 10]]);
+  });
+  const n = login('سارة', '1111'), p = login('علي', '3333'), f = login('نواف', '7777');
+  const id = api(n, 'createRequest', { doctor: 'د. نورة', type: 'شهري', items: [{ name: 'PROPHY PASTE', qty: 3 }] }).id;
+  api(p, 'bulkUpdateStatus', [id], 'قيد التجهيز');
+  api(p, 'dispatchItems', id, ['PROPHY PASTE']);
+  api(n, 'receiveShipment', id, 1, [{ name: 'PROPHY PASTE', qty: 2 }], 'سارة', PNG, PNG, PNG); // وصل 2 من 3
+  assert.equal(rows(gas, 'RequestItems').find(r => r.RequestID === id).UnitPrice, 60, 'unit price stamped at receipt');
+  const val = () => api(f, 'getFinance', {}).summary.received;
+  assert.equal(val(), 120, 'charged on what was received (2 × 60), not approved (3)');
+  api(f, 'setItemPrice', 'PROPHY PASTE', 100);
+  assert.equal(val(), 120, 'a later price change does not rewrite the received charge');
+  const doc = api(login('المدير', '1234'), 'getStatsReport', {}).doctors.find(d => d.name === 'د. نورة');
+  assert.equal(doc.value, 120);
+  // طلب جديد بعد تغيير السعر: يُحسب بالسعر الجديد
+  const id2 = api(n, 'createRequest', { doctor: 'د. نورة', type: 'شهري', items: [{ name: 'PROPHY PASTE', qty: 1 }] }).id;
+  api(p, 'bulkUpdateStatus', [id2], 'قيد التجهيز');
+  api(p, 'dispatchItems', id2, ['PROPHY PASTE']);
+  api(n, 'receiveShipment', id2, 1, [{ name: 'PROPHY PASTE', qty: 1 }], 'سارة', PNG, PNG, PNG);
+  assert.equal(val(), 220, 'new receipt uses the new price (120 + 100)');
+});
+
+test('monthly limit per item per doctor: 0 = open, monthly requests only, emergency not counted, nurse edits checked too', () => {
+  const { api, login } = boot(g => {
+    g.seed('ItemsCatalog', ['ItemName', 'CommercialName', 'Category', 'Price'], [['PROPHY PASTE', '', '', 60], ['DENTAL FLOSS', '', '', 10]]);
+  });
+  const n = login('سارة', '1111'), p = login('علي', '3333');
+  const it = api(p, 'getCatalogAdmin').items.find(x => x.name === 'DENTAL FLOSS');
+  api(p, 'saveCatalogItem', 'DENTAL FLOSS', Object.assign({}, it, { monthLimit: 3 }));
+  assert.equal(api(p, 'getCatalogAdmin').items.find(x => x.name === 'DENTAL FLOSS').monthLimit, 3);
+  assert.equal(api(n, 'getConfig').catalog.find(x => x.name === 'DENTAL FLOSS').monthLimit, 3, 'the nurse sees the limit on the item');
+  const r1 = api(n, 'createRequest', { doctor: 'د. نورة', type: 'شهري', items: [{ name: 'DENTAL FLOSS', qty: 2 }] }).id;
+  throwsCode(() => api(n, 'createRequest', { doctor: 'د. نورة', type: 'شهري', items: [{ name: 'DENTAL FLOSS', qty: 2 }, { name: 'PROPHY PASTE', qty: 9 }] }), 'ERR_ITEM_MONTH_LIMIT:item=DENTAL FLOSS;limit=3;left=1');
+  api(n, 'createRequest', { doctor: 'د. نورة', type: 'شهري', items: [{ name: 'DENTAL FLOSS', qty: 1 }, { name: 'PROPHY PASTE', qty: 9 }] }); // يكمّل الحد بالضبط، والصنف بلا حد مفتوح
+  api(n, 'createRequest', { doctor: 'د. خالد', type: 'شهري', items: [{ name: 'DENTAL FLOSS', qty: 3 }] }); // طبيب آخر: حده مستقل
+  api(n, 'createRequest', { doctor: 'د. نورة', type: 'طارئ', items: [{ name: 'DENTAL FLOSS', qty: 5 }] }); // الطارئ لا يُحسب
+  throwsCode(() => api(n, 'editRequestItems', r1, [{ item: 'DENTAL FLOSS', qty: 3 }]), 'ERR_ITEM_MONTH_LIMIT');
+  api(n, 'editRequestItems', r1, [{ item: 'DENTAL FLOSS', qty: 1 }]); // التقليل مسموح
+  // صفر = مفتوح
+  api(p, 'saveCatalogItem', 'DENTAL FLOSS', Object.assign({}, it, { monthLimit: 0 }));
+  api(n, 'createRequest', { doctor: 'د. نورة', type: 'شهري', items: [{ name: 'DENTAL FLOSS', qty: 50 }] });
+});
+
 test('finance: spend summary and price editing written back to the catalog sheet as a number', () => {
   const { api, login, gas } = boot(g => {
     g.seed('ItemsCatalog', ['ItemName', 'CommercialName', 'Category', 'Price'], [

@@ -29,7 +29,7 @@ const SCHEMA = {
   // Department: أسنان / جلدية (فارغ = مشترك يظهر للقسمين) · ItemType: مستهلك أو ماتيريال (Category يبقى لتصنيف الصنف)
   ItemsCatalog: ['ItemName', 'CommercialName', 'Category', 'Price', 'Ownership', 'Serialized', 'Department', 'ItemType',
                  'AliasOf', 'FreeStatus', 'FreeBy', 'FreeAt', 'FreeNote',
-                 'Exempt'], // Exempt = نعم: مستهلك مستثنى — يُطلب كطارئ أكثر من مرة دون أن يُحسب من حد الطوارئ · الصنف الحر: مراجعة التموين، والاسم البديل (AliasOf) لصنف موجود
+                 'Exempt', 'MonthlyLimit'], // MonthlyLimit: أقصى كمية للصنف في الطلبات الشهرية لكل طبيب في الشهر (0 أو فارغ = مفتوح) · Exempt = نعم: مستهلك مستثنى — يُطلب كطارئ أكثر من مرة دون أن يُحسب من حد الطوارئ · الصنف الحر: مراجعة التموين، والاسم البديل (AliasOf) لصنف موجود
   Requests:     ['RequestID', 'Date', 'Clinic', 'Doctor', 'Nurse', 'Type', 'Status',
                  'SubmittedAt', 'SentAt', 'ReceivedAt', 'ReceiverName', 'SignatureURL',
                  'PrepAt', 'VendorWaitAt', 'VendorReceivedAt', 'ReviewAt', 'ReviewedAt',
@@ -39,7 +39,8 @@ const SCHEMA = {
   // ItemStatus: حالة الصنف داخل الطلبية (قيد التجهيز / بانتظار المندوب / استلم المندوب) قبل إرساله
   RequestItems: ['RequestID', 'ItemName', 'RequestedQty', 'ApprovedQty', 'ReceivedQty', 'DispatchedAt', 'DispatchBatch', 'ItemStatus', 'ItemStatusAt', 'ItemStatusBy',
                  'SubstituteOf', 'SubStatus', 'SubNote', 'SubBy', 'SubAt', // البديل: سطر جديد يشير لاسم الصنف الأصلي
-                 'RejectNote', 'RejectBy', 'RejectAt', 'RejectQty', 'ReturnID', 'OriginalBatch'], // رفض التموين لصنف: السبب يظهر للطبيب والممرضة، والكمية الأصلية للتراجع
+                 'RejectNote', 'RejectBy', 'RejectAt', 'RejectQty', 'ReturnID', 'OriginalBatch',
+                 'UnitPrice'], // سعر الوحدة مثبّت لحظة الاستلام: حسبة الطبيب لا تتغير لو تغيّر سعر الكتالوج بعده // رفض التموين لصنف: السبب يظهر للطبيب والممرضة، والكمية الأصلية للتراجع
   // سجل التراجعات: كل تراجع عن خطوة (شحنة أُرسلت بالغلط، حالة طلب، حالة صنف) مع السبب والوقت — تراه الجودة والإدارة
   Reversals:    ['Timestamp', 'RequestID', 'User', 'Role', 'Scope', 'From', 'To', 'Reason', 'Details'],
   // منصة استبيان التمريض: نسخة من كل بلاغ (طلب/شحنة، عهدة) + ما يُرفع من الاستبيان نفسه (لا يذهب للتموين)
@@ -1914,6 +1915,7 @@ function getCatalog_(withPrice) {
     if (isAssetOwnership_(r.Ownership)) { o.asset = true; o.serialized = isYes_(r.Serialized); }
     const dp = normDept_(r.Department); if (dp) o.dept = dp;
     if (isYes_(r.Exempt)) o.exempt = true;
+    const ml = monthLimitOf_(r.MonthlyLimit); if (ml) o.monthLimit = ml; // حد الصنف الشهري لكل طبيب
     if (withPrice && !priceVisible_()) o.priceHidden = true;
     else if (withPrice) {
       o.price = price_(r.Price) || 0;
@@ -2956,7 +2958,8 @@ function getFinance_(user, opts) {
     const r = inRange[id];
     if (!r) return;
     requested += (num_(it.RequestedQty) || 0) * p;
-    received += grossReceivedQty_(it) * p; returned += returnedQty_(it) * p;
+    const up = unitPrice_(it, p); // المستلم بسعر الاستلام المثبّت
+    received += grossReceivedQty_(it) * up; returned += returnedQty_(it) * up;
     if (r.awaitingDoctor) { pendingDoc += targetQty_(it) * p; return; }
     approved += targetQty_(it) * p;
     if (!str_(it.SubstituteOf)) reqCleared += (num_(it.RequestedQty) || 0) * p;
@@ -3211,6 +3214,7 @@ function createRequest_(user, payload) {
   const counted = type === 'طارئ' ? items.filter(function (it) { return !maps.exempt[it.name]; }).length : items.length;
   const exemptReq = type === 'طارئ' && !counted;
   if (!exemptReq) checkOrderRules_(user, type, counted, orderTarget_(doctor, clinic), branch);
+  if (type === 'شهري') checkItemMonthLimits_(doctor, items); // حد الصنف الشهري لكل طبيب (من «تعديل الصنف»)
   const rules = getOrderRules_(user, orderTarget_(doctor, clinic), branch); // المتبقي بعد هذا الطلب يرجع للواجهة (تحديث فوري للتنبيه)
 
   // منع الإرسال المزدوج لنفس الطلب خلال دقيقتين
@@ -3289,8 +3293,9 @@ function createBackdated_(user, payload, o) {
     RequestID: id, Date: at, Clinic: o.clinic, Branch: o.branch, Doctor: o.doctor, Nurse: user.name, Type: o.type, Status: ST.RECEIVED,
     SubmittedAt: at, ApprovedAt: at, SentAt: at, ReceivedAt: at, ReceiverName: user.name, ClientKey: clientKey, Department: o.dept, Backdated: true
   });
+  const bdPrices = receivePrices_();
   o.items.forEach(function (it) {
-    append_('RequestItems', { RequestID: id, ItemName: it.name, RequestedQty: it.qty, ApprovedQty: it.qty, ReceivedQty: it.qty, DispatchedAt: at, DispatchBatch: 1 });
+    append_('RequestItems', stampPrice_({ ItemName: it.name }, { RequestID: id, ItemName: it.name, RequestedQty: it.qty, ApprovedQty: it.qty, ReceivedQty: it.qty, DispatchedAt: at, DispatchBatch: 1 }, bdPrices));
   });
   logAction_(id, 'إدخال طلب سابق بأثر رجعي (' + day + ')', user.name);
   return { id: id, duplicate: false, backdated: true };
@@ -3468,7 +3473,7 @@ function writeShipment_(req, rows, st, lines, user, now, boxPick) {
   delete MEMO_.sitems;
   const byName = {};
   st.items.forEach(function (i) { byName[i.item] = i; });
-  const ri = read_('RequestItems');
+  const ri = tableWithCols_('RequestItems'), rcvPrices = receivePrices_();
   setMany_(ri, rows.filter(function (r) {
     const i = byName[str_(r.ItemName)];
     const l = lines.filter(function (x) { return x.name === str_(r.ItemName); })[0];
@@ -3480,7 +3485,7 @@ function writeShipment_(req, rows, st, lines, user, now, boxPick) {
     const got = {};
     lines.forEach(function (l) { got[l.name] = l.qty; });
     setMany_(ri, rows.filter(function (r) { return str_(r.ItemName) in got; }).map(function (r) {
-      return { row: r, obj: { ReceivedQty: (Number(r.ReceivedQty) || 0) + got[str_(r.ItemName)] } };
+      return { row: r, obj: stampPrice_(r, { ReceivedQty: (Number(r.ReceivedQty) || 0) + got[str_(r.ItemName)] }, rcvPrices) };
     }));
     logAction_(req.id, 'تسليم الشحنة ' + batch + ' للمعمل مباشرة (بدون بوكس أو توقيع)', user.name);
     return batch;
@@ -4302,6 +4307,24 @@ function removeMyItems_(user, requestId, items, note) {
  *  تتفق تلقائياً، والقيم الأصلية والقيمة المالية والسبب ومن حذف في Reversals (ويمكن الاسترجاع).
  * ===================================================================== */
 const ADMIN_RM_ = 'حذف صنف (أدمن)', ADMIN_RS_ = 'استرجاع صنف (أدمن)', ADMIN_RM_NOTE_ = 'حذف إداري: ';
+/** سعر الوحدة للحسبة: المثبّت عند الاستلام، وإلا سعر الكتالوج الحالي (طلبات ما قبل التثبيت أو لم تُستلم) */
+function unitPrice_(it, catPrice) {
+  const v = it && it.UnitPrice;
+  if (v === '' || v === null || v === undefined) return catPrice;
+  const n = num_(v);
+  return isNaN(n) ? catPrice : n;
+}
+/** أسعار الاستلام الفعلية: العهدة صفر (لا تُحسب كمستهلك) */
+function receivePrices_() {
+  const p = {};
+  getCatalog_(true).forEach(function (c) { p[c.name.toLowerCase()] = c.asset ? 0 : (Number(c.price) || 0); });
+  return p;
+}
+/** يثبّت السعر على سطر الصنف أول مرة يُستلم (السعر الصفر لا يُثبّت: يُسعَّر لاحقاً من الكتالوج) */
+function stampPrice_(row, obj, prices) {
+  if (row.UnitPrice === '' || row.UnitPrice === null || row.UnitPrice === undefined) { const v = prices[str_(row.ItemName).toLowerCase()] || 0; if (v > 0) obj.UnitPrice = v; }
+  return obj;
+}
 function catalogPrices_() {
   const price = {};
   getCatalog_(true).forEach(function (c) { price[c.name.toLowerCase()] = Number(c.price) || 0; });
@@ -5016,6 +5039,10 @@ function editRequestItems_(user, requestId, qtys) {
     });
     if (!changes.length) return;
     if (dels.length === own.rows.length) throw new Error('ERR_ALL_ZERO');
+    const reqRow = f.row;
+    if (str_(reqRow.Type) === 'شهري' && str_(reqRow.Doctor)) {
+      checkItemMonthLimits_(str_(reqRow.Doctor), own.rows.filter(function (r) { return str_(r.ItemName) in want && want[str_(r.ItemName)] > 0; }).map(function (r) { return { name: str_(r.ItemName), qty: want[str_(r.ItemName)] }; }), requestId);
+    }
     clearRequestDupKey_(user, f, own.rows);
     if (ups.length) setMany_(own.table, ups);
     dels.sort(function (a, b) { return b._row - a._row; }).forEach(function (r) { sheet_('RequestItems').deleteRow(r._row); });
@@ -5092,7 +5119,7 @@ function receiveShipment_(user, requestId, batch, receivedItems, receiverName, s
     resetMemo_();
     const f = findRequest_(requestId);
     const req = mapRequest_(f.row);
-    const ri = read_('RequestItems');
+    const ri = tableWithCols_('RequestItems');
     const rows = ri.rows.filter(function (r) { return str_(r.RequestID) === req.id; });
     const ship = pendingShip_(req, shipState_(req, rows), batch);
     const returnRows = [], returnSeen = {}, receiptNames = {};
@@ -5119,15 +5146,15 @@ function receiveShipment_(user, requestId, batch, receivedItems, receiverName, s
       return { row: r, obj: { ReceivedQty: qty[n] } };
     }));
     delete MEMO_.sitems;
-    const withSi = {};
+    const withSi = {}, rcvPrices = receivePrices_();
     siRows.forEach(function (r) { withSi[str_(r.ItemName)] = true; });
     const allSi = si.rows.filter(function (r) { return str_(r.RequestID) === req.id; });
     setMany_(ri, rows.filter(function (r) { return str_(r.ItemName) in qty; }).map(function (r) {
       const n = str_(r.ItemName);
-      if (!withSi[n]) return { row: r, obj: { ReceivedQty: qty[n] } }; // صنف قديم أُرسل كاملاً
+      if (!withSi[n]) return { row: r, obj: stampPrice_(r, { ReceivedQty: qty[n] }, rcvPrices) }; // صنف قديم أُرسل كاملاً
       const total = allSi.filter(function (x) { return str_(x.ItemName) === n && x.ReceivedQty !== '' && x.ReceivedQty !== null; })
         .reduce(function (a, x) { return a + (Number(x.ReceivedQty) || 0); }, 0);
-      return { row: r, obj: { ReceivedQty: total } };
+      return { row: r, obj: stampPrice_(r, { ReceivedQty: total }, rcvPrices) };
     }));
     returnRows.forEach(function (r) { if (rejects[r.ItemName]) r.Photo = rejects[r.ItemName].url || ''; append_('RequestReturns', r); logAction_(req.id, 'طلب إعادة للتموين عند الاستلام: ' + r.Qty + ' × ' + r.ItemName, user.name); });
     logAction_(req.id, 'استلام الشحنة ' + batch + ' وتوقيعها (' + ship.items.length + ' صنف)', receiverName + ' (' + user.name + ')');
@@ -5295,7 +5322,7 @@ function getRequestReturns_(user, requestId) {
       source: str_(r.Source), kind: str_(r.Kind) || 'return', photo: str_(r.Photo), reason: str_(r.Reason), date: ymdStr_(r.ReturnDate), backdated: isYes_(r.Backdated), status: str_(r.Status), createdAt: r.CreatedAt, createdBy: str_(r.CreatedBy),
       substitutes: itemsOf_(req.id).filter(function (it) { return str_(it.ReturnID) === str_(r.ReturnID); }).map(function (it) { return { item: str_(it.ItemName), qty: Number(it.RequestedQty), status: str_(it.SubStatus), note: str_(it.SubNote), by: str_(it.SubBy), receivedQty: grossReceivedQty_(it), batch: Number(it.DispatchBatch) || 0, originalBatch: Number(it.OriginalBatch) || 0 }; }),
       receivedAt: r.ReceivedAt, receivedBy: str_(r.ReceivedBy), note: str_(r.Note), doctor: req.doctor, clinic: req.clinic, branch: req.branch };
-    if (priceVisible_()) { out.unitPrice = prices[out.item.toLowerCase()] || 0; out.value = round2_(out.qty * out.unitPrice); }
+    if (priceVisible_()) { const line = itemsOf_(req.id).filter(function (it) { return str_(it.ItemName) === out.item; })[0]; out.unitPrice = unitPrice_(line, prices[out.item.toLowerCase()] || 0); out.value = round2_(out.qty * out.unitPrice); }
     return out;
   }).sort(function (a, b) { return toMs_(b.createdAt) - toMs_(a.createdAt); });
 }
@@ -6257,7 +6284,7 @@ function getDoctorReport_(user, opts) {
       const off = !c.asset && !charged_(charge, c.type);
       if (off) sum.notCharged++;
       // العهدة لا تُحسب هنا كمستهلك: قيمتها في قسم «العهدة المصروفة عليه» (مرة واحدة)
-      const price = c.asset || hidden || off ? 0 : (Number(c.price) || 0);
+      const price = c.asset || hidden || off ? 0 : unitPrice_(it, Number(c.price) || 0); // سعر الاستلام المثبّت
       const total = round2_(qty * price);
       if (hidden) sum.hidden++;
       else if (!price && !c.asset && !off) sum.unpriced++;
@@ -6338,7 +6365,7 @@ function getStatsReport_(user, opts) {
     if (!isOff_(r.status)) {
       (byReq[r.id] || []).forEach(function (it) {
         // القيمة على المستلم فعلاً فقط: ما لم يصل أو رُفض عند الاستلام لا يُحسب
-        const q = receivedQty_(it), n = str_(it.ItemName), k = n.toLowerCase(), v = round2_(q * (cat[k] || 0));
+        const q = receivedQty_(it), n = str_(it.ItemName), k = n.toLowerCase(), v = round2_(q * unitPrice_(it, cat[k] || 0));
         value += v; qty += q;
         if (!who || charged_(docCharge[who], ctype[k])) billValue += v; // حسبة الطبيب: ما لا يُحسب عليه لا يدخل حسابه
         if (who && v && charged_(docCharge[who], ctype[k])) {
@@ -7008,7 +7035,7 @@ function getCatalogAdmin_(user) {
     const c = str_(r.Category);
     if (c) cats[c] = true;
     return { name: str_(r.ItemName), commercial: str_(r.CommercialName), category: c, price: price_(r.Price), priceIssue: priceProblem_(r.Price),
-      dept: normDept_(r.Department), type: str_(r.ItemType) || ITEM_TYPES_[0], asset: isAssetOwnership_(r.Ownership), serialized: isYes_(r.Serialized), exempt: isYes_(r.Exempt),
+      dept: normDept_(r.Department), type: str_(r.ItemType) || ITEM_TYPES_[0], asset: isAssetOwnership_(r.Ownership), serialized: isYes_(r.Serialized), exempt: isYes_(r.Exempt), monthLimit: monthLimitOf_(r.MonthlyLimit),
       aliases: aliases[str_(r.ItemName).toLowerCase()] || [] };
   }).sort(function (a, b) { return a.name.localeCompare(b.name); });
   return { items: items, categories: Object.keys(cats).sort(), types: ITEM_TYPES_, depts: DEPTS };
@@ -7022,7 +7049,31 @@ function catalogFields_(it) {
   if (it.price === '' || it.price === null || it.price === undefined || isNaN(p) || p < 0 || p > PRICE_MAX) throw new Error('ERR_BAD_PRICE');
   const type = ITEM_TYPES_.indexOf(str_(it.type)) !== -1 ? str_(it.type) : ITEM_TYPES_[0];
   return { name: name, obj: { ItemName: name, CommercialName: clean_(it.commercial, 120), Category: clean_(it.category, 80), Price: round2_(p),
-    Department: normDept_(it.dept), ItemType: type, Ownership: it.asset ? 'عهدة' : '', Serialized: it.asset && it.serialized ? 'نعم' : '', Exempt: it.exempt ? 'نعم' : '' } };
+    Department: normDept_(it.dept), ItemType: type, Ownership: it.asset ? 'عهدة' : '', Serialized: it.asset && it.serialized ? 'نعم' : '', Exempt: it.exempt ? 'نعم' : '', MonthlyLimit: monthLimitOf_(it.monthLimit) || '' } };
+}
+function monthLimitOf_(v) { const n = Math.floor(num_(v)); return n > 0 && n <= 100000 ? n : 0; }
+/** المطلوب من كل صنف في الطلبات الشهرية لهذا الطبيب في شهر الطلب (المعتمد إن وُجد، وإلا المطلوب) — الملغي والمرفوض لا يُحسب */
+function itemMonthUsed_(doctor, month, exceptId) {
+  const ids = {};
+  requestRows_().forEach(function (r) {
+    if (str_(r.Doctor) === doctor && str_(r.Type) === 'شهري' && !isOff_(str_(r.Status)) && str_(r.RequestID) !== str_(exceptId || '') && monthOf_(r.SubmittedAt || r.Date) === month) ids[str_(r.RequestID)] = true;
+  });
+  const used = {};
+  read_('RequestItems').rows.forEach(function (it) { if (ids[str_(it.RequestID)]) { const n = str_(it.ItemName); used[n] = (used[n] || 0) + targetQty_(it); } });
+  return used;
+}
+/** حد الصنف الشهري لكل طبيب (الطلب الشهري فقط): items = [{ name, qty }] */
+function checkItemMonthLimits_(doctor, items, exceptId) {
+  if (!doctor) return;
+  const limits = {};
+  getCatalog_(false).forEach(function (c) { if (c.monthLimit) limits[c.name] = c.monthLimit; });
+  const limited = items.filter(function (it) { return limits[it.name]; });
+  if (!limited.length) return;
+  const used = itemMonthUsed_(doctor, monthOf_(new Date()), exceptId);
+  limited.forEach(function (it) {
+    const lim = limits[it.name], left = Math.max(0, lim - (used[it.name] || 0));
+    if (it.qty > left) throw new Error('ERR_ITEM_MONTH_LIMIT:item=' + it.name + ';limit=' + lim + ';left=' + left);
+  });
 }
 
 /** إضافة صنف (orig فارغ) أو تعديله؛ تغيير الاسم ينتقل للطلبات والشحنات والعهدة والأسماء البديلة */
