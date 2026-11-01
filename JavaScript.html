@@ -3458,6 +3458,8 @@ function zipStore(files) {
 }
 function renderProcList(animate) {
   const box = $('#procList'); if (!box) return;
+  // التحديث التلقائي لا يعيد رسم القائمة أثناء كتابة كمية — يرسمها بعد الانتهاء
+  if (!animate && procTyping(box)) { if (!box.dataset.waitDraw) { box.dataset.waitDraw = '1'; box.addEventListener('focusout', () => setTimeout(() => { delete box.dataset.waitDraw; if (!procTyping(box)) renderProcList(false); }, 150), { once: true }); } return; }
   $('#procChips').innerHTML = chipsHtml(PROC_GROUPS, S.proc.group, 'procGroup', groupCounts(PROC_GROUPS, procFiltered(true)));
   const dw = $('#procDocW'); if (dw) dw.innerHTML = doctorSelect(S.proc.list, S.proc.doctor, 'procDoctor');
   const hint = $('#procHint');
@@ -3472,6 +3474,7 @@ function renderProcList(animate) {
   selAll.checked = list.length > 0 && visibleSel === list.length;
   selAll.indeterminate = visibleSel > 0 && visibleSel < list.length;
   animateBars(box);
+  S.proc.expanded.forEach(id => { const e = document.getElementById('exp-' + id); if (e) syncDispatchBtn(e); });
   renderBulkbar();
 }
 function procCard(r) {
@@ -3586,8 +3589,11 @@ function renderDocSubs(all) {
       '<div class="row-wrap"><button class="btn btn-sm btn-tone" style="--tone:var(--t-green)" data-act="subReview" data-ok="1" data-id="' + esc(x.r.id) + '" data-item="' + esc(x.s.item) + '">' + icon('check', 'i-sm') + esc(t('sub_accept')) + '</button>' +
         '<button class="btn btn-sm btn-ghost" data-act="subReview" data-ok="0" data-id="' + esc(x.r.id) + '" data-item="' + esc(x.s.item) + '">' + icon('x', 'i-sm') + esc(t('sub_reject')) + '</button></div></div>').join('') + '</div></section>';
 }
+/* اختيارات التموين داخل الطلب (التشيك والكمية المكتوبة) تبقى عبر التحديث التلقائي — لا ترجع ولا تنشال */
+function procPick(id) { const all = S.proc.pick || (S.proc.pick = {}); return all[id] || (all[id] = { sel: {}, qty: {} }); }
 function procItemsHtml(r) {
   const data = S.proc.items[r.id];
+  const pk = procPick(r.id);
   if (!data) return '<div class="skel" style="height:90px"></div>';
   // الكميات يحددها الطبيب عند الاعتماد؛ التموين يعدّلها فقط إن لم يكن للطبيب حساب
   const editable = !r.needsReview && APPROVAL_EDITABLE.indexOf(r.status) !== -1;
@@ -3610,7 +3616,7 @@ function procItemsHtml(r) {
       const pct = tgt ? Math.min(100, Math.round(sent / tgt * 100)) : 100;
       const iname = esc(it.item);
       return '<tr class="dsp-row ' + state + '">' +
-        (canPick ? '<td>' + (left > 0 ? '<input type="checkbox" class="check dsp" data-change="dspSel" data-id="' + rid + '" data-item="' + iname + '" aria-label="' + iname + '">' : icon('checkc', 'i-sm dsp-ok')) + '</td>' : '') +
+        (canPick ? '<td>' + (left > 0 ? '<input type="checkbox" class="check dsp" data-change="dspSel" data-id="' + rid + '" data-item="' + iname + '" aria-label="' + iname + '"' + (pk.sel[it.item] ? ' checked' : '') + '>' : icon('checkc', 'i-sm dsp-ok')) + '</td>' : '') +
         '<td><div style="font-weight:600">' + (it.replaced || it.rejected ? '<s class="muted">' + iname + '</s>' : iname) + '</div>' + subTag(it, data.items) + rejTag(it, r.nurse) + rcvRejTag(it) +
           (canItemSt && it.rejected ? '<button type="button" class="link-btn" data-act="rejUndo" data-id="' + rid + '" data-item="' + iname + '">' + icon('refresh', 'i-sm') + esc(t('rej_undo')) + '</button> ' : '') +
           (canItemSt && left > 0 && !it.replaced && !(it.substituteOf && it.subStatus !== SUB_OK)
@@ -3625,7 +3631,7 @@ function procItemsHtml(r) {
           (left > 0 ? '<span class="qp-left">' + esc(t('left_n', { n: fmtNum(left, 0) })) + '</span>' : '<span class="qp-ok">' + esc(t(sent ? 'item_done' : 'item_zero')) + '</span>') + '</div>' +
           '<div class="progress"><i data-w="' + (sent ? Math.max(6, pct) : 0) + '%"></i></div>' +
           (it.parts && it.parts.length ? '<div class="qp-parts">' + it.parts.map(p => esc(t('shipment_n', { n: p.batch })) + ' ×' + fmtNum(p.qty, 0)).join(' · ') + '</div>' : '') + '</div></td>' +
-        (canDispatch ? '<td class="num">' + (left > 0 ? '<input class="input dsp-qty" type="number" min="1" max="' + left + '" step="1" inputmode="numeric" value="' + left + '" data-input="dspQty" data-id="' + rid + '" data-item="' + iname + '" aria-label="' + esc(t('this_shipment')) + ' — ' + iname + '">' : '—') + '</td>' : '') +
+        (canDispatch ? '<td class="num">' + (left > 0 ? '<input class="input dsp-qty" type="number" min="1" max="' + left + '" step="1" inputmode="numeric" value="' + (pk.qty[it.item] !== undefined ? esc(pk.qty[it.item]) : left) + '" data-input="dspQty" data-id="' + rid + '" data-item="' + iname + '" aria-label="' + esc(t('this_shipment')) + ' — ' + iname + '">' : '—') + '</td>' : '') +
         '<td><button class="btn btn-ghost btn-icon btn-sm" data-act="itemNotes" data-id="' + rid + '" data-item="' + iname + '" title="' + esc(t('item_notes')) + '" style="position:relative">' + icon('msg', 'i-sm') +
           (nc[it.item] ? '<span class="count-pill" style="position:absolute;top:-4px;inset-inline-end:-4px;height:16px;min-width:16px;font-size:10px;background:var(--primary);color:var(--on-primary)">' + nc[it.item] + '</span>' : '') + '</button></td></tr>';
     }).join('') + '</tbody></table></div>' +
@@ -3644,8 +3650,16 @@ function loadProcItems(id, silent) {
     const exp = document.getElementById('exp-' + id);
     const r = S.proc.list.find(x => x.id === id);
     if (typeof MXF !== 'undefined' && MXF.root && MXF.id === id && MXF.view === 'requests' && r && data.request) { Object.assign(r, data.request); const state = $('#mxfRecordState', MXF.root.el); if (state) state.innerHTML = badge(r.status, r) + typeTag(r.type, r.exempt); mxfUpdateRail(); }
-    if (exp && r) { exp.innerHTML = procItemsHtml(r); animateBars(exp); }
+    if (exp && r) procRedrawItems(exp, r);
   }).catch(e => { if (!silent) toast(errMsg(e), 'error'); });
+}
+function procTyping(box) { const a = document.activeElement; return !!(box && a && box.contains(a) && /^(INPUT|SELECT|TEXTAREA)$/.test(a.tagName) && a.type !== 'checkbox'); }
+function procRedrawItems(exp, r) {
+  if (procTyping(exp)) { // يُرسم بعد انتهاء الكتابة
+    if (!exp.dataset.waitDraw) { exp.dataset.waitDraw = '1'; exp.addEventListener('focusout', () => setTimeout(() => { delete exp.dataset.waitDraw; if (exp.isConnected && !procTyping(exp)) procRedrawItems(exp, r); }, 150), { once: true }); }
+    return;
+  }
+  exp.innerHTML = procItemsHtml(r); animateBars(exp); syncDispatchBtn(exp);
 }
 ACT.procToggle = el => {
   const id = el.dataset.id;
@@ -3653,7 +3667,7 @@ ACT.procToggle = el => {
   else { S.proc.expanded.add(id); loadProcItems(id); }
   const card = el.closest('.req');
   const r = S.proc.list.find(x => x.id === id);
-  if (card && r) { const tmp = document.createElement('div'); tmp.innerHTML = procCard(r); const nc = tmp.firstChild; nc.style.animation = 'none'; card.replaceWith(nc); animateBars(nc); }
+  if (card && r) { const tmp = document.createElement('div'); tmp.innerHTML = procCard(r); const nc = tmp.firstChild; nc.style.animation = 'none'; card.replaceWith(nc); animateBars(nc); const e = document.getElementById('exp-' + id); if (e) syncDispatchBtn(e); }
 };
 ACT.procSel = el => {
   const id = el.dataset.id;
@@ -3819,7 +3833,7 @@ function applyItemStatus(id, items, status, reason, onFail) {
   return call('setItemsStatus', id, items, status, reason || '').then(data => {
     S.proc.items[id] = data;
     const r = S.proc.list.find(x => x.id === id); if (r && data.request) r.status = data.request.status;
-    const exp = document.getElementById('exp-' + id); if (exp && r) { exp.innerHTML = procItemsHtml(r); animateBars(exp); }
+    const exp = document.getElementById('exp-' + id); if (exp && r) { exp.innerHTML = procItemsHtml(r); animateBars(exp); syncDispatchBtn(exp); }
     toast(t('item_st_saved', { n: items.length }), 'success'); loadProc(true);
   }).catch(e => { if (onFail) onFail(e); else toast(errMsg(e), 'error'); throw e; });
 }
@@ -3863,10 +3877,11 @@ ACT.revertStep = el => {
     });
   }).catch(e => { busy(el, false); toast(errMsg(e), 'error'); });
 };
-ACT.dspSel = el => syncDispatchBtn(document.getElementById('exp-' + el.dataset.id));
+ACT.dspSel = el => { procPick(el.dataset.id).sel[el.dataset.item] = el.checked; syncDispatchBtn(document.getElementById('exp-' + el.dataset.id)); };
 ACT.dspAll = el => {
   const exp = document.getElementById('exp-' + el.dataset.id);
-  $$('.dsp', exp).forEach(c => { c.checked = el.checked; });
+  const pk = procPick(el.dataset.id);
+  $$('.dsp', exp).forEach(c => { c.checked = el.checked; pk.sel[c.dataset.item] = el.checked; });
   syncDispatchBtn(exp);
 };
 // كتابة كمية = اختيار الصنف تلقائياً (وصفر يلغي الاختيار)
@@ -3874,6 +3889,7 @@ ACT.dspQty = el => {
   const tr = el.closest('tr'), c = $('.dsp', tr);
   const v = Math.floor(Number(el.value));
   if (c) c.checked = v > 0;
+  const pk = procPick(el.dataset.id); pk.qty[el.dataset.item] = el.value; if (c) pk.sel[el.dataset.item] = c.checked;
   el.classList.toggle('invalid', !(v >= 1 && v <= Number(el.max)) && el.value !== '');
   syncDispatchBtn(document.getElementById('exp-' + el.dataset.id));
 };
@@ -3896,6 +3912,7 @@ ACT.dispatch = el => {
   call('dispatchItems', id, lines, boxes[id]).then(res => {
     toast(res.allSent ? t('dispatch_all_done') : t('dispatch_partial', { n: res.count, u: fmtNum(res.units, 0), r: fmtNum(res.remainingQty, 0), b: res.batch }), 'success', 12000);
     mtkShipPrintBtn(id, res.batch);
+    if (S.proc.pick) delete S.proc.pick[id];
     loadProcItems(id, true); loadProc(true); loadAlerts(); BX.data = null;
   }).catch(e => { busy(el, false); toast(errMsg(e), 'error'); });
   });

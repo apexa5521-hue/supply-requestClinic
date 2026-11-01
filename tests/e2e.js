@@ -504,14 +504,15 @@ function log(msg) { console.log('  ✔ ' + msg); }
   await page.waitForTimeout(400);
   // تقرير الطبيب
   await page.click('#docReportBtn');
-  await page.waitForSelector('.rep .rep-tiles');
-  expect(await page.locator('.rep .rep-req').count() >= 1, 'doctor report lists the requests with items');
-  expect(/\d/.test(await page.textContent('.rep-grand b')), 'doctor report shows a grand total');
-  expect(await page.isVisible('.rep-logo'), 'report header carries the client logo');
+  await page.waitForSelector('.modal #repGo');
+  // التقرير على المستلم فعلاً: «تراكمي حتى اليوم» فيه الطلبات المستلمة مهما كان يوم الشهر (أول الشهر قد يكون الشهر الحالي فاضياً)
   await page.click('[data-seg-name="repMode"][data-v="cum"]');
   expect(await page.isVisible('#repTo') && !(await page.isVisible('#repMonth')), 'cumulative mode asks for an end date');
   await page.click('#repGo');
   await page.waitForSelector('.rep .rep-tiles');
+  expect(await page.locator('.rep .rep-req').count() >= 1, 'doctor report lists the requests with items');
+  expect(/\d/.test(await page.textContent('.rep-grand b')), 'doctor report shows a grand total');
+  expect(await page.isVisible('.rep-logo'), 'report header carries the client logo');
   await shot(page, 'doctor-report');
   await page.evaluate(() => { window.print = () => {}; });
   await page.click('#repPrint');
@@ -1404,10 +1405,15 @@ function log(msg) { console.log('  ✔ ' + msg); }
   await openView(page, 'monitor');
   await page.waitForSelector('#monBody .rp-tile');
   expect(await page.locator('#monBody .mon-doc').count() === 4, 'monthly cycle is tracked per doctor (not per clinic)');
+  expect(await page.locator('#monMode').count() === 1 && await page.locator('#monMonth').count() === 1, 'monitor period selector (month by default)');
+  // بيانات الاختبار مؤرخة بأيام قبل اليوم: «الكل» حتى لا يتوقف الفحص على يوم الشهر (أول الشهر قد يكون الشهر الحالي فاضياً)
+  await page.selectOption('#monMode', 'all');
+  await page.waitForTimeout(800);
+  await page.evaluate(() => document.querySelectorAll('#view details.mx-advanced').forEach(d => { d.open = true; })); // الصفحة تُرسم من جديد فتنطوي التفاصيل
+  await page.waitForSelector('#monBody .rp-tile');
   expect(await page.locator('#monBody [data-act="monNudge"]').count() >= 1, 'overdue requests are listed with a nudge button');
   expect((await page.textContent('#monBody')).includes('مؤشرات أداء المراحل') && await page.locator('#monBody table:has-text("بدء التجهيز") tbody tr').count() === 5, 'stage performance indicators: 5 stages against their targets');
   await shot(page, 'quality-monitor', true);
-  expect(await page.locator('#monMode').count() === 1 && await page.locator('#monMonth').count() === 1, 'monitor period selector (month by default)');
   const nOwner = await page.getAttribute('#monBody [data-act="monNudge"] >> nth=0', 'data-owner');
   const nLabel = { nurse: 'التمريض', doctor: 'الطبيب', procurement: 'التموين' }[nOwner];
   expect(!!nLabel && (await page.textContent('#monBody [data-act="monNudge"] >> nth=0')).includes(nLabel), 'nudge button names who the request waits on (' + nOwner + ')');
