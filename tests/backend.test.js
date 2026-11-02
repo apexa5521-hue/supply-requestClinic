@@ -2074,6 +2074,54 @@ test('arrival at the branch notifies doctor, operations and that branch manager;
   assert.ok(JSON.stringify(types).includes('arrived_watch') && JSON.stringify(types).includes('received_watch'));
 });
 
+test('driver pickup: procurement assigns a driver, the driver taps «picked up» with their name, then delivery clears it', () => {
+  const { api, login, gas } = boot();
+  const reem = login('سارة', '1111'), p = login('علي', '3333');
+  const id = api(reem, 'createRequest', { doctor: 'د. خالد', type: 'طارئ', items: [{ name: 'PROPHY PASTE', qty: 2 }] }).id;
+  api(login('د. خالد', '4444'), 'doctorReview', id, 'اعتمد');
+  api(p, 'bulkUpdateStatus', [id], 'قيد التجهيز');
+  api(p, 'dispatchItems', id, ['PROPHY PASTE']);
+  let bx = api(p, 'getBoxes');
+  const box = bx.boxes[0], tk = bx.driverToken;
+  assert.deepEqual(bx.drivers, []);
+  // القائمة القديمة (بدون v) تبقى كما هي للصفحات المفتوحة من قبل
+  assert.ok(Array.isArray(api(null, 'driverTasks', { k: tk })));
+  // التموين يوزّع على سواق ← يُضاف لقائمة السواقين
+  throwsCode(() => api(reem, 'assignBoxDriver', box.id, 'أبو فهد'), 'ERR_FORBIDDEN');
+  api(p, 'assignBoxDriver', box.id, 'أبو فهد');
+  bx = api(p, 'getBoxes');
+  assert.deepEqual([bx.boxes[0].driver, bx.drivers], ['أبو فهد', ['أبو فهد']]);
+  let dt = api(null, 'driverTasks', { k: tk, v: 2 });
+  assert.deepEqual([dt.drivers, dt.list[0].driver, dt.list[0].pickedBy], [['أبو فهد'], 'أبو فهد', '']);
+  // سواق آخر لا يستلمها، والرابط لازم
+  throwsCode(() => api(null, 'boxPickup', { k: 'x', box: box.id, driver: 'أبو فهد' }), 'ERR_BAD_LINK');
+  throwsCode(() => api(null, 'boxPickup', { k: tk, box: box.id, driver: '' }), 'ERR_DRIVER_NAME');
+  throwsCode(() => api(null, 'boxPickup', { k: tk, box: box.id, driver: 'سالم' }), 'ERR_NOT_YOUR_BOX');
+  gas.mails.length = 0;
+  api(null, 'boxPickup', { k: tk, box: box.id, driver: 'أبو فهد', clientKey: 'pk-1' });
+  assert.equal(api(null, 'boxPickup', { k: tk, box: box.id, driver: 'أبو فهد', clientKey: 'pk-2' }).duplicate, true, 'double tap is ignored');
+  assert.equal(rows(gas, 'BoxMoves').filter(m => m.Action === 'استلام السواق').length, 1);
+  assert.ok(gas.mails.some(m => /مع السواق أبو فهد/.test(m.subject)), 'the nurse is told who carries it');
+  // بعد الاستلام: لا يُعاد التوزيع
+  throwsCode(() => api(p, 'assignBoxDriver', box.id, 'سالم'), 'ERR_BOX_PICKED');
+  dt = api(null, 'driverTasks', { k: tk, v: 2 });
+  assert.equal(dt.list[0].pickedBy, 'أبو فهد');
+  assert.ok(dt.list[0].pickedAt);
+  let lr = api(p, 'getRequests', {}).find(r => r.id === id);
+  assert.deepEqual([lr.awaitingDelivery, lr.onTheWay && lr.onTheWay.by, lr.pickedBy, !!lr.pickedAt], [true, 'أبو فهد', 'أبو فهد', true], 'request shows «with driver»');
+  assert.ok(api(reem, 'getRequestDetail', id).pickedAt, 'timeline gets the pickup time');
+  assert.ok(api(reem, 'getComments', id).some(c => /استلم السواق أبو فهد/.test(c.message)));
+  // التسليم بالـ QR: يصل الفرع وتُمسح حقول الرحلة، ويبقى وقت الاستلام في التايم لاين
+  api(null, 'boxDeliver', { box: box.id, k: box.k, to: api(p, 'getBoxes').boxes[0].destination, driver: 'أبو فهد', photo: PNG, clientKey: 'dlv-pk-1' });
+  const after = api(p, 'getBoxes').boxes[0];
+  assert.deepEqual([after.status, after.driver, after.pickedBy], ['وصل الفرع', '', '']);
+  lr = api(p, 'getRequests', {}).find(r => r.id === id);
+  assert.deepEqual([lr.atBranch, lr.onTheWay, lr.pickedBy], [true, null, 'أبو فهد']);
+  // قائمة السواقين يحفظها التموين
+  assert.deepEqual(api(p, 'saveDrivers', ['سالم', ' أبو فهد ', 'سالم', '']).drivers, ['سالم', 'أبو فهد']);
+  assert.deepEqual(api(null, 'driverTasks', { k: tk, v: 2 }).drivers, ['سالم', 'أبو فهد']);
+});
+
 test('boxes: dispatch loads the doctor box → driver scan delivers with photo → nurse receives → box stays; move on request', () => {
   const { api, login, gas } = boot();
   const reem = login('ريم', '2222'), p = login('علي', '3333');

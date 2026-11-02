@@ -10163,6 +10163,161 @@ VIEWS.settings.mount = function(root) {
     '<div class="card-body"><div id="flowBox"><div class="skel" style="height:80px"></div></div></div></section>');
   call('getRequestFlows').then(d => { FLOW.data = d; flowRender(); }).catch(e => { const b = $('#flowBox'); if (b) b.innerHTML = emptyState('alert', errMsg(e)); });
 };
+/* ---------- «مع السواق»: التموين يوزّع البوكس على سواق، والسواق يضغط «استلمت الطلبية» باسمه ---------- */
+Object.assign(I18N.ar, { drv_me: 'اسمك', drv_me_pick: '— اختر اسمك —', drv_pick: 'استلمت الطلبية', drv_picked_by: 'مع السواق {d}', drv_for_you: 'مخصصة لك', drv_for: 'مخصصة لـ {d}',
+  drv_others: '{n} لسواقين آخرين', drv_pick_done: 'تم — الطلبية معك الآن. امسح QR البوكس عند التسليم', drv_pick_name: 'اختر اسمك أولاً',
+  ERR_BOX_PICKED: 'استلمها سواق آخر', ERR_NOT_YOUR_BOX: 'هذه الطلبية مخصصة لسواق آخر — راجع التموين', bxs_picked: 'مع السواق', st_picked: 'مع السواق · في الطريق' });
+Object.assign(I18N.en, { drv_me: 'Your name', drv_me_pick: '— Choose your name —', drv_pick: 'I picked it up', drv_picked_by: 'With driver {d}', drv_for_you: 'Assigned to you', drv_for: 'Assigned to {d}',
+  drv_others: '{n} for other drivers', drv_pick_done: 'Done — it is with you now. Scan the box QR on delivery', drv_pick_name: 'Choose your name first',
+  ERR_BOX_PICKED: 'Another driver already picked it up', ERR_NOT_YOUR_BOX: 'This shipment is assigned to another driver — check with procurement', bxs_picked: 'With driver', st_picked: 'With driver · on the way' });
+Object.assign(I18N.bn, { drv_me: 'আপনার নাম', drv_me_pick: '— আপনার নাম বেছে নিন —', drv_pick: 'আমি নিয়েছি', drv_picked_by: 'চালক {d}-এর কাছে', drv_for_you: 'আপনার জন্য নির্ধারিত', drv_for: '{d}-এর জন্য নির্ধারিত',
+  drv_others: 'অন্য চালকদের জন্য {n}টি', drv_pick_done: 'হয়েছে — এখন এটি আপনার কাছে। ডেলিভারির সময় বক্সের QR স্ক্যান করুন', drv_pick_name: 'আগে আপনার নাম বেছে নিন',
+  ERR_BOX_PICKED: 'অন্য একজন চালক এটি নিয়ে গেছেন', ERR_NOT_YOUR_BOX: 'এই চালানটি অন্য চালকের জন্য — সাপ্লাই বিভাগে জিজ্ঞাসা করুন', bxs_picked: 'চালকের কাছে' });
+Object.assign(I18N.hi, { drv_me: 'आपका नाम', drv_me_pick: '— अपना नाम चुनें —', drv_pick: 'मैंने ले लिया', drv_picked_by: 'ड्राइवर {d} के पास', drv_for_you: 'आपको सौंपा गया', drv_for: '{d} को सौंपा गया',
+  drv_others: 'अन्य ड्राइवरों के लिए {n}', drv_pick_done: 'हो गया — अब यह आपके पास है। डिलीवरी पर बॉक्स का QR स्कैन करें', drv_pick_name: 'पहले अपना नाम चुनें',
+  ERR_BOX_PICKED: 'दूसरे ड्राइवर ने इसे पहले ही ले लिया', ERR_NOT_YOUR_BOX: 'यह शिपमेंट दूसरे ड्राइवर को सौंपा गया है — सप्लाई विभाग से पूछें', bxs_picked: 'ड्राइवर के पास' });
+const PICK_TONE = 'var(--t-blue)';
+const pickBadge = name => '<span class="badge live" style="--tone:' + PICK_TONE + '"><i class="dot"></i>' + esc(name ? t('drv_picked_by', { d: name }) : t('bxs_picked')) + '</span>';
+// البوكسات (التموين): مجموعة «مع السواق» منفصلة عن «بانتظار النقل»
+BX_GROUPS[0].test = b => (b.status === BXS.READY || b.status === BXS.MOVE) && !b.pickedBy;
+BX_GROUPS.splice(1, 0, { id: 'picked', k: 'bxs_picked', test: b => (b.status === BXS.READY || b.status === BXS.MOVE) && !!b.pickedBy, tone: PICK_TONE });
+const pkBoxCard = bxCard;
+bxCard = function(b) {
+  let html = pkBoxCard(b);
+  const pending = b.status === BXS.READY || b.status === BXS.MOVE;
+  if (!pending) return html;
+  if (b.pickedBy) html = html.replace(bxBadge(b.status), pickBadge(b.pickedBy));
+  const line = b.pickedBy ? '<div class="hint pk-line">' + icon('truck', 'i-sm') + ' ' + esc(mtkText('استلمها ', 'Picked up by ') + b.pickedBy + ' · ' + fmtStamp(b.pickedAt)) + '</div>'
+    : b.driver ? '<div class="hint pk-line">' + icon('user', 'i-sm') + ' ' + esc(mtkText('موزّعة على ', 'Assigned to ') + b.driver + mtkText(' — بانتظار استلامه', ' — waiting for pickup')) + '</div>'
+    : '<div class="hint pk-line">' + icon('user', 'i-sm') + ' ' + esc(mtkText('لم توزّع على سواق', 'Not assigned to a driver')) + '</div>';
+  html = html.replace('</div><div class="req-side">', line + '</div><div class="req-side">');
+  if (!bxRO() && !b.pickedBy) html = html.replace('<div class="req-actions">', '<div class="req-actions"><button class="btn btn-primary btn-sm" data-act="bxAssign" data-id="' + esc(b.id) + '">' + icon('user', 'i-sm') +
+    esc(b.driver ? mtkText('تغيير السواق', 'Change driver') : mtkText('توزيع على سواق', 'Assign driver')) + '</button>');
+  return html;
+};
+const pkBoxRender = bxRender;
+bxRender = function() {
+  pkBoxRender();
+  const host = $('#bxDriver');
+  if (host && !bxRO() && !$('#bxDrivers', host)) host.insertAdjacentHTML('beforeend', '<button class="btn btn-sm" id="bxDrivers" data-act="bxDrivers">' + icon('user', 'i-sm') + esc(mtkText('السواقين', 'Drivers')) + ' (' + ((BX.data && BX.data.drivers) || []).length + ')</button>');
+};
+const pkErr = (m, er) => { const x = $('.field-error', m.el); x.querySelector('span').textContent = errMsg(er); x.classList.remove('hidden'); };
+ACT.bxAssign = el => {
+  const b = ((BX.data && BX.data.boxes) || []).find(x => x.id === el.dataset.id); if (!b) return;
+  const names = (BX.data.drivers || []).slice();
+  if (b.driver && names.indexOf(b.driver) === -1) names.push(b.driver);
+  const reqs = Array.from(new Set((b.loads || []).map(l => l.request)));
+  const m = openModal({ title: esc(mtkText('توزيع على سواق', 'Assign driver')) + ' · <span class="mono">' + esc(b.id) + '</span>', icon: 'truck', size: 'sm',
+    sub: esc(b.owner + ' · ' + placeLabel(b.location) + ' ← ' + placeLabel(b.destination || b.branch) + (reqs.length ? ' · ' + reqs.join('، ') : '')),
+    body: '<div class="field"><label for="baName">' + esc(mtkText('السواق', 'Driver')) + '</label><select class="select" id="baName"><option value="">' + esc(mtkText('— بدون توزيع (أي سواق) —', '— Unassigned (any driver) —')) + '</option>' +
+      names.map(n => '<option' + (n === b.driver ? ' selected' : '') + ' value="' + esc(n) + '">' + esc(n) + '</option>').join('') + '<option value="__new">' + esc(mtkText('+ سواق جديد…', '+ New driver…')) + '</option></select></div>' +
+      '<div class="field hidden" id="baNewF"><label for="baNew">' + esc(mtkText('اسم السواق الجديد', 'New driver name')) + '</label><input class="input" id="baNew" maxlength="60"></div>' +
+      '<div class="hint">' + icon('info', 'i-sm') + ' ' + esc(mtkText('تظهر الطلبية في صفحة السواق باسمه، ويضغط «استلمت الطلبية» عند أخذها — فنعرف من شالها ومتى.', 'The shipment shows on the driver page under their name; they tap “I picked it up” when they take it, so we know who carried it and when.')) + '</div>' +
+      '<div class="field-error hidden">' + icon('alert', 'i-sm') + '<span></span></div>',
+    foot: '<span class="spacer"></span><button class="btn" data-close>' + esc(t('cancel')) + '</button><button class="btn btn-primary" id="baOk">' + icon('check', 'i-sm') + esc(t('save')) + '</button>' });
+  $('#baName', m.el).addEventListener('change', e => { $('#baNewF', m.el).classList.toggle('hidden', e.target.value !== '__new'); if (e.target.value === '__new') $('#baNew', m.el).focus(); });
+  $('#baOk', m.el).addEventListener('click', e => {
+    const sel = $('#baName', m.el).value, name = sel === '__new' ? $('#baNew', m.el).value.trim() : sel;
+    if (sel === '__new' && !name) return pkErr(m, new Error('ERR_DRIVER_NAME'));
+    const btn = e.currentTarget; busy(btn, true);
+    call('assignBoxDriver', b.id, name).then(() => { closeModal(m); toast(name ? mtkText('وُزّعت على ', 'Assigned to ') + name : mtkText('أُلغي التوزيع', 'Unassigned'), 'success'); bxLoad(true); })
+      .catch(er => { busy(btn, false); pkErr(m, er); });
+  });
+};
+ACT.bxDrivers = () => {
+  const m = openModal({ title: esc(mtkText('السواقين', 'Drivers')), icon: 'user', size: 'sm',
+    body: '<div class="field"><label for="bdList">' + esc(mtkText('اسم في كل سطر', 'One name per line')) + '</label><textarea class="input" id="bdList" rows="6">' + esc(((BX.data && BX.data.drivers) || []).join('\n')) + '</textarea></div>' +
+      '<div class="hint">' + icon('info', 'i-sm') + ' ' + esc(mtkText('يختار السواق اسمه من هذه القائمة في صفحة الشحنات.', 'Drivers pick their name from this list on the shipments page.')) + '</div><div class="field-error hidden">' + icon('alert', 'i-sm') + '<span></span></div>',
+    foot: '<span class="spacer"></span><button class="btn" data-close>' + esc(t('cancel')) + '</button><button class="btn btn-primary" id="bdOk">' + icon('save', 'i-sm') + esc(t('save')) + '</button>' });
+  $('#bdOk', m.el).addEventListener('click', e => {
+    const btn = e.currentTarget; busy(btn, true);
+    call('saveDrivers', $('#bdList', m.el).value.split('\n')).then(d => { closeModal(m); if (BX.data) BX.data.drivers = d.drivers; toast(t('saved'), 'success'); bxLoad(true); })
+      .catch(er => { busy(btn, false); pkErr(m, er); });
+  });
+};
+// صفحة الشحنات (السواق): اختيار الاسم، ما يخصّه أولاً، و«استلمت الطلبية»
+showDriverTasks = function(tk) {
+  DRV.tk = tk;
+  const me = DRV.render = () => showDriverTasks(tk);
+  const ck = 'drv_tasks2:' + tk;
+  let cached = null;
+  try { cached = JSON.parse(localStorage.getItem(ck) || 'null'); } catch (e) { /* التخزين غير متاح */ }
+  const draw = (d, stale) => {
+    const mine = store.get('driver_name', '');
+    const names = (d.drivers || []).slice();
+    if (mine && names.indexOf(mine) === -1 && names.length) names.push(mine);
+    const rank = x => x.pickedBy === mine ? 0 : x.driver === mine ? 1 : !x.driver && !x.pickedBy ? 2 : 3;
+    const all = d.list || [];
+    const list = mine ? all.filter(x => rank(x) < 3).sort((a, b) => rank(a) - rank(b)) : all;
+    const others = all.length - list.length;
+    const who = names.length
+      ? '<select class="select" id="drvMe" data-change="drvMe"><option value="">' + esc(t('drv_me_pick')) + '</option>' + names.map(n => '<option' + (n === mine ? ' selected' : '') + ' value="' + esc(n) + '">' + esc(n) + '</option>').join('') + '</select>'
+      : '<input class="input" id="drvMe" data-change="drvMe" maxlength="60" autocomplete="name" value="' + esc(mine) + '">';
+    drvShell('<div class="between"><h1 style="margin:0">' + icon('route') + ' ' + esc(t('drv_tasks')) + '</h1><button class="btn btn-soft btn-sm" data-act="drvTasks">' + icon('refresh', 'i-sm') + esc(t('drv_refresh')) + '</button></div>' +
+      '<div class="field drv-me"><label for="drvMe">' + icon('user', 'i-sm') + ' ' + esc(t('drv_me')) + '</label>' + who + '</div>' +
+      (stale ? '<div class="hint" style="color:var(--warning,#b45309)">' + icon('alert', 'i-sm') + ' ' + esc(t('drv_stale')) + '</div>' : '') +
+      (list.length ? '<div class="hint drv-scan-hint">' + icon('qr', 'i-sm') + ' ' + esc(t('drv_scan_hint')) + '</div>' +
+        '<div class="drv-tasks">' + list.map(x => '<div class="drv-task' + (x.pickedBy ? ' picked' : '') + '" data-box="' + esc(x.id) + '">' +
+          '<div class="between"><span class="drv-box mono">' + esc(x.id) + '</span>' + (x.pickedBy ? pickBadge(x.pickedBy) : bxBadge(x.status)) + '</div><b>' + esc(x.owner) + '</b>' + branchTag(x.branch) +
+          '<span class="drv-route">' + icon('route', 'i-sm') + ' ' + esc(t('drv_from_to', { a: placeLabel(x.location), b: placeLabel(x.destination) })) + '</span>' + drvTo(x.to) +
+          (!x.pickedBy && x.driver ? '<span class="hint">' + icon('user', 'i-sm') + ' ' + esc(x.driver === mine ? t('drv_for_you') : t('drv_for', { d: x.driver })) + '</span>' : '') +
+          '<span class="hint">' + (x.count ? esc(t('drv_loads', { n: x.count })) + ' · ' : '') + esc(relTime(x.pickedAt || x.since)) + '</span>' +
+          (!x.pickedBy && (!x.driver || x.driver === mine) ? '<button class="btn btn-primary drv-pick" data-act="drvPick" data-id="' + esc(x.id) + '">' + icon('truck') + esc(t('drv_pick')) + '</button>' : '') +
+          '</div>').join('') + '</div>'
+        : emptyState('checkc', t('drv_no_tasks'))) +
+      (others > 0 ? '<div class="hint">' + esc(t('drv_others', { n: others })) + '</div>' : ''));
+  };
+  if (cached && Array.isArray(cached.list)) draw(cached, false); else drvShell(skeletonList(2));
+  drvCall('driverTasks', { k: tk, v: 2 }).then(d => {
+    if (Array.isArray(d)) d = { list: d, drivers: [] }; // خادم أقدم
+    try { localStorage.setItem(ck, JSON.stringify({ list: d.list, drivers: d.drivers, at: Date.now() })); } catch (e) { /* */ }
+    DRV.data = d;
+    if (DRV.render === me) draw(d, false);
+  }).catch(e => {
+    if (DRV.render !== me) return;
+    if (errCode(e) === 'ERR_BAD_LINK') { try { localStorage.removeItem(ck); } catch (er) { /* */ } return drvError(e); }
+    if (cached && Array.isArray(cached.list)) draw(cached, true); else drvError(e);
+  });
+};
+ACT.drvMe = el => { store.set('driver_name', el.value.trim()); if (DRV.render) DRV.render(); };
+ACT.drvPick = el => {
+  const me = $('#drvMe'), name = store.get('driver_name', '') || (me && me.value.trim()) || '';
+  if (!name) { toast(t('drv_pick_name'), 'error'); if (me) me.focus(); return; }
+  busy(el, true, t('sending'));
+  drvCall('boxPickup', { k: DRV.tk, box: el.dataset.id, driver: name, clientKey: uid() })
+    .then(() => { store.set('driver_name', name); toast(t('drv_pick_done'), 'success', 4000); showDriverTasks(DRV.tk); })
+    .catch(er => { busy(el, false); toast(errMsg(er), 'error'); if (['ERR_BOX_PICKED', 'ERR_NOT_YOUR_BOX', 'ERR_BOX_DELIVERED'].indexOf(errCode(er)) !== -1) showDriverTasks(DRV.tk); });
+};
+// حالة الطلب: شحنة مع السواق في الطريق
+const pkBadge = badge;
+badge = function(s, r) {
+  if (r && s === ST.SENT && !r.atBranch && r.awaitingDelivery && r.onTheWay) return '<span class="badge live" style="--tone:' + PICK_TONE + '"><i class="dot"></i>' + esc(t('st_picked')) + '</span>';
+  return pkBadge(s, r);
+};
+// الخط الزمني: خطوة «مع السواق» (اسمه ووقت الاستلام) بين الإرسال ووصول الفرع
+mtkTimeline = function(r) {
+  const rejected = r.status === ST.REJECTED, cancelled = r.status === ST.CANCELLED;
+  let cur = stMeta(r.status).step;
+  if (cur >= 5 || (cur === 4 && r.arrivedAt)) cur = 7;
+  cur = cur <= 1 ? cur : cur - 1;
+  const steps = [
+    [mtkText('رفع الطلب', 'Submitted'), 'clipboard', r.submittedAt],
+    [rejected ? mtkText('رفض الطبيب', 'Rejected') : mtkText('اعتماد الطبيب', 'Doctor approval'), rejected ? 'x' : 'steth', rejected ? r.reviewedAt : (r.approvedAt || r.reviewedAt)],
+    [mtkText('التجهيز', 'Preparation'), 'package', r.prepAt],
+    [mtkText('أُرسل · بانتظار السواق', 'Sent · awaiting driver'), 'send', r.sentAt || r.lastShipAt],
+    [r.pickedBy ? mtkText('مع السواق ', 'With driver ') + r.pickedBy : mtkText('مع السواق', 'With driver'), 'truck', r.pickedAt],
+    [mtkText('وصل الفرع', 'Arrived at branch'), 'pin', r.arrivedAt],
+    [mtkText('استلام الممرضة', 'Nurse receipt'), 'pen', r.receivedAt]
+  ];
+  let current = -1;
+  const cls = steps.map((s, i) => {
+    if (rejected && i === 1) return 'failed';
+    if (s[2] || i < cur || r.status === ST.RECEIVED) return 'done';
+    if (current < 0 && !rejected && !cancelled) { current = i; return 'current'; }
+    return 'todo';
+  });
+  return '<div class="stepper mtk-timeline">' + steps.map((s, i) => '<div class="step ' + cls[i] + '"><span class="node">' + icon(cls[i] === 'done' ? 'check' : s[1]) + '</span><span class="s-lbl">' + esc(s[0]) + '</span><span class="s-time">' + (s[2] ? esc(fmtStamp(s[2])) : '&nbsp;') + '</span></div>').join('') + '</div>';
+};
 /* MASAR_TRACK_END */
 
 /* الرابط الأساسي للنظام · الرابط القديم على GitHub Pages يبقى احتياطياً عند تعطل الأساسي فقط */

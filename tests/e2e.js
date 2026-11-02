@@ -680,6 +680,14 @@ function log(msg) { console.log('  ✔ ' + msg); }
   await page.waitForSelector('#printArea .sticker', { state: 'attached' });
   expect(await page.textContent('#printArea .sticker .st-id') === bx.id && (await page.textContent('#printArea .sticker')).includes('?box=' + bx.id), 'sticker prints the box id + scan link (text when QR lib is offline)');
   await page.evaluate(() => { document.body.classList.remove('printing'); document.getElementById('printArea').innerHTML = ''; });
+  // التوزيع على سواق من التموين (سواق جديد يُضاف للقائمة)
+  expect((await page.textContent('#bxList')).includes('لم توزّع على سواق'), 'box card says it is not assigned to a driver yet');
+  await page.click('#bxList [data-act="bxAssign"]');
+  await page.selectOption('#baName', '__new');
+  await page.fill('#baNew', 'أبو فهد');
+  await page.click('#baOk');
+  await page.waitForFunction(() => (document.querySelector('#bxList') || {}).textContent.includes('موزّعة على أبو فهد'));
+  expect(await page.evaluate(() => BX.data.drivers.join()) === 'أبو فهد', 'procurement assigned the box to a driver; the name joins the drivers list');
   // صفحة السواق: المهام ← البوكس ← المكان + صورة + اسم ← تسليم
   // شبكة السواق الضعيفة: أول محاولتين تفشلان ← إعادة تلقائية بدون رسالة خطأ
   await page.evaluate(() => {
@@ -702,6 +710,14 @@ function log(msg) { console.log('  ✔ ' + msg); }
   // التسليم بالمسح فقط: بطاقات المهام للعرض ولا تحمل رمز البوكس
   expect(await page.isVisible('.drv-scan-hint') && await page.locator('.drv-task[data-act], button.drv-task').count() === 0, 'driver tasks are view-only: delivery only by scanning the box QR');
   expect(await page.evaluate(tk => __realCall('driverTasks', { k: tk }).then(l => l.every(x => !x.k)), await page.evaluate(() => BX.data.driverToken)), 'driver tasks do not expose box keys');
+  // السواق يختار اسمه ← «استلمت الطلبية» ← البطاقة «مع السواق»
+  expect((await page.textContent('.drv-task')).includes('مخصصة لـ أبو فهد'), 'driver page shows who the shipment is assigned to');
+  await page.selectOption('#drvMe', 'أبو فهد');
+  await page.waitForFunction(() => (document.querySelector('.drv-task') || {}).textContent.includes('مخصصة لك'));
+  await page.click('.drv-task [data-act="drvPick"]');
+  await page.waitForSelector('.drv-task.picked');
+  expect((await page.textContent('.drv-task.picked')).includes('مع السواق أبو فهد') && !(await page.$('.drv-task [data-act="drvPick"]')), 'driver picked it up with their name; no second pickup button');
+  expect(await page.evaluate(() => __gas.dump('BoxMoves').filter(r => r[5] === 'استلام السواق').length) === 2, 'pickup logged for both shipments');
   await page.evaluate(b => showDriverBox(b.id, b.k), bx);
   await page.waitForSelector('#drvGo');
   expect(await page.getAttribute('.drv-place[data-p="' + bx.destination + '"]', 'aria-pressed') === 'true', 'destination branch preselected');
