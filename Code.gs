@@ -29,17 +29,18 @@ const SCHEMA = {
   // Department: أسنان / جلدية (فارغ = مشترك يظهر للقسمين) · ItemType: مستهلك أو ماتيريال (Category يبقى لتصنيف الصنف)
   ItemsCatalog: ['ItemName', 'CommercialName', 'Category', 'Price', 'Ownership', 'Serialized', 'Department', 'ItemType',
                  'AliasOf', 'FreeStatus', 'FreeBy', 'FreeAt', 'FreeNote',
-                 'Exempt'], // Exempt = نعم: مستهلك مستثنى — يُطلب كطارئ أكثر من مرة دون أن يُحسب من حد الطوارئ · الصنف الحر: مراجعة التموين، والاسم البديل (AliasOf) لصنف موجود
+                 'Exempt', 'MonthlyLimit'], // MonthlyLimit: أقصى كمية للصنف في الطلبات الشهرية لكل طبيب في الشهر (0 أو فارغ = مفتوح) · Exempt = نعم: مستهلك مستثنى — يُطلب كطارئ أكثر من مرة دون أن يُحسب من حد الطوارئ · الصنف الحر: مراجعة التموين، والاسم البديل (AliasOf) لصنف موجود
   Requests:     ['RequestID', 'Date', 'Clinic', 'Doctor', 'Nurse', 'Type', 'Status',
                  'SubmittedAt', 'SentAt', 'ReceivedAt', 'ReceiverName', 'SignatureURL',
                  'PrepAt', 'VendorWaitAt', 'VendorReceivedAt', 'ReviewAt', 'ReviewedAt',
                  'RejectionReason', 'ReceiptURL', 'Branch', 'ApprovedAt', 'ClientKey', 'Department', 'Backdated',
                  'CancelReason', 'CancelledAt', 'CancelledBy', 'Approver',
-                 'Exempt'], // Exempt = نعم: طارئ كل أصنافه «مستهلك مستثنى» — لا يُحسب من حد الطوارئ // Approver: «مدير الفرع» لطلبات الهاوس كيبر (فارغ = الطبيب)
+                 'Exempt', 'Flow'], // Flow: مسار الطلب كما كان وقت رفعه (من «مسارات الطلبات») · Exempt = نعم: طارئ كل أصنافه «مستهلك مستثنى» — لا يُحسب من حد الطوارئ // Approver: «مدير الفرع» لطلبات الهاوس كيبر (فارغ = الطبيب)
   // ItemStatus: حالة الصنف داخل الطلبية (قيد التجهيز / بانتظار المندوب / استلم المندوب) قبل إرساله
   RequestItems: ['RequestID', 'ItemName', 'RequestedQty', 'ApprovedQty', 'ReceivedQty', 'DispatchedAt', 'DispatchBatch', 'ItemStatus', 'ItemStatusAt', 'ItemStatusBy',
                  'SubstituteOf', 'SubStatus', 'SubNote', 'SubBy', 'SubAt', // البديل: سطر جديد يشير لاسم الصنف الأصلي
-                 'RejectNote', 'RejectBy', 'RejectAt', 'RejectQty', 'ReturnID', 'OriginalBatch'], // رفض التموين لصنف: السبب يظهر للطبيب والممرضة، والكمية الأصلية للتراجع
+                 'RejectNote', 'RejectBy', 'RejectAt', 'RejectQty', 'ReturnID', 'OriginalBatch',
+                 'UnitPrice'], // سعر الوحدة مثبّت لحظة الاستلام: حسبة الطبيب لا تتغير لو تغيّر سعر الكتالوج بعده // رفض التموين لصنف: السبب يظهر للطبيب والممرضة، والكمية الأصلية للتراجع
   // سجل التراجعات: كل تراجع عن خطوة (شحنة أُرسلت بالغلط، حالة طلب، حالة صنف) مع السبب والوقت — تراه الجودة والإدارة
   Reversals:    ['Timestamp', 'RequestID', 'User', 'Role', 'Scope', 'From', 'To', 'Reason', 'Details'],
   // منصة استبيان التمريض: نسخة من كل بلاغ (طلب/شحنة، عهدة) + ما يُرفع من الاستبيان نفسه (لا يذهب للتموين)
@@ -653,7 +654,7 @@ const API_ = {
   getDoctorProfile:          { screens: ['nurse'], fn: getDoctorProfile_ },
   createRequest:             { screens: ['nurse', 'lab'], fn: createRequest_ },
   getMyRequests:             { screens: ['nurse', 'lab'], fn: getMyRequests_ },
-  receiveShipment:           { screens: ['nurse'], fn: receiveShipment_ },
+  receiveShipment:           { screens: ['nurse', 'lab'], fn: receiveShipment_ },
   resubmitRequest:           { screens: ['nurse'], fn: resubmitRequest_ },
   withdrawRequest:           { screens: ['nurse'], fn: withdrawRequest_ },
   removeMyItems:             { screens: ['nurse', 'lab'], fn: removeMyItems_ },
@@ -717,6 +718,8 @@ const API_ = {
   getUsers:                  { screens: [], perm: 'users', fn: getUsers_ },
   getBackupStatus:           { screens: [], perm: 'users', fn: function () { return backupStatus_(); } },
   getNotifyConfig:           { screens: [], perm: 'users', fn: function () { return getNotifyConfig_(); } },
+  getRequestFlows:           { screens: [], perm: 'users', fn: function () { return getRequestFlows_(); } },
+  saveRequestFlows:          { screens: [], perm: 'users', fn: saveRequestFlows_ },
   // بلاغات الفرع والصيانة: مدير الفرع يرفع، الصيانة تنفذ، والإدارة بصلاحية maint تتابع وتعتمد
   getMaintConfig:            { screens: ['branch', 'maintenance', 'admin'], perm: 'maint', fn: getMaintConfig_ },
   getMaintTickets:           { screens: ['branch', 'maintenance', 'admin'], perm: 'maint', fn: getMaintTickets_ },
@@ -1701,7 +1704,8 @@ function userBranch_(user) {
   return r ? str_(r.Branch) : '';
 }
 function applyScope_(user) {
-  SCOPE_BRANCH_ = MGMT_SCREENS.indexOf(user.screen) !== -1 && user.screen !== 'admin' ? userBranch_(user) : '';
+  // مدير التشغيل يتابع كل الفروع دائماً — لا يُحصر بفرع حتى لو بقي فرع قديم مسجّلاً في حسابه
+  SCOPE_BRANCH_ = MGMT_SCREENS.indexOf(user.screen) !== -1 && user.screen !== 'admin' && str_(user.role) !== OPS_ROLE_ ? userBranch_(user) : '';
   user.branch = SCOPE_BRANCH_;
   PRICE_VIEW_ = userPriceView_(user);
   NO_PRICES_ = PRICE_VIEW_ === 'none';
@@ -1914,6 +1918,7 @@ function getCatalog_(withPrice) {
     if (isAssetOwnership_(r.Ownership)) { o.asset = true; o.serialized = isYes_(r.Serialized); }
     const dp = normDept_(r.Department); if (dp) o.dept = dp;
     if (isYes_(r.Exempt)) o.exempt = true;
+    const ml = monthLimitOf_(r.MonthlyLimit); if (ml) o.monthLimit = ml; // حد الصنف الشهري لكل طبيب
     if (withPrice && !priceVisible_()) o.priceHidden = true;
     else if (withPrice) {
       o.price = price_(r.Price) || 0;
@@ -2226,7 +2231,7 @@ function findRequest_(id) {
 
 function mapRequest_(r) {
   return {
-    id: str_(r.RequestID), date: r.Date, clinic: str_(r.Clinic), branch: str_(r.Branch) || clinicBranch_(r.Clinic), doctor: str_(r.Doctor),
+    id: str_(r.RequestID), date: r.Date, clinic: str_(r.Clinic), branch: str_(r.Branch) || clinicBranch_(r.Clinic), doctor: str_(r.Doctor), flow: requestFlow_(r), flowSaved: !!str_(r.Flow),
     department: normDept_(r.Department) || clinicDept_(r.Clinic),
     nurse: str_(r.Nurse), type: str_(r.Type) ? (isEmergencyType_(r.Type) ? 'طارئ' : 'شهري') : '', status: str_(r.Status) || ST.NEW, approver: str_(r.Approver) === BRANCH_APPROVER_ ? 'branch' : '',
     submittedAt: r.SubmittedAt, prepAt: r.PrepAt, vendorWaitAt: r.VendorWaitAt,
@@ -2296,8 +2301,10 @@ function queryRequests_(filters) {
       const dl = waiting[waiting.length - 1].delivered;
       r.boxAt = { to: dl.to, photo: dl.photo, at: dl.at, box: dl.box };
     }
-    r.needsReview = r.approver === 'branch' ? false : !!reviewers[r.doctor]; // اعتماد مدير الفرع أُلغي
-    if (!r.needsReview && r.approver === 'branch' && r.status === ST.REVIEW) r.status = ST.NEW;
+    // من يعتمد: حسب مسار الطلب المحفوظ عليه؛ الطلبات القديمة (قبل المسارات): الطبيب فقط — اعتماد مدير الفرع القديم أُلغي
+    r.needsReview = r.flowSaved ? (r.flow.approval === 'doctor' ? !!r.doctor && !!reviewers[r.doctor] : r.flow.approval === 'branch' ? r.approver === 'branch' && branchManagers_(r.branch).length > 0 : false)
+      : r.approver === 'branch' ? false : !!reviewers[r.doctor];
+    if (!r.needsReview && (r.approver === 'branch' || r.flowSaved) && r.status === ST.REVIEW) r.status = ST.NEW;
     r.cleared = !r.needsReview || r.status === ST.APPROVED || !!r.approvedAt;
     r.awaitingDoctor = r.needsReview && !r.cleared && AWAITING_DOCTOR.indexOf(r.status) !== -1;
     if (r.awaitingDoctor && r.status === ST.NEW) r.status = ST.REVIEW; // طلب قديم «جديد» = لدى الطبيب
@@ -2956,7 +2963,8 @@ function getFinance_(user, opts) {
     const r = inRange[id];
     if (!r) return;
     requested += (num_(it.RequestedQty) || 0) * p;
-    received += grossReceivedQty_(it) * p; returned += returnedQty_(it) * p;
+    const up = unitPrice_(it, p); // المستلم بسعر الاستلام المثبّت
+    received += grossReceivedQty_(it) * up; returned += returnedQty_(it) * up;
     if (r.awaitingDoctor) { pendingDoc += targetQty_(it) * p; return; }
     approved += targetQty_(it) * p;
     if (!str_(it.SubstituteOf)) reqCleared += (num_(it.RequestedQty) || 0) * p;
@@ -3211,6 +3219,7 @@ function createRequest_(user, payload) {
   const counted = type === 'طارئ' ? items.filter(function (it) { return !maps.exempt[it.name]; }).length : items.length;
   const exemptReq = type === 'طارئ' && !counted;
   if (!exemptReq) checkOrderRules_(user, type, counted, orderTarget_(doctor, clinic), branch);
+  if (type === 'شهري') checkItemMonthLimits_(doctor, items); // حد الصنف الشهري لكل طبيب (من «تعديل الصنف»)
   const rules = getOrderRules_(user, orderTarget_(doctor, clinic), branch); // المتبقي بعد هذا الطلب يرجع للواجهة (تحديث فوري للتنبيه)
 
   // منع الإرسال المزدوج لنفس الطلب خلال دقيقتين
@@ -3219,8 +3228,11 @@ function createRequest_(user, payload) {
 
   // الطبيب الذي له حساب يراجع الطلب أولاً؛ غير ذلك يذهب للتموين مباشرة
   // اعتماد مدير الفرع أُلغي: طلبات الهاوس كيبر وغرف الأجهزة ومستهلكات العيادة تذهب للتموين مباشرة
-  const branchApproval = false;
-  const needsReview = branchApproval ? branchManagers_(branch).length > 0 : !clinicOnly && doctorHasAccount_(doctor);
+  // مسار الطلب من «مسارات الطلبات»: من يعتمد (الطبيب / مدير الفرع / بدون)، ويُحفظ على الطلب
+  const flowKind = forLab ? 'lab' : user.hk ? 'hk' : clinicOnly ? 'clinic' : 'doctor';
+  const flow = Object.assign({ kind: flowKind }, flowSettings_()[flowKind]);
+  const branchApproval = flow.approval === 'branch' && branchManagers_(branch || clinicBranch_(clinic)).length > 0;
+  const needsReview = flow.approval === 'doctor' ? !clinicOnly && doctorHasAccount_(doctor) : branchApproval;
   // مفتاح المسودة من الجهاز: إعادة إرسال نفس المسودة بعد انقطاع الاتصال لا تنشئ طلباً مكرراً أبداً
   const clientKey = /^[A-Za-z0-9-]{8,64}$/.test(str_(payload.clientKey)) ? str_(payload.clientKey) : '';
   // بدون قفل الكتابة العام: رقم الطلب يُحجز بقفل قصير (أجزاء من الثانية)، والكتابة إلحاق ذري (appendRow)
@@ -3244,7 +3256,7 @@ function createRequest_(user, payload) {
     append_('Requests', {
       RequestID: id, Date: now, Clinic: clinic, Branch: branch, Doctor: doctor, Nurse: user.name,
       Type: type, Status: needsReview ? ST.REVIEW : ST.NEW, SubmittedAt: now, ReviewAt: needsReview ? now : '', ClientKey: clientKey, Department: dept,
-      Approver: branchApproval ? BRANCH_APPROVER_ : '', Exempt: exemptReq ? 'نعم' : ''
+      Approver: branchApproval ? BRANCH_APPROVER_ : '', Exempt: exemptReq ? 'نعم' : '', Flow: JSON.stringify(flow)
     });
     items.forEach(function (it) { append_('RequestItems', { RequestID: id, ItemName: it.name, RequestedQty: it.qty }); });
   } catch (e) {
@@ -3289,8 +3301,9 @@ function createBackdated_(user, payload, o) {
     RequestID: id, Date: at, Clinic: o.clinic, Branch: o.branch, Doctor: o.doctor, Nurse: user.name, Type: o.type, Status: ST.RECEIVED,
     SubmittedAt: at, ApprovedAt: at, SentAt: at, ReceivedAt: at, ReceiverName: user.name, ClientKey: clientKey, Department: o.dept, Backdated: true
   });
+  const bdPrices = receivePrices_();
   o.items.forEach(function (it) {
-    append_('RequestItems', { RequestID: id, ItemName: it.name, RequestedQty: it.qty, ApprovedQty: it.qty, ReceivedQty: it.qty, DispatchedAt: at, DispatchBatch: 1 });
+    append_('RequestItems', stampPrice_({ ItemName: it.name }, { RequestID: id, ItemName: it.name, RequestedQty: it.qty, ApprovedQty: it.qty, ReceivedQty: it.qty, DispatchedAt: at, DispatchBatch: 1 }, bdPrices));
   });
   logAction_(id, 'إدخال طلب سابق بأثر رجعي (' + day + ')', user.name);
   return { id: id, duplicate: false, backdated: true };
@@ -3457,10 +3470,10 @@ function writeShipment_(req, rows, st, lines, user, now, boxPick) {
   const vals = [headerRow_(sh)];
   ensureHeaders_(sh, vals, SCHEMA.ShipmentItems);
   const headers = vals[0];
-  const lab = isLabSupply_(req);
+  const lab = autoReceipt_(req); // مسار «استلام تلقائي عند الإرسال»: يُستلم يداً بيد لحظة الإرسال
   const block = lines.map(function (l) {
     const o = { RequestID: req.id, Batch: batch, ItemName: l.name, Qty: l.qty, DispatchedAt: now, DispatchedBy: user.name };
-    if (lab) o.ReceivedQty = l.qty; // المعمل يستلم يداً بيد لحظة الإرسال
+    if (lab) o.ReceivedQty = l.qty;
     return headers.map(function (h) { return h in o ? o[h] : ''; });
   });
   if (block.length) sh.getRange(sh.getLastRow() + 1, 1, block.length, headers.length).setValues(block);
@@ -3468,7 +3481,7 @@ function writeShipment_(req, rows, st, lines, user, now, boxPick) {
   delete MEMO_.sitems;
   const byName = {};
   st.items.forEach(function (i) { byName[i.item] = i; });
-  const ri = read_('RequestItems');
+  const ri = tableWithCols_('RequestItems'), rcvPrices = receivePrices_();
   setMany_(ri, rows.filter(function (r) {
     const i = byName[str_(r.ItemName)];
     const l = lines.filter(function (x) { return x.name === str_(r.ItemName); })[0];
@@ -3480,11 +3493,12 @@ function writeShipment_(req, rows, st, lines, user, now, boxPick) {
     const got = {};
     lines.forEach(function (l) { got[l.name] = l.qty; });
     setMany_(ri, rows.filter(function (r) { return str_(r.ItemName) in got; }).map(function (r) {
-      return { row: r, obj: { ReceivedQty: (Number(r.ReceivedQty) || 0) + got[str_(r.ItemName)] } };
+      return { row: r, obj: stampPrice_(r, { ReceivedQty: (Number(r.ReceivedQty) || 0) + got[str_(r.ItemName)] }, rcvPrices) };
     }));
-    logAction_(req.id, 'تسليم الشحنة ' + batch + ' للمعمل مباشرة (بدون بوكس أو توقيع)', user.name);
+    logAction_(req.id, 'تسليم الشحنة ' + batch + ' مباشرة (بدون بوكس أو توقيع)', user.name);
     return batch;
   }
+  if (directDelivery_(req)) { logAction_(req.id, 'الشحنة ' + batch + ' جاهزة للتسليم مباشرة (بدون بوكس) — بانتظار توقيع المستلم', user.name); return batch; }
   try { loadBox_(req, batch, user, now, boxPick); } catch (e) { console.error('loadBox_', e); } // التتبع لا يمنع الإرسال أبداً
   return batch;
 }
@@ -3902,9 +3916,73 @@ function branchManagers_(branch) {
 function isBranchApproval_(row) { return str_(row.Approver) === BRANCH_APPROVER_; }
 /** هل للطلب من يعتمده في النظام؟ (وإلا يذهب للتموين مباشرة) */
 function hasApprover_(row) {
-  // طلبات قديمة كانت بانتظار مدير الفرع: لا اعتماد بعد الآن — تذهب للتموين مباشرة
+  const fl = storedFlow_(row);
+  if (fl) return fl.approval === 'doctor' ? !!str_(row.Doctor) && doctorHasAccount_(str_(row.Doctor)) : fl.approval === 'branch' ? isBranchApproval_(row) && branchManagers_(reqBranch_(row)).length > 0 : false;
+  // طلبات قديمة (قبل «مسارات الطلبات») كانت بانتظار مدير الفرع: لا اعتماد — تذهب للتموين مباشرة
   return isBranchApproval_(row) ? false : doctorHasAccount_(str_(row.Doctor));
 }
+
+/* =====================================================================
+ *  مسارات الطلبات (الإعدادات): لكل نوع طلب — الاعتماد، مرحلة المورّد الخارجي، التوصيل، الاستلام.
+ *  المسار يُحفظ على الطلب لحظة رفعه (عمود Flow) فلا يتغير مسار طلب مفتوح إذا عُدّلت الإعدادات بعده.
+ * ===================================================================== */
+const FLOW_KEY_ = 'RequestFlows';
+const FLOW_KINDS_ = ['doctor', 'clinic', 'lab', 'hk'];
+const FLOW_DEFAULTS_ = {
+  doctor: { approval: 'doctor', vendor: true, delivery: 'box', receipt: 'sign' },
+  clinic: { approval: 'none', vendor: true, delivery: 'box', receipt: 'sign' },
+  lab: { approval: 'none', vendor: true, delivery: 'direct', receipt: 'sign' },
+  hk: { approval: 'none', vendor: true, delivery: 'box', receipt: 'sign' }
+};
+// الاعتماد المسموح لكل نوع: طلب الطبيب يعتمده الطبيب أو مدير الفرع؛ الباقي مدير الفرع أو بدون (المعمل بلا فرع: بدون)
+const FLOW_APPROVALS_ = { doctor: ['doctor', 'branch', 'none'], clinic: ['branch', 'none'], lab: ['none'], hk: ['branch', 'none'] };
+function cleanFlow_(kind, f) {
+  const d = FLOW_DEFAULTS_[kind]; f = f || {};
+  return { approval: FLOW_APPROVALS_[kind].indexOf(f.approval) !== -1 ? f.approval : d.approval, vendor: f.vendor === undefined ? d.vendor : !!f.vendor,
+    delivery: f.delivery === 'direct' || f.delivery === 'box' ? f.delivery : d.delivery, receipt: f.receipt === 'auto' || f.receipt === 'sign' ? f.receipt : d.receipt };
+}
+function flowSettings_() {
+  if (MEMO_.flows) return MEMO_.flows;
+  let o = {};
+  try { o = JSON.parse(str_(getSetting_(FLOW_KEY_, '')) || '{}') || {}; } catch (e) { o = {}; }
+  const out = {};
+  FLOW_KINDS_.forEach(function (k) { out[k] = cleanFlow_(k, o[k]); });
+  return (MEMO_.flows = out);
+}
+function getRequestFlows_() { return { flows: flowSettings_(), approvals: FLOW_APPROVALS_, defaults: FLOW_DEFAULTS_ }; }
+function saveRequestFlows_(user, flows) {
+  flows = flows || {};
+  const out = {};
+  FLOW_KINDS_.forEach(function (k) { out[k] = cleanFlow_(k, flows[k]); });
+  const js = JSON.stringify(out);
+  withLock_(function () {
+    const t = freshTable_('Settings'), row = t.rows.filter(function (r) { return str_(r.Key) === FLOW_KEY_; })[0];
+    if (!row) append_('Settings', { Key: FLOW_KEY_, Value: js, Notes: 'مسارات الطلبات من الإعدادات: الاعتماد / مرحلة المورّد / التوصيل / الاستلام لكل نوع طلب — تُطبق على الطلبات الجديدة' });
+    else if (str_(row.Value) !== js) setCells_(t, row, { Value: js });
+    logAction_('', 'تعديل مسارات الطلبات: ' + js, user.name);
+  });
+  resetMemo_();
+  return getRequestFlows_();
+}
+/** نوع الطلب لمساره */
+function flowKindOf_(row, hk) {
+  if (isLabSupply_(row)) return 'lab';
+  if (hk) return 'hk';
+  return str_(row.Doctor !== undefined ? row.Doctor : row.doctor) ? 'doctor' : 'clinic';
+}
+function storedFlow_(row) {
+  const v = str_(row && row.Flow); if (!v) return null;
+  try { const o = JSON.parse(v); return o && FLOW_KINDS_.indexOf(o.kind) !== -1 ? Object.assign({ kind: o.kind }, cleanFlow_(o.kind, o)) : null; } catch (e) { return null; }
+}
+/** مسار الطلب: المحفوظ عليه، وإلا (طلبات ما قبل المسارات) سلوكه القديم */
+function requestFlow_(row) {
+  const fl = storedFlow_(row); if (fl) return fl;
+  const kind = flowKindOf_(row, false);
+  if (kind === 'lab') return { kind: 'lab', approval: 'none', vendor: true, delivery: 'direct', receipt: 'auto' }; // كان يُستلم لحظة الإرسال
+  return Object.assign({ kind: kind }, FLOW_DEFAULTS_[kind]);
+}
+const autoReceipt_ = req => (req.flow || requestFlow_(req)).receipt === 'auto';
+const directDelivery_ = req => (req.flow || requestFlow_(req)).delivery === 'direct';
 /** هل هذا المستخدم هو من يعتمد هذا الطلب؟ */
 function canReview_(user, row) {
   if (isBranchApproval_(row)) return user.screen === 'branch' && branchManagers_(str_(row.Branch)).indexOf(user.name) !== -1;
@@ -4012,7 +4090,7 @@ function bulkUpdateStatus_(user, requestIds, newStatus, boxes) {
         const st = shipState_(req, mine);
         const lines = st.items.filter(function (i) { return i.remainingQty > 0; }).map(function (i) { return { name: i.item, qty: i.remainingQty }; });
         if (lines.length) writeShipment_(req, mine, st, lines, user, upd.SentAt, boxes[id]);
-        if (isLabSupply_(req)) setCells_(t, row, { Status: ST.RECEIVED, ReceivedAt: upd.SentAt, ReceiverName: req.nurse });
+        if (autoReceipt_(req)) setCells_(t, row, { Status: ST.RECEIVED, ReceivedAt: upd.SentAt, ReceiverName: req.nurse });
       }
       logAction_(id, 'تغيير الحالة: ' + cur + ' ← ' + newStatus, user.name);
       result.updated.push(id);
@@ -4068,7 +4146,7 @@ function dispatchItems_(user, requestId, lines, box) {
       return l.name + ' ×' + l.qty + (l.remainingAfter ? ' (باقي ' + l.remainingAfter + ')' : '');
     }).join('، ') + ' — المتبقي من الطلب ' + after.remainingQty + ' قطعة', user.name);
     if (after.allDispatched) {
-      const lab = isLabSupply_(req);
+      const lab = autoReceipt_(req);
       setCells_(f.t, f.row, lab ? { Status: ST.RECEIVED, SentAt: now, ReceivedAt: now, ReceiverName: req.nurse } : { Status: ST.SENT, SentAt: now });
       logAction_(req.id, 'تغيير الحالة: ' + cur + ' ← ' + (lab ? ST.RECEIVED : ST.SENT), user.name);
     }
@@ -4227,7 +4305,7 @@ function settleRequest_(f, cur, user, why) {
   if (!after.allDispatched) return '';
   const now = new Date();
   let to, upd;
-  if (isLabSupply_(req)) { to = ST.RECEIVED; upd = { Status: to, SentAt: req.sentAt || now, ReceivedAt: now, ReceiverName: req.nurse }; }
+  if (autoReceipt_(req)) { to = ST.RECEIVED; upd = { Status: to, SentAt: req.sentAt || now, ReceivedAt: now, ReceiverName: req.nurse }; }
   else if (after.ships.length && after.pending === 0) {
     const names = [];
     let last = 0;
@@ -4302,6 +4380,24 @@ function removeMyItems_(user, requestId, items, note) {
  *  تتفق تلقائياً، والقيم الأصلية والقيمة المالية والسبب ومن حذف في Reversals (ويمكن الاسترجاع).
  * ===================================================================== */
 const ADMIN_RM_ = 'حذف صنف (أدمن)', ADMIN_RS_ = 'استرجاع صنف (أدمن)', ADMIN_RM_NOTE_ = 'حذف إداري: ';
+/** سعر الوحدة للحسبة: المثبّت عند الاستلام، وإلا سعر الكتالوج الحالي (طلبات ما قبل التثبيت أو لم تُستلم) */
+function unitPrice_(it, catPrice) {
+  const v = it && it.UnitPrice;
+  if (v === '' || v === null || v === undefined) return catPrice;
+  const n = num_(v);
+  return isNaN(n) ? catPrice : n;
+}
+/** أسعار الاستلام الفعلية: العهدة صفر (لا تُحسب كمستهلك) */
+function receivePrices_() {
+  const p = {};
+  getCatalog_(true).forEach(function (c) { p[c.name.toLowerCase()] = c.asset ? 0 : (Number(c.price) || 0); });
+  return p;
+}
+/** يثبّت السعر على سطر الصنف أول مرة يُستلم (السعر الصفر لا يُثبّت: يُسعَّر لاحقاً من الكتالوج) */
+function stampPrice_(row, obj, prices) {
+  if (row.UnitPrice === '' || row.UnitPrice === null || row.UnitPrice === undefined) { const v = prices[str_(row.ItemName).toLowerCase()] || 0; if (v > 0) obj.UnitPrice = v; }
+  return obj;
+}
 function catalogPrices_() {
   const price = {};
   getCatalog_(true).forEach(function (c) { price[c.name.toLowerCase()] = Number(c.price) || 0; });
@@ -4580,10 +4676,13 @@ function addNurseIssue_(user, o) {
   if (!message) throw new Error('ERR_REQUIRED');
   const clinic = clean_(o.clinic, 120);
   let id;
+  let dup = false;
   withLock_(function () {
     resetMemo_();
+    if (recentSame_('NurseIssues', function (r) { return str_(r.Author) === user.name && str_(r.Source) === NI_SRC_.SURVEY && str_(r.Type) === type && str_(r.Message) === message; }, 'Timestamp')) { dup = true; return; }
     id = issueCopy_({ Source: NI_SRC_.SURVEY, SourceID: '', RequestID: '', Author: user.name, Role: user.role, Clinic: clinic, Branch: clinic ? clinicBranch_(clinic) : '', Type: type, Message: message });
   });
+  if (dup) return getNurseIssues_(user);
   nk_('survey'); notifyPerm_('surveys', '📝 ملاحظة جديدة من استبيان التمريض (' + type + ') · New nurse survey note', mailMsg_({ order: ['ar', 'en'],
     ar: { title: 'ملاحظة من استبيان التمريض: ' + type, lead: 'من ' + user.name + (clinic ? ' — ' + clinic : '') + ':', lines: [message], btn: 'افتح استبيان التمريض' },
     en: { title: 'Nurse survey note: ' + type, lead: 'From ' + user.name + (clinic ? ' — ' + clinic : '') + ':', lines: [message], btn: 'Open nurse survey' } }));
@@ -5016,6 +5115,10 @@ function editRequestItems_(user, requestId, qtys) {
     });
     if (!changes.length) return;
     if (dels.length === own.rows.length) throw new Error('ERR_ALL_ZERO');
+    const reqRow = f.row;
+    if (str_(reqRow.Type) === 'شهري' && str_(reqRow.Doctor)) {
+      checkItemMonthLimits_(str_(reqRow.Doctor), own.rows.filter(function (r) { return str_(r.ItemName) in want && want[str_(r.ItemName)] > 0; }).map(function (r) { return { name: str_(r.ItemName), qty: want[str_(r.ItemName)] }; }), requestId);
+    }
     clearRequestDupKey_(user, f, own.rows);
     if (ups.length) setMany_(own.table, ups);
     dels.sort(function (a, b) { return b._row - a._row; }).forEach(function (r) { sheet_('RequestItems').deleteRow(r._row); });
@@ -5092,7 +5195,7 @@ function receiveShipment_(user, requestId, batch, receivedItems, receiverName, s
     resetMemo_();
     const f = findRequest_(requestId);
     const req = mapRequest_(f.row);
-    const ri = read_('RequestItems');
+    const ri = tableWithCols_('RequestItems');
     const rows = ri.rows.filter(function (r) { return str_(r.RequestID) === req.id; });
     const ship = pendingShip_(req, shipState_(req, rows), batch);
     const returnRows = [], returnSeen = {}, receiptNames = {};
@@ -5119,15 +5222,15 @@ function receiveShipment_(user, requestId, batch, receivedItems, receiverName, s
       return { row: r, obj: { ReceivedQty: qty[n] } };
     }));
     delete MEMO_.sitems;
-    const withSi = {};
+    const withSi = {}, rcvPrices = receivePrices_();
     siRows.forEach(function (r) { withSi[str_(r.ItemName)] = true; });
     const allSi = si.rows.filter(function (r) { return str_(r.RequestID) === req.id; });
     setMany_(ri, rows.filter(function (r) { return str_(r.ItemName) in qty; }).map(function (r) {
       const n = str_(r.ItemName);
-      if (!withSi[n]) return { row: r, obj: { ReceivedQty: qty[n] } }; // صنف قديم أُرسل كاملاً
+      if (!withSi[n]) return { row: r, obj: stampPrice_(r, { ReceivedQty: qty[n] }, rcvPrices) }; // صنف قديم أُرسل كاملاً
       const total = allSi.filter(function (x) { return str_(x.ItemName) === n && x.ReceivedQty !== '' && x.ReceivedQty !== null; })
         .reduce(function (a, x) { return a + (Number(x.ReceivedQty) || 0); }, 0);
-      return { row: r, obj: { ReceivedQty: total } };
+      return { row: r, obj: stampPrice_(r, { ReceivedQty: total }, rcvPrices) };
     }));
     returnRows.forEach(function (r) { if (rejects[r.ItemName]) r.Photo = rejects[r.ItemName].url || ''; append_('RequestReturns', r); logAction_(req.id, 'طلب إعادة للتموين عند الاستلام: ' + r.Qty + ' × ' + r.ItemName, user.name); });
     logAction_(req.id, 'استلام الشحنة ' + batch + ' وتوقيعها (' + ship.items.length + ' صنف)', receiverName + ' (' + user.name + ')');
@@ -5295,7 +5398,7 @@ function getRequestReturns_(user, requestId) {
       source: str_(r.Source), kind: str_(r.Kind) || 'return', photo: str_(r.Photo), reason: str_(r.Reason), date: ymdStr_(r.ReturnDate), backdated: isYes_(r.Backdated), status: str_(r.Status), createdAt: r.CreatedAt, createdBy: str_(r.CreatedBy),
       substitutes: itemsOf_(req.id).filter(function (it) { return str_(it.ReturnID) === str_(r.ReturnID); }).map(function (it) { return { item: str_(it.ItemName), qty: Number(it.RequestedQty), status: str_(it.SubStatus), note: str_(it.SubNote), by: str_(it.SubBy), receivedQty: grossReceivedQty_(it), batch: Number(it.DispatchBatch) || 0, originalBatch: Number(it.OriginalBatch) || 0 }; }),
       receivedAt: r.ReceivedAt, receivedBy: str_(r.ReceivedBy), note: str_(r.Note), doctor: req.doctor, clinic: req.clinic, branch: req.branch };
-    if (priceVisible_()) { out.unitPrice = prices[out.item.toLowerCase()] || 0; out.value = round2_(out.qty * out.unitPrice); }
+    if (priceVisible_()) { const line = itemsOf_(req.id).filter(function (it) { return str_(it.ItemName) === out.item; })[0]; out.unitPrice = unitPrice_(line, prices[out.item.toLowerCase()] || 0); out.value = round2_(out.qty * out.unitPrice); }
     return out;
   }).sort(function (a, b) { return toMs_(b.createdAt) - toMs_(a.createdAt); });
 }
@@ -5497,17 +5600,30 @@ function addItemNote_(user, requestId, itemName, note) {
   return itemNotes_(requestId, itemName);
 }
 
+/** نفس البلاغ من نفس الشخص خلال دقائق = إعادة إرسال (انقطع الاتصال بعد وصول الأول): يُعاد الموجود بدل التكرار */
+const RESEND_WINDOW_MS_ = 10 * 60 * 1000;
+function recentSame_(name, pred, atField) {
+  const now = Date.now();
+  return freshTable_(name).rows.filter(function (r) { const at = toMs_(r[atField]); return at && now - at < RESEND_WINDOW_MS_ && pred(r); }).pop();
+}
 function addComplaint_(user, requestId, type, message) {
   if (arguments.length > 4) { type = arguments[arguments.length - 2]; message = arguments[arguments.length - 1]; }
   type = COMPLAINT_TYPES.indexOf(str_(type)) !== -1 ? str_(type) : 'أخرى';
   message = clean_(message, 2000);
   if (!message) throw new Error('ERR_REQUIRED');
   guardSee_(user, requestId);
-  const id = 'CMP-' + Utilities.formatDate(new Date(), TZ, 'yyMMddHHmmss') + '-' + Math.floor(Math.random() * 900 + 100);
-  append_('Complaints', {
-    ComplaintID: id, Timestamp: new Date(), RequestID: str_(requestId), Author: user.name,
-    Role: user.role, Type: type, Message: message, Resolved: false
+  let dup = false;
+  const id = withLock_(function () {
+    const same = recentSame_('Complaints', function (r) { return str_(r.Author) === user.name && str_(r.RequestID) === str_(requestId) && str_(r.Type) === type && str_(r.Message) === message; }, 'Timestamp');
+    if (same) { dup = true; return str_(same.ComplaintID); }
+    const nid = 'CMP-' + Utilities.formatDate(new Date(), TZ, 'yyMMddHHmmss') + '-' + Math.floor(Math.random() * 900 + 100);
+    append_('Complaints', {
+      ComplaintID: nid, Timestamp: new Date(), RequestID: str_(requestId), Author: user.name,
+      Role: user.role, Type: type, Message: message, Resolved: false
+    });
+    return nid;
   });
+  if (dup) return true; // أُرسل من قبل: لا نسخة ثانية ولا إيميل ثانٍ
   const cr0 = findRequestSafe_(requestId) || {};
   issueCopy_({ Source: NI_SRC_.REQ, SourceID: id, RequestID: str_(requestId), Author: user.name, Role: user.role, Clinic: cr0.clinic || '', Branch: cr0.branch || '', Type: type, Message: message });
   logAction_(requestId, 'بلاغ (' + type + ')', user.name);
@@ -6180,7 +6296,7 @@ function pushNotify_(names, subject, body) {
 
 function notifyNursePartial_(req, r) {
   nk_('shipped');
-  if (isLabSupply_(req)) {
+  if (directDelivery_(req)) {
     notifyUser_(req.nurse, 'جزء من طلبك جاهز من التموين - ' + req.id, 'جزء من طلب مستهلكات المعمل ' + req.id + ' جاهز (' + r.items.map(function (i) { return i.item + ' ×' + i.qty; }).join('، ') + ') — والباقي لاحقاً.');
     return;
   }
@@ -6198,8 +6314,8 @@ function notifyNursePartial_(req, r) {
 
 function notifyNurseSent_(req) {
   nk_('shipped');
-  if (isLabSupply_(req)) {
-    notifyUser_(req.nurse, 'جاهز للاستلام من التموين - ' + req.id, 'طلب مستهلكات المعمل رقم ' + req.id + ' جاهز — استلمه من التموين.');
+  if (directDelivery_(req)) {
+    notifyUser_(req.nurse, 'جاهز للاستلام من التموين - ' + req.id, 'طلبك رقم ' + req.id + ' جاهز — استلمه من التموين' + (autoReceipt_(req) ? '.' : ' ووقّع الاستلام في النظام.'));
     return;
   }
   notifyUser_(req.nurse, 'تم إرسال طلبك - ' + req.id + ' · Your request was shipped', mailMsg_({ order: ['en', 'ar'], id: req.id, req: req, step: 3,
@@ -6257,7 +6373,7 @@ function getDoctorReport_(user, opts) {
       const off = !c.asset && !charged_(charge, c.type);
       if (off) sum.notCharged++;
       // العهدة لا تُحسب هنا كمستهلك: قيمتها في قسم «العهدة المصروفة عليه» (مرة واحدة)
-      const price = c.asset || hidden || off ? 0 : (Number(c.price) || 0);
+      const price = c.asset || hidden || off ? 0 : unitPrice_(it, Number(c.price) || 0); // سعر الاستلام المثبّت
       const total = round2_(qty * price);
       if (hidden) sum.hidden++;
       else if (!price && !c.asset && !off) sum.unpriced++;
@@ -6338,7 +6454,7 @@ function getStatsReport_(user, opts) {
     if (!isOff_(r.status)) {
       (byReq[r.id] || []).forEach(function (it) {
         // القيمة على المستلم فعلاً فقط: ما لم يصل أو رُفض عند الاستلام لا يُحسب
-        const q = receivedQty_(it), n = str_(it.ItemName), k = n.toLowerCase(), v = round2_(q * (cat[k] || 0));
+        const q = receivedQty_(it), n = str_(it.ItemName), k = n.toLowerCase(), v = round2_(q * unitPrice_(it, cat[k] || 0));
         value += v; qty += q;
         if (!who || charged_(docCharge[who], ctype[k])) billValue += v; // حسبة الطبيب: ما لا يُحسب عليه لا يدخل حسابه
         if (who && v && charged_(docCharge[who], ctype[k])) {
@@ -7008,7 +7124,7 @@ function getCatalogAdmin_(user) {
     const c = str_(r.Category);
     if (c) cats[c] = true;
     return { name: str_(r.ItemName), commercial: str_(r.CommercialName), category: c, price: price_(r.Price), priceIssue: priceProblem_(r.Price),
-      dept: normDept_(r.Department), type: str_(r.ItemType) || ITEM_TYPES_[0], asset: isAssetOwnership_(r.Ownership), serialized: isYes_(r.Serialized), exempt: isYes_(r.Exempt),
+      dept: normDept_(r.Department), type: str_(r.ItemType) || ITEM_TYPES_[0], asset: isAssetOwnership_(r.Ownership), serialized: isYes_(r.Serialized), exempt: isYes_(r.Exempt), monthLimit: monthLimitOf_(r.MonthlyLimit),
       aliases: aliases[str_(r.ItemName).toLowerCase()] || [] };
   }).sort(function (a, b) { return a.name.localeCompare(b.name); });
   return { items: items, categories: Object.keys(cats).sort(), types: ITEM_TYPES_, depts: DEPTS };
@@ -7022,7 +7138,31 @@ function catalogFields_(it) {
   if (it.price === '' || it.price === null || it.price === undefined || isNaN(p) || p < 0 || p > PRICE_MAX) throw new Error('ERR_BAD_PRICE');
   const type = ITEM_TYPES_.indexOf(str_(it.type)) !== -1 ? str_(it.type) : ITEM_TYPES_[0];
   return { name: name, obj: { ItemName: name, CommercialName: clean_(it.commercial, 120), Category: clean_(it.category, 80), Price: round2_(p),
-    Department: normDept_(it.dept), ItemType: type, Ownership: it.asset ? 'عهدة' : '', Serialized: it.asset && it.serialized ? 'نعم' : '', Exempt: it.exempt ? 'نعم' : '' } };
+    Department: normDept_(it.dept), ItemType: type, Ownership: it.asset ? 'عهدة' : '', Serialized: it.asset && it.serialized ? 'نعم' : '', Exempt: it.exempt ? 'نعم' : '', MonthlyLimit: monthLimitOf_(it.monthLimit) || '' } };
+}
+function monthLimitOf_(v) { const n = Math.floor(num_(v)); return n > 0 && n <= 100000 ? n : 0; }
+/** المطلوب من كل صنف في الطلبات الشهرية لهذا الطبيب في شهر الطلب (المعتمد إن وُجد، وإلا المطلوب) — الملغي والمرفوض لا يُحسب */
+function itemMonthUsed_(doctor, month, exceptId) {
+  const ids = {};
+  requestRows_().forEach(function (r) {
+    if (str_(r.Doctor) === doctor && str_(r.Type) === 'شهري' && !isOff_(str_(r.Status)) && str_(r.RequestID) !== str_(exceptId || '') && monthOf_(r.SubmittedAt || r.Date) === month) ids[str_(r.RequestID)] = true;
+  });
+  const used = {};
+  read_('RequestItems').rows.forEach(function (it) { if (ids[str_(it.RequestID)]) { const n = str_(it.ItemName); used[n] = (used[n] || 0) + targetQty_(it); } });
+  return used;
+}
+/** حد الصنف الشهري لكل طبيب (الطلب الشهري فقط): items = [{ name, qty }] */
+function checkItemMonthLimits_(doctor, items, exceptId) {
+  if (!doctor) return;
+  const limits = {};
+  getCatalog_(false).forEach(function (c) { if (c.monthLimit) limits[c.name] = c.monthLimit; });
+  const limited = items.filter(function (it) { return limits[it.name]; });
+  if (!limited.length) return;
+  const used = itemMonthUsed_(doctor, monthOf_(new Date()), exceptId);
+  limited.forEach(function (it) {
+    const lim = limits[it.name], left = Math.max(0, lim - (used[it.name] || 0));
+    if (it.qty > left) throw new Error('ERR_ITEM_MONTH_LIMIT:item=' + it.name + ';limit=' + lim + ';left=' + left);
+  });
 }
 
 /** إضافة صنف (orig فارغ) أو تعديله؛ تغيير الاسم ينتقل للطلبات والشحنات والعهدة والأسماء البديلة */
@@ -8577,7 +8717,7 @@ function reportAsset_(user, payload) {
   const clientKey = /^[A-Za-z0-9-]{8,64}$/.test(str_(payload.clientKey)) ? str_(payload.clientKey) : '';
   const allowed = assetClinicsFor_(user);
   if (clientKey) {
-    const same = read_('AssetTickets').rows.filter(function (r) { return str_(r.ClientKey) === clientKey && str_(r.Nurse) === user.name; })[0];
+    const same = freshTable_('AssetTickets').rows.filter(function (r) { return str_(r.ClientKey) === clientKey && str_(r.Nurse) === user.name; })[0];
     if (same) return { duplicate: true, id: str_(same.TicketID) };
   }
   // بلاغ بدون قطعة مسجلة (العهدة لم تُجرد بعد): العيادة + الأداة (+ الرقم التسلسلي) — تُسجَّل القطعة تلقائياً مع البلاغ
@@ -8601,13 +8741,14 @@ function reportAsset_(user, payload) {
     } else {
       setMany_(t, [{ row: row, obj: { Status: AS_ST.SENT, TicketID: id, UpdatedAt: now, UpdatedBy: user.name } }]);
     }
+    append_('AssetTickets', { TicketID: id, Date: now, AssetID: target, Item: a.item, Serial: a.serial, Clinic: a.clinic, Branch: a.branch,
+      Nurse: user.name, Problem: problem, Description: desc, Photo: '', Status: TK_ST.NEW, ClientKey: clientKey });
     return { id: id, asset: a, target: target };
   });
   let photoUrl = '';
   if (payload.photo) { try { photoUrl = saveLabPhoto_(res.id + '-report', payload.photo); } catch (e) { if (problem === 'خربانة') throw e; } }
   const a = res.asset;
-  append_('AssetTickets', { TicketID: res.id, Date: new Date(), AssetID: res.target, Item: a.item, Serial: a.serial, Clinic: a.clinic, Branch: a.branch,
-    Nurse: user.name, Problem: problem, Description: desc, Photo: photoUrl, Status: TK_ST.NEW, ClientKey: clientKey });
+  if (photoUrl) { const tt = freshTable_('AssetTickets'), tr = tt.rows.filter(function (r) { return str_(r.TicketID) === res.id; })[0]; if (tr) setMany_(tt, [{ row: tr, obj: { Photo: photoUrl } }]); }
   logAction_(res.id, 'بلاغ أداة: ' + a.item + (a.serial ? ' #' + a.serial : '') + ' — ' + problem, user.name);
   issueCopy_({ Source: NI_SRC_.ASSET, SourceID: res.id, RequestID: '', Author: user.name, Role: user.role, Clinic: a.clinic, Branch: a.branch,
     Type: problem + ' — ' + a.item + (a.serial ? ' #' + a.serial : ''), Message: desc || problem });
@@ -8901,21 +9042,23 @@ function createMaintTicket_(user, payload) {
   const photos = Array.isArray(payload.photos) ? payload.photos.filter(String) : [];
   if (kind === 'صيانة' && !photos.length) throw new Error('ERR_PHOTO_REQUIRED');
   const clientKey = clean_(payload.clientKey, 60);
-  if (clientKey) {
-    const dup = read_('BranchTickets').rows.filter(function (r) { return str_(r.ClientKey) === clientKey; })[0];
-    if (dup) return mapMt_(dup, cfg, Date.now());
-  }
   // طلب جهاز للفرع: اسم الجهاز (من الكتالوج أو جديد) والعدد
   const item = clean_(payload.item, 120), qty = item ? Math.floor(Number(payload.qty) || 1) : 0;
   if (item && !(qty >= 1 && qty <= 500)) throw new Error('ERR_BAD_QTY');
   const status = kind === 'طلب للفرع' && cfg.approval ? MT_ST.PENDING : MT_ST.NEW;
+  let dupRow = null;
   const id = withLock_(function () {
+    dupRow = recentSame_('BranchTickets', function (r) {
+      return clientKey ? str_(r.ClientKey) === clientKey : str_(r.CreatedBy) === user.name && str_(r.Branch) === branch && str_(r.Area) === area && str_(r.Description) === desc && str_(r.Kind) === kind;
+    }, 'CreatedAt');
+    if (dupRow) return str_(dupRow.TicketID);
     const nid = reserveId_('MNT-', function (prefix) { return maxSeq_(freshTable_('BranchTickets').rows, 'TicketID', prefix); }).id;
     append_('BranchTickets', { TicketID: nid, Kind: kind, Branch: branch, Area: area, Clinic: clinic, Spot: clean_(payload.spot, 200), Category: cat, Priority: pr,
       Stops: payload.stops ? 'نعم' : 'لا', Description: desc, Photos: '', Status: status, Item: item, Qty: qty || '', CreatedAt: new Date(), CreatedBy: user.name, ReopenCount: 0,
       History: JSON.stringify([{ at: new Date().toISOString(), by: user.name, what: status }]), UpdatedAt: new Date(), UpdatedBy: user.name, ClientKey: clientKey });
     return nid;
   });
+  if (dupRow) return mapMt_(dupRow, cfg, Date.now()); // نفس البلاغ أُرسل من قبل — لا نسخة ثانية
   if (photos.length) {
     const urls = mtPhotos_(id, photos, 4);
     const t = read_('BranchTickets'), row = t.rows.filter(function (r) { return str_(r.TicketID) === id; })[0];

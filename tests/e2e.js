@@ -1035,8 +1035,16 @@ function log(msg) { console.log('  ✔ ' + msg); }
   await page.click('#bulkbar [data-act="bulk"][data-s="تم الإرسال"]');
   await page.waitForTimeout(800);
   expect(!(await page.isVisible('.modal .bxp-owner')), 'sending lab supplies asks for no box');
-  await page.waitForFunction(id => { const d = __gas.dump('Requests'); const h = d[0]; const r = d.find(x => x[0] === id); return r && r[h.indexOf('Status')] === 'تم الاستلام'; }, labSupId);
-  expect(true, 'lab supplies are received on handover (no signature)');
+  await page.waitForFunction(id => { const d = __gas.dump('Requests'); const h = d[0]; const r = d.find(x => x[0] === id); return r && r[h.indexOf('Status')] === 'تم الإرسال'; }, labSupId);
+  expect(true, 'lab supplies: sent, waiting for the lab signature (no box)');
+  await logout(page);
+  await login(page, 'فني المعمل', '8888');
+  await openView(page, 'mine');
+  await page.click(`.req:has-text("${labSupId}") [data-act="receive"]`);
+  await page.waitForSelector('.rq');
+  await sign(0);
+  await page.click('#rOk');
+  expect(await toastHas(page, 'اكتمل استلام الطلب'), 'the lab signs the receipt of its supplies');
   await logout(page);
   await login(page, 'د. خالد', 'dr-khaled-7');
   await openView(page, 'labdoc');
