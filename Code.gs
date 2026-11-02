@@ -35,7 +35,7 @@ const SCHEMA = {
                  'PrepAt', 'VendorWaitAt', 'VendorReceivedAt', 'ReviewAt', 'ReviewedAt',
                  'RejectionReason', 'ReceiptURL', 'Branch', 'ApprovedAt', 'ClientKey', 'Department', 'Backdated',
                  'CancelReason', 'CancelledAt', 'CancelledBy', 'Approver',
-                 'Exempt'], // Exempt = نعم: طارئ كل أصنافه «مستهلك مستثنى» — لا يُحسب من حد الطوارئ // Approver: «مدير الفرع» لطلبات الهاوس كيبر (فارغ = الطبيب)
+                 'Exempt', 'Flow'], // Flow: مسار الطلب كما كان وقت رفعه (من «مسارات الطلبات») · Exempt = نعم: طارئ كل أصنافه «مستهلك مستثنى» — لا يُحسب من حد الطوارئ // Approver: «مدير الفرع» لطلبات الهاوس كيبر (فارغ = الطبيب)
   // ItemStatus: حالة الصنف داخل الطلبية (قيد التجهيز / بانتظار المندوب / استلم المندوب) قبل إرساله
   RequestItems: ['RequestID', 'ItemName', 'RequestedQty', 'ApprovedQty', 'ReceivedQty', 'DispatchedAt', 'DispatchBatch', 'ItemStatus', 'ItemStatusAt', 'ItemStatusBy',
                  'SubstituteOf', 'SubStatus', 'SubNote', 'SubBy', 'SubAt', // البديل: سطر جديد يشير لاسم الصنف الأصلي
@@ -654,7 +654,7 @@ const API_ = {
   getDoctorProfile:          { screens: ['nurse'], fn: getDoctorProfile_ },
   createRequest:             { screens: ['nurse', 'lab'], fn: createRequest_ },
   getMyRequests:             { screens: ['nurse', 'lab'], fn: getMyRequests_ },
-  receiveShipment:           { screens: ['nurse'], fn: receiveShipment_ },
+  receiveShipment:           { screens: ['nurse', 'lab'], fn: receiveShipment_ },
   resubmitRequest:           { screens: ['nurse'], fn: resubmitRequest_ },
   withdrawRequest:           { screens: ['nurse'], fn: withdrawRequest_ },
   removeMyItems:             { screens: ['nurse', 'lab'], fn: removeMyItems_ },
@@ -718,6 +718,8 @@ const API_ = {
   getUsers:                  { screens: [], perm: 'users', fn: getUsers_ },
   getBackupStatus:           { screens: [], perm: 'users', fn: function () { return backupStatus_(); } },
   getNotifyConfig:           { screens: [], perm: 'users', fn: function () { return getNotifyConfig_(); } },
+  getRequestFlows:           { screens: [], perm: 'users', fn: function () { return getRequestFlows_(); } },
+  saveRequestFlows:          { screens: [], perm: 'users', fn: saveRequestFlows_ },
   // بلاغات الفرع والصيانة: مدير الفرع يرفع، الصيانة تنفذ، والإدارة بصلاحية maint تتابع وتعتمد
   getMaintConfig:            { screens: ['branch', 'maintenance', 'admin'], perm: 'maint', fn: getMaintConfig_ },
   getMaintTickets:           { screens: ['branch', 'maintenance', 'admin'], perm: 'maint', fn: getMaintTickets_ },
@@ -2229,7 +2231,7 @@ function findRequest_(id) {
 
 function mapRequest_(r) {
   return {
-    id: str_(r.RequestID), date: r.Date, clinic: str_(r.Clinic), branch: str_(r.Branch) || clinicBranch_(r.Clinic), doctor: str_(r.Doctor),
+    id: str_(r.RequestID), date: r.Date, clinic: str_(r.Clinic), branch: str_(r.Branch) || clinicBranch_(r.Clinic), doctor: str_(r.Doctor), flow: requestFlow_(r), flowSaved: !!str_(r.Flow),
     department: normDept_(r.Department) || clinicDept_(r.Clinic),
     nurse: str_(r.Nurse), type: str_(r.Type) ? (isEmergencyType_(r.Type) ? 'طارئ' : 'شهري') : '', status: str_(r.Status) || ST.NEW, approver: str_(r.Approver) === BRANCH_APPROVER_ ? 'branch' : '',
     submittedAt: r.SubmittedAt, prepAt: r.PrepAt, vendorWaitAt: r.VendorWaitAt,
@@ -2299,8 +2301,10 @@ function queryRequests_(filters) {
       const dl = waiting[waiting.length - 1].delivered;
       r.boxAt = { to: dl.to, photo: dl.photo, at: dl.at, box: dl.box };
     }
-    r.needsReview = r.approver === 'branch' ? false : !!reviewers[r.doctor]; // اعتماد مدير الفرع أُلغي
-    if (!r.needsReview && r.approver === 'branch' && r.status === ST.REVIEW) r.status = ST.NEW;
+    // من يعتمد: حسب مسار الطلب المحفوظ عليه؛ الطلبات القديمة (قبل المسارات): الطبيب فقط — اعتماد مدير الفرع القديم أُلغي
+    r.needsReview = r.flowSaved ? (r.flow.approval === 'doctor' ? !!r.doctor && !!reviewers[r.doctor] : r.flow.approval === 'branch' ? r.approver === 'branch' && branchManagers_(r.branch).length > 0 : false)
+      : r.approver === 'branch' ? false : !!reviewers[r.doctor];
+    if (!r.needsReview && (r.approver === 'branch' || r.flowSaved) && r.status === ST.REVIEW) r.status = ST.NEW;
     r.cleared = !r.needsReview || r.status === ST.APPROVED || !!r.approvedAt;
     r.awaitingDoctor = r.needsReview && !r.cleared && AWAITING_DOCTOR.indexOf(r.status) !== -1;
     if (r.awaitingDoctor && r.status === ST.NEW) r.status = ST.REVIEW; // طلب قديم «جديد» = لدى الطبيب
@@ -3224,8 +3228,11 @@ function createRequest_(user, payload) {
 
   // الطبيب الذي له حساب يراجع الطلب أولاً؛ غير ذلك يذهب للتموين مباشرة
   // اعتماد مدير الفرع أُلغي: طلبات الهاوس كيبر وغرف الأجهزة ومستهلكات العيادة تذهب للتموين مباشرة
-  const branchApproval = false;
-  const needsReview = branchApproval ? branchManagers_(branch).length > 0 : !clinicOnly && doctorHasAccount_(doctor);
+  // مسار الطلب من «مسارات الطلبات»: من يعتمد (الطبيب / مدير الفرع / بدون)، ويُحفظ على الطلب
+  const flowKind = forLab ? 'lab' : user.hk ? 'hk' : clinicOnly ? 'clinic' : 'doctor';
+  const flow = Object.assign({ kind: flowKind }, flowSettings_()[flowKind]);
+  const branchApproval = flow.approval === 'branch' && branchManagers_(branch || clinicBranch_(clinic)).length > 0;
+  const needsReview = flow.approval === 'doctor' ? !clinicOnly && doctorHasAccount_(doctor) : branchApproval;
   // مفتاح المسودة من الجهاز: إعادة إرسال نفس المسودة بعد انقطاع الاتصال لا تنشئ طلباً مكرراً أبداً
   const clientKey = /^[A-Za-z0-9-]{8,64}$/.test(str_(payload.clientKey)) ? str_(payload.clientKey) : '';
   // بدون قفل الكتابة العام: رقم الطلب يُحجز بقفل قصير (أجزاء من الثانية)، والكتابة إلحاق ذري (appendRow)
@@ -3249,7 +3256,7 @@ function createRequest_(user, payload) {
     append_('Requests', {
       RequestID: id, Date: now, Clinic: clinic, Branch: branch, Doctor: doctor, Nurse: user.name,
       Type: type, Status: needsReview ? ST.REVIEW : ST.NEW, SubmittedAt: now, ReviewAt: needsReview ? now : '', ClientKey: clientKey, Department: dept,
-      Approver: branchApproval ? BRANCH_APPROVER_ : '', Exempt: exemptReq ? 'نعم' : ''
+      Approver: branchApproval ? BRANCH_APPROVER_ : '', Exempt: exemptReq ? 'نعم' : '', Flow: JSON.stringify(flow)
     });
     items.forEach(function (it) { append_('RequestItems', { RequestID: id, ItemName: it.name, RequestedQty: it.qty }); });
   } catch (e) {
@@ -3463,10 +3470,10 @@ function writeShipment_(req, rows, st, lines, user, now, boxPick) {
   const vals = [headerRow_(sh)];
   ensureHeaders_(sh, vals, SCHEMA.ShipmentItems);
   const headers = vals[0];
-  const lab = isLabSupply_(req);
+  const lab = autoReceipt_(req); // مسار «استلام تلقائي عند الإرسال»: يُستلم يداً بيد لحظة الإرسال
   const block = lines.map(function (l) {
     const o = { RequestID: req.id, Batch: batch, ItemName: l.name, Qty: l.qty, DispatchedAt: now, DispatchedBy: user.name };
-    if (lab) o.ReceivedQty = l.qty; // المعمل يستلم يداً بيد لحظة الإرسال
+    if (lab) o.ReceivedQty = l.qty;
     return headers.map(function (h) { return h in o ? o[h] : ''; });
   });
   if (block.length) sh.getRange(sh.getLastRow() + 1, 1, block.length, headers.length).setValues(block);
@@ -3488,9 +3495,10 @@ function writeShipment_(req, rows, st, lines, user, now, boxPick) {
     setMany_(ri, rows.filter(function (r) { return str_(r.ItemName) in got; }).map(function (r) {
       return { row: r, obj: stampPrice_(r, { ReceivedQty: (Number(r.ReceivedQty) || 0) + got[str_(r.ItemName)] }, rcvPrices) };
     }));
-    logAction_(req.id, 'تسليم الشحنة ' + batch + ' للمعمل مباشرة (بدون بوكس أو توقيع)', user.name);
+    logAction_(req.id, 'تسليم الشحنة ' + batch + ' مباشرة (بدون بوكس أو توقيع)', user.name);
     return batch;
   }
+  if (directDelivery_(req)) { logAction_(req.id, 'الشحنة ' + batch + ' جاهزة للتسليم مباشرة (بدون بوكس) — بانتظار توقيع المستلم', user.name); return batch; }
   try { loadBox_(req, batch, user, now, boxPick); } catch (e) { console.error('loadBox_', e); } // التتبع لا يمنع الإرسال أبداً
   return batch;
 }
@@ -3908,9 +3916,73 @@ function branchManagers_(branch) {
 function isBranchApproval_(row) { return str_(row.Approver) === BRANCH_APPROVER_; }
 /** هل للطلب من يعتمده في النظام؟ (وإلا يذهب للتموين مباشرة) */
 function hasApprover_(row) {
-  // طلبات قديمة كانت بانتظار مدير الفرع: لا اعتماد بعد الآن — تذهب للتموين مباشرة
+  const fl = storedFlow_(row);
+  if (fl) return fl.approval === 'doctor' ? !!str_(row.Doctor) && doctorHasAccount_(str_(row.Doctor)) : fl.approval === 'branch' ? isBranchApproval_(row) && branchManagers_(reqBranch_(row)).length > 0 : false;
+  // طلبات قديمة (قبل «مسارات الطلبات») كانت بانتظار مدير الفرع: لا اعتماد — تذهب للتموين مباشرة
   return isBranchApproval_(row) ? false : doctorHasAccount_(str_(row.Doctor));
 }
+
+/* =====================================================================
+ *  مسارات الطلبات (الإعدادات): لكل نوع طلب — الاعتماد، مرحلة المورّد الخارجي، التوصيل، الاستلام.
+ *  المسار يُحفظ على الطلب لحظة رفعه (عمود Flow) فلا يتغير مسار طلب مفتوح إذا عُدّلت الإعدادات بعده.
+ * ===================================================================== */
+const FLOW_KEY_ = 'RequestFlows';
+const FLOW_KINDS_ = ['doctor', 'clinic', 'lab', 'hk'];
+const FLOW_DEFAULTS_ = {
+  doctor: { approval: 'doctor', vendor: true, delivery: 'box', receipt: 'sign' },
+  clinic: { approval: 'none', vendor: true, delivery: 'box', receipt: 'sign' },
+  lab: { approval: 'none', vendor: true, delivery: 'direct', receipt: 'sign' },
+  hk: { approval: 'none', vendor: true, delivery: 'box', receipt: 'sign' }
+};
+// الاعتماد المسموح لكل نوع: طلب الطبيب يعتمده الطبيب أو مدير الفرع؛ الباقي مدير الفرع أو بدون (المعمل بلا فرع: بدون)
+const FLOW_APPROVALS_ = { doctor: ['doctor', 'branch', 'none'], clinic: ['branch', 'none'], lab: ['none'], hk: ['branch', 'none'] };
+function cleanFlow_(kind, f) {
+  const d = FLOW_DEFAULTS_[kind]; f = f || {};
+  return { approval: FLOW_APPROVALS_[kind].indexOf(f.approval) !== -1 ? f.approval : d.approval, vendor: f.vendor === undefined ? d.vendor : !!f.vendor,
+    delivery: f.delivery === 'direct' || f.delivery === 'box' ? f.delivery : d.delivery, receipt: f.receipt === 'auto' || f.receipt === 'sign' ? f.receipt : d.receipt };
+}
+function flowSettings_() {
+  if (MEMO_.flows) return MEMO_.flows;
+  let o = {};
+  try { o = JSON.parse(str_(getSetting_(FLOW_KEY_, '')) || '{}') || {}; } catch (e) { o = {}; }
+  const out = {};
+  FLOW_KINDS_.forEach(function (k) { out[k] = cleanFlow_(k, o[k]); });
+  return (MEMO_.flows = out);
+}
+function getRequestFlows_() { return { flows: flowSettings_(), approvals: FLOW_APPROVALS_, defaults: FLOW_DEFAULTS_ }; }
+function saveRequestFlows_(user, flows) {
+  flows = flows || {};
+  const out = {};
+  FLOW_KINDS_.forEach(function (k) { out[k] = cleanFlow_(k, flows[k]); });
+  const js = JSON.stringify(out);
+  withLock_(function () {
+    const t = freshTable_('Settings'), row = t.rows.filter(function (r) { return str_(r.Key) === FLOW_KEY_; })[0];
+    if (!row) append_('Settings', { Key: FLOW_KEY_, Value: js, Notes: 'مسارات الطلبات من الإعدادات: الاعتماد / مرحلة المورّد / التوصيل / الاستلام لكل نوع طلب — تُطبق على الطلبات الجديدة' });
+    else if (str_(row.Value) !== js) setCells_(t, row, { Value: js });
+    logAction_('', 'تعديل مسارات الطلبات: ' + js, user.name);
+  });
+  resetMemo_();
+  return getRequestFlows_();
+}
+/** نوع الطلب لمساره */
+function flowKindOf_(row, hk) {
+  if (isLabSupply_(row)) return 'lab';
+  if (hk) return 'hk';
+  return str_(row.Doctor !== undefined ? row.Doctor : row.doctor) ? 'doctor' : 'clinic';
+}
+function storedFlow_(row) {
+  const v = str_(row && row.Flow); if (!v) return null;
+  try { const o = JSON.parse(v); return o && FLOW_KINDS_.indexOf(o.kind) !== -1 ? Object.assign({ kind: o.kind }, cleanFlow_(o.kind, o)) : null; } catch (e) { return null; }
+}
+/** مسار الطلب: المحفوظ عليه، وإلا (طلبات ما قبل المسارات) سلوكه القديم */
+function requestFlow_(row) {
+  const fl = storedFlow_(row); if (fl) return fl;
+  const kind = flowKindOf_(row, false);
+  if (kind === 'lab') return { kind: 'lab', approval: 'none', vendor: true, delivery: 'direct', receipt: 'auto' }; // كان يُستلم لحظة الإرسال
+  return Object.assign({ kind: kind }, FLOW_DEFAULTS_[kind]);
+}
+const autoReceipt_ = req => (req.flow || requestFlow_(req)).receipt === 'auto';
+const directDelivery_ = req => (req.flow || requestFlow_(req)).delivery === 'direct';
 /** هل هذا المستخدم هو من يعتمد هذا الطلب؟ */
 function canReview_(user, row) {
   if (isBranchApproval_(row)) return user.screen === 'branch' && branchManagers_(str_(row.Branch)).indexOf(user.name) !== -1;
@@ -4018,7 +4090,7 @@ function bulkUpdateStatus_(user, requestIds, newStatus, boxes) {
         const st = shipState_(req, mine);
         const lines = st.items.filter(function (i) { return i.remainingQty > 0; }).map(function (i) { return { name: i.item, qty: i.remainingQty }; });
         if (lines.length) writeShipment_(req, mine, st, lines, user, upd.SentAt, boxes[id]);
-        if (isLabSupply_(req)) setCells_(t, row, { Status: ST.RECEIVED, ReceivedAt: upd.SentAt, ReceiverName: req.nurse });
+        if (autoReceipt_(req)) setCells_(t, row, { Status: ST.RECEIVED, ReceivedAt: upd.SentAt, ReceiverName: req.nurse });
       }
       logAction_(id, 'تغيير الحالة: ' + cur + ' ← ' + newStatus, user.name);
       result.updated.push(id);
@@ -4074,7 +4146,7 @@ function dispatchItems_(user, requestId, lines, box) {
       return l.name + ' ×' + l.qty + (l.remainingAfter ? ' (باقي ' + l.remainingAfter + ')' : '');
     }).join('، ') + ' — المتبقي من الطلب ' + after.remainingQty + ' قطعة', user.name);
     if (after.allDispatched) {
-      const lab = isLabSupply_(req);
+      const lab = autoReceipt_(req);
       setCells_(f.t, f.row, lab ? { Status: ST.RECEIVED, SentAt: now, ReceivedAt: now, ReceiverName: req.nurse } : { Status: ST.SENT, SentAt: now });
       logAction_(req.id, 'تغيير الحالة: ' + cur + ' ← ' + (lab ? ST.RECEIVED : ST.SENT), user.name);
     }
@@ -4233,7 +4305,7 @@ function settleRequest_(f, cur, user, why) {
   if (!after.allDispatched) return '';
   const now = new Date();
   let to, upd;
-  if (isLabSupply_(req)) { to = ST.RECEIVED; upd = { Status: to, SentAt: req.sentAt || now, ReceivedAt: now, ReceiverName: req.nurse }; }
+  if (autoReceipt_(req)) { to = ST.RECEIVED; upd = { Status: to, SentAt: req.sentAt || now, ReceivedAt: now, ReceiverName: req.nurse }; }
   else if (after.ships.length && after.pending === 0) {
     const names = [];
     let last = 0;
@@ -6208,7 +6280,7 @@ function pushNotify_(names, subject, body) {
 
 function notifyNursePartial_(req, r) {
   nk_('shipped');
-  if (isLabSupply_(req)) {
+  if (directDelivery_(req)) {
     notifyUser_(req.nurse, 'جزء من طلبك جاهز من التموين - ' + req.id, 'جزء من طلب مستهلكات المعمل ' + req.id + ' جاهز (' + r.items.map(function (i) { return i.item + ' ×' + i.qty; }).join('، ') + ') — والباقي لاحقاً.');
     return;
   }
@@ -6226,8 +6298,8 @@ function notifyNursePartial_(req, r) {
 
 function notifyNurseSent_(req) {
   nk_('shipped');
-  if (isLabSupply_(req)) {
-    notifyUser_(req.nurse, 'جاهز للاستلام من التموين - ' + req.id, 'طلب مستهلكات المعمل رقم ' + req.id + ' جاهز — استلمه من التموين.');
+  if (directDelivery_(req)) {
+    notifyUser_(req.nurse, 'جاهز للاستلام من التموين - ' + req.id, 'طلبك رقم ' + req.id + ' جاهز — استلمه من التموين' + (autoReceipt_(req) ? '.' : ' ووقّع الاستلام في النظام.'));
     return;
   }
   notifyUser_(req.nurse, 'تم إرسال طلبك - ' + req.id + ' · Your request was shipped', mailMsg_({ order: ['en', 'ar'], id: req.id, req: req, step: 3,

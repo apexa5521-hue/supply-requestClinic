@@ -2169,7 +2169,7 @@ function renderDetail(m, d) {
     const body = m.el.querySelector('.modal-body');
     const draft = $('#dComment', m.el) ? $('#dComment', m.el).value : '';
     const oldFoot = m.el.querySelector('.modal > .modal-foot'); if (oldFoot) oldFoot.remove();
-    const canReceive = S.user.screen === 'nurse' && d.status !== ST.RECEIVED && (d.shipments || []).some(g => !g.received);
+    const canReceive = (S.user.screen === 'nurse' || S.user.screen === 'lab') && d.status !== ST.RECEIVED && (d.shipments || []).some(g => !g.received);
     body.innerHTML =
       '<div class="between">' + '<div class="row-wrap">' + badge(d.status, d) + typeTag(d.type, d.exempt) + bdTag(d) + branchTag(d.branch) + '</div>' +
         '<span class="muted" style="font-size:13px">' + esc(fmtDateTime(d.submittedAt || d.date)) + '</span></div>' +
@@ -3639,7 +3639,7 @@ function procItemsHtml(r) {
       (canPick && open.length ? '<button class="btn btn-soft btn-sm" data-act="pickPrint" data-id="' + rid + '" title="' + esc(t('pick_print_h')) + '">' + icon('file', 'i-sm') + esc(t('pick_print')) + '</button>' : '') +
       (canPick && open.length ? (canDispatch ? '<button class="btn btn-tone btn-sm dsp-btn" style="--tone:var(--t-indigo)" data-act="dispatch" data-id="' + rid + '" disabled>' + icon('truck', 'i-sm') + esc(t('dispatch_selected')) + '<span class="count-pill hidden"></span></button>' : '') +
         '<select class="select item-st-bulk" data-change="itemStBulk" data-id="' + rid + '" style="width:auto" aria-label="' + esc(t('item_st_bulk')) + '"><option value="*">' + esc(t('item_st_bulk')) + '…</option>' +
-          '<option value="">' + esc(t('item_st_none')) + '</option>' + ITEM_ST.map(x => '<option value="' + esc(x) + '">' + esc(statusLabel(x)) + '</option>').join('') + '</select>' +
+          '<option value="">' + esc(t('item_st_none')) + '</option>' + itemStOptions(rid).map(x => '<option value="' + esc(x) + '">' + esc(statusLabel(x)) + '</option>').join('') + '</select>' +
         (canDispatch ? '<span class="hint">' + icon('info', 'i-sm') + ' ' + esc(t('qty_hint')) + '</span>' : '<span class="hint">' + icon('info', 'i-sm') + ' ' + esc(t('pick_hint')) + '</span>') : '') +
       (!editable ? '<span class="hint">' + icon('lock', 'i-sm') + ' ' + esc(t(r.doctorApproved ? 'qty_by_doctor' : 'approval_locked')) + '</span>' : '') +
     '</div>';
@@ -3798,6 +3798,11 @@ function syncDispatchBtn(exp) {
 /* حالة كل صنف داخل الطلبية + التراجع عن خطوة (السبب إلزامي ويُسجَّل للجودة والإدارة) */
 const ITEM_ST = [ST.PREP, ST.VENDOR_WAIT, ST.VENDOR_RECV];
 /* حالة الصنف: شارة ملونة منذ متى، والطلبية الخارجية (المورّد والموعد) للتموين فقط؛ الضغط على الشارة يفتح التغيير */
+/* حالات الصنف حسب مسار الطلب: مرحلة المورّد الخارجي مخفية إذا أُطفئت في «مسارات الطلبات» */
+function itemStOptions(rid) {
+  const r = (S.proc.list || []).find(x => esc(x.id) === rid);
+  return r && r.flow && r.flow.vendor === false ? ITEM_ST.filter(x => x !== ST.VENDOR_WAIT && x !== ST.VENDOR_RECV) : ITEM_ST;
+}
 function itemStCell(it, editable, rid, iname) {
   const ext = !it.done && it.ext;
   const eff = ext ? (ext.arrived ? ST.VENDOR_RECV : ST.VENDOR_WAIT) : it.itemStatus;
@@ -3809,7 +3814,7 @@ function itemStCell(it, editable, rid, iname) {
   if (!editable) return chip + extLine;
   return '<details class="it-st"><summary title="' + esc(t('it_change')) + '">' + chip + icon('pen', 'i-sm it-edit') + '</summary>' +
     '<select class="select item-st" data-change="itemSt" data-id="' + rid + '" data-item="' + iname + '" data-was="' + esc(it.itemStatus || '') + '" aria-label="' + esc(t('item_status')) + '">' +
-    '<option value="">' + esc(t('item_st_none')) + '</option>' + ITEM_ST.map(x => '<option value="' + esc(x) + '"' + (x === it.itemStatus ? ' selected' : '') + '>' + esc(statusLabel(x)) + '</option>').join('') + '</select></details>' + extLine;
+    '<option value="">' + esc(t('item_st_none')) + '</option>' + itemStOptions(rid).map(x => '<option value="' + esc(x) + '"' + (x === it.itemStatus ? ' selected' : '') + '>' + esc(statusLabel(x)) + '</option>').join('') + '</select></details>' + extLine;
 }
 function itemStChip(it) {
   if (it.done && it.sentQty) return '<span class="muted" style="font-size:12.5px">' + esc(t('item_st_sent')) + '</span>';
@@ -3923,7 +3928,7 @@ function boxOf(owner, branch) {
   return list.find(b => b.owner === owner && b.branch === branch) || list.find(b => b.owner === owner && !b.branch && branch);
 }
 function boxPrompt(reqs) {
-  reqs = reqs.filter(r => r && r.clinic !== LAB_SUPPLY); // مستهلكات المعمل تُسلَّم يداً بيد — بلا بوكس
+  reqs = reqs.filter(r => r && r.clinic !== LAB_SUPPLY && !(r.flow && r.flow.delivery === 'direct')); // تسليم مباشر (مسار الطلب) — بلا بوكس
   if (!reqs.length) return Promise.resolve({});
   return new Promise(resolve => {
     let done = false;
@@ -10110,6 +10115,54 @@ Object.assign(I18N.en, { pick_print: 'Print prep list', pick_print_h: 'A sheet f
   document.addEventListener('focusout', () => setTimeout(set, 120));
   if (window.visualViewport) visualViewport.addEventListener('resize', set);
 })();
+/* مسارات الطلبات (الإعدادات ← إعدادات النظام): لكل نوع طلب — الاعتماد، المورّد الخارجي، التوصيل، الاستلام */
+const FLOW = { data: null };
+const FLOW_KIND_LABEL = { doctor: ['طلب طبيب', 'Doctor request'], clinic: ['مستهلكات عيادة', 'Clinic supplies'], lab: ['مستلزمات المعمل', 'Lab supplies'], hk: ['الهاوس كيبر والأقسام', 'Housekeeping & units'] };
+const FLOW_APPROVAL_LABEL = { doctor: ['الطبيب', 'Doctor'], branch: ['مدير الفرع', 'Branch manager'], none: ['بدون اعتماد', 'No approval'] };
+function flowSteps(k, f) {
+  const s = [mtkText('رفع', 'Submit')];
+  if (f.approval !== 'none') s.push(mtkText('اعتماد ' + FLOW_APPROVAL_LABEL[f.approval][0], FLOW_APPROVAL_LABEL[f.approval][1] + ' approval'));
+  s.push(mtkText('تجهيز', 'Prepare'));
+  if (f.vendor) s.push(mtkText('(المورّد الخارجي عند الحاجة)', '(external supplier if needed)'));
+  s.push(f.delivery === 'box' ? mtkText('إرسال ببوكس وسواق ← وصل الفرع', 'Box & driver → at branch') : mtkText('تسليم مباشر', 'Direct handover'));
+  s.push(f.receipt === 'sign' ? mtkText('استلام بتوقيع', 'Signed receipt') : mtkText('استلام تلقائي', 'Auto receipt'));
+  return s.join(' ← ');
+}
+function flowRender() {
+  const box = $('#flowBox'); if (!box || !FLOW.data) return;
+  const d = FLOW.data, opt = (v, cur, l) => '<option value="' + v + '"' + (v === cur ? ' selected' : '') + '>' + esc(l) + '</option>';
+  box.innerHTML = '<div class="table-wrap"><table class="table flow-table"><thead><tr><th>' + mtkText('نوع الطلب', 'Request kind') + '</th><th>' + mtkText('الاعتماد', 'Approval') + '</th><th>' + mtkText('المورّد الخارجي', 'External supplier') + '</th><th>' + mtkText('التوصيل', 'Delivery') + '</th><th>' + mtkText('الاستلام', 'Receipt') + '</th></tr></thead><tbody>' +
+    Object.keys(FLOW_KIND_LABEL).map(k => { const f = d.flows[k];
+      return '<tr class="flow-row" data-k="' + k + '"><td><b>' + esc(mtkText(...FLOW_KIND_LABEL[k])) + '</b><div class="hint flow-steps">' + esc(flowSteps(k, f)) + '</div></td>' +
+        '<td><select class="select fl-approval">' + d.approvals[k].map(v => opt(v, f.approval, mtkText(...FLOW_APPROVAL_LABEL[v]))).join('') + '</select></td>' +
+        '<td><select class="select fl-vendor">' + opt('1', f.vendor ? '1' : '0', mtkText('تظهر', 'Shown')) + opt('0', f.vendor ? '1' : '0', mtkText('مخفية', 'Hidden')) + '</select></td>' +
+        '<td><select class="select fl-delivery">' + opt('box', f.delivery, mtkText('بوكس + سواق للفرع', 'Box + driver')) + opt('direct', f.delivery, mtkText('تسليم مباشر بدون بوكس', 'Direct, no box')) + '</select></td>' +
+        '<td><select class="select fl-receipt">' + opt('sign', f.receipt, mtkText('بتوقيع المستلم', 'Signed')) + opt('auto', f.receipt, mtkText('تلقائي عند الإرسال', 'Automatic on send')) + '</select></td></tr>'; }).join('') +
+    '</tbody></table></div>';
+}
+function flowRead() {
+  const out = {};
+  $$('#flowBox .flow-row').forEach(tr => { out[tr.dataset.k] = { approval: $('.fl-approval', tr).value, vendor: $('.fl-vendor', tr).value === '1', delivery: $('.fl-delivery', tr).value, receipt: $('.fl-receipt', tr).value }; });
+  return out;
+}
+document.addEventListener('change', e => { const tr = e.target.closest && e.target.closest('#flowBox .flow-row'); if (!tr || !FLOW.data) return; FLOW.data.flows = flowRead(); const st = $('.flow-steps', tr); if (st) st.textContent = flowSteps(tr.dataset.k, FLOW.data.flows[tr.dataset.k]); });
+ACT.flowSave = el => {
+  busy(el, true);
+  call('saveRequestFlows', flowRead()).then(d => { busy(el, false); FLOW.data = d; flowRender(); toast(mtkText('حُفظت مسارات الطلبات — تُطبق على الطلبات الجديدة', 'Request paths saved — they apply to new requests'), 'success'); })
+    .catch(e => { busy(el, false); toast(errMsg(e), 'error'); });
+};
+ACT.flowReset = () => { if (!FLOW.data) return; FLOW.data.flows = JSON.parse(JSON.stringify(FLOW.data.defaults)); flowRender(); };
+const mtkSettingsMount = VIEWS.settings.mount;
+VIEWS.settings.mount = function(root) {
+  mtkSettingsMount.call(this, root);
+  const host = $('#mxSystemSettings') || $('#view');
+  if (!hasPerm('users') || !host || $('#flowBox')) return;
+  host.insertAdjacentHTML('beforeend', '<section class="card flow-card"><div class="card-head"><div><h2>' + icon('route') + mtkText('مسارات الطلبات', 'Request paths') + '</h2><div class="hint">' +
+    mtkText('حدّد لكل نوع طلب: من يعتمده، ومرحلة المورّد الخارجي، والتوصيل، والاستلام. يُطبق على الطلبات الجديدة فقط — المفتوحة تكمل على مسارها.', 'Choose per request kind: who approves, the external supplier stage, delivery and receipt. Applies to new requests only — open ones keep their path.') + '</div></div>' +
+    '<div class="row-wrap"><button class="btn btn-ghost btn-sm" data-act="flowReset">' + mtkText('الافتراضي', 'Defaults') + '</button><button class="btn btn-primary" data-act="flowSave">' + icon('save', 'i-sm') + esc(t('save')) + '</button></div></div>' +
+    '<div class="card-body"><div id="flowBox"><div class="skel" style="height:80px"></div></div></div></section>');
+  call('getRequestFlows').then(d => { FLOW.data = d; flowRender(); }).catch(e => { const b = $('#flowBox'); if (b) b.innerHTML = emptyState('alert', errMsg(e)); });
+};
 /* MASAR_TRACK_END */
 
 /* الرابط الأساسي للنظام · الرابط القديم على GitHub Pages يبقى احتياطياً عند تعطل الأساسي فقط */
