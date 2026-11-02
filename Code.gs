@@ -4676,10 +4676,13 @@ function addNurseIssue_(user, o) {
   if (!message) throw new Error('ERR_REQUIRED');
   const clinic = clean_(o.clinic, 120);
   let id;
+  let dup = false;
   withLock_(function () {
     resetMemo_();
+    if (recentSame_('NurseIssues', function (r) { return str_(r.Author) === user.name && str_(r.Source) === NI_SRC_.SURVEY && str_(r.Type) === type && str_(r.Message) === message; }, 'Timestamp')) { dup = true; return; }
     id = issueCopy_({ Source: NI_SRC_.SURVEY, SourceID: '', RequestID: '', Author: user.name, Role: user.role, Clinic: clinic, Branch: clinic ? clinicBranch_(clinic) : '', Type: type, Message: message });
   });
+  if (dup) return getNurseIssues_(user);
   nk_('survey'); notifyPerm_('surveys', '📝 ملاحظة جديدة من استبيان التمريض (' + type + ') · New nurse survey note', mailMsg_({ order: ['ar', 'en'],
     ar: { title: 'ملاحظة من استبيان التمريض: ' + type, lead: 'من ' + user.name + (clinic ? ' — ' + clinic : '') + ':', lines: [message], btn: 'افتح استبيان التمريض' },
     en: { title: 'Nurse survey note: ' + type, lead: 'From ' + user.name + (clinic ? ' — ' + clinic : '') + ':', lines: [message], btn: 'Open nurse survey' } }));
@@ -5597,17 +5600,30 @@ function addItemNote_(user, requestId, itemName, note) {
   return itemNotes_(requestId, itemName);
 }
 
+/** نفس البلاغ من نفس الشخص خلال دقائق = إعادة إرسال (انقطع الاتصال بعد وصول الأول): يُعاد الموجود بدل التكرار */
+const RESEND_WINDOW_MS_ = 10 * 60 * 1000;
+function recentSame_(name, pred, atField) {
+  const now = Date.now();
+  return freshTable_(name).rows.filter(function (r) { const at = toMs_(r[atField]); return at && now - at < RESEND_WINDOW_MS_ && pred(r); }).pop();
+}
 function addComplaint_(user, requestId, type, message) {
   if (arguments.length > 4) { type = arguments[arguments.length - 2]; message = arguments[arguments.length - 1]; }
   type = COMPLAINT_TYPES.indexOf(str_(type)) !== -1 ? str_(type) : 'أخرى';
   message = clean_(message, 2000);
   if (!message) throw new Error('ERR_REQUIRED');
   guardSee_(user, requestId);
-  const id = 'CMP-' + Utilities.formatDate(new Date(), TZ, 'yyMMddHHmmss') + '-' + Math.floor(Math.random() * 900 + 100);
-  append_('Complaints', {
-    ComplaintID: id, Timestamp: new Date(), RequestID: str_(requestId), Author: user.name,
-    Role: user.role, Type: type, Message: message, Resolved: false
+  let dup = false;
+  const id = withLock_(function () {
+    const same = recentSame_('Complaints', function (r) { return str_(r.Author) === user.name && str_(r.RequestID) === str_(requestId) && str_(r.Type) === type && str_(r.Message) === message; }, 'Timestamp');
+    if (same) { dup = true; return str_(same.ComplaintID); }
+    const nid = 'CMP-' + Utilities.formatDate(new Date(), TZ, 'yyMMddHHmmss') + '-' + Math.floor(Math.random() * 900 + 100);
+    append_('Complaints', {
+      ComplaintID: nid, Timestamp: new Date(), RequestID: str_(requestId), Author: user.name,
+      Role: user.role, Type: type, Message: message, Resolved: false
+    });
+    return nid;
   });
+  if (dup) return true; // أُرسل من قبل: لا نسخة ثانية ولا إيميل ثانٍ
   const cr0 = findRequestSafe_(requestId) || {};
   issueCopy_({ Source: NI_SRC_.REQ, SourceID: id, RequestID: str_(requestId), Author: user.name, Role: user.role, Clinic: cr0.clinic || '', Branch: cr0.branch || '', Type: type, Message: message });
   logAction_(requestId, 'بلاغ (' + type + ')', user.name);
@@ -8701,7 +8717,7 @@ function reportAsset_(user, payload) {
   const clientKey = /^[A-Za-z0-9-]{8,64}$/.test(str_(payload.clientKey)) ? str_(payload.clientKey) : '';
   const allowed = assetClinicsFor_(user);
   if (clientKey) {
-    const same = read_('AssetTickets').rows.filter(function (r) { return str_(r.ClientKey) === clientKey && str_(r.Nurse) === user.name; })[0];
+    const same = freshTable_('AssetTickets').rows.filter(function (r) { return str_(r.ClientKey) === clientKey && str_(r.Nurse) === user.name; })[0];
     if (same) return { duplicate: true, id: str_(same.TicketID) };
   }
   // بلاغ بدون قطعة مسجلة (العهدة لم تُجرد بعد): العيادة + الأداة (+ الرقم التسلسلي) — تُسجَّل القطعة تلقائياً مع البلاغ
@@ -8725,13 +8741,14 @@ function reportAsset_(user, payload) {
     } else {
       setMany_(t, [{ row: row, obj: { Status: AS_ST.SENT, TicketID: id, UpdatedAt: now, UpdatedBy: user.name } }]);
     }
+    append_('AssetTickets', { TicketID: id, Date: now, AssetID: target, Item: a.item, Serial: a.serial, Clinic: a.clinic, Branch: a.branch,
+      Nurse: user.name, Problem: problem, Description: desc, Photo: '', Status: TK_ST.NEW, ClientKey: clientKey });
     return { id: id, asset: a, target: target };
   });
   let photoUrl = '';
   if (payload.photo) { try { photoUrl = saveLabPhoto_(res.id + '-report', payload.photo); } catch (e) { if (problem === 'خربانة') throw e; } }
   const a = res.asset;
-  append_('AssetTickets', { TicketID: res.id, Date: new Date(), AssetID: res.target, Item: a.item, Serial: a.serial, Clinic: a.clinic, Branch: a.branch,
-    Nurse: user.name, Problem: problem, Description: desc, Photo: photoUrl, Status: TK_ST.NEW, ClientKey: clientKey });
+  if (photoUrl) { const tt = freshTable_('AssetTickets'), tr = tt.rows.filter(function (r) { return str_(r.TicketID) === res.id; })[0]; if (tr) setMany_(tt, [{ row: tr, obj: { Photo: photoUrl } }]); }
   logAction_(res.id, 'بلاغ أداة: ' + a.item + (a.serial ? ' #' + a.serial : '') + ' — ' + problem, user.name);
   issueCopy_({ Source: NI_SRC_.ASSET, SourceID: res.id, RequestID: '', Author: user.name, Role: user.role, Clinic: a.clinic, Branch: a.branch,
     Type: problem + ' — ' + a.item + (a.serial ? ' #' + a.serial : ''), Message: desc || problem });
@@ -9025,21 +9042,23 @@ function createMaintTicket_(user, payload) {
   const photos = Array.isArray(payload.photos) ? payload.photos.filter(String) : [];
   if (kind === 'صيانة' && !photos.length) throw new Error('ERR_PHOTO_REQUIRED');
   const clientKey = clean_(payload.clientKey, 60);
-  if (clientKey) {
-    const dup = read_('BranchTickets').rows.filter(function (r) { return str_(r.ClientKey) === clientKey; })[0];
-    if (dup) return mapMt_(dup, cfg, Date.now());
-  }
   // طلب جهاز للفرع: اسم الجهاز (من الكتالوج أو جديد) والعدد
   const item = clean_(payload.item, 120), qty = item ? Math.floor(Number(payload.qty) || 1) : 0;
   if (item && !(qty >= 1 && qty <= 500)) throw new Error('ERR_BAD_QTY');
   const status = kind === 'طلب للفرع' && cfg.approval ? MT_ST.PENDING : MT_ST.NEW;
+  let dupRow = null;
   const id = withLock_(function () {
+    dupRow = recentSame_('BranchTickets', function (r) {
+      return clientKey ? str_(r.ClientKey) === clientKey : str_(r.CreatedBy) === user.name && str_(r.Branch) === branch && str_(r.Area) === area && str_(r.Description) === desc && str_(r.Kind) === kind;
+    }, 'CreatedAt');
+    if (dupRow) return str_(dupRow.TicketID);
     const nid = reserveId_('MNT-', function (prefix) { return maxSeq_(freshTable_('BranchTickets').rows, 'TicketID', prefix); }).id;
     append_('BranchTickets', { TicketID: nid, Kind: kind, Branch: branch, Area: area, Clinic: clinic, Spot: clean_(payload.spot, 200), Category: cat, Priority: pr,
       Stops: payload.stops ? 'نعم' : 'لا', Description: desc, Photos: '', Status: status, Item: item, Qty: qty || '', CreatedAt: new Date(), CreatedBy: user.name, ReopenCount: 0,
       History: JSON.stringify([{ at: new Date().toISOString(), by: user.name, what: status }]), UpdatedAt: new Date(), UpdatedBy: user.name, ClientKey: clientKey });
     return nid;
   });
+  if (dupRow) return mapMt_(dupRow, cfg, Date.now()); // نفس البلاغ أُرسل من قبل — لا نسخة ثانية
   if (photos.length) {
     const urls = mtPhotos_(id, photos, 4);
     const t = read_('BranchTickets'), row = t.rows.filter(function (r) { return str_(r.TicketID) === id; })[0];

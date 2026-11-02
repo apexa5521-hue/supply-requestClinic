@@ -3852,6 +3852,29 @@ test('admin changes a nurse\'s clinics: her open session follows at once (no re-
   assert.deepEqual(api(n, 'getAssetConfig').clinics, ['عيادة الأسنان 2'], 'same token, new clinics');
 });
 
+test('reports are not duplicated when the same one is sent twice (connection dropped after the first arrived)', () => {
+  const { api, login, gas } = boot();
+  const n = login('سارة', '1111'), adm = login('المدير', '1234');
+  const id = api(n, 'createRequest', { doctor: 'د. نورة', type: 'شهري', items: [{ name: 'PROPHY PASTE', qty: 1 }] }).id;
+  gas.mails.length = 0;
+  api(n, 'addComplaint', id, 'تأخير', 'الطلب متأخر');
+  const mails = gas.mails.length;
+  api(n, 'addComplaint', id, 'تأخير', 'الطلب متأخر');
+  assert.equal(rows(gas, 'Complaints').filter(r => r.RequestID === id).length, 1, 'one complaint, not two');
+  assert.equal(gas.mails.length, mails, 'no second email');
+  api(n, 'addComplaint', id, 'نقص', 'ناقص صنف');
+  assert.equal(rows(gas, 'Complaints').filter(r => r.RequestID === id).length, 2, 'a different report is still recorded');
+  api(adm, 'createUser', { name: 'بدر', password: '1357', role: 'مدير فرع', branch: 'الرياض' });
+  const bm = login('بدر', '1357');
+  const tk = { kind: 'صيانة', area: 'عيادة', clinic: 'عيادة الأسنان 1', category: 'تكييف', description: 'المكيف يقطّر', photos: [PNG] };
+  const a = api(bm, 'createMaintTicket', tk), b = api(bm, 'createMaintTicket', tk);
+  assert.equal(a.id, b.id, 'same maintenance report sent twice = one ticket');
+  assert.equal(rows(gas, 'BranchTickets').length, 1);
+  api(n, 'addNurseIssue', { type: 'أخرى', message: 'ملاحظة' });
+  api(n, 'addNurseIssue', { type: 'أخرى', message: 'ملاحظة' });
+  assert.equal(rows(gas, 'NurseIssues').filter(r => r.Message === 'ملاحظة').length, 1, 'survey note not duplicated');
+});
+
 test('branch maintenance: branch manager reports with location + photo, maintenance fixes, manager confirms; requests need approval only when switched on', () => {
   const { api, login, gas } = boot();
   const adm = login('المدير', '1234');
