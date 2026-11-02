@@ -819,7 +819,8 @@ function log(msg) { console.log('  ✔ ' + msg); }
   await page.fill('#dComment', 'تم الاستلام، شكراً');
   await page.click('#dSend');
   await page.waitForSelector('.msg.mine');
-  expect(await page.locator('.modal .mtk-timeline .step.done').count() === 6 && /\d{2}:\d{2}:\d{2}/.test(await page.textContent('.modal .mtk-timeline')), 'detail timeline: all 6 stages done, each with date and time to the second');
+  expect(await page.locator('.modal .mtk-timeline .step.done').count() === 7 && /\d{2}:\d{2}:\d{2}/.test(await page.textContent('.modal .mtk-timeline')), 'detail timeline: all 7 stages done, each with date and time to the second');
+  expect((await page.textContent('.modal .mtk-timeline')).includes('مع السواق أبو فهد'), 'timeline shows which driver carried it');
   await shot(page, 'request-detail');
   await page.evaluate(() => { window.print = () => {}; });
   await page.click('#dPrint');
