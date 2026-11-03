@@ -5981,13 +5981,14 @@ ACT.dashStatus = el => {
       $('#dsOut', m.el).innerHTML = '<div class="hint" style="margin-bottom:6px">' + esc(t('dash_status_n', { n: rows.length })) + '</div>' +
         (rows.length ? '<div class="hint" style="margin-bottom:8px;line-height:1.8">' + icon('pin', 'i-sm') + ' ' + top(r => r.branch) + '<br>' + icon('steth', 'i-sm') + ' ' + top(r => docLabel(r)) + '<br>' + icon('user', 'i-sm') + ' ' + top(r => r.nurse) + '</div>' : '') +
         (rows.length ? '<div class="table-wrap" style="max-height:55vh;overflow:auto"><table class="table"><thead><tr><th>#</th><th>' + esc(t('date')) + '</th><th>' + esc(t('branch')) + '</th><th>' + esc(t('clinic')) + '</th><th>' + esc(t('doctor')) + '</th><th>' + esc(t('xl_nurse')) + '</th><th>' + esc(t('type')) + '</th></tr></thead><tbody>' +
-          rows.map(r => '<tr><td><button class="btn btn-ghost btn-sm mono" data-act="detail" data-id="' + esc(r.id) + '" style="min-height:26px;padding:2px 6px">' + esc(r.id) + '</button>' + (r.atBranch ? ' ' + arrivedTag(r) : '') + '</td><td>' + esc(fmtDate(r.date)) + '</td><td>' + esc(r.branch || '—') + '</td><td>' + esc(r.clinic || '—') + '</td><td>' + esc(docLabel(r)) + '</td><td>' + esc(r.nurse || '—') + '</td><td>' + typeTag(r.type, r.exempt) + '</td></tr>').join('') +
+          rows.map(r => '<tr><td><button class="btn btn-ghost btn-sm mono" data-act="detail" data-id="' + esc(r.id) + '" style="min-height:26px;padding:2px 6px">' + esc(r.id) + '</button>' + (r.atBranch ? ' ' + arrivedTag(r) : '') + '</td><td>' + esc(fmtDate(r.date)) + '</td><td>' + esc(r.branch || '—') + '</td><td>' + esc(r.clinic || '—') + '</td><td>' + esc(docLabel(r)) + '</td><td>' + esc(r.nurse || '—') + '</td><td>' + typeTag(r.type, r.exempt) + '</td></tr>' + (stage === 'partial' ? partialRemRow(r, 7) : '')).join('') +
           '</tbody></table></div>' : emptyState('search', t('no_match')));
     };
     [['dsB', 'b'], ['dsD', 'd'], ['dsN', 'n']].forEach(x => $('#' + x[0], m.el).addEventListener('change', e => { f[x[1]] = e.target.value; draw(); }));
     $('#dsPdf', m.el).addEventListener('click', () => printReport(statusListPrintHtml(stage, month, f, pick())));
     $('#dsXl', m.el).addEventListener('click', () => {
       const rows = pick();
+      if (stage === 'partial') return partialRemXlsx(rows, month, f);
       const head = [t('xl_req'), t('xl_date'), t('stage'), t('xl_status'), t('xl_type'), t('xl_branch'), t('xl_clinic'), t('xl_doctor'), t('xl_nurse'), t('items'), t('ds_units'), t('ds_sent'), t('ds_left')];
       const data = rows.map(r => [r.id, ymdOf(r.submittedAt || r.date), t('stg_' + stage), statusLabel(r.status), t(r.type === 'طارئ' ? 'type_emergency' : 'type_monthly'), r.branch || '', r.clinic || '', docLabel(r), r.nurse || '',
         r.itemCount || 0, r.totalQty || 0, r.sentQty || 0, r.remainingQty || 0]);
@@ -6001,6 +6002,7 @@ ACT.dashStatus = el => {
 };
 /** قائمة متابعة للطباعة / PDF: طلب (شحنة) في كل سطر مرتبة بالفرع ثم الطبيب، وأمام كل سطر مربع تأشير وخانة ملاحظة */
 function statusListPrintHtml(stage, month, f, list) {
+  if (stage === 'partial') return partialRemPrintHtml(month, f, list);
   const logo = ($('#companyLogo') && $('#companyLogo').getAttribute('src')) ? '<img class="rep-logo" src="' + $('#companyLogo').src + '" alt="Client company logo">' : '';
   const rows = list.slice().sort((a, b) => (a.branch || '').localeCompare(b.branch || '') || docLabel(a).localeCompare(docLabel(b)) || (toDate(a.date) || 0) - (toDate(b.date) || 0));
   const filt = [f.b, f.d, f.n].filter(Boolean).join(' · ');
@@ -10318,6 +10320,47 @@ mtkTimeline = function(r) {
   });
   return '<div class="stepper mtk-timeline">' + steps.map((s, i) => '<div class="step ' + cls[i] + '"><span class="node">' + icon(cls[i] === 'done' ? 'check' : s[1]) + '</span><span class="s-lbl">' + esc(s[0]) + '</span><span class="s-time">' + (s[2] ? esc(fmtStamp(s[2])) : '&nbsp;') + '</span></div>').join('') + '</div>';
 };
+/* «أُرسل جزئياً» في توزيع الحالات: تحت كل طلب الأصناف التي لم تُرسل بعد فقط (أو باقي كميتها) — للمتابعة مع التموين */
+Object.assign(I18N.ar, { pr_left_title: 'المتبقي — لم يُرسل بعد', pr_item: 'الصنف', pr_req: 'المطلوب', pr_sent: 'أُرسل', pr_left: 'المتبقي', pr_none: 'لا أصناف متبقية', pr_pdf_title: 'متابعة المتبقي من الطلبات المرسلة جزئياً', pr_total: 'إجمالي المتبقي: {n} صنف · {q} قطعة', pr_not_sent: 'لم يُرسل' });
+Object.assign(I18N.en, { pr_left_title: 'Remaining — not sent yet', pr_item: 'Item', pr_req: 'Requested', pr_sent: 'Sent', pr_left: 'Remaining', pr_none: 'No remaining items', pr_pdf_title: 'Follow-up: remaining items of partially sent requests', pr_total: 'Total remaining: {n} items · {q} units', pr_not_sent: 'Not sent' });
+const partialRem = r => (r.remainingItems || []).filter(i => i.qty > 0);
+function partialRemRow(r, cols) {
+  const rem = partialRem(r);
+  return '<tr class="pr-rem"><td colspan="' + cols + '"><div class="pr-rem-box"><div class="pr-rem-h">' + icon('package', 'i-sm') + ' ' + esc(t('pr_left_title')) + '</div>' +
+    (rem.length ? '<ul>' + rem.map(i => '<li><span>' + esc(i.item) + '</span><b>' + esc(t('pr_left')) + ' ' + fmtNum(i.qty, 0) + '</b><small>' + esc(i.sent ? t('pr_sent') + ' ' + fmtNum(i.sent, 0) + ' / ' + fmtNum(i.target, 0) : t('pr_not_sent')) + '</small></li>').join('') + '</ul>'
+      : '<div class="hint">' + esc(t('pr_none')) + '</div>') + '</div></td></tr>';
+}
+function partialRemXlsx(rows, month, f) {
+  const head = [t('xl_req'), t('xl_date'), t('xl_branch'), t('xl_clinic'), t('xl_doctor'), t('xl_nurse'), t('xl_type'), t('pr_item'), t('pr_req'), t('pr_sent'), t('pr_left')];
+  const data = [];
+  rows.forEach(r => partialRem(r).forEach(i => data.push([r.id, ymdOf(r.submittedAt || r.date), r.branch || '', r.clinic || '', docLabel(r), r.nurse || '',
+    t(r.type === 'طارئ' ? 'type_emergency' : 'type_monthly'), i.item, i.target || 0, i.sent || 0, i.qty])));
+  const blob = xlsxBlob(t('pr_left').slice(0, 30), head, data, [20, 12, 14, 22, 22, 18, 10, 34, 10, 10, 10]);
+  const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
+  a.download = 'masarx-partial-remaining-' + (month || 'all') + (f.b ? '-' + f.b : '') + '.xlsx';
+  document.body.appendChild(a); a.click(); setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 500);
+}
+function partialRemPrintHtml(month, f, list) {
+  const logo = ($('#companyLogo') && $('#companyLogo').getAttribute('src')) ? '<img class="rep-logo" src="' + $('#companyLogo').src + '" alt="Client company logo">' : '';
+  const rows = list.slice().sort((a, b) => (a.branch || '').localeCompare(b.branch || '') || docLabel(a).localeCompare(docLabel(b)) || (toDate(a.date) || 0) - (toDate(b.date) || 0));
+  const filt = [f.b, f.d, f.n].filter(Boolean).join(' · ');
+  let n = 0, q = 0;
+  rows.forEach(r => partialRem(r).forEach(i => { n++; q += i.qty; }));
+  const head = '<div class="rep-head">' + logo + '<div class="rep-meta"><h2>' + esc(t('pr_pdf_title')) + '</h2>' +
+    '<div><b>' + esc(t('month')) + ':</b> ' + esc(month ? monthLabel(month) : t('all_months')) + (filt ? ' · <b>' + esc(t('ds_pdf_filter')) + ':</b> ' + esc(filt) : '') + '</div>' +
+    '<div><b>' + esc(t('dash_status_n', { n: rows.length })) + '</b> · ' + esc(t('pr_total', { n: n, q: fmtNum(q, 0) })) + '</div>' +
+    '<div class="muted">' + esc(t('rep_generated')) + ' ' + esc(fmtDateTime(new Date())) + ' · ' + esc(S.user.name) + '</div></div></div>';
+  const body = rows.map(r => {
+    const rem = partialRem(r);
+    return '<section class="rep-req"><div class="pr-req-h"><b class="mono">' + esc(r.id) + '</b> · ' + esc(fmtDate(r.submittedAt || r.date)) + ' · ' + esc(r.branch || '—') + ' · ' + esc(r.clinic || '—') + ' · ' + esc(docLabel(r)) + ' · ' + esc(r.nurse || '—') +
+      ' · ' + esc(t(r.type === 'طارئ' ? 'type_emergency' : 'type_monthly')) + '</div>' +
+      '<table class="table rep-table rep-list"><thead><tr><th>' + esc(t('ds_pdf_done')) + '</th><th>' + esc(t('pr_item')) + '</th><th class="num">' + esc(t('pr_left')) + '</th><th class="num">' + esc(t('pr_sent')) + '</th><th class="num">' + esc(t('pr_req')) + '</th><th>' + esc(t('ds_pdf_note')) + '</th></tr></thead><tbody>' +
+      (rem.length ? rem.map(i => '<tr><td class="rep-check"><span class="rep-box"></span></td><td>' + esc(i.item) + '</td><td class="num" style="font-weight:700">' + fmtNum(i.qty, 0) + '</td><td class="num">' + fmtNum(i.sent || 0, 0) + '</td><td class="num">' + fmtNum(i.target || 0, 0) + '</td><td class="rep-notecol"></td></tr>').join('')
+        : '<tr><td colspan="6" class="muted">' + esc(t('pr_none')) + '</td></tr>') + '</tbody></table></section>';
+  }).join('');
+  const sign = '<div class="rep-sign">' + [t('req_print_prepared'), t('req_print_receiver')].map(x => '<div><b>' + esc(x) + '</b><span>' + esc(t('req_print_sign')) + '</span></div>').join('') + '</div>';
+  return '<div class="rep">' + head + body + sign + '</div>';
+}
 /* MASAR_TRACK_END */
 
 /* الرابط الأساسي للنظام · الرابط القديم على GitHub Pages يبقى احتياطياً عند تعطل الأساسي فقط */

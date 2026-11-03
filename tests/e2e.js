@@ -658,6 +658,18 @@ function log(msg) { console.log('  ✔ ' + msg); }
   await page.click('.topbar [data-act="sync"]');
   expect(await alertHas(page, 'مُرسل جزئياً'), 'procurement alert shows partially-sent requests with quantities left');
   await shot(page, 'proc-partial-dispatch');
+  // توزيع الحالات ← «أُرسل جزئياً»: تحت الطلب الأصناف المتبقية فقط (لا المرسلة كاملة)، وفي PDF و Excel نفس الشيء
+  await page.evaluate(() => { S.dash = S.dash || {}; S.dash.month = ''; ACT.dashStatus({ dataset: { stage: 'partial' } }); });
+  await page.waitForSelector('.modal .pr-rem-box');
+  const remBox = await page.textContent('.modal .pr-rem-box');
+  expect(remBox.includes('MICRO BRUSH FINE') && remBox.includes('المتبقي 3') && !remBox.includes('DENTAL FLOSS'), 'partial drill-down lists only the items not sent yet under the request');
+  await page.click('.modal #dsPdf');
+  await page.waitForFunction(() => /المتبقي من الطلبات المرسلة جزئياً/.test(document.getElementById('printArea').textContent));
+  const remPdf = await page.textContent('#printArea');
+  expect(remPdf.includes(newId) && remPdf.includes('MICRO BRUSH FINE') && !remPdf.includes('DENTAL FLOSS'), 'partial PDF: request number then only its remaining items');
+  await page.evaluate(() => { document.body.classList.remove('printing'); document.getElementById('printArea').innerHTML = ''; });
+  await page.keyboard.press('Escape');
+  await page.waitForSelector('.modal', { state: 'detached' }).catch(() => {});
   await page.click('.chip[data-g="all"]');
   await page.waitForSelector(`#exp-${newId} .dsp`);
   await page.check(`#exp-${newId} [data-change="dspAll"]`);
