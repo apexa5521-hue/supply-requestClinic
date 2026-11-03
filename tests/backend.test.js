@@ -2058,8 +2058,9 @@ test('arrival at the branch notifies doctor, operations and that branch manager;
   api(p, 'dispatchItems', id, ['DENTAL FLOSS']);
   const box = api(p, 'getBoxes').boxes[0];
   assert.equal(box.loads[0].type, 'شهري', 'box loads carry the request type (boxes filter)');
+  api(null, 'boxPickup', { box: box.id, k: box.k, driver: 'أبو فهد' }); // من مسح QR البوكس
   gas.mails.length = 0;
-  api(null, 'boxDeliver', { box: box.id, k: box.k, to: 'الرياض', driver: 'أبو فهد', photo: PNG, clientKey: 'dlv-arrive-1' });
+  api(null, 'boxDeliver', { box: box.id, k: box.k, to: 'الرياض', photo: PNG, clientKey: 'dlv-arrive-1' });
   const arrived = to => gas.mails.some(m => m.to.indexOf(to) !== -1 && /وصل الطلب/.test(m.subject));
   assert.ok(gas.mails.some(m => m.to === 'sara@example.com' && /وصل بوكس طلبك/.test(m.subject)), 'nurse: box arrived, receive and sign');
   assert.ok(arrived('khaled@example.com') && arrived('ops@example.com') && arrived('bm-ruh@example.com'), 'doctor, operations and the request branch manager are told');
@@ -2149,12 +2150,16 @@ test('boxes: dispatch loads the doctor box → driver scan delivers with photo �
   assert.deepEqual(info.to, [{ nurse: rq.Nurse, clinic: rq.Clinic }]);
   assert.deepEqual(api(null, 'driverTasks', { k: bx.driverToken })[0].to, [{ nurse: rq.Nurse, clinic: rq.Clinic }]);
   const d = { box: 'BOX-001', k: box.k, to: 'جدة', driver: 'أبو فهد', photo: PNG, clientKey: 'dlv-000001' };
+  // لا تسليم قبل «استلمت الطلبية» باسم السواق
+  throwsCode(() => api(null, 'boxDeliver', d), 'ERR_NOT_PICKED');
+  throwsCode(() => api(null, 'boxPickup', { box: 'BOX-001', k: 'bad', driver: 'أبو فهد' }), 'ERR_BAD_LINK');
+  api(null, 'boxPickup', { box: 'BOX-001', k: box.k, driver: 'أبو فهد' });
   throwsCode(() => api(null, 'boxDeliver', Object.assign({}, d, { photo: '' })), 'ERR_PHOTO_REQUIRED');
-  throwsCode(() => api(null, 'boxDeliver', Object.assign({}, d, { driver: '' })), 'ERR_DRIVER_NAME');
   throwsCode(() => api(null, 'boxDeliver', Object.assign({}, d, { to: 'الدمام' })), 'ERR_BAD_PLACE');
   throwsCode(() => api(null, 'boxDeliver', Object.assign({}, d, { k: 'x' })), 'ERR_BAD_LINK');
   throwsCode(() => api(null, 'boxDeliver', Object.assign({}, d, { to: 'التموين' })), 'ERR_SAME_PLACE');
-  const res = api(null, 'boxDeliver', d);
+  // الاسم في التسليم = من استلمها (لا يُكتب اسم آخر وقت التسليم)
+  const res = api(null, 'boxDeliver', Object.assign({}, d, { driver: 'شخص آخر' }));
   assert.deepEqual([res.box.status, res.box.location], ['وصل الفرع', 'جدة']);
   lr = api(p, 'getRequests', {}).find(r => r.id === id);
   assert.deepEqual([lr.awaitingDelivery, lr.atBranch, !!lr.arrivedAt], [false, true, true], 'arrived at the branch, waiting for the nurse');
@@ -2190,6 +2195,8 @@ test('boxes: dispatch loads the doctor box → driver scan delivers with photo �
   // التموين يطلب إرجاعه ← مهمة للسواق ← تسليم للتموين بدون شحنة
   api(p, 'requestBoxMove', 'BOX-001', 'التموين');
   assert.deepEqual(api(null, 'driverTasks', { k: bx.driverToken }).map(x => [x.id, x.status, x.location, x.destination]), [['BOX-001', 'مطلوب نقله', 'جدة', 'التموين']]);
+  throwsCode(() => api(null, 'boxDeliver', Object.assign({}, d, { to: 'التموين', clientKey: 'dlv-000002' })), 'ERR_NOT_PICKED');
+  api(null, 'boxPickup', { k: bx.driverToken, box: 'BOX-001', driver: 'أبو فهد' });
   api(null, 'boxDeliver', Object.assign({}, d, { to: 'التموين', clientKey: 'dlv-000002' }));
   bx = api(p, 'getBoxes');
   assert.deepEqual([bx.boxes[0].status, bx.boxes[0].location], ['فارغ', 'التموين']);

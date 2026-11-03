@@ -9009,6 +9009,8 @@ function showDriverBox(id, k, back) {
           : '<div class="hint">' + icon('pin', 'i-sm') + ' ' + esc(t('bx_location')) + ': <b>' + esc(placeLabel(b.location)) + '</b></div>') + '</div>');
       return;
     }
+    // لا تسليم قبل «استلمت الطلبية» باسم السواق: نعرف من شالها قبل أن يتحرك
+    if (!b.pickedBy) return drvPickupScreen(b, id, k, back);
     DRV.photo = ''; DRV.key = uid();
     // لا يمكن التسليم للمكان الموجود فيه البوكس أصلاً
     DRV.to = b.destination && b.destination !== b.location ? b.destination : (b.places.find(p => p !== b.location) || '');
@@ -9019,7 +9021,7 @@ function showDriverBox(id, k, back) {
       '<div class="field"><span class="label">' + esc(t('drv_where')) + '</span><div class="drv-places" id="drvPlaces">' +
         b.places.map(p => '<button type="button" class="drv-place" data-act="drvPlace" data-p="' + esc(p) + '" aria-pressed="' + (p === DRV.to) + '"' + (p === b.location ? ' disabled title="' + esc(t('drv_here_now')) + '"' : '') + '>' + icon(p === BOX_HOME ? 'package' : 'building') + '<span>' + esc(placeLabel(p)) + (p === b.location ? '<small>' + esc(t('drv_here_now')) + '</small>' : '') + '</span></button>').join('') + '</div></div>' +
       '<div class="field"><span class="label">' + esc(t('drv_photo')) + '</span><label class="drv-photo" id="drvPhoto">' + icon('image') + '<span>' + esc(t('drv_photo_tap')) + '</span><input type="file" accept="image/*" capture="environment" hidden id="drvFile"></label></div>' +
-      '<div class="field"><label for="drvName">' + esc(t('drv_name')) + '</label><input class="input" id="drvName" maxlength="60" autocomplete="name" value="' + esc(store.get('driver_name', '')) + '"></div>' +
+      '<div class="field"><label for="drvName">' + esc(t('drv_name')) + '</label><input class="input" id="drvName" maxlength="60" readonly value="' + esc(b.pickedBy) + '"><div class="hint">' + icon('truck', 'i-sm') + ' ' + esc(t('drv_picked_at', { t: fmtDateTime(b.pickedAt) })) + '</div></div>' +
       '<div class="field-error hidden" id="drvErr">' + icon('alert', 'i-sm') + '<span></span></div>' +
       '<button class="btn btn-primary btn-lg drv-go" id="drvGo">' + icon('check') + esc(t('drv_deliver')) + '</button>');
     $('#drvFile').addEventListener('change', e => {
@@ -9046,6 +9048,32 @@ function showDriverBox(id, k, back) {
       });
     });
   }).catch(drvError);
+}
+/* مسح QR بوكس لم يُستلم بعد: اختيار الاسم ← «استلمت الطلبية» ← ثم صفحة التسليم */
+function drvPickupScreen(b, id, k, back) {
+  const mine = store.get('driver_name', '');
+  const names = (b.drivers || []).slice();
+  if (mine && names.length && names.indexOf(mine) === -1) names.push(mine);
+  const sel = b.driver || mine;
+  drvShell((back ? '<button class="btn btn-ghost btn-sm" data-act="drvBack" style="align-self:flex-start">' + icon('chevr', 'i-sm flip') + esc(t('drv_back')) + '</button>' : '') +
+    '<div class="drv-head"><span class="drv-box mono">' + esc(b.id) + '</span><h1>' + esc(b.owner) + '</h1>' + branchTag(b.branch) + bxBadge(b.status) +
+      '<div class="hint">' + icon('route', 'i-sm') + ' ' + esc(t('drv_from_to', { a: placeLabel(b.location), b: placeLabel(b.destination || b.branch) })) + '</div>' + drvTo(b.to, true) +
+      (b.driver ? '<div class="hint">' + icon('user', 'i-sm') + ' ' + esc(t('drv_for', { d: b.driver })) + '</div>' : '') + '</div>' +
+    '<div class="drv-first">' + icon('info', 'i-sm') + ' ' + esc(t('drv_pick_first')) + '</div>' +
+    '<div class="field"><label for="drvPkName">' + esc(t('drv_me')) + '</label>' + (names.length
+      ? '<select class="select" id="drvPkName"><option value="">' + esc(t('drv_me_pick')) + '</option>' + names.map(n => '<option' + (n === sel ? ' selected' : '') + ' value="' + esc(n) + '">' + esc(n) + '</option>').join('') + '</select>'
+      : '<input class="input" id="drvPkName" maxlength="60" autocomplete="name" value="' + esc(sel) + '">') + '</div>' +
+    '<div class="field-error hidden" id="drvErr">' + icon('alert', 'i-sm') + '<span></span></div>' +
+    '<button class="btn btn-primary btn-lg drv-go" id="drvPkGo">' + icon('truck') + esc(t('drv_pick')) + '</button>');
+  $('#drvPkGo').addEventListener('click', e => {
+    const name = $('#drvPkName').value.trim(), err = $('#drvErr');
+    const fail = msg => { err.querySelector('span').textContent = msg; err.classList.remove('hidden'); };
+    if (!name) return fail(t('drv_pick_name'));
+    const btn = e.currentTarget; busy(btn, true, t('sending'));
+    drvCall('boxPickup', { box: id, k: k, driver: name, clientKey: uid() }).then(() => {
+      store.set('driver_name', name); toast(t('drv_pick_done'), 'success', 4000); showDriverBox(id, k, back);
+    }).catch(er => { busy(btn, false); fail(errMsg(er)); });
+  });
 }
 ACT.drvPlace = el => { DRV.to = el.dataset.p; $$('#drvPlaces .drv-place').forEach(b => b.setAttribute('aria-pressed', String(b === el))); };
 function showDriverTasks(tk) {
@@ -10168,16 +10196,20 @@ VIEWS.settings.mount = function(root) {
 /* ---------- «مع السواق»: التموين يوزّع البوكس على سواق، والسواق يضغط «استلمت الطلبية» باسمه ---------- */
 Object.assign(I18N.ar, { drv_me: 'اسمك', drv_me_pick: '— اختر اسمك —', drv_pick: 'استلمت الطلبية', drv_picked_by: 'مع السواق {d}', drv_for_you: 'مخصصة لك', drv_for: 'مخصصة لـ {d}',
   drv_others: '{n} لسواقين آخرين', drv_pick_done: 'تم — الطلبية معك الآن. امسح QR البوكس عند التسليم', drv_pick_name: 'اختر اسمك أولاً',
-  ERR_BOX_PICKED: 'استلمها سواق آخر', ERR_NOT_YOUR_BOX: 'هذه الطلبية مخصصة لسواق آخر — راجع التموين', bxs_picked: 'مع السواق', st_picked: 'مع السواق · في الطريق' });
+  ERR_BOX_PICKED: 'استلمها سواق آخر', ERR_NOT_YOUR_BOX: 'هذه الطلبية مخصصة لسواق آخر — راجع التموين', bxs_picked: 'مع السواق', st_picked: 'مع السواق · متجه للفرع',
+  ERR_NOT_PICKED: 'لم يستلمها سواق بعد — اضغط «استلمت الطلبية» باسمك أولاً', drv_pick_first: 'قبل التحرك: اختر اسمك واضغط «استلمت الطلبية» — بعدها تسلّم عند الوصول بمسح الـ QR', drv_picked_at: 'استلمتها {t}' });
 Object.assign(I18N.en, { drv_me: 'Your name', drv_me_pick: '— Choose your name —', drv_pick: 'I picked it up', drv_picked_by: 'With driver {d}', drv_for_you: 'Assigned to you', drv_for: 'Assigned to {d}',
   drv_others: '{n} for other drivers', drv_pick_done: 'Done — it is with you now. Scan the box QR on delivery', drv_pick_name: 'Choose your name first',
-  ERR_BOX_PICKED: 'Another driver already picked it up', ERR_NOT_YOUR_BOX: 'This shipment is assigned to another driver — check with procurement', bxs_picked: 'With driver', st_picked: 'With driver · on the way' });
+  ERR_BOX_PICKED: 'Another driver already picked it up', ERR_NOT_YOUR_BOX: 'This shipment is assigned to another driver — check with procurement', bxs_picked: 'With driver', st_picked: 'With driver · heading to branch',
+  ERR_NOT_PICKED: 'No driver has picked it up yet — tap “I picked it up” with your name first', drv_pick_first: 'Before you leave: choose your name and tap “I picked it up” — then deliver by scanning the QR on arrival', drv_picked_at: 'Picked up {t}' });
 Object.assign(I18N.bn, { drv_me: 'আপনার নাম', drv_me_pick: '— আপনার নাম বেছে নিন —', drv_pick: 'আমি নিয়েছি', drv_picked_by: 'চালক {d}-এর কাছে', drv_for_you: 'আপনার জন্য নির্ধারিত', drv_for: '{d}-এর জন্য নির্ধারিত',
   drv_others: 'অন্য চালকদের জন্য {n}টি', drv_pick_done: 'হয়েছে — এখন এটি আপনার কাছে। ডেলিভারির সময় বক্সের QR স্ক্যান করুন', drv_pick_name: 'আগে আপনার নাম বেছে নিন',
-  ERR_BOX_PICKED: 'অন্য একজন চালক এটি নিয়ে গেছেন', ERR_NOT_YOUR_BOX: 'এই চালানটি অন্য চালকের জন্য — সাপ্লাই বিভাগে জিজ্ঞাসা করুন', bxs_picked: 'চালকের কাছে' });
+  ERR_BOX_PICKED: 'অন্য একজন চালক এটি নিয়ে গেছেন', ERR_NOT_YOUR_BOX: 'এই চালানটি অন্য চালকের জন্য — সাপ্লাই বিভাগে জিজ্ঞাসা করুন', bxs_picked: 'চালকের কাছে',
+  ERR_NOT_PICKED: 'এখনো কোনো চালক নেননি — আগে আপনার নাম দিয়ে «আমি নিয়েছি» চাপুন', drv_pick_first: 'রওনা দেওয়ার আগে: আপনার নাম বেছে «আমি নিয়েছি» চাপুন — পৌঁছে QR স্ক্যান করে ডেলিভারি দিন', drv_picked_at: 'নেওয়া হয়েছে {t}' });
 Object.assign(I18N.hi, { drv_me: 'आपका नाम', drv_me_pick: '— अपना नाम चुनें —', drv_pick: 'मैंने ले लिया', drv_picked_by: 'ड्राइवर {d} के पास', drv_for_you: 'आपको सौंपा गया', drv_for: '{d} को सौंपा गया',
   drv_others: 'अन्य ड्राइवरों के लिए {n}', drv_pick_done: 'हो गया — अब यह आपके पास है। डिलीवरी पर बॉक्स का QR स्कैन करें', drv_pick_name: 'पहले अपना नाम चुनें',
-  ERR_BOX_PICKED: 'दूसरे ड्राइवर ने इसे पहले ही ले लिया', ERR_NOT_YOUR_BOX: 'यह शिपमेंट दूसरे ड्राइवर को सौंपा गया है — सप्लाई विभाग से पूछें', bxs_picked: 'ड्राइवर के पास' });
+  ERR_BOX_PICKED: 'दूसरे ड्राइवर ने इसे पहले ही ले लिया', ERR_NOT_YOUR_BOX: 'यह शिपमेंट दूसरे ड्राइवर को सौंपा गया है — सप्लाई विभाग से पूछें', bxs_picked: 'ड्राइवर के पास',
+  ERR_NOT_PICKED: 'अभी किसी ड्राइवर ने नहीं लिया — पहले अपने नाम से «मैंने ले लिया» दबाएँ', drv_pick_first: 'निकलने से पहले: अपना नाम चुनें और «मैंने ले लिया» दबाएँ — पहुँचकर QR स्कैन करके डिलीवरी करें', drv_picked_at: 'लिया गया {t}' });
 const PICK_TONE = 'var(--t-blue)';
 const pickBadge = name => '<span class="badge live" style="--tone:' + PICK_TONE + '"><i class="dot"></i>' + esc(name ? t('drv_picked_by', { d: name }) : t('bxs_picked')) + '</span>';
 // البوكسات (التموين): مجموعة «مع السواق» منفصلة عن «بانتظار النقل»
@@ -10293,7 +10325,7 @@ ACT.drvPick = el => {
 // حالة الطلب: شحنة مع السواق في الطريق
 const pkBadge = badge;
 badge = function(s, r) {
-  if (r && s === ST.SENT && !r.atBranch && r.awaitingDelivery && r.onTheWay) return '<span class="badge live" style="--tone:' + PICK_TONE + '"><i class="dot"></i>' + esc(t('st_picked')) + '</span>';
+  if (r && s === ST.SENT && !r.atBranch && r.awaitingDelivery && r.onTheWay) return '<span class="badge live" style="--tone:' + PICK_TONE + '" title="' + esc(t('drv_picked_by', { d: r.onTheWay.by })) + '"><i class="dot"></i>' + esc(t('st_picked')) + '</span>';
   return pkBadge(s, r);
 };
 // الخط الزمني: خطوة «مع السواق» (اسمه ووقت الاستلام) بين الإرسال ووصول الفرع
@@ -10307,7 +10339,7 @@ mtkTimeline = function(r) {
     [rejected ? mtkText('رفض الطبيب', 'Rejected') : mtkText('اعتماد الطبيب', 'Doctor approval'), rejected ? 'x' : 'steth', rejected ? r.reviewedAt : (r.approvedAt || r.reviewedAt)],
     [mtkText('التجهيز', 'Preparation'), 'package', r.prepAt],
     [mtkText('أُرسل · بانتظار السواق', 'Sent · awaiting driver'), 'send', r.sentAt || r.lastShipAt],
-    [r.pickedBy ? mtkText('مع السواق ', 'With driver ') + r.pickedBy : mtkText('مع السواق', 'With driver'), 'truck', r.pickedAt],
+    [(r.pickedBy ? mtkText('مع السواق ', 'With driver ') + r.pickedBy : mtkText('مع السواق', 'With driver')) + mtkText(' · متجه للفرع', ' · heading to branch'), 'truck', r.pickedAt],
     [mtkText('وصل الفرع', 'Arrived at branch'), 'pin', r.arrivedAt],
     [mtkText('استلام الممرضة', 'Nurse receipt'), 'pen', r.receivedAt]
   ];

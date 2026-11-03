@@ -741,7 +741,7 @@ function log(msg) { console.log('  ✔ ' + msg); }
   expect((await page.textContent('#drvGo')).includes('डिलीवरी पूरी हुई'), 'driver page switches to Hindi');
   await page.click('.drv-lang[data-l="ar"]');
   expect((await page.textContent('#drvGo')).includes('تم التوصيل'), 'Arabic button reads «تم التوصيل»');
-  await page.fill('#drvName', 'أبو فهد');
+  expect(await page.inputValue('#drvName') === 'أبو فهد' && await page.getAttribute('#drvName', 'readonly') !== null, 'delivery name is locked to the driver who picked it up');
   await page.click('#drvGo');
   expect((await page.textContent('#drvErr')).includes('صوّر'), 'photo is required before delivery');
   await page.setInputFiles('#drvFile', { name: 'box.png', mimeType: 'image/png', buffer: Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==', 'base64') });

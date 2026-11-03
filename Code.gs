@@ -1466,21 +1466,23 @@ function boxInfo_(p) {
   const last = read_('BoxMoves').rows.filter(function (m) { return str_(m.BoxID) === b.id && (str_(m.Action) === 'تسليم' || str_(m.Action) === 'نقل'); }).pop();
   const loads = loadsInfo_(b.loads);
   return { id: b.id, owner: b.owner, branch: b.branch, location: b.location, status: b.status, destination: b.destination,
-    loads: loads, to: boxRecipients_(loads), places: boxPlaces_(), pending: boxPending_(b), driver: b.driver, pickedBy: b.pickedBy, pickedAt: b.pickedAt,
+    loads: loads, to: boxRecipients_(loads), places: boxPlaces_(), pending: boxPending_(b), driver: b.driver, pickedBy: b.pickedBy, pickedAt: b.pickedAt, drivers: driverNames_(),
     last: last ? { to: str_(last.To), at: last.Timestamp, by: str_(last.By) } : null };
 }
 /** «تسليم»: مكان التسليم + صورة البوكس + اسم السواق */
 function boxDeliver_(p) {
   p = p || {};
-  const to = str_(p.to), driver = clean_(p.driver, 60), clientKey = str_(p.clientKey).slice(0, 64);
+  const to = str_(p.to), clientKey = str_(p.clientKey).slice(0, 64);
   if (boxPlaces_().indexOf(to) === -1) throw new Error('ERR_BAD_PLACE');
-  if (!driver) throw new Error('ERR_DRIVER_NAME');
   const pre = boxByToken_(p);
+  // من سلّم = من استلم الطلبية من التموين («مع السواق») — لا تسليم بدون استلام مسبق باسم السواق
+  let driver = str_(pre.PickedBy);
   if (clientKey) {
     const dup = read_('BoxMoves').rows.filter(function (r) { return str_(r.ClientKey) === clientKey && str_(r.BoxID) === str_(pre.BoxID); })[0];
     if (dup) return { ok: true, duplicate: true, box: boxInfo_(p) };
   }
   if (!boxPending_(mapBox_(pre))) throw new Error('ERR_BOX_DELIVERED');
+  if (!driver) throw new Error('ERR_NOT_PICKED');
   if (to === (str_(pre.Location) || BOX_HOME)) throw new Error('ERR_SAME_PLACE');
   if (!p.photo) throw new Error('ERR_PHOTO_REQUIRED');
   const photo = saveLabPhoto_(str_(pre.BoxID) + '-' + Date.now(), p.photo);
@@ -1491,6 +1493,8 @@ function boxDeliver_(p) {
     const b = mapBox_(row);
     // سُلِّم للتو من جوال آخر (نفس الـ QR مرتين): لا تسليم مكرر
     if (!boxPending_(b)) throw new Error('ERR_BOX_DELIVERED');
+    if (!b.pickedBy) throw new Error('ERR_NOT_PICKED');
+    driver = b.pickedBy;
     // البوكس موجود أصلاً في هذا المكان: لا تسليم مكرر
     if (to === b.location) throw new Error('ERR_SAME_PLACE');
     const now = new Date();
@@ -1601,8 +1605,9 @@ function assignBoxDriver_(user, boxId, name) {
 /** صفحة السواق (رابط الشحنات): «استلمت الطلبية» باسمه ← البوكس «مع السواق» */
 function boxPickup_(p) {
   p = p || {};
+  // من رابط الشحنات (رمز السواق) أو من مسح QR البوكس نفسه (رمز البوكس)
   const tk = str_(getSetting_('DriverToken', ''));
-  if (!tk || str_(p.k) !== tk) throw new Error('ERR_BAD_LINK');
+  if (!(tk && str_(p.k) === tk)) boxByToken_(p);
   const driver = clean_(p.driver, 60), clientKey = str_(p.clientKey).slice(0, 64);
   if (!driver) throw new Error('ERR_DRIVER_NAME');
   const out = { ok: true };
