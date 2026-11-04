@@ -522,6 +522,26 @@ function pack_(v) {
   return o;
 }
 
+/**
+ * الأطباء والتمريض (والمعمل والهاوس كيبر): يرون «التموين» بدل اسم موظف التموين الذي حدّث الحالة أو أرسل الشحنة.
+ * الإدارة والجودة والأدمن والمالية والتموين نفسه: الأسماء كما هي. يُطبَّق على كل نتيجة قبل إرسالها (لا تصل الأسماء لأجهزتهم).
+ */
+const STAFF_MASKED_SCREENS_ = ['nurse', 'doctor', 'lab', 'housekeeper'];
+const PROC_DEPT_LABEL_ = 'التموين';
+function maskStaff_(user, v) {
+  if (!user || STAFF_MASKED_SCREENS_.indexOf(user.screen) === -1) return v;
+  (function walk(x, depth) {
+    if (!x || typeof x !== 'object' || depth > 8) return;
+    if (Array.isArray(x)) { x.forEach(function (y) { walk(y, depth + 1); }); return; }
+    if (x.sentBy) x.sentBy = PROC_DEPT_LABEL_;
+    if (x.dispatchedBy) x.dispatchedBy = PROC_DEPT_LABEL_;
+    if (x.decidedBy) x.decidedBy = PROC_DEPT_LABEL_;
+    if (x.lastBy && x.lastBy.by) x.lastBy.by = PROC_DEPT_LABEL_;
+    if (x.stageBy) Object.keys(x.stageBy).forEach(function (k) { if (x.stageBy[k] && x.stageBy[k].by) x.stageBy[k].by = PROC_DEPT_LABEL_; });
+    Object.keys(x).forEach(function (k) { if (k !== 'stageBy' && k !== 'lastBy') walk(x[k], depth + 1); });
+  })(v, 0);
+  return v;
+}
 function apiCore_(token, fn, args) {
   MEMO_ = {};
   args = Array.isArray(args) ? args : [];
@@ -547,7 +567,7 @@ function apiCore_(token, fn, args) {
     if (!def) throw new Error('ERR_UNKNOWN_FN');
     const user = session_(token);
     if (!allowed_(def, user)) throw new Error('ERR_FORBIDDEN');
-    return sanitize_(def.fn.apply(null, [user].concat(args)));
+    return maskStaff_(user, sanitize_(def.fn.apply(null, [user].concat(args))));
   } finally {
     if (MEMO_.dirty && Object.keys(MEMO_.dirty).length && fn !== 'login' && fn !== 'logout' && fn !== 'ping' && fn.indexOf('get') !== 0) markSheetWrite_();
     flushDirty_();
@@ -648,7 +668,7 @@ function runBatch_(user, calls) {
       const def = API_[fn];
       if (!def || fn.indexOf('get') !== 0) throw new Error('ERR_UNKNOWN_FN'); // القراءة فقط
       if (!allowed_(def, user)) throw new Error('ERR_FORBIDDEN');
-      return { ok: true, data: sanitize_(def.fn.apply(null, [user].concat(Array.isArray(c[1]) ? c[1] : []))) };
+      return { ok: true, data: maskStaff_(user, sanitize_(def.fn.apply(null, [user].concat(Array.isArray(c[1]) ? c[1] : [])))) };
     } catch (e) {
       return { ok: false, error: String((e && e.message) || e) };
     }

@@ -4385,8 +4385,13 @@ test('who updated each status: procurement name per stage, on the card and per s
   assert.deepEqual([r.lastBy.status, r.lastBy.by], ['قيد التجهيز', 'علي'], 'the card shows who moved it to preparation');
   api(p, 'dispatchItems', id, ['DENTAL FLOSS']);
   const d = api(n, 'getRequestDetail', id);
-  assert.equal(d.stageBy['قيد التجهيز'].by, 'علي');
-  assert.equal(d.shipments[0].sentBy, 'علي', 'each shipment shows who sent it');
+  assert.equal(d.stageBy['قيد التجهيز'].by, 'التموين', 'the nurse sees the department, not the name');
+  assert.equal(d.shipments[0].sentBy, 'التموين');
+  assert.equal(api(dr, 'getRequestDetail', id).shipments[0].sentBy, 'التموين', 'so does the doctor');
+  const md = api(login('منى', '5555'), 'getRequestDetail', id);
+  assert.deepEqual([md.stageBy['قيد التجهيز'].by, md.shipments[0].sentBy], ['علي', 'علي'], 'quality / management see the names');
+  assert.equal(api(p, 'getRequestDetail', id).shipments[0].sentBy, 'علي');
+  assert.equal(api(n, 'getMyRequests').find(x => x.id === id).lastBy.by, 'التموين');
   r = api(p, 'getRequests', {}).find(x => x.id === id);
   assert.equal(r.lastBy.by, 'علي');
 });
