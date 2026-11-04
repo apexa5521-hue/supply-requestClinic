@@ -1507,7 +1507,7 @@ test('roles split: legacy quality/executive/finance migrate; executive keeps ful
   throwsCode(() => api(e, 'getUsers'), 'ERR_FORBIDDEN'); // بعد وجود الأدمن: صلاحيات التنفيذي الافتراضية فقط (فوراً)
   assert.ok(api(e, 'getExecutiveStats'));
   const a = login('admin', '9999');
-  assert.equal(api(a, 'getConfig').user.perms.length, 17);
+  assert.equal(api(a, 'getConfig').user.perms.length, 18);
   const f = login('نواف', '7777');
   assert.ok(api(f, 'getFinance', {}).summary);
   throwsCode(() => api(f, 'getComplaints'), 'ERR_FORBIDDEN');
@@ -1717,7 +1717,7 @@ test('management roles (finance…) are added automatically when missing, so the
   api(a, 'createUser', { name: 'المالية', password: '2468', role: 'مالية', email: 'finance@example.com' });
   const f = api(null, 'login', 'المالية', '2468');
   assert.equal(f.user.screen, 'finance');
-  assert.deepEqual(f.user.perms.slice().sort(), ['assets', 'doctor_prices', 'finance', 'maint', 'monitor', 'order_rules', 'prices_edit', 'reports'].sort());
+  assert.deepEqual(f.user.perms.slice().sort(), ['assets', 'doctor_prices', 'finance', 'maint', 'monitor', 'order_rules', 'prices_edit', 'receipt_audit', 'reports'].sort());
   login('المدير', '1234');
   assert.equal(rows(gas, 'Roles').filter(r => r.RoleName === 'مالية').length, 1, 'added once only');
 });
@@ -2058,8 +2058,9 @@ test('arrival at the branch notifies doctor, operations and that branch manager;
   api(p, 'dispatchItems', id, ['DENTAL FLOSS']);
   const box = api(p, 'getBoxes').boxes[0];
   assert.equal(box.loads[0].type, 'شهري', 'box loads carry the request type (boxes filter)');
+  api(null, 'boxPickup', { box: box.id, k: box.k, driver: 'أبو فهد' }); // من مسح QR البوكس
   gas.mails.length = 0;
-  api(null, 'boxDeliver', { box: box.id, k: box.k, to: 'الرياض', driver: 'أبو فهد', photo: PNG, clientKey: 'dlv-arrive-1' });
+  api(null, 'boxDeliver', { box: box.id, k: box.k, to: 'الرياض', photo: PNG, clientKey: 'dlv-arrive-1' });
   const arrived = to => gas.mails.some(m => m.to.indexOf(to) !== -1 && /وصل الطلب/.test(m.subject));
   assert.ok(gas.mails.some(m => m.to === 'sara@example.com' && /وصل بوكس طلبك/.test(m.subject)), 'nurse: box arrived, receive and sign');
   assert.ok(arrived('khaled@example.com') && arrived('ops@example.com') && arrived('bm-ruh@example.com'), 'doctor, operations and the request branch manager are told');
@@ -2072,6 +2073,54 @@ test('arrival at the branch notifies doctor, operations and that branch manager;
   // الإدارة تقدر توقف هذه الإشعارات من «أنواع الإشعارات»
   const types = api(login('المدير', '1234'), 'getNotifyConfig').types.map(x => x.key || x[0] || x.id);
   assert.ok(JSON.stringify(types).includes('arrived_watch') && JSON.stringify(types).includes('received_watch'));
+});
+
+test('driver pickup: procurement assigns a driver, the driver taps «picked up» with their name, then delivery clears it', () => {
+  const { api, login, gas } = boot();
+  const reem = login('سارة', '1111'), p = login('علي', '3333');
+  const id = api(reem, 'createRequest', { doctor: 'د. خالد', type: 'طارئ', items: [{ name: 'PROPHY PASTE', qty: 2 }] }).id;
+  api(login('د. خالد', '4444'), 'doctorReview', id, 'اعتمد');
+  api(p, 'bulkUpdateStatus', [id], 'قيد التجهيز');
+  api(p, 'dispatchItems', id, ['PROPHY PASTE']);
+  let bx = api(p, 'getBoxes');
+  const box = bx.boxes[0], tk = bx.driverToken;
+  assert.deepEqual(bx.drivers, []);
+  // القائمة القديمة (بدون v) تبقى كما هي للصفحات المفتوحة من قبل
+  assert.ok(Array.isArray(api(null, 'driverTasks', { k: tk })));
+  // التموين يوزّع على سواق ← يُضاف لقائمة السواقين
+  throwsCode(() => api(reem, 'assignBoxDriver', box.id, 'أبو فهد'), 'ERR_FORBIDDEN');
+  api(p, 'assignBoxDriver', box.id, 'أبو فهد');
+  bx = api(p, 'getBoxes');
+  assert.deepEqual([bx.boxes[0].driver, bx.drivers], ['أبو فهد', ['أبو فهد']]);
+  let dt = api(null, 'driverTasks', { k: tk, v: 2 });
+  assert.deepEqual([dt.drivers, dt.list[0].driver, dt.list[0].pickedBy], [['أبو فهد'], 'أبو فهد', '']);
+  // سواق آخر لا يستلمها، والرابط لازم
+  throwsCode(() => api(null, 'boxPickup', { k: 'x', box: box.id, driver: 'أبو فهد' }), 'ERR_BAD_LINK');
+  throwsCode(() => api(null, 'boxPickup', { k: tk, box: box.id, driver: '' }), 'ERR_DRIVER_NAME');
+  throwsCode(() => api(null, 'boxPickup', { k: tk, box: box.id, driver: 'سالم' }), 'ERR_NOT_YOUR_BOX');
+  gas.mails.length = 0;
+  api(null, 'boxPickup', { k: tk, box: box.id, driver: 'أبو فهد', clientKey: 'pk-1' });
+  assert.equal(api(null, 'boxPickup', { k: tk, box: box.id, driver: 'أبو فهد', clientKey: 'pk-2' }).duplicate, true, 'double tap is ignored');
+  assert.equal(rows(gas, 'BoxMoves').filter(m => m.Action === 'استلام السواق').length, 1);
+  assert.ok(gas.mails.some(m => /جاري نقل طلبك .* مع السواق أبو فهد/.test(m.subject)), 'the nurse is told who carries it');
+  // بعد الاستلام: لا يُعاد التوزيع
+  throwsCode(() => api(p, 'assignBoxDriver', box.id, 'سالم'), 'ERR_BOX_PICKED');
+  dt = api(null, 'driverTasks', { k: tk, v: 2 });
+  assert.equal(dt.list[0].pickedBy, 'أبو فهد');
+  assert.ok(dt.list[0].pickedAt);
+  let lr = api(p, 'getRequests', {}).find(r => r.id === id);
+  assert.deepEqual([lr.awaitingDelivery, lr.onTheWay && lr.onTheWay.by, lr.pickedBy, !!lr.pickedAt], [true, 'أبو فهد', 'أبو فهد', true], 'request shows «with driver»');
+  assert.ok(api(reem, 'getRequestDetail', id).pickedAt, 'timeline gets the pickup time');
+  assert.ok(api(reem, 'getComments', id).some(c => /استلم السواق أبو فهد/.test(c.message)));
+  // التسليم بالـ QR: يصل الفرع وتُمسح حقول الرحلة، ويبقى وقت الاستلام في التايم لاين
+  api(null, 'boxDeliver', { box: box.id, k: box.k, to: api(p, 'getBoxes').boxes[0].destination, driver: 'أبو فهد', photo: PNG, clientKey: 'dlv-pk-1' });
+  const after = api(p, 'getBoxes').boxes[0];
+  assert.deepEqual([after.status, after.driver, after.pickedBy], ['وصل الفرع', '', '']);
+  lr = api(p, 'getRequests', {}).find(r => r.id === id);
+  assert.deepEqual([lr.atBranch, lr.onTheWay, lr.pickedBy], [true, null, 'أبو فهد']);
+  // قائمة السواقين يحفظها التموين
+  assert.deepEqual(api(p, 'saveDrivers', ['سالم', ' أبو فهد ', 'سالم', '']).drivers, ['سالم', 'أبو فهد']);
+  assert.deepEqual(api(null, 'driverTasks', { k: tk, v: 2 }).drivers, ['سالم', 'أبو فهد']);
 });
 
 test('boxes: dispatch loads the doctor box → driver scan delivers with photo → nurse receives → box stays; move on request', () => {
@@ -2101,12 +2150,16 @@ test('boxes: dispatch loads the doctor box → driver scan delivers with photo �
   assert.deepEqual(info.to, [{ nurse: rq.Nurse, clinic: rq.Clinic }]);
   assert.deepEqual(api(null, 'driverTasks', { k: bx.driverToken })[0].to, [{ nurse: rq.Nurse, clinic: rq.Clinic }]);
   const d = { box: 'BOX-001', k: box.k, to: 'جدة', driver: 'أبو فهد', photo: PNG, clientKey: 'dlv-000001' };
+  // لا تسليم قبل «استلمت الطلبية» باسم السواق
+  throwsCode(() => api(null, 'boxDeliver', d), 'ERR_NOT_PICKED');
+  throwsCode(() => api(null, 'boxPickup', { box: 'BOX-001', k: 'bad', driver: 'أبو فهد' }), 'ERR_BAD_LINK');
+  api(null, 'boxPickup', { box: 'BOX-001', k: box.k, driver: 'أبو فهد' });
   throwsCode(() => api(null, 'boxDeliver', Object.assign({}, d, { photo: '' })), 'ERR_PHOTO_REQUIRED');
-  throwsCode(() => api(null, 'boxDeliver', Object.assign({}, d, { driver: '' })), 'ERR_DRIVER_NAME');
   throwsCode(() => api(null, 'boxDeliver', Object.assign({}, d, { to: 'الدمام' })), 'ERR_BAD_PLACE');
   throwsCode(() => api(null, 'boxDeliver', Object.assign({}, d, { k: 'x' })), 'ERR_BAD_LINK');
   throwsCode(() => api(null, 'boxDeliver', Object.assign({}, d, { to: 'التموين' })), 'ERR_SAME_PLACE');
-  const res = api(null, 'boxDeliver', d);
+  // الاسم في التسليم = من استلمها (لا يُكتب اسم آخر وقت التسليم)
+  const res = api(null, 'boxDeliver', Object.assign({}, d, { driver: 'شخص آخر' }));
   assert.deepEqual([res.box.status, res.box.location], ['وصل الفرع', 'جدة']);
   lr = api(p, 'getRequests', {}).find(r => r.id === id);
   assert.deepEqual([lr.awaitingDelivery, lr.atBranch, !!lr.arrivedAt], [false, true, true], 'arrived at the branch, waiting for the nurse');
@@ -2142,6 +2195,8 @@ test('boxes: dispatch loads the doctor box → driver scan delivers with photo �
   // التموين يطلب إرجاعه ← مهمة للسواق ← تسليم للتموين بدون شحنة
   api(p, 'requestBoxMove', 'BOX-001', 'التموين');
   assert.deepEqual(api(null, 'driverTasks', { k: bx.driverToken }).map(x => [x.id, x.status, x.location, x.destination]), [['BOX-001', 'مطلوب نقله', 'جدة', 'التموين']]);
+  throwsCode(() => api(null, 'boxDeliver', Object.assign({}, d, { to: 'التموين', clientKey: 'dlv-000002' })), 'ERR_NOT_PICKED');
+  api(null, 'boxPickup', { k: bx.driverToken, box: 'BOX-001', driver: 'أبو فهد' });
   api(null, 'boxDeliver', Object.assign({}, d, { to: 'التموين', clientKey: 'dlv-000002' }));
   bx = api(p, 'getBoxes');
   assert.deepEqual([bx.boxes[0].status, bx.boxes[0].location], ['فارغ', 'التموين']);
@@ -3068,9 +3123,9 @@ test('settings in the app: admin edits clinics, labs, lists, keys, survey; finan
   const a = login('المدير', '1234'), f = login('نواف', '7777'), p = login('علي', '3333');
   let st = api(a, 'getSettingsAdmin');
   assert.ok(st.clinics.length && st.labs.length && st.workTypes.length && st.materials.length && st.questions.length);
-  assert.deepEqual(Object.keys(st.keys).sort(), ['AppUrl', 'BackdateUntil', 'DriverEmail', 'IteroLab', 'LabTurnaroundDays', 'ReturnHistoryEnabled', 'SurveyEnabled', 'SurveyEveryDays', 'SurveyOpenDays', 'SurveyStart'].sort());
+  assert.deepEqual(Object.keys(st.keys).sort(), ['AppUrl', 'BackdateUntil', 'DriverEmail', 'IteroLab', 'LabTurnaroundDays', 'ReceiptIssueDays', 'ReceiptIssueFinanceLimit', 'ReturnHistoryEnabled', 'SurveyEnabled', 'SurveyEveryDays', 'SurveyOpenDays', 'SurveyStart'].sort());
   // finance: only the backdate key
-  assert.deepEqual(Object.keys(api(f, 'getSettingsAdmin').keys), ['BackdateUntil']);
+  assert.deepEqual(Object.keys(api(f, 'getSettingsAdmin').keys).sort(), ['BackdateUntil', 'ReceiptIssueFinanceLimit'].sort());
   throwsCode(() => api(f, 'saveSettingKeys', { DriverEmail: 'x@y.com' }), 'ERR_FORBIDDEN');
   api(f, 'saveSettingKeys', { BackdateUntil: '2026-12-31' });
   assert.equal(api(a, 'getSettingsAdmin').keys.BackdateUntil, '2026-12-31');
@@ -4228,4 +4283,115 @@ test('nurse refusal before dispatch requires procurement and supports a doctor-a
  const sent=api(p,'dispatchItems',id,[{name:'DENTAL FLOSS',qty:2}]);assert.equal(sent.batch,1,'no phantom shipment for an unsent refused item');
  api(n,'receiveShipment',id,1,[{name:'DENTAL FLOSS',qty:2}],'سارة','data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==','','');
  assert.equal(api(f,'getFinance',{}).summary.received,25);
+});
+
+test('receipt problems: shortage at receipt alerts finance → procurement approves → the shortage is resent as a follow-up shipment', () => {
+  const { api, login, gas } = boot();
+  const n = login('سارة', '1111'), dr = login('د. خالد', '4444'), p = login('علي', '3333'), fin = login('نواف', '7777');
+  const id = api(n, 'createRequest', { doctor: 'د. خالد', type: 'شهري', items: [{ name: 'DENTAL FLOSS', qty: 10 }] }).id;
+  api(dr, 'doctorReview', id, 'اعتمد');
+  api(p, 'bulkUpdateStatus', [id], 'قيد التجهيز');
+  api(p, 'dispatchItems', id, ['DENTAL FLOSS']);
+  gas.mails.length = 0;
+  api(n, 'receiveShipment', id, 1, [{ name: 'DENTAL FLOSS', qty: 8 }], 'سارة', PNG, PNG, PNG);
+  assert.ok(gas.mails.some(m => m.to.includes('fin@example.com') && /تنبيه للمالية/.test(m.subject)), 'finance is told the nurse received less than was sent');
+  let L = api(p, 'getReceiptIssues');
+  assert.deepEqual(L.issues.map(x => [x.stage, x.item, x.sent, x.actual, x.short, x.status, x.dispatchedBy]), [['receipt', 'DENTAL FLOSS', 10, 8, 2, 'open', 'علي']]);
+  assert.equal(api(fin, 'getReceiptIssues').issues.length, 1, 'finance (receipt_audit) sees the problems tab');
+  throwsCode(() => api(n, 'getReceiptIssues'), 'ERR_FORBIDDEN');
+  assert.equal(api(p, 'getRequests', {}).find(r => r.id === id).openIssues, 1);
+  assert.ok(api(p, 'getAlerts').some(x => x.code === 'alert_receipt_issue' && x.n === 1), 'procurement bell');
+  assert.ok(api(fin, 'getAlerts').some(x => x.code === 'alert_receipt_issue'), 'finance bell');
+  throwsCode(() => api(p, 'decideReceiptIssue', L.issues[0].id, 'reject', ''), 'ERR_REASON_REQUIRED');
+  assert.equal(api(p, 'decideReceiptIssue', L.issues[0].id, 'approve', 'تأكدنا من النقص').status, 'approved', '2 × 12.5 is under the finance limit');
+  // الناقص يعود متبقياً تلقائياً ← شحنة تابعة
+  let r = api(p, 'getRequests', {}).find(x => x.id === id);
+  assert.equal(r.status, 'قيد التجهيز');
+  assert.deepEqual(r.remainingItems, [{ item: 'DENTAL FLOSS', qty: 2, sent: 8, target: 10, shortFrom: [{ batch: 1, qty: 2 }] }]);
+  api(p, 'dispatchItems', id, ['DENTAL FLOSS']);
+  const det = api(n, 'getRequestDetail', id);
+  assert.deepEqual(det.shipments.map(s => [s.batch, s.items[0].qty, s.items[0].followOf]), [[1, 10, 0], [2, 2, 1]], 'shipment 2 is tagged as the shortage of shipment 1');
+  api(n, 'receiveShipment', id, 2, [{ name: 'DENTAL FLOSS', qty: 2 }], 'سارة', PNG, PNG, PNG);
+  r = api(p, 'getRequests', {}).find(x => x.id === id);
+  assert.equal(r.status, 'تم الاستلام');
+  assert.equal(rows(gas, 'RequestItems').find(x => x.RequestID === id).ReceivedQty, 10, 'net received after the follow-up');
+});
+
+test('receipt correction after signing: strong alert by permission, 7-day window, finance approval above the limit', () => {
+  const { api, login, gas } = boot();
+  const n = login('سارة', '1111'), dr = login('د. خالد', '4444'), p = login('علي', '3333'), fin = login('نواف', '7777'), a = login('المدير', '1234');
+  const id = api(n, 'createRequest', { doctor: 'د. خالد', type: 'شهري', items: [{ name: 'DENTAL FLOSS', qty: 5 }] }).id;
+  api(dr, 'doctorReview', id, 'اعتمد');
+  api(p, 'bulkUpdateStatus', [id], 'قيد التجهيز');
+  api(p, 'dispatchItems', id, ['DENTAL FLOSS']);
+  api(n, 'receiveShipment', id, 1, [{ name: 'DENTAL FLOSS', qty: 5 }], 'سارة', PNG, PNG, PNG);
+  assert.equal(api(p, 'getReceiptIssues').issues.length, 0, 'full receipt: no problem');
+  const line = { item: 'DENTAL FLOSS', actual: 3, kind: 'wrong' };
+  throwsCode(() => api(n, 'createReceiptIssue', id, { batch: 1, lines: [line], note: '' }), 'ERR_NOTE_REQUIRED');
+  throwsCode(() => api(n, 'createReceiptIssue', id, { batch: 1, lines: [{ item: 'DENTAL FLOSS', actual: 5, kind: 'short' }], note: 'x' }), 'ERR_ISSUE_QTY');
+  throwsCode(() => api(login('ريم', '2222'), 'createReceiptIssue', id, { batch: 1, lines: [line], note: 'x' }), 'ERR_FORBIDDEN');
+  gas.mails.length = 0;
+  api(n, 'createReceiptIssue', id, { batch: 1, lines: [line], note: 'وصل صنفان مختلفان ووقّعت بالغلط', clientKey: 'ri-1' });
+  assert.equal(api(n, 'createReceiptIssue', id, { batch: 1, lines: [line], note: 'وصل صنفان مختلفان ووقّعت بالغلط', clientKey: 'ri-1' }).duplicate, true, 'double tap ignored');
+  throwsCode(() => api(n, 'createReceiptIssue', id, { batch: 1, lines: [line], note: 'مرة ثانية' }), 'ERR_ISSUE_EXISTS');
+  const strong = to => gas.mails.some(m => m.to.includes(to) && /مشكلة استلام تؤثر على الحسبة المالية/.test(m.subject));
+  assert.ok(strong('fin@example.com'), 'finance gets the strong alert');
+  assert.ok(strong('ali@example.com'), 'procurement (accountable) is told too');
+  assert.ok(!strong('sara@example.com'), 'not the nurse');
+  // فوق حد المالية: التموين يعتمد ثم المالية
+  api(fin, 'saveSettingKeys', { ReceiptIssueFinanceLimit: '1' });
+  const iss = api(p, 'getReceiptIssues').issues[0];
+  assert.deepEqual([iss.stage, iss.kind, iss.signed, iss.actual, iss.short, iss.value], ['after_sign', 'wrong', 5, 3, 2, 25]);
+  assert.equal(api(p, 'decideReceiptIssue', iss.id, 'approve', '').status, 'finance');
+  throwsCode(() => api(p, 'financeReceiptIssue', iss.id, 'approve', ''), 'ERR_FORBIDDEN');
+  assert.equal(rows(gas, 'RequestItems').find(x => x.RequestID === id).ReceivedQty, 5, 'nothing changes before finance approves');
+  assert.equal(api(fin, 'financeReceiptIssue', iss.id, 'approve', 'تمت المراجعة').status, 'approved');
+  assert.equal(rows(gas, 'RequestItems').find(x => x.RequestID === id).ReceivedQty, 3, 'net received corrected');
+  assert.equal(api(p, 'getRequests', {}).find(x => x.id === id).remainingQty, 2, 'the 2 come back as a follow-up');
+  assert.equal(api(n, 'getRequestDetail', id).issues[0].status, 'approved');
+  // مهلة 7 أيام بعد التوقيع
+  const id2 = api(n, 'createRequest', { doctor: 'د. خالد', type: 'طارئ', items: [{ name: 'DENTAL FLOSS', qty: 2 }] }).id;
+  api(dr, 'doctorReview', id2, 'اعتمد');
+  api(p, 'bulkUpdateStatus', [id2], 'قيد التجهيز');
+  api(p, 'dispatchItems', id2, ['DENTAL FLOSS']);
+  api(n, 'receiveShipment', id2, 1, [{ name: 'DENTAL FLOSS', qty: 2 }], 'سارة', PNG, PNG, PNG);
+  const sh = gas.ss.getSheetByName('Shipments'), hd = sh.getRange(1, 1, 1, sh.getLastColumn()).getValues()[0];
+  const vals = sh.getRange(1, 1, sh.getLastRow(), sh.getLastColumn()).getValues();
+  const rIdx = vals.findIndex(v => v[hd.indexOf('RequestID')] === id2);
+  sh.getRange(rIdx + 1, hd.indexOf('ReceivedAt') + 1).setValue(new Date(Date.now() - 8 * 864e5));
+  throwsCode(() => api(n, 'createReceiptIssue', id2, { batch: 1, lines: [{ item: 'DENTAL FLOSS', actual: 1, kind: 'short' }], note: 'متأخر' }), 'ERR_ISSUE_LATE');
+  assert.ok(a);
+});
+
+test('emergency vs monthly report: every non-cancelled request of the month with its items', () => {
+  const { api, login } = boot();
+  const n = login('سارة', '1111'), q = login('منى', '5555');
+  api(n, 'createRequest', { doctor: 'د. خالد', type: 'طارئ', items: [{ name: 'DENTAL FLOSS', qty: 2 }] });
+  api(n, 'createRequest', { doctor: 'د. خالد', type: 'شهري', items: [{ name: 'PROPHY PASTE', qty: 3 }] });
+  const d = api(q, 'getTypeReport', { month: new Date(Date.now() + 3 * 36e5).toISOString().slice(0, 7) });
+  const mine = d.rows.filter(r => r.doctor === 'د. خالد' && r.items.length && /DENTAL FLOSS|PROPHY PASTE/.test(r.items[0].n));
+  assert.ok(mine.some(r => r.type === 'طارئ' && r.items[0].n === 'DENTAL FLOSS' && r.items[0].q === 2));
+  assert.ok(mine.some(r => r.type === 'شهري'));
+  throwsCode(() => api(n, 'getTypeReport', {}), 'ERR_FORBIDDEN');
+});
+
+test('who updated each status: procurement name per stage, on the card and per shipment', () => {
+  const { api, login } = boot();
+  const n = login('سارة', '1111'), dr = login('د. خالد', '4444'), p = login('علي', '3333');
+  const id = api(n, 'createRequest', { doctor: 'د. خالد', type: 'شهري', items: [{ name: 'DENTAL FLOSS', qty: 2 }] }).id;
+  api(dr, 'doctorReview', id, 'اعتمد');
+  api(p, 'bulkUpdateStatus', [id], 'قيد التجهيز');
+  let r = api(p, 'getRequests', {}).find(x => x.id === id);
+  assert.deepEqual([r.lastBy.status, r.lastBy.by], ['قيد التجهيز', 'علي'], 'the card shows who moved it to preparation');
+  api(p, 'dispatchItems', id, ['DENTAL FLOSS']);
+  const d = api(n, 'getRequestDetail', id);
+  assert.equal(d.stageBy['قيد التجهيز'].by, 'التموين', 'the nurse sees the department, not the name');
+  assert.equal(d.shipments[0].sentBy, 'التموين');
+  assert.equal(api(dr, 'getRequestDetail', id).shipments[0].sentBy, 'التموين', 'so does the doctor');
+  const md = api(login('منى', '5555'), 'getRequestDetail', id);
+  assert.deepEqual([md.stageBy['قيد التجهيز'].by, md.shipments[0].sentBy], ['علي', 'علي'], 'quality / management see the names');
+  assert.equal(api(p, 'getRequestDetail', id).shipments[0].sentBy, 'علي');
+  assert.equal(api(n, 'getMyRequests').find(x => x.id === id).lastBy.by, 'التموين');
+  r = api(p, 'getRequests', {}).find(x => x.id === id);
+  assert.equal(r.lastBy.by, 'علي');
 });
