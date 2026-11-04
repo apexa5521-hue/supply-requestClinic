@@ -4374,3 +4374,19 @@ test('emergency vs monthly report: every non-cancelled request of the month with
   assert.ok(mine.some(r => r.type === 'شهري'));
   throwsCode(() => api(n, 'getTypeReport', {}), 'ERR_FORBIDDEN');
 });
+
+test('who updated each status: procurement name per stage, on the card and per shipment', () => {
+  const { api, login } = boot();
+  const n = login('سارة', '1111'), dr = login('د. خالد', '4444'), p = login('علي', '3333');
+  const id = api(n, 'createRequest', { doctor: 'د. خالد', type: 'شهري', items: [{ name: 'DENTAL FLOSS', qty: 2 }] }).id;
+  api(dr, 'doctorReview', id, 'اعتمد');
+  api(p, 'bulkUpdateStatus', [id], 'قيد التجهيز');
+  let r = api(p, 'getRequests', {}).find(x => x.id === id);
+  assert.deepEqual([r.lastBy.status, r.lastBy.by], ['قيد التجهيز', 'علي'], 'the card shows who moved it to preparation');
+  api(p, 'dispatchItems', id, ['DENTAL FLOSS']);
+  const d = api(n, 'getRequestDetail', id);
+  assert.equal(d.stageBy['قيد التجهيز'].by, 'علي');
+  assert.equal(d.shipments[0].sentBy, 'علي', 'each shipment shows who sent it');
+  r = api(p, 'getRequests', {}).find(x => x.id === id);
+  assert.equal(r.lastBy.by, 'علي');
+});

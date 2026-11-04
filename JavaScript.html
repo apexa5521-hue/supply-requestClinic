@@ -1025,7 +1025,7 @@ function itemsPreview(r) {
 }
 /* شارات التعليقات والبلاغات المفتوحة */
 function noteTags(r) {
-  return (r.openIssues ? '<span class="tag late ri-tag" title="' + esc(t('ri_tag_h')) + '">' + icon('alert') + esc(t('ri_tag')) + '</span>' : '') + (r.openComplaints ? '<span class="tag late" title="' + esc(t('tag_complaints_h')) + '">' + icon('alert') + esc(t('tag_complaints', { n: r.openComplaints })) + '</span>' : '') +
+  return (r.lastBy && r.lastBy.by ? '<span class="tag who-tag" title="' + esc(mxText('آخر تحديث للحالة', 'Last status update') + ' · ' + fmtDateTime(r.lastBy.at)) + '">' + icon('user') + esc(statusLabel(r.lastBy.status) + ' · ' + r.lastBy.by) + '</span>' : '') + (r.openIssues ? '<span class="tag late ri-tag" title="' + esc(t('ri_tag_h')) + '">' + icon('alert') + esc(t('ri_tag')) + '</span>' : '') + (r.openComplaints ? '<span class="tag late" title="' + esc(t('tag_complaints_h')) + '">' + icon('alert') + esc(t('tag_complaints', { n: r.openComplaints })) + '</span>' : '') +
     (r.comments ? '<span class="tag" title="' + esc(t('tag_comments_h')) + '">' + icon('msg') + r.comments + '</span>' : '');
 }
 /* جسم البطاقة المشترك: من رفع الطلب ← الرحلة ← عدّاد الطارئ ← المطلوب الآن ← الأصناف */
@@ -1052,7 +1052,7 @@ function shipSummary(items, ships, req) {
       '<div class="ship">' + (req && req.id
         ? '<button type="button" class="ship-no ship-open" data-act="shipOpen" data-id="' + esc(req.id) + '" data-b="' + g.batch + '" title="' + esc(t('ship_open')) + '">' + icon('truck', 'i-sm') + esc(t('shipment_n', { n: g.batch })) + '</button>'
         : '<span class="ship-no">' + icon('truck', 'i-sm') + esc(t('shipment_n', { n: g.batch })) + '</span>') +
-      '<span class="muted">' + esc(fmtDateTime(g.sentAt)) + ' · ' + esc(t('ship_units', { n: fmtNum(g.units || g.items.reduce((a, i) => a + (i.qty || 0), 0), 0) })) + '</span>' +
+      '<span class="muted">' + esc(fmtDateTime(g.sentAt)) + ' · ' + esc(t('ship_units', { n: fmtNum(g.units || g.items.reduce((a, i) => a + (i.qty || 0), 0), 0) })) + (g.sentBy ? ' · ' + esc(mtkText('أرسلها: ', 'Sent by: ') + g.sentBy) : '') + '</span>' +
       '<span class="ship-items">' + g.items.map(i => esc(i.item) + ' <b>×' + fmtNum(i.qty, 0) + '</b>' + (i.followOf ? ' <span class="tag short-tag">' + esc(t('ri_follow_of', { n: i.followOf })) + '</span>' : '') + (i.short ? ' <span class="tag late">' + esc(t('ri_short_ok', { n: i.short })) + '</span>' : '')).join(' · ') + '</span>' +
       '<span class="ship-rcv">' + (g.received
         ? '<span class="badge" style="--tone:var(--t-green)"><i class="dot"></i>' + esc(t('ship_received')) + '</span>' + riFixBtn(req, g) +
@@ -10361,6 +10361,9 @@ mtkTimeline = function(r) {
     [mtkText('وصل الفرع', 'Arrived at branch'), 'pin', r.arrivedAt],
     [mtkText('استلام الممرضة', 'Nurse receipt'), 'pen', r.receivedAt]
   ];
+  // من نفّذ كل مرحلة (حسابات التموين: من غيّر الحالة · من أرسل الشحنة)
+  const sb = r.stageBy || {}, ships = r.shipments || [], firstShip = ships[0] || {}, dl = ships.find(g => g.delivered) || {};
+  const who = [r.nurse, (sb[ST.APPROVED] || {}).by || (r.approvedAt && !rejected ? (r.approver === 'branch' ? mtkText('مدير الفرع', 'Branch manager') : r.doctor) : ''), (sb[ST.PREP] || sb[ST.VENDOR_WAIT] || {}).by, (sb[ST.SENT] || {}).by || firstShip.sentBy, '', dl.delivered ? dl.delivered.by : '', r.receiver];
   let current = -1;
   const cls = steps.map((s, i) => {
     if (rejected && i === 1) return 'failed';
@@ -10368,7 +10371,8 @@ mtkTimeline = function(r) {
     if (current < 0 && !rejected && !cancelled) { current = i; return 'current'; }
     return 'todo';
   });
-  return '<div class="stepper mtk-timeline">' + steps.map((s, i) => '<div class="step ' + cls[i] + '"><span class="node">' + icon(cls[i] === 'done' ? 'check' : s[1]) + '</span><span class="s-lbl">' + esc(s[0]) + '</span><span class="s-time">' + (s[2] ? esc(fmtStamp(s[2])) : '&nbsp;') + '</span></div>').join('') + '</div>';
+  return '<div class="stepper mtk-timeline">' + steps.map((s, i) => '<div class="step ' + cls[i] + '"><span class="node">' + icon(cls[i] === 'done' ? 'check' : s[1]) + '</span><span class="s-lbl">' + esc(s[0]) + '</span><span class="s-time">' + (s[2] ? esc(fmtStamp(s[2])) : '&nbsp;') + '</span>' +
+    (who[i] && cls[i] === 'done' ? '<span class="s-by">' + icon('user', 'i-sm') + esc(who[i]) + '</span>' : '') + '</div>').join('') + '</div>';
 };
 /* «أُرسل جزئياً» في توزيع الحالات: تحت كل طلب الأصناف التي لم تُرسل بعد فقط (أو باقي كميتها) — للمتابعة مع التموين */
 Object.assign(I18N.ar, { pr_left_title: 'المتبقي — لم يُرسل بعد', pr_item: 'الصنف', pr_req: 'المطلوب', pr_sent: 'أُرسل', pr_left: 'المتبقي', pr_none: 'لا أصناف متبقية', pr_pdf_title: 'متابعة المتبقي من الطلبات المرسلة جزئياً', pr_total: 'إجمالي المتبقي: {n} صنف · {q} قطعة', pr_not_sent: 'لم يُرسل' });

@@ -1227,6 +1227,20 @@ function maxSeq_(rows, col, prefix) {
   return max;
 }
 
+/** من غيّر كل حالة ومتى (من سجل «تغيير الحالة: من ← إلى») — { requestId: { status: {by, at} , _last: {status, by, at} } } */
+function statusByIndex_() {
+  if (MEMO_.stBy) return MEMO_.stBy;
+  const out = {};
+  read_('Log').rows.forEach(function (r) {
+    const m = /^تغيير الحالة: .+? ← ([^(]+?)\s*(?:\(|$)/.exec(str_(r.Action));
+    const id = str_(r.RequestID), by = str_(r.User);
+    if (!m || !id || !by) return;
+    const o = out[id] || (out[id] = {}), st = m[1].trim(), at = r.Timestamp;
+    o[st] = { by: by, at: at };
+    if (!o._last || toMs_(at) >= toMs_(o._last.at)) o._last = { status: st, by: by, at: at };
+  });
+  return (MEMO_.stBy = out);
+}
 function logAction_(requestId, action, user) {
   append_('Log', { Timestamp: new Date(), RequestID: requestId, Action: action, User: user });
 }
@@ -2625,6 +2639,8 @@ function queryRequests_(filters) {
     r.openComplaints = rc.open[r.id] || 0;
     Object.assign(r, arrivalOf_(r.id, st.ships));
     r.openIssues = riOpenIndex_()[r.id] || 0;
+    const sb = statusByIndex_()[r.id];
+    if (sb && sb._last) r.lastBy = sb._last; // آخر من حدّث الحالة (التموين: أحمد / وائل …)
     // شحنة وصل بوكسها الفرع ولم تُستلم بعد → «وصل الفرع»
     const waiting = st.ships.filter(function (g) { return !g.received && g.delivered; });
     r.atBranch = waiting.length > 0;
@@ -3728,7 +3744,7 @@ function shipState_(req, rows) {
     const mine = byItem[it.item] || [];
     if (mine.length) {
       mine.forEach(function (x) {
-        parts.push({ batch: Number(x.Batch), qty: Number(x.Qty) || 0, at: x.DispatchedAt, receivedQty: x.ReceivedQty, short: Math.max(0, Number(x.ShortQty) || 0), followOf: Number(x.FollowOf) || 0 });
+        parts.push({ batch: Number(x.Batch), qty: Number(x.Qty) || 0, at: x.DispatchedAt, by: str_(x.DispatchedBy), receivedQty: x.ReceivedQty, short: Math.max(0, Number(x.ShortQty) || 0), followOf: Number(x.FollowOf) || 0 });
       });
     } else {
       let n = it.batch, at = it.dispatchedAt;
@@ -3749,6 +3765,7 @@ function shipState_(req, rows) {
       sent += p.qty - Math.min(p.qty, p.short || 0);
       const g = groups[p.batch] || (groups[p.batch] = { batch: p.batch, sentAt: p.at, items: [] });
       if (!g.sentAt || (p.at && toMs_(p.at) < toMs_(g.sentAt))) g.sentAt = p.at;
+      if (p.by && !g.sentBy) g.sentBy = p.by;
       g.items.push({
         item: it.item, returnId: it.returnId, originalBatch: it.originalBatch, substituteOf: it.substituteOf, qty: p.qty, target: target, requestedQty: it.requestedQty, approvedQty: it.approvedQty,
         receivedQty: p.receivedQty === undefined || p.receivedQty === null ? '' : p.receivedQty, short: p.short || 0, followOf: p.followOf || 0
@@ -5859,6 +5876,8 @@ function getRequestDetail_(user, requestId) {
   const reqMap = {}; reqMap[req.id] = req;
   req.issues = read_('ReceiptIssues').rows.filter(function (r) { return str_(r.RequestID) === req.id; }).map(function (r) { return mapRcptIssue_(r, reqMap); });
   req.issueDays = riDays_();
+  const sb = statusByIndex_()[req.id] || {};
+  req.stageBy = sb; // كل حالة ومن غيّرها ومتى
   req.returnable = st.items.map(function (it) { const raw = itemsOf_(req.id).filter(function (r) { return str_(r.ItemName) === it.item; })[0]; const reserved = read_('RequestReturns').rows.filter(function (r) { return str_(r.RequestID) === req.id && str_(r.ItemName) === it.item && str_(r.Source) !== 'undispatched' && /^(pending|received)$/.test(str_(r.Status)); }).reduce(function (a, r) { return a + Number(r.Qty); }, 0); const c = getCatalog_(true).filter(function (c) { return c.name === it.item; })[0]; return { item: it.item, qty: c && !c.asset && raw ? Math.max(0, grossReceivedQty_(raw) - reserved) : 0 }; });
   req.returnable.forEach(function (entry) { entry.batches = st.ships.filter(function (g) { return g.received; }).map(function (g) { const line = g.items.filter(function (it) { return it.item === entry.item; })[0]; const held = read_('RequestReturns').rows.filter(function (r) { return str_(r.RequestID) === req.id && str_(r.ItemName) === entry.item && Number(r.Batch) === g.batch && str_(r.Source) !== 'undispatched' && /^(pending|received)$/.test(str_(r.Status)); }).reduce(function (a, r) { return a + Number(r.Qty); }, 0); return { batch: g.batch, qty: line ? Math.min(entry.qty, Math.max(0, Number(line.receivedQty || 0) - held)) : 0 }; }).filter(function (x) { return x.qty > 0; }); });
   req.comments = comments_(requestId);
