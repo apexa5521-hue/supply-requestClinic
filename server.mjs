@@ -131,12 +131,31 @@ app.get('/push/key', async (req, res) => {
 });
 
 // files that Code.gs saved to "Drive" (receipts, signatures, photos)
-app.get('/files/:id', (req, res) => {
-  const f = gas.files.get(req.params.id);
-  if (!f) return res.sendStatus(404);
-  if (f.driveId) return res.redirect(302, driveViewUrl(f.driveId));
-  res.set('Cache-Control', 'private, max-age=86400');
-  res.type(f.mime || 'application/octet-stream').send(f.bytes);
+app.get('/files/:id', async (req, res) => {
+  // File IDs are not authorization credentials. Never serve attachments anonymously.
+  // Tokens must be supplied as Authorization headers, not URL query parameters.
+  res.set('Cache-Control', 'no-store');
+  res.set('Vary', 'Authorization');
+  const match = /^Bearer ([A-Za-z0-9_-]{16,256})$/.exec(String(req.get('authorization') || ''));
+  if (!match) return res.sendStatus(401);
+  try {
+    await ready;
+    if (bootError) throw bootError;
+    // Reuse the application's live session validation (expiry, role and account state).
+    // Serialize access because the Apps Script VM and cache are shared across requests.
+    const user = await serial(() => ctx.session_(match[1]));
+    if (!user) return res.sendStatus(401);
+    const f = gas.files.get(req.params.id);
+    if (!f) return res.sendStatus(404);
+    // TODO: enforce record/clinic-level authorization before enabling broad rollout.
+    // This first guard closes the anonymous access path, but does not prove tenant isolation.
+    if (f.driveId) return res.redirect(302, driveViewUrl(f.driveId));
+    return res.type(f.mime || 'application/octet-stream').send(f.bytes);
+  } catch (err) {
+    if (String(err?.message || '').includes('ERR_SESSION')) return res.sendStatus(401);
+    console.error('[files] access error:', err?.message || err);
+    return res.sendStatus(503);
+  }
 });
 
 /* ---------- admin page: Excel export + import (both with the admin key) ---------- */
