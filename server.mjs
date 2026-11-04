@@ -24,7 +24,17 @@ const read = f => fs.readFileSync(path.join(ROOT, f), 'utf8');
 
 const pool = new pg.Pool({
   connectionString: process.env.DATABASE_URL,
-  ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false,
+  // Verify the database server certificate on deployed environments. If the database
+  // uses a private CA, provide its PEM certificate via DATABASE_CA_CERT in staging.
+  // Keep NODE_ENV=production for the staging deployment to exercise this path.
+  ssl: process.env.NODE_ENV === 'production'
+    ? {
+        rejectUnauthorized: true,
+        ...(process.env.DATABASE_CA_CERT
+          ? { ca: process.env.DATABASE_CA_CERT.replace(/\\n/g, '\n') }
+          : {})
+      }
+    : false,
   max: 4
 });
 // Drive archive for photos: set GOOGLE_OAUTH_* (see README). Without it, files stay in the database.
