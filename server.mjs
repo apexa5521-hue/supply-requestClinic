@@ -131,12 +131,14 @@ app.get('/push/key', async (req, res) => {
 });
 
 // files that Code.gs saved to "Drive" (receipts, signatures, photos)
-app.get('/files/:id', (req, res) => {
-  const f = gas.files.get(req.params.id);
-  if (!f) return res.sendStatus(404);
-  if (f.driveId) return res.redirect(302, driveViewUrl(f.driveId));
-  res.set('Cache-Control', 'private, max-age=86400');
-  res.type(f.mime || 'application/octet-stream').send(f.bytes);
+// STAGING SECURITY HARDENING: fail closed for file downloads until a per-file
+// authorization mapping and a compatible authenticated image-fetch flow are verified.
+// Do not deploy this temporary containment change to production: it blocks all
+// file/receipt/signature previews by design. A valid session alone is NOT sufficient
+// authorization for a file belonging to another clinic.
+app.get('/files/:id', (_req, res) => {
+  res.set('Cache-Control', 'no-store');
+  res.sendStatus(403);
 });
 
 /* ---------- admin page: Excel export + import (both with the admin key) ---------- */
