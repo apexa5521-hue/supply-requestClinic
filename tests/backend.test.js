@@ -1507,7 +1507,7 @@ test('roles split: legacy quality/executive/finance migrate; executive keeps ful
   throwsCode(() => api(e, 'getUsers'), 'ERR_FORBIDDEN'); // بعد وجود الأدمن: صلاحيات التنفيذي الافتراضية فقط (فوراً)
   assert.ok(api(e, 'getExecutiveStats'));
   const a = login('admin', '9999');
-  assert.equal(api(a, 'getConfig').user.perms.length, 17);
+  assert.equal(api(a, 'getConfig').user.perms.length, 18);
   const f = login('نواف', '7777');
   assert.ok(api(f, 'getFinance', {}).summary);
   throwsCode(() => api(f, 'getComplaints'), 'ERR_FORBIDDEN');
@@ -1717,7 +1717,7 @@ test('management roles (finance…) are added automatically when missing, so the
   api(a, 'createUser', { name: 'المالية', password: '2468', role: 'مالية', email: 'finance@example.com' });
   const f = api(null, 'login', 'المالية', '2468');
   assert.equal(f.user.screen, 'finance');
-  assert.deepEqual(f.user.perms.slice().sort(), ['assets', 'doctor_prices', 'finance', 'maint', 'monitor', 'order_rules', 'prices_edit', 'reports'].sort());
+  assert.deepEqual(f.user.perms.slice().sort(), ['assets', 'doctor_prices', 'finance', 'maint', 'monitor', 'order_rules', 'prices_edit', 'receipt_audit', 'reports'].sort());
   login('المدير', '1234');
   assert.equal(rows(gas, 'Roles').filter(r => r.RoleName === 'مالية').length, 1, 'added once only');
 });
@@ -3123,9 +3123,9 @@ test('settings in the app: admin edits clinics, labs, lists, keys, survey; finan
   const a = login('المدير', '1234'), f = login('نواف', '7777'), p = login('علي', '3333');
   let st = api(a, 'getSettingsAdmin');
   assert.ok(st.clinics.length && st.labs.length && st.workTypes.length && st.materials.length && st.questions.length);
-  assert.deepEqual(Object.keys(st.keys).sort(), ['AppUrl', 'BackdateUntil', 'DriverEmail', 'IteroLab', 'LabTurnaroundDays', 'ReturnHistoryEnabled', 'SurveyEnabled', 'SurveyEveryDays', 'SurveyOpenDays', 'SurveyStart'].sort());
+  assert.deepEqual(Object.keys(st.keys).sort(), ['AppUrl', 'BackdateUntil', 'DriverEmail', 'IteroLab', 'LabTurnaroundDays', 'ReceiptIssueDays', 'ReceiptIssueFinanceLimit', 'ReturnHistoryEnabled', 'SurveyEnabled', 'SurveyEveryDays', 'SurveyOpenDays', 'SurveyStart'].sort());
   // finance: only the backdate key
-  assert.deepEqual(Object.keys(api(f, 'getSettingsAdmin').keys), ['BackdateUntil']);
+  assert.deepEqual(Object.keys(api(f, 'getSettingsAdmin').keys).sort(), ['BackdateUntil', 'ReceiptIssueFinanceLimit'].sort());
   throwsCode(() => api(f, 'saveSettingKeys', { DriverEmail: 'x@y.com' }), 'ERR_FORBIDDEN');
   api(f, 'saveSettingKeys', { BackdateUntil: '2026-12-31' });
   assert.equal(api(a, 'getSettingsAdmin').keys.BackdateUntil, '2026-12-31');
@@ -4283,4 +4283,94 @@ test('nurse refusal before dispatch requires procurement and supports a doctor-a
  const sent=api(p,'dispatchItems',id,[{name:'DENTAL FLOSS',qty:2}]);assert.equal(sent.batch,1,'no phantom shipment for an unsent refused item');
  api(n,'receiveShipment',id,1,[{name:'DENTAL FLOSS',qty:2}],'سارة','data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==','','');
  assert.equal(api(f,'getFinance',{}).summary.received,25);
+});
+
+test('receipt problems: shortage at receipt alerts finance → procurement approves → the shortage is resent as a follow-up shipment', () => {
+  const { api, login, gas } = boot();
+  const n = login('سارة', '1111'), dr = login('د. خالد', '4444'), p = login('علي', '3333'), fin = login('نواف', '7777');
+  const id = api(n, 'createRequest', { doctor: 'د. خالد', type: 'شهري', items: [{ name: 'DENTAL FLOSS', qty: 10 }] }).id;
+  api(dr, 'doctorReview', id, 'اعتمد');
+  api(p, 'bulkUpdateStatus', [id], 'قيد التجهيز');
+  api(p, 'dispatchItems', id, ['DENTAL FLOSS']);
+  gas.mails.length = 0;
+  api(n, 'receiveShipment', id, 1, [{ name: 'DENTAL FLOSS', qty: 8 }], 'سارة', PNG, PNG, PNG);
+  assert.ok(gas.mails.some(m => m.to.includes('fin@example.com') && /تنبيه للمالية/.test(m.subject)), 'finance is told the nurse received less than was sent');
+  let L = api(p, 'getReceiptIssues');
+  assert.deepEqual(L.issues.map(x => [x.stage, x.item, x.sent, x.actual, x.short, x.status, x.dispatchedBy]), [['receipt', 'DENTAL FLOSS', 10, 8, 2, 'open', 'علي']]);
+  assert.equal(api(fin, 'getReceiptIssues').issues.length, 1, 'finance (receipt_audit) sees the problems tab');
+  throwsCode(() => api(n, 'getReceiptIssues'), 'ERR_FORBIDDEN');
+  assert.equal(api(p, 'getRequests', {}).find(r => r.id === id).openIssues, 1);
+  assert.ok(api(p, 'getAlerts').some(x => x.code === 'alert_receipt_issue' && x.n === 1), 'procurement bell');
+  assert.ok(api(fin, 'getAlerts').some(x => x.code === 'alert_receipt_issue'), 'finance bell');
+  throwsCode(() => api(p, 'decideReceiptIssue', L.issues[0].id, 'reject', ''), 'ERR_REASON_REQUIRED');
+  assert.equal(api(p, 'decideReceiptIssue', L.issues[0].id, 'approve', 'تأكدنا من النقص').status, 'approved', '2 × 12.5 is under the finance limit');
+  // الناقص يعود متبقياً تلقائياً ← شحنة تابعة
+  let r = api(p, 'getRequests', {}).find(x => x.id === id);
+  assert.equal(r.status, 'قيد التجهيز');
+  assert.deepEqual(r.remainingItems, [{ item: 'DENTAL FLOSS', qty: 2, sent: 8, target: 10, shortFrom: [{ batch: 1, qty: 2 }] }]);
+  api(p, 'dispatchItems', id, ['DENTAL FLOSS']);
+  const det = api(n, 'getRequestDetail', id);
+  assert.deepEqual(det.shipments.map(s => [s.batch, s.items[0].qty, s.items[0].followOf]), [[1, 10, 0], [2, 2, 1]], 'shipment 2 is tagged as the shortage of shipment 1');
+  api(n, 'receiveShipment', id, 2, [{ name: 'DENTAL FLOSS', qty: 2 }], 'سارة', PNG, PNG, PNG);
+  r = api(p, 'getRequests', {}).find(x => x.id === id);
+  assert.equal(r.status, 'تم الاستلام');
+  assert.equal(rows(gas, 'RequestItems').find(x => x.RequestID === id).ReceivedQty, 10, 'net received after the follow-up');
+});
+
+test('receipt correction after signing: strong alert by permission, 7-day window, finance approval above the limit', () => {
+  const { api, login, gas } = boot();
+  const n = login('سارة', '1111'), dr = login('د. خالد', '4444'), p = login('علي', '3333'), fin = login('نواف', '7777'), a = login('المدير', '1234');
+  const id = api(n, 'createRequest', { doctor: 'د. خالد', type: 'شهري', items: [{ name: 'DENTAL FLOSS', qty: 5 }] }).id;
+  api(dr, 'doctorReview', id, 'اعتمد');
+  api(p, 'bulkUpdateStatus', [id], 'قيد التجهيز');
+  api(p, 'dispatchItems', id, ['DENTAL FLOSS']);
+  api(n, 'receiveShipment', id, 1, [{ name: 'DENTAL FLOSS', qty: 5 }], 'سارة', PNG, PNG, PNG);
+  assert.equal(api(p, 'getReceiptIssues').issues.length, 0, 'full receipt: no problem');
+  const line = { item: 'DENTAL FLOSS', actual: 3, kind: 'wrong' };
+  throwsCode(() => api(n, 'createReceiptIssue', id, { batch: 1, lines: [line], note: '' }), 'ERR_NOTE_REQUIRED');
+  throwsCode(() => api(n, 'createReceiptIssue', id, { batch: 1, lines: [{ item: 'DENTAL FLOSS', actual: 5, kind: 'short' }], note: 'x' }), 'ERR_ISSUE_QTY');
+  throwsCode(() => api(login('ريم', '2222'), 'createReceiptIssue', id, { batch: 1, lines: [line], note: 'x' }), 'ERR_FORBIDDEN');
+  gas.mails.length = 0;
+  api(n, 'createReceiptIssue', id, { batch: 1, lines: [line], note: 'وصل صنفان مختلفان ووقّعت بالغلط', clientKey: 'ri-1' });
+  assert.equal(api(n, 'createReceiptIssue', id, { batch: 1, lines: [line], note: 'وصل صنفان مختلفان ووقّعت بالغلط', clientKey: 'ri-1' }).duplicate, true, 'double tap ignored');
+  throwsCode(() => api(n, 'createReceiptIssue', id, { batch: 1, lines: [line], note: 'مرة ثانية' }), 'ERR_ISSUE_EXISTS');
+  const strong = to => gas.mails.some(m => m.to.includes(to) && /مشكلة استلام تؤثر على الحسبة المالية/.test(m.subject));
+  assert.ok(strong('fin@example.com'), 'finance gets the strong alert');
+  assert.ok(strong('ali@example.com'), 'procurement (accountable) is told too');
+  assert.ok(!strong('sara@example.com'), 'not the nurse');
+  // فوق حد المالية: التموين يعتمد ثم المالية
+  api(fin, 'saveSettingKeys', { ReceiptIssueFinanceLimit: '1' });
+  const iss = api(p, 'getReceiptIssues').issues[0];
+  assert.deepEqual([iss.stage, iss.kind, iss.signed, iss.actual, iss.short, iss.value], ['after_sign', 'wrong', 5, 3, 2, 25]);
+  assert.equal(api(p, 'decideReceiptIssue', iss.id, 'approve', '').status, 'finance');
+  throwsCode(() => api(p, 'financeReceiptIssue', iss.id, 'approve', ''), 'ERR_FORBIDDEN');
+  assert.equal(rows(gas, 'RequestItems').find(x => x.RequestID === id).ReceivedQty, 5, 'nothing changes before finance approves');
+  assert.equal(api(fin, 'financeReceiptIssue', iss.id, 'approve', 'تمت المراجعة').status, 'approved');
+  assert.equal(rows(gas, 'RequestItems').find(x => x.RequestID === id).ReceivedQty, 3, 'net received corrected');
+  assert.equal(api(p, 'getRequests', {}).find(x => x.id === id).remainingQty, 2, 'the 2 come back as a follow-up');
+  assert.equal(api(n, 'getRequestDetail', id).issues[0].status, 'approved');
+  // مهلة 7 أيام بعد التوقيع
+  const id2 = api(n, 'createRequest', { doctor: 'د. خالد', type: 'طارئ', items: [{ name: 'DENTAL FLOSS', qty: 2 }] }).id;
+  api(dr, 'doctorReview', id2, 'اعتمد');
+  api(p, 'bulkUpdateStatus', [id2], 'قيد التجهيز');
+  api(p, 'dispatchItems', id2, ['DENTAL FLOSS']);
+  api(n, 'receiveShipment', id2, 1, [{ name: 'DENTAL FLOSS', qty: 2 }], 'سارة', PNG, PNG, PNG);
+  const sh = gas.ss.getSheetByName('Shipments'), hd = sh.getRange(1, 1, 1, sh.getLastColumn()).getValues()[0];
+  const vals = sh.getRange(1, 1, sh.getLastRow(), sh.getLastColumn()).getValues();
+  const rIdx = vals.findIndex(v => v[hd.indexOf('RequestID')] === id2);
+  sh.getRange(rIdx + 1, hd.indexOf('ReceivedAt') + 1).setValue(new Date(Date.now() - 8 * 864e5));
+  throwsCode(() => api(n, 'createReceiptIssue', id2, { batch: 1, lines: [{ item: 'DENTAL FLOSS', actual: 1, kind: 'short' }], note: 'متأخر' }), 'ERR_ISSUE_LATE');
+  assert.ok(a);
+});
+
+test('emergency vs monthly report: every non-cancelled request of the month with its items', () => {
+  const { api, login } = boot();
+  const n = login('سارة', '1111'), q = login('منى', '5555');
+  api(n, 'createRequest', { doctor: 'د. خالد', type: 'طارئ', items: [{ name: 'DENTAL FLOSS', qty: 2 }] });
+  api(n, 'createRequest', { doctor: 'د. خالد', type: 'شهري', items: [{ name: 'PROPHY PASTE', qty: 3 }] });
+  const d = api(q, 'getTypeReport', { month: new Date(Date.now() + 3 * 36e5).toISOString().slice(0, 7) });
+  const mine = d.rows.filter(r => r.doctor === 'د. خالد' && r.items.length && /DENTAL FLOSS|PROPHY PASTE/.test(r.items[0].n));
+  assert.ok(mine.some(r => r.type === 'طارئ' && r.items[0].n === 'DENTAL FLOSS' && r.items[0].q === 2));
+  assert.ok(mine.some(r => r.type === 'شهري'));
+  throwsCode(() => api(n, 'getTypeReport', {}), 'ERR_FORBIDDEN');
 });
