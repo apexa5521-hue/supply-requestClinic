@@ -2030,7 +2030,7 @@ function log(msg) { console.log('  ✔ ' + msg); }
   await openView(page, 'settings');
   await page.click('[data-act="mxSettingsTab"][data-tab="system"]'); // إعدادات النظام في تبويبها
   await page.waitForSelector('#stk_BackdateUntil', { state: 'attached' }); // التاريخ يُختار بقوائم منسدلة والقيمة في حقل مخفي
-  expect(await page.locator('.st-key').count() === 1 && !(await page.isVisible('[data-act="stClinic"]')), 'finance sees only the past-requests date');
+  expect(await page.locator('.st-key').count() === 2 && await page.locator('#stk_ReceiptIssueFinanceLimit').count() === 1 && !(await page.isVisible('[data-act="stClinic"]')), 'finance sees only the past-requests date and the receipt-problems approval limit');
   await logout(page);
 
   // ---------- Request rules: procurement sets limits → nurse sees the window bar and is stopped with a clear message ----------
