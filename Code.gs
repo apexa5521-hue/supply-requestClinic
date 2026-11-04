@@ -52,7 +52,8 @@ const SCHEMA = {
   // طلبات حذفها الأدمن كاملة: نسخة كاملة (Snapshot) لكل سطورها — للتدقيق وللاسترجاع
   DeletedRequests: ['Timestamp', 'RequestID', 'User', 'Reason', 'Clinic', 'Doctor', 'Nurse', 'Status', 'Total', 'Snapshot', 'RestoredAt', 'RestoredBy'],
   // كل سطر = كمية صنف واحد داخل شحنة واحدة (يسمح بإرسال جزء من كمية الصنف)
-  ShipmentItems: ['RequestID', 'Batch', 'ItemName', 'Qty', 'DispatchedAt', 'DispatchedBy', 'ReceivedQty', 'RejectReason', 'RejectPhoto'], // رفض الممرضة لصنف عند الاستلام (السبب + صورة)
+  ShipmentItems: ['RequestID', 'Batch', 'ItemName', 'Qty', 'DispatchedAt', 'DispatchedBy', 'ReceivedQty', 'RejectReason', 'RejectPhoto', 'ShortQty', 'FollowOf'], // ShortQty: نقص معتمد يُعاد إرساله · FollowOf: شحنة تابعة لنقص الشحنة رقم
+  ReceiptIssues: ['IssueID', 'ClientKey', 'RequestID', 'Batch', 'ItemName', 'Stage', 'Kind', 'SentQty', 'SignedQty', 'ActualQty', 'ShortQty', 'UnitPrice', 'Value', 'Note', 'Photo', 'CreatedAt', 'CreatedBy', 'DispatchedBy', 'Status', 'DecidedAt', 'DecidedBy', 'DecisionNote', 'FinanceAt', 'FinanceBy', 'FinanceNote'], // رفض الممرضة لصنف عند الاستلام (السبب + صورة)
   RequestReturns: ['ReturnID','ClientKey','RequestID','ItemName','Qty','Batch','Reason','CreatedAt','CreatedBy','ReturnDate','Backdated','Status','ReceivedAt','ReceivedBy','Note','Kind','Photo','Source'],
   Shipments:    ['RequestID', 'Batch', 'ReceivedAt', 'ReceiverName', 'ReceivedBy', 'SignatureURL', 'SignatureFileID', 'ReceiptURL'],
   ItemNotes:    ['Timestamp', 'RequestID', 'ItemName', 'Author', 'Role', 'Note'],
@@ -82,7 +83,7 @@ const SCHEMA = {
   LabNotes:     ['Timestamp', 'CaseID', 'ItemID', 'Author', 'Role', 'Message'],
   // عُهدة العيادة: المعيار لكل عيادة، القطع المصروفة (بالرقم التسلسلي)، وبلاغات الأدوات
   // البوكسات: بوكس ثابت لكل طبيب (أو عيادة لمستهلكات العيادة) عليه QR برمز سري؛ وسجل كل حركة بالصورة
-  Boxes:        ['BoxID', 'Owner', 'Branch', 'Token', 'Location', 'Status', 'Loads', 'Destination', 'LoadedAt', 'UpdatedAt', 'UpdatedBy', 'Photo', 'Notes'],
+  Boxes:        ['BoxID', 'Owner', 'Branch', 'Token', 'Location', 'Status', 'Loads', 'Destination', 'LoadedAt', 'UpdatedAt', 'UpdatedBy', 'Photo', 'Notes', 'Driver', 'PickedBy', 'PickedAt'],
   BoxMoves:     ['Timestamp', 'BoxID', 'Owner', 'From', 'To', 'Action', 'By', 'Photo', 'RequestID', 'Batch', 'ClientKey'],
   ClinicStandards: ['Clinic', 'Item', 'StandardQty', 'UpdatedBy', 'UpdatedAt'],
   // Doctor: الطبيب المصروفة عليه العهدة (فارغ = على العيادة) · RequestID: «REQ-…#الشحنة» إن صُرفت من طلب طبيب
@@ -140,12 +141,14 @@ const DEFAULT_ROLES = [
  * notices: إرسال التنبيهات · monitor: متابعة التموين والمواعيد · finance: شاشة المالية
  * prices_edit: تعديل أسعار الكتالوج · users: المستخدمون والأدوار
  */
-const PERMS = ['overview', 'reports', 'complaints', 'complaints_close', 'notices', 'monitor', 'finance', 'prices_edit', 'lab_view', 'assets', 'users', 'doctors_live', 'surveys', 'doctor_prices', 'boxes', 'order_rules', 'maint'];
+const PERMS = ['overview', 'reports', 'complaints', 'complaints_close', 'notices', 'monitor', 'finance', 'prices_edit', 'lab_view', 'assets', 'users', 'doctors_live', 'surveys', 'doctor_prices', 'boxes', 'order_rules', 'maint', 'receipt_audit'];
+/** صلاحيات تُمنح لأي دور (حتى الأدوار التشغيلية مثل التموين): receipt_audit = تنبيهات مشاكل الاستلام المؤثرة على الحسبة + تبويب «طلبات فيها مشكلة» */
+const GRANTABLE_ALL_ = ['receipt_audit'];
 const DEFAULT_PERMS = {
   admin: PERMS,
-  executive: ['overview', 'reports', 'complaints', 'complaints_close', 'notices', 'monitor', 'lab_view', 'assets', 'doctors_live', 'surveys', 'doctor_prices', 'boxes', 'order_rules', 'maint'],
+  executive: ['overview', 'reports', 'complaints', 'complaints_close', 'notices', 'monitor', 'lab_view', 'assets', 'doctors_live', 'surveys', 'doctor_prices', 'boxes', 'order_rules', 'maint', 'receipt_audit'],
   quality: ['overview', 'reports', 'complaints', 'complaints_close', 'notices', 'monitor', 'lab_view', 'assets', 'doctors_live', 'surveys', 'doctor_prices', 'order_rules', 'maint'],
-  finance: ['finance', 'prices_edit', 'reports', 'monitor', 'assets', 'doctor_prices', 'order_rules', 'maint'],
+  finance: ['finance', 'prices_edit', 'reports', 'monitor', 'assets', 'doctor_prices', 'order_rules', 'maint', 'receipt_audit'],
   dashboard: ['overview', 'reports', 'complaints', 'notices'],
   // مدير الفرع: مشاهدة فرعه + تقاريره ومؤشراته + التنبيه والشكاوى (بدون اعتماد أو إرسال)
   branch: ['overview', 'reports', 'complaints', 'monitor', 'lab_view', 'assets', 'boxes']
@@ -170,7 +173,7 @@ const COMPLAINT_TYPES = ['تأخير', 'نقص', 'زيادة', 'أخرى'];
  *  التجهيز التلقائي بعد النشر (مرة واحدة لكل إصدار) — بلا أي خطوة يدوية:
  *  تبويبات الإعداد (Settings / LabMaterials)، قائمة العيادات المعتمدة، المشغّلات (النسخ الليلي + onChange)
  * ===================================================================== */
-const SETUP_VERSION_ = '2026-10-setup-v12';
+const SETUP_VERSION_ = '2026-11-setup-v13';
 function autoSetup_() {
   try {
     const cache = CacheService.getScriptCache();
@@ -201,6 +204,7 @@ function runSetupSteps_(force) {
     ['doctor_prices', 'صلاحية منح الأسعار للأطباء (التنفيذي والجودة والمالية)', function () { grantPerm_('doctor_prices', ['executive', 'quality', 'finance']); }],
     ['survey', 'استبيان الأطباء (الأسئلة + صلاحية النتائج للجودة والتنفيذي)', function () { seedSurvey_(); grantPerm_('surveys', ['executive', 'quality']); }],
     ['perms', 'صلاحية العهدة للإدارة والجودة والمالية', function () { grantPerm_('assets', ['executive', 'quality', 'finance']); }],
+    ['receipt_audit', 'تنبيهات مشاكل الاستلام المؤثرة على الحسبة (المالية والتنفيذي وقسم الجودة — بدون أخصائية الجودة)', grantReceiptAudit_],
     ['doctors_live', 'صفحة «الأطباء — مباشر» للجودة والتنفيذي', function () { grantPerm_('doctors_live', ['executive', 'quality']); }],
     ['boxes_view', 'تبويب البوكسات (اطلاع) لمدراء الفروع والتنفيذي', function () { grantPerm_('boxes', ['branch', 'executive']); }],
     ['maint', 'بلاغات الفرع والصيانة: دور «صيانة» + الاطلاع للتنفيذي والجودة والمالية', function () { ensureMgmtRoles_(); grantPerm_('maint', ['executive', 'quality', 'finance']); }],
@@ -252,6 +256,24 @@ function runSetupNow_(user) {
 }
 
 /** صلاحية جديدة تُضاف للأدوار التي حُفظت صلاحياتها يدوياً (الافتراضية تأخذها تلقائياً) */
+/** مرة واحدة: receipt_audit للتنفيذي والمالية وأدوار الجودة غير «أخصائي/ـة الجودة» (الأدوار بالصلاحيات الافتراضية تُكتب صراحة) */
+function grantReceiptAudit_() {
+  if (str_(getSetting_('ReceiptAuditGranted', ''))) return;
+  const t = read_('Roles');
+  if (t.headers.indexOf('Permissions') === -1) return;
+  const ups = [];
+  t.rows.forEach(function (r) {
+    const sc = str_(r.Screen), v = str_(r.Permissions);
+    if (['executive', 'finance', 'quality'].indexOf(sc) === -1 || v === 'none') return;
+    if (sc === 'quality' && /أخصائ|اخصائ|specialist/i.test(str_(r.RoleName))) return;
+    if (str_(r.RoleName) === OPS_ROLE_) return; // مدير التشغيل ليس من المالية/التنفيذي — يمنحه الأدمن إن أراد
+    const list = !v || v === '*' ? (DEFAULT_PERMS[sc] || []).slice() : v.split(/[,،\s]+/);
+    if (list.indexOf('receipt_audit') !== -1) return;
+    ups.push({ row: r, obj: { Permissions: list.concat(['receipt_audit']).join(',') } });
+  });
+  if (ups.length) setMany_(t, ups);
+  append_('Settings', { Key: 'ReceiptAuditGranted', Value: 'نعم', Notes: 'منح صلاحية تنبيهات مشاكل الاستلام تم مرة واحدة — بعدها الأدمن يعدّلها من الأدوار' });
+}
 function grantPerm_(perm, screens) {
   const t = read_('Roles');
   if (t.headers.indexOf('Permissions') === -1) return;
@@ -500,6 +522,26 @@ function pack_(v) {
   return o;
 }
 
+/**
+ * الأطباء والتمريض (والمعمل والهاوس كيبر): يرون «التموين» بدل اسم موظف التموين الذي حدّث الحالة أو أرسل الشحنة.
+ * الإدارة والجودة والأدمن والمالية والتموين نفسه: الأسماء كما هي. يُطبَّق على كل نتيجة قبل إرسالها (لا تصل الأسماء لأجهزتهم).
+ */
+const STAFF_MASKED_SCREENS_ = ['nurse', 'doctor', 'lab', 'housekeeper'];
+const PROC_DEPT_LABEL_ = 'التموين';
+function maskStaff_(user, v) {
+  if (!user || STAFF_MASKED_SCREENS_.indexOf(user.screen) === -1) return v;
+  (function walk(x, depth) {
+    if (!x || typeof x !== 'object' || depth > 8) return;
+    if (Array.isArray(x)) { x.forEach(function (y) { walk(y, depth + 1); }); return; }
+    if (x.sentBy) x.sentBy = PROC_DEPT_LABEL_;
+    if (x.dispatchedBy) x.dispatchedBy = PROC_DEPT_LABEL_;
+    if (x.decidedBy) x.decidedBy = PROC_DEPT_LABEL_;
+    if (x.lastBy && x.lastBy.by) x.lastBy.by = PROC_DEPT_LABEL_;
+    if (x.stageBy) Object.keys(x.stageBy).forEach(function (k) { if (x.stageBy[k] && x.stageBy[k].by) x.stageBy[k].by = PROC_DEPT_LABEL_; });
+    Object.keys(x).forEach(function (k) { if (k !== 'stageBy' && k !== 'lastBy') walk(x[k], depth + 1); });
+  })(v, 0);
+  return v;
+}
 function apiCore_(token, fn, args) {
   MEMO_ = {};
   args = Array.isArray(args) ? args : [];
@@ -520,11 +562,12 @@ function apiCore_(token, fn, args) {
     if (fn === 'boxInfo') return sanitize_(boxInfo_(args[0]));
     if (fn === 'boxDeliver') return sanitize_(boxDeliver_(args[0]));
     if (fn === 'driverTasks') return sanitize_(driverTasks_(args[0]));
+    if (fn === 'boxPickup') return sanitize_(boxPickup_(args[0]));
     const def = API_[fn];
     if (!def) throw new Error('ERR_UNKNOWN_FN');
     const user = session_(token);
     if (!allowed_(def, user)) throw new Error('ERR_FORBIDDEN');
-    return sanitize_(def.fn.apply(null, [user].concat(args)));
+    return maskStaff_(user, sanitize_(def.fn.apply(null, [user].concat(args))));
   } finally {
     if (MEMO_.dirty && Object.keys(MEMO_.dirty).length && fn !== 'login' && fn !== 'logout' && fn !== 'ping' && fn.indexOf('get') !== 0) markSheetWrite_();
     flushDirty_();
@@ -625,7 +668,7 @@ function runBatch_(user, calls) {
       const def = API_[fn];
       if (!def || fn.indexOf('get') !== 0) throw new Error('ERR_UNKNOWN_FN'); // القراءة فقط
       if (!allowed_(def, user)) throw new Error('ERR_FORBIDDEN');
-      return { ok: true, data: sanitize_(def.fn.apply(null, [user].concat(Array.isArray(c[1]) ? c[1] : []))) };
+      return { ok: true, data: maskStaff_(user, sanitize_(def.fn.apply(null, [user].concat(Array.isArray(c[1]) ? c[1] : [])))) };
     } catch (e) {
       return { ok: false, error: String((e && e.message) || e) };
     }
@@ -655,6 +698,10 @@ const API_ = {
   createRequest:             { screens: ['nurse', 'lab'], fn: createRequest_ },
   getMyRequests:             { screens: ['nurse', 'lab'], fn: getMyRequests_ },
   receiveShipment:           { screens: ['nurse', 'lab'], fn: receiveShipment_ },
+  createReceiptIssue:        { screens: ['nurse', 'lab'], fn: createReceiptIssue_ },
+  getReceiptIssues:          { screens: ['procurement'], perm: 'receipt_audit', fn: getReceiptIssues_ },
+  decideReceiptIssue:        { screens: ['procurement'], fn: decideReceiptIssue_ },
+  financeReceiptIssue:       { screens: [], perm: 'finance', fn: financeReceiptIssue_ },
   resubmitRequest:           { screens: ['nurse'], fn: resubmitRequest_ },
   withdrawRequest:           { screens: ['nurse'], fn: withdrawRequest_ },
   removeMyItems:             { screens: ['nurse', 'lab'], fn: removeMyItems_ },
@@ -711,6 +758,7 @@ const API_ = {
   getDoctorReport:           { screens: ['doctor'], perm: 'reports', fn: getDoctorReport_ },
   getReportDoctors:          { screens: [], perm: 'reports', fn: getReportDoctors_ },
   getStatsReport:            { screens: [], perm: 'reports', fn: getStatsReport_ },
+  getTypeReport:             { screens: [], perm: 'reports', fn: getTypeReport_ },
   addNotice:                 { screens: [], perm: 'notices', fn: addNotice_ },
   getExecutiveStats:         { screens: [], perm: 'overview', fn: getExecutiveStats_ },
   getQualityReport:          { screens: [], perm: 'overview', fn: function (u, m) { return getQualityReport_(m); } },
@@ -778,6 +826,8 @@ const API_ = {
   // البوكسات
   getBoxes:                  { screens: ['procurement'], perm: 'boxes', fn: getBoxes_ },
   requestBoxMove:            { screens: ['procurement'], fn: requestBoxMove_ },
+  assignBoxDriver:           { screens: ['procurement'], fn: assignBoxDriver_ },
+  saveDrivers:               { screens: ['procurement'], fn: saveDrivers_ },
   addBox:                    { screens: ['procurement'], fn: addBox_ },
   backfillBoxes:             { screens: ['procurement'], fn: backfillBoxes_ },
   getFinance:                { screens: [], perm: 'finance', fn: getFinance_ },
@@ -1197,6 +1247,20 @@ function maxSeq_(rows, col, prefix) {
   return max;
 }
 
+/** من غيّر كل حالة ومتى (من سجل «تغيير الحالة: من ← إلى») — { requestId: { status: {by, at} , _last: {status, by, at} } } */
+function statusByIndex_() {
+  if (MEMO_.stBy) return MEMO_.stBy;
+  const out = {};
+  read_('Log').rows.forEach(function (r) {
+    const m = /^تغيير الحالة: .+? ← ([^(]+?)\s*(?:\(|$)/.exec(str_(r.Action));
+    const id = str_(r.RequestID), by = str_(r.User);
+    if (!m || !id || !by) return;
+    const o = out[id] || (out[id] = {}), st = m[1].trim(), at = r.Timestamp;
+    o[st] = { by: by, at: at };
+    if (!o._last || toMs_(at) >= toMs_(o._last.at)) o._last = { status: st, by: by, at: at };
+  });
+  return (MEMO_.stBy = out);
+}
 function logAction_(requestId, action, user) {
   append_('Log', { Timestamp: new Date(), RequestID: requestId, Action: action, User: user });
 }
@@ -1346,8 +1410,10 @@ function boxLoads_(v) { return str_(v).split(',').map(function (x) { return x.tr
 function mapBox_(r) {
   return { id: str_(r.BoxID), owner: str_(r.Owner), branch: str_(r.Branch), location: str_(r.Location) || BOX_HOME, status: str_(r.Status) || BX_ST.EMPTY,
     loads: boxLoads_(r.Loads), destination: str_(r.Destination), loadedAt: r.LoadedAt, updatedAt: r.UpdatedAt, updatedBy: str_(r.UpdatedBy),
-    photo: str_(r.Photo), notes: str_(r.Notes) };
+    photo: str_(r.Photo), notes: str_(r.Notes), driver: str_(r.Driver), pickedBy: str_(r.PickedBy), pickedAt: r.PickedAt || '' };
 }
+/** حقول «مع السواق» تُمسح عند انتهاء الرحلة (تسليم / تفريغ / تحميل جديد) */
+const BOX_TRIP_CLEAR_ = { Driver: '', PickedBy: '', PickedAt: '' };
 function newToken_() { return (Utilities.getUuid() + Utilities.getUuid()).replace(/-/g, '').slice(0, 32); }
 function boxOwnerOf_(req) { return str_(req.doctor) || str_(req.clinic); }
 /** صاحب البوكس وفرعه للإرسال: من الطلب، ويمكن للتموين تغييرهما (طبيب آخر، التعقيم، الفرز، عيادة…) */
@@ -1393,14 +1459,16 @@ function loadBox_(req, batch, user, now, pick, quiet) {
   const owner = bp.owner, dest = bp.branch;
   if (!owner) return;
   const key = req.id + '#' + batch;
-  const t = read_('Boxes');
+  const t = tableWithCols_('Boxes');
   let row = findBox_(t.rows, owner, dest);
   let from = BOX_HOME;
   if (row) {
     from = str_(row.Location) || BOX_HOME;
     const loads = boxLoads_(row.Loads);
     if (loads.indexOf(key) === -1) loads.push(key);
-    setMany_(t, [{ row: row, obj: { Branch: dest, Location: BOX_HOME, Status: BX_ST.READY, Loads: loads.join(','), Destination: dest, LoadedAt: now, UpdatedAt: now, UpdatedBy: user.name } }]);
+    // تحميل جديد = البوكس في التموين: يستلمه السواق من جديد (التوزيع على سواق يبقى إن كان قبل الاستلام)
+    const keep = str_(row.PickedBy) ? BOX_TRIP_CLEAR_ : { PickedBy: '', PickedAt: '' };
+    setMany_(t, [{ row: row, obj: Object.assign({ Branch: dest, Location: BOX_HOME, Status: BX_ST.READY, Loads: loads.join(','), Destination: dest, LoadedAt: now, UpdatedAt: now, UpdatedBy: user.name }, keep) }]);
   } else {
     row = { BoxID: nextBoxId_(t.rows), Owner: owner };
     append_('Boxes', { BoxID: row.BoxID, Owner: owner, Branch: dest, Token: newToken_(), Location: BOX_HOME, Status: BX_ST.READY, Loads: key, Destination: dest, LoadedAt: now, UpdatedAt: now, UpdatedBy: user.name });
@@ -1414,14 +1482,15 @@ function loadBox_(req, batch, user, now, pick, quiet) {
 }
 /** إخراج شحنة من البوكس (استلام الممرضة أو إلغاء الشحنة) — داخل القفل */
 function unloadBox_(requestId, batch, by, why) {
-  const t = read_('Boxes');
+  const t = tableWithCols_('Boxes');
   const key = str_(requestId) + '#' + batch;
   const row = t.rows.filter(function (r) { return boxLoads_(r.Loads).indexOf(key) !== -1; })[0];
   if (!row) return;
   const loads = boxLoads_(row.Loads).filter(function (k) { return k !== key; });
   const st = str_(row.Status);
   const status = loads.length ? st : (st === BX_ST.READY || st === BX_ST.DELIVERED ? BX_ST.EMPTY : st);
-  setMany_(t, [{ row: row, obj: { Loads: loads.join(','), Status: status, Destination: loads.length || status === BX_ST.MOVE ? str_(row.Destination) : '', UpdatedAt: new Date(), UpdatedBy: by } }]);
+  setMany_(t, [{ row: row, obj: Object.assign({ Loads: loads.join(','), Status: status, Destination: loads.length || status === BX_ST.MOVE ? str_(row.Destination) : '', UpdatedAt: new Date(), UpdatedBy: by },
+    status === BX_ST.EMPTY ? BOX_TRIP_CLEAR_ : {}) }]);
   addBoxMove_(row, str_(row.Location), str_(row.Location), why, by, '', requestId, batch);
 }
 /** مواقع التسليم المسموحة: الفروع + التموين */
@@ -1458,21 +1527,23 @@ function boxInfo_(p) {
   const last = read_('BoxMoves').rows.filter(function (m) { return str_(m.BoxID) === b.id && (str_(m.Action) === 'تسليم' || str_(m.Action) === 'نقل'); }).pop();
   const loads = loadsInfo_(b.loads);
   return { id: b.id, owner: b.owner, branch: b.branch, location: b.location, status: b.status, destination: b.destination,
-    loads: loads, to: boxRecipients_(loads), places: boxPlaces_(), pending: boxPending_(b),
+    loads: loads, to: boxRecipients_(loads), places: boxPlaces_(), pending: boxPending_(b), driver: b.driver, pickedBy: b.pickedBy, pickedAt: b.pickedAt, drivers: driverNames_(),
     last: last ? { to: str_(last.To), at: last.Timestamp, by: str_(last.By) } : null };
 }
 /** «تسليم»: مكان التسليم + صورة البوكس + اسم السواق */
 function boxDeliver_(p) {
   p = p || {};
-  const to = str_(p.to), driver = clean_(p.driver, 60), clientKey = str_(p.clientKey).slice(0, 64);
+  const to = str_(p.to), clientKey = str_(p.clientKey).slice(0, 64);
   if (boxPlaces_().indexOf(to) === -1) throw new Error('ERR_BAD_PLACE');
-  if (!driver) throw new Error('ERR_DRIVER_NAME');
   const pre = boxByToken_(p);
+  // من سلّم = من استلم الطلبية من التموين («مع السواق») — لا تسليم بدون استلام مسبق باسم السواق
+  let driver = str_(pre.PickedBy);
   if (clientKey) {
     const dup = read_('BoxMoves').rows.filter(function (r) { return str_(r.ClientKey) === clientKey && str_(r.BoxID) === str_(pre.BoxID); })[0];
     if (dup) return { ok: true, duplicate: true, box: boxInfo_(p) };
   }
   if (!boxPending_(mapBox_(pre))) throw new Error('ERR_BOX_DELIVERED');
+  if (!driver) throw new Error('ERR_NOT_PICKED');
   if (to === (str_(pre.Location) || BOX_HOME)) throw new Error('ERR_SAME_PLACE');
   if (!p.photo) throw new Error('ERR_PHOTO_REQUIRED');
   const photo = saveLabPhoto_(str_(pre.BoxID) + '-' + Date.now(), p.photo);
@@ -1483,12 +1554,14 @@ function boxDeliver_(p) {
     const b = mapBox_(row);
     // سُلِّم للتو من جوال آخر (نفس الـ QR مرتين): لا تسليم مكرر
     if (!boxPending_(b)) throw new Error('ERR_BOX_DELIVERED');
+    if (!b.pickedBy) throw new Error('ERR_NOT_PICKED');
+    driver = b.pickedBy;
     // البوكس موجود أصلاً في هذا المكان: لا تسليم مكرر
     if (to === b.location) throw new Error('ERR_SAME_PLACE');
     const now = new Date();
     const atBranch = to !== BOX_HOME;
     const status = b.loads.length ? (atBranch ? BX_ST.DELIVERED : BX_ST.READY) : BX_ST.EMPTY;
-    setMany_(read_('Boxes'), [{ row: row, obj: { Location: to, Status: status, Destination: status === BX_ST.READY ? b.destination : '', UpdatedAt: now, UpdatedBy: driver + ' (سواق)', Photo: photo } }]);
+    setMany_(tableWithCols_('Boxes'), [{ row: row, obj: Object.assign({ Location: to, Status: status, Destination: status === BX_ST.READY ? b.destination : '', UpdatedAt: now, UpdatedBy: driver + ' (سواق)', Photo: photo }, BOX_TRIP_CLEAR_) }]);
     const info = loadsInfo_(b.loads);
     if (b.loads.length) {
       info.forEach(function (l) {
@@ -1537,12 +1610,107 @@ function driverTasks_(p) {
   p = p || {};
   const tk = str_(getSetting_('DriverToken', ''));
   if (!tk || str_(p.k) !== tk) throw new Error('ERR_BAD_LINK');
-  const boxes = read_('Boxes').rows.map(mapBox_).filter(function (b) { return b.id && (b.status === BX_ST.READY || b.status === BX_ST.MOVE); });
-  // بدون رمز البوكس: التسليم فقط بمسح الـ QR على البوكس نفسه (لا يُسلَّم من القائمة)
-  return boxes.map(function (b) {
+  const boxes = read_('Boxes').rows.map(mapBox_).filter(function (b) { return b.id && boxPending_(b); });
+  // بدون رمز البوكس: التسليم فقط بمسح الـ QR على البوكس نفسه (لا يُسلَّم من القائمة) — من القائمة: «استلمت الطلبية» فقط
+  const list = boxes.map(function (b) {
     return { id: b.id, owner: b.owner, branch: b.branch, status: b.status, location: b.location, destination: b.destination, since: b.updatedAt, count: b.loads.length,
-      to: boxRecipients_(loadsInfo_(b.loads)) };
+      to: boxRecipients_(loadsInfo_(b.loads)), driver: b.driver, pickedBy: b.pickedBy, pickedAt: b.pickedAt };
   }).sort(function (a, b) { return toMs_(a.since) - toMs_(b.since); });
+  // الشكل القديم (قائمة) للإصدارات السابقة من الصفحة؛ الجديد يطلب v=2 ليأخذ أسماء السواقين أيضاً
+  return p.v === 2 ? { list: list, drivers: driverNames_() } : list;
+}
+/* =====================================================================
+ *  «مع السواق»: التموين يوزّع البوكس على سواق، والسواق يضغط «استلمت الطلبية» باسمه
+ *  ← نعرف من شال الطلبية ومتى، قبل «وصل الفرع». بعد التسليم تُمسح الحقول (BOX_TRIP_CLEAR_).
+ * ===================================================================== */
+/** أسماء السواقين (Settings ← Drivers، اسم في كل سطر أو مفصولة بفاصلة) */
+function driverNames_() {
+  const seen = {};
+  return str_(getSetting_('Drivers', '')).split(/[\n,،]+/).map(function (x) { return clean_(x, 60); })
+    .filter(function (x) { if (!x || seen[x]) return false; seen[x] = true; return true; });
+}
+function writeDrivers_(names, user) {
+  const t = freshTable_('Settings');
+  const row = t.rows.filter(function (r) { return str_(r.Key) === 'Drivers'; })[0];
+  const v = names.join('\n');
+  if (row) setCells_(t, row, { Value: v });
+  else append_('Settings', { Key: 'Drivers', Value: v, Notes: 'أسماء السواقين (اسم في كل سطر) — يوزّع عليهم التموين البوكسات' });
+  resetMemo_();
+}
+/** التموين يحفظ قائمة السواقين */
+function saveDrivers_(user, names) {
+  const seen = {};
+  const list = (Array.isArray(names) ? names : str_(names).split(/[\n,،]+/)).map(function (x) { return clean_(x, 60); })
+    .filter(function (x) { if (!x || seen[x]) return false; seen[x] = true; return true; }).slice(0, 50);
+  withLock_(function () { writeDrivers_(list, user); logAction_('', 'تعديل قائمة السواقين (' + list.length + ')', user.name); });
+  return { drivers: list };
+}
+/** التموين يوزّع بوكساً (فيه شحنة أو مطلوب نقله) على سواق — الاسم الجديد يُضاف للقائمة. اسم فارغ = إلغاء التوزيع */
+function assignBoxDriver_(user, boxId, name) {
+  name = clean_(name, 60);
+  withLock_(function () {
+    resetMemo_();
+    const t = tableWithCols_('Boxes');
+    const row = t.rows.filter(function (r) { return str_(r.BoxID) === str_(boxId); })[0];
+    if (!row) throw new Error('ERR_NOT_FOUND');
+    const b = mapBox_(row);
+    if (!boxPending_(b)) throw new Error('ERR_BOX_DELIVERED');
+    if (b.pickedBy) throw new Error('ERR_BOX_PICKED'); // شالها سواق فعلاً
+    if (name === b.driver) return;
+    setMany_(t, [{ row: row, obj: { Driver: name, UpdatedAt: new Date(), UpdatedBy: user.name } }]);
+    addBoxMove_(row, b.location, b.destination || b.location, name ? 'توزيع على السواق' : 'إلغاء التوزيع', user.name + (name ? ' ← ' + name : ''), '', '', '');
+    if (name && driverNames_().indexOf(name) === -1) writeDrivers_(driverNames_().concat([name]), user);
+  });
+  return true;
+}
+/** صفحة السواق (رابط الشحنات): «استلمت الطلبية» باسمه ← البوكس «مع السواق» */
+function boxPickup_(p) {
+  p = p || {};
+  // من رابط الشحنات (رمز السواق) أو من مسح QR البوكس نفسه (رمز البوكس)
+  const tk = str_(getSetting_('DriverToken', ''));
+  if (!(tk && str_(p.k) === tk)) boxByToken_(p);
+  const driver = clean_(p.driver, 60), clientKey = str_(p.clientKey).slice(0, 64);
+  if (!driver) throw new Error('ERR_DRIVER_NAME');
+  const out = { ok: true };
+  let picked = null;
+  withLock_(function () {
+    resetMemo_();
+    const t = tableWithCols_('Boxes');
+    const row = t.rows.filter(function (r) { return str_(r.BoxID) === str_(p.box); })[0];
+    if (!row) throw new Error('ERR_NOT_FOUND');
+    const b = mapBox_(row);
+    if (b.pickedBy === driver) { out.duplicate = true; return; } // ضغطها مرتين / إعادة المحاولة
+    if (!boxPending_(b)) throw new Error('ERR_BOX_DELIVERED');
+    if (b.pickedBy) throw new Error('ERR_BOX_PICKED');
+    if (b.driver && b.driver !== driver) throw new Error('ERR_NOT_YOUR_BOX');
+    const now = new Date();
+    setMany_(t, [{ row: row, obj: { Driver: b.driver || driver, PickedBy: driver, PickedAt: now, UpdatedAt: now, UpdatedBy: driver + ' (سواق)' } }]);
+    const info = loadsInfo_(b.loads);
+    const to = b.destination || b.branch;
+    if (!info.length) addBoxMove_(row, b.location, to, 'استلام السواق', driver, '', '', '', clientKey);
+    info.forEach(function (l) {
+      addBoxMove_(row, b.location, to, 'استلام السواق', driver, '', l.request, l.batch, clientKey);
+      logAction_(l.request, 'استلم السواق ' + driver + ' بوكس ' + b.owner + ' (' + b.id + ') — الشحنة ' + l.batch + ' في الطريق إلى ' + to, driver);
+      append_('Comments', { Timestamp: now, RequestID: l.request, Author: driver, Role: 'سواق', Message: '🚚 استلم السواق ' + driver + ' البوكس ' + b.id + ' من التموين (الشحنة ' + l.batch + ') — جاري النقل إلى ' + to });
+    });
+    picked = { info: info, to: to, id: b.id };
+  });
+  // تنبيه داخل النظام للممرضة: طلبك في الطريق ومع من
+  if (picked) {
+    const reqs = {};
+    read_('Requests').rows.forEach(function (r) { reqs[str_(r.RequestID)] = r; });
+    const done = {};
+    picked.info.forEach(function (l) {
+      const r = reqs[l.request];
+      if (!r || !str_(r.Nurse) || done[l.request]) return;
+      done[l.request] = true;
+      nk_('box_picked');
+      notifyUser_(str_(r.Nurse), 'جاري نقل طلبك ' + l.request + ' للفرع مع السواق ' + driver + ' · In transit with driver ' + driver, mailMsg_({ order: ['ar', 'en'], id: l.request, req: mapRequest_(r), step: 4,
+        ar: { title: 'جاري نقل طلبك إلى فرع ' + picked.to, lead: 'استلم السواق ' + driver + ' البوكس ' + picked.id + ' (الشحنة ' + l.batch + ') من التموين.', btn: 'افتح الطلب', foot: 'يصلك إشعار آخر عند وصول البوكس للفرع. رسالة آلية، لا تردي عليها.' },
+        en: { title: 'Your request is on the way to ' + picked.to, lead: 'Driver ' + driver + ' picked up box ' + picked.id + ' (shipment ' + l.batch + ') from procurement.', btn: 'Open request', foot: 'You will get another notice when the box reaches the branch. Automatic message, please do not reply.' } }));
+    });
+  }
+  return out;
 }
 /** شاشة التموين: كل البوكسات + آخر حركة + رابط الـ QR لكل بوكس + رابط الشحنات (السواق) */
 function getBoxes_(user) {
@@ -1571,7 +1739,7 @@ function getBoxes_(user) {
       boxes: list.filter(function (b) { return !br || b.branch === br || b.location === br || b.destination === br; })
         .map(function (b) { delete b.k; return b; }) };
   }
-  return { boxes: list, places: boxPlaces_(), driverToken: driverToken_(),
+  return { boxes: list, places: boxPlaces_(), driverToken: driverToken_(), drivers: driverNames_(),
     avgDeliveryHrs: hrs.length ? Math.round(hrs.reduce(function (a, x) { return a + x; }, 0) / hrs.length * 10) / 10 : null,
     appUrl: appUrl_() };
 }
@@ -1652,12 +1820,29 @@ function arrivalOf_(id, ships) {
   const dl = deliveriesIndex_();
   let first = '';
   let waiting = false;
+  const pk = pickupsIndex_();
+  let picked = null, onTheWay = null;
   ships.forEach(function (g) {
     const d = dl[id + '#' + Number(g.batch)];
     if (d && (!first || toMs_(d.at) < toMs_(first))) first = d.at;
     if (!g.received && !d) waiting = true;
+    // «مع السواق»: أول استلام للسواق (للتايم لاين)، وشحنة في الطريق الآن (للحالة)
+    const p = pk[id + '#' + Number(g.batch)];
+    if (p && (!picked || toMs_(p.at) < toMs_(picked.at))) picked = p;
+    if (p && !g.received && !d) onTheWay = p;
   });
-  return { arrivedAt: first, awaitingDelivery: waiting };
+  return { arrivedAt: first, awaitingDelivery: waiting, pickedAt: picked ? picked.at : '', pickedBy: picked ? picked.by : '',
+    onTheWay: onTheWay ? { by: onTheWay.by, at: onTheWay.at } : null };
+}
+/** آخر «استلام السواق» لكل طلب#شحنة */
+function pickupsIndex_() {
+  if (MEMO_.pku) return MEMO_.pku;
+  const out = {};
+  read_('BoxMoves').rows.forEach(function (m) {
+    if (str_(m.Action) !== 'استلام السواق' || !str_(m.RequestID)) return;
+    out[str_(m.RequestID) + '#' + Number(m.Batch)] = { at: m.Timestamp, by: str_(m.By) };
+  });
+  return (MEMO_.pku = out);
 }
 function deliveriesIndex_() {
   if (MEMO_.dlv) return MEMO_.dlv;
@@ -1667,6 +1852,183 @@ function deliveriesIndex_() {
     out[str_(m.RequestID) + '#' + Number(m.Batch)] = { at: m.Timestamp, to: str_(m.To), by: str_(m.By), photo: str_(m.Photo), box: str_(m.BoxID) };
   });
   return (MEMO_.dlv = out);
+}
+
+/* =====================================================================
+ *  مشاكل الاستلام المؤثرة على الحسبة («طلبات فيها مشكلة»)
+ *  - عند الاستلام: كمية مستلمة أقل من المرسلة ← مشكلة «receipt» + إشعار لأصحاب صلاحية receipt_audit (المالية…)
+ *  - بعد التوقيع (خلال ReceiptIssueDays، افتراضي 7 أيام): الممرضة ترفع «تصحيح استلام» (نقص / صنف خطأ / تالف)
+ *    ← تنبيه شديد لأصحاب receipt_audit (المالية والتنفيذي والأدمن وقسم الجودة) لمحاسبة التموين، مع اسم من جهّز الشحنة
+ *  - التموين يقرر: اعتماد / رفض (بسبب). فوق ReceiptIssueFinanceLimit (افتراضي 500 ر.س) يلزم اعتماد المالية بعده
+ *  - الاعتماد: صافي المستلم = الفعلي، والنقص يعود «متبقياً» ويُرسل تلقائياً كشحنة «ناقص — تابعة للشحنة N»
+ * ===================================================================== */
+const RI_ST = { OPEN: 'open', FINANCE: 'finance', APPROVED: 'approved', REJECTED: 'rejected' };
+const RI_KINDS = ['short', 'wrong', 'damaged'];
+const RI_KIND_AR = { short: 'نقص في الكمية', wrong: 'صنف خطأ', damaged: 'تالف' };
+function riDays_() { const d = Math.floor(num_(getSetting_('ReceiptIssueDays', 7))); return d >= 1 && d <= 60 ? d : 7; }
+function riLimit_() { const v = num_(getSetting_('ReceiptIssueFinanceLimit', 500)); return isNaN(v) || v < 0 ? 500 : v; }
+function riUnit_(reqId, item) {
+  const line = itemsOf_(reqId).filter(function (r) { return str_(r.ItemName) === item; })[0];
+  return unitPrice_(line, catalogPrices_()[str_(item).toLowerCase()] || 0) || 0;
+}
+function riOpenIndex_() {
+  if (MEMO_.riOpen) return MEMO_.riOpen;
+  const out = {};
+  read_('ReceiptIssues').rows.forEach(function (r) { const st = str_(r.Status); if (st === RI_ST.OPEN || st === RI_ST.FINANCE) out[str_(r.RequestID)] = (out[str_(r.RequestID)] || 0) + 1; });
+  return (MEMO_.riOpen = out);
+}
+function mapRcptIssue_(r, reqs) {
+  const req = reqs && reqs[str_(r.RequestID)];
+  return { id: str_(r.IssueID), request: str_(r.RequestID), batch: Number(r.Batch) || 0, item: str_(r.ItemName), stage: str_(r.Stage), kind: str_(r.Kind),
+    sent: Number(r.SentQty) || 0, signed: Number(r.SignedQty) || 0, actual: Number(r.ActualQty) || 0, short: Number(r.ShortQty) || 0,
+    unit: priceVisible_() ? Number(r.UnitPrice) || 0 : undefined, value: priceVisible_() ? Number(r.Value) || 0 : undefined,
+    note: str_(r.Note), photo: str_(r.Photo), createdAt: r.CreatedAt, createdBy: str_(r.CreatedBy), dispatchedBy: str_(r.DispatchedBy), status: str_(r.Status),
+    decidedAt: r.DecidedAt, decidedBy: str_(r.DecidedBy), decisionNote: str_(r.DecisionNote), financeAt: r.FinanceAt, financeBy: str_(r.FinanceBy), financeNote: str_(r.FinanceNote),
+    overLimit: (Number(r.Value) || 0) > riLimit_(),
+    doctor: req ? req.doctor : '', clinic: req ? req.clinic : '', branch: req ? req.branch : '', nurse: req ? req.nurse : '', department: req ? req.department : '', type: req ? req.type : '' };
+}
+/** التنبيه الشديد: لأصحاب صلاحية receipt_audit (بالصلاحية لا بالشاشة) + التموين المسؤول */
+function riAlert_(req, list, stage) {
+  const sev = stage !== 'receipt';
+  const total = list.reduce(function (a, x) { return a + (Number(x.Value) || 0); }, 0);
+  const lines = list.map(function (x) { return (RI_KIND_AR[x.Kind] || x.Kind) + ' · ' + x.ItemName + ': أُرسل ' + x.SentQty + (sev ? '، وُقّع ' + x.SignedQty : '') + '، الفعلي ' + x.ActualQty + ' (فرق ' + x.ShortQty + ')' + (x.DispatchedBy ? ' — جهّزها: ' + x.DispatchedBy : ''); });
+  const subject = (sev ? '⚠️ تنبيه: مشكلة استلام تؤثر على الحسبة المالية — بحاجة مراجعة ومحاسبة التموين · ' : 'تنبيه للمالية: المستلم أقل من المرسل · ') + req.id;
+  const body = mailMsg_({ order: ['ar', 'en'], id: req.id, req: req,
+    ar: { title: sev ? 'يوجد مشكلة بمستهلك أو كمية تؤثر على الحسبة المالية — بحاجة إلى مراجعة' : 'كتبت الممرضة كمية مستلمة أقل من المرسلة',
+      lead: (sev ? 'رفعت ' : 'سجّلت ') + str_(list[0].CreatedBy) + (sev ? ' تصحيح استلام على الشحنة ' : ' عند استلام الشحنة ') + list[0].Batch + ' بعد مقارنة المرسل بالواقع.' + (total ? ' القيمة المتأثرة: ' + round2_(total) + ' ر.س.' : ''),
+      action: 'تابع القرار في «طلبات فيها مشكلة» — التموين مسؤول عن التصحيح أو التبرير' + (total > riLimit_() ? '، والمالية تعتمد بعده لأن القيمة فوق ' + riLimit_() + ' ر.س.' : '.'),
+      lines: lines, btn: 'افتح الطلب', foot: 'وصلك هذا لأن لديك صلاحية «مراجعة مشاكل الاستلام والحسبة».' },
+    en: { title: sev ? 'A consumable or quantity problem affects the financial totals — review needed' : 'The nurse recorded less than was sent',
+      lead: str_(list[0].CreatedBy) + (sev ? ' filed a receipt correction on shipment ' : ' recorded at receipt of shipment ') + list[0].Batch + '.',
+      action: 'Follow the decision in «Problem requests» — procurement must correct or justify it.', btn: 'Open request', foot: 'You received this because you have the «Receipt problems review» permission.' } });
+  nk_('receipt_issue'); notifyPerm_('receipt_audit', subject, body);
+  nk_('receipt_issue'); notifyProcurement_(req.department, subject, body);
+}
+/** بعد التوقيع: الممرضة تصحّح المستلم الفعلي لأصناف شحنة استلمتها (خلال المهلة) */
+function createReceiptIssue_(user, requestId, p) {
+  p = p || {};
+  const note = clean_(p.note, 1000), key = clean_(p.clientKey, 120), batch = Math.floor(Number(p.batch)) || 0;
+  if (!note) throw new Error('ERR_NOTE_REQUIRED');
+  if (!Array.isArray(p.lines) || !p.lines.length) throw new Error('ERR_NO_ITEMS');
+  let photo = '';
+  if (p.photo) { try { photo = saveImage_(requestId + '-S' + batch + '-issue-' + Date.now(), p.photo).url; } catch (e) { console.error(e); } }
+  let made = [], req;
+  withLock_(function () {
+    resetMemo_();
+    const t = tableWithCols_('ReceiptIssues');
+    if (key && t.rows.some(function (r) { return str_(r.ClientKey).indexOf(key + ':') === 0; })) { made = null; return; }
+    req = guardSee_(user, requestId).req;
+    if (user.screen === 'nurse' && req.nurse !== user.name) throw new Error('ERR_FORBIDDEN');
+    const st = shipState_(req, itemsOf_(req.id));
+    const ship = st.ships.filter(function (g) { return g.batch === batch; })[0];
+    if (!ship || !ship.received) throw new Error('ERR_NOT_RECEIVED');
+    if (ship.receivedAt && Date.now() - toMs_(ship.receivedAt) > riDays_() * 864e5) throw new Error('ERR_ISSUE_LATE');
+    const si = shipItemsIndex_()[req.id] || [], unit = {};
+    const seen = {};
+    p.lines.forEach(function (l) {
+      const item = str_(l.item), kind = str_(l.kind), actual = Math.floor(Number(l.actual));
+      if (!item || seen[item]) throw new Error('ERR_CONFLICT'); seen[item] = true;
+      if (RI_KINDS.indexOf(kind) === -1) throw new Error('ERR_BAD_KIND');
+      const line = ship.items.filter(function (x) { return x.item === item; })[0];
+      if (!line) throw new Error('ERR_NOT_FOUND');
+      const signed = line.receivedQty === '' ? Number(line.qty) : Number(line.receivedQty);
+      if (!(actual >= 0) || actual >= signed) throw new Error('ERR_ISSUE_QTY');
+      if (t.rows.some(function (r) { return str_(r.RequestID) === req.id && Number(r.Batch) === batch && str_(r.ItemName) === item && [RI_ST.OPEN, RI_ST.FINANCE].indexOf(str_(r.Status)) !== -1; })) throw new Error('ERR_ISSUE_EXISTS');
+      const src = si.filter(function (x) { return Number(x.Batch) === batch && str_(x.ItemName) === item; })[0];
+      unit[item] = unit[item] === undefined ? riUnit_(req.id, item) : unit[item];
+      const short = signed - actual;
+      made.push({ IssueID: 'ISS-' + Utilities.getUuid().slice(0, 8).toUpperCase(), ClientKey: key ? key + ':' + item : '', RequestID: req.id, Batch: batch, ItemName: item, Stage: 'after_sign', Kind: kind,
+        SentQty: Number(line.qty), SignedQty: signed, ActualQty: actual, ShortQty: short, UnitPrice: unit[item], Value: round2_(short * unit[item]), Note: note, Photo: photo,
+        CreatedAt: new Date(), CreatedBy: user.name, DispatchedBy: src ? str_(src.DispatchedBy) : '', Status: RI_ST.OPEN });
+    });
+    made.forEach(function (r) { append_('ReceiptIssues', r); });
+    logAction_(req.id, 'تصحيح استلام الشحنة ' + batch + ' بانتظار التموين: ' + made.map(function (r) { return r.ItemName + ' (وُقّع ' + r.SignedQty + '، الفعلي ' + r.ActualQty + ')'; }).join('، ') + ' — ' + note, user.name);
+    append_('Comments', { Timestamp: new Date(), RequestID: req.id, Author: user.name, Role: user.role, Message: '⚠️ تصحيح استلام الشحنة ' + batch + ': ' + made.map(function (r) { return r.ItemName + ' — الفعلي ' + r.ActualQty + ' بدل ' + r.SignedQty + ' (' + RI_KIND_AR[r.Kind] + ')'; }).join('، ') + ' — ' + note });
+  });
+  if (made === null) return { ok: true, duplicate: true };
+  riAlert_(req, made, 'after_sign');
+  return { ok: true, ids: made.map(function (r) { return r.IssueID; }) };
+}
+/** عند الاستلام: المستلم أقل من المرسل (داخل قفل receiveShipment_) */
+function receiptShortIssues_(req, ship, qty, rejects, user) {
+  const out = [], si = shipItemsIndex_()[req.id] || [];
+  ship.items.forEach(function (it) {
+    const n = it.item;
+    if (!(n in qty) || rejects[n] || !(qty[n] < Number(it.qty))) return;
+    const src = si.filter(function (x) { return Number(x.Batch) === ship.batch && str_(x.ItemName) === n; })[0];
+    const unit = riUnit_(req.id, n), short = Number(it.qty) - qty[n];
+    out.push({ IssueID: 'ISS-' + Utilities.getUuid().slice(0, 8).toUpperCase(), ClientKey: '', RequestID: req.id, Batch: ship.batch, ItemName: n, Stage: 'receipt', Kind: 'short',
+      SentQty: Number(it.qty), SignedQty: qty[n], ActualQty: qty[n], ShortQty: short, UnitPrice: unit, Value: round2_(short * unit), Note: 'المستلم أقل من المرسل عند الاستلام',
+      Photo: '', CreatedAt: new Date(), CreatedBy: user.name, DispatchedBy: src ? str_(src.DispatchedBy) : '', Status: RI_ST.OPEN });
+  });
+  if (out.length) { tableWithCols_('ReceiptIssues'); out.forEach(function (r) { append_('ReceiptIssues', r); }); }
+  return out;
+}
+/** تطبيق المشكلة المعتمدة: صافي المستلم = الفعلي، والنقص يعود متبقياً (يُرسل كشحنة تابعة) — داخل القفل */
+function applyReceiptIssue_(row, user) {
+  const f = findRequest_(str_(row.RequestID));
+  let req = mapRequest_(f.row);
+  preserveReceivedLegs_(req);
+  const si = tableWithCols_('ShipmentItems');
+  const line = si.rows.filter(function (r) { return str_(r.RequestID) === req.id && Number(r.Batch) === Number(row.Batch) && str_(r.ItemName) === str_(row.ItemName); })[0];
+  if (!line) throw new Error('ERR_NOT_FOUND');
+  setMany_(si, [{ row: line, obj: { ReceivedQty: Number(row.ActualQty) || 0, ShortQty: (Number(line.ShortQty) || 0) + (Number(row.ShortQty) || 0) } }]);
+  delete MEMO_.sitems;
+  const ri = tableWithCols_('RequestItems');
+  const it = ri.rows.filter(function (r) { return str_(r.RequestID) === req.id && str_(r.ItemName) === str_(row.ItemName); })[0];
+  if (it) {
+    const total = si.rows.filter(function (x) { return str_(x.RequestID) === req.id && str_(x.ItemName) === str_(row.ItemName) && x.ReceivedQty !== '' && x.ReceivedQty !== null; })
+      .reduce(function (a, x) { return a + (Number(x.ReceivedQty) || 0); }, 0);
+    setMany_(ri, [{ row: it, obj: stampPrice_(it, { ReceivedQty: total }, receivePrices_()) }]);
+  }
+  if (req.status === ST.RECEIVED || req.status === ST.SENT) setCells_(f.t, f.row, { Status: ST.PREP, ReceivedAt: '' });
+  resetMemo_();
+  const msg = '⚠️ اعتُمد نقص ' + str_(row.ItemName) + ' ×' + row.ShortQty + ' من الشحنة ' + row.Batch + ' — يُرسل تلقائياً كشحنة «ناقص — تابعة للشحنة ' + row.Batch + '»';
+  append_('Comments', { Timestamp: new Date(), RequestID: req.id, Author: user.name, Role: user.role, Message: msg });
+  logAction_(req.id, msg, user.name);
+  return req;
+}
+function riDecide_(user, id, decision, note, stage) {
+  note = clean_(note, 1000);
+  if (decision !== 'approve' && decision !== 'reject') throw new Error('ERR_BAD_ACTION');
+  if (decision === 'reject' && !note) throw new Error('ERR_REASON_REQUIRED');
+  let out = {}, req, row0;
+  withLock_(function () {
+    resetMemo_();
+    const t = tableWithCols_('ReceiptIssues');
+    const row = t.rows.filter(function (r) { return str_(r.IssueID) === str_(id); })[0];
+    if (!row) throw new Error('ERR_NOT_FOUND');
+    req = mapRequest_(findRequest_(str_(row.RequestID)).row);
+    if (stage === 'proc' && user.screen === 'procurement' && !deptMatch_(userDept_(user), req.department)) throw new Error('ERR_FORBIDDEN');
+    const want = stage === 'proc' ? RI_ST.OPEN : RI_ST.FINANCE;
+    if (str_(row.Status) !== want) throw new Error('ERR_CONFLICT');
+    const now = new Date(), stamp = stage === 'proc' ? { DecidedAt: now, DecidedBy: user.name, DecisionNote: note } : { FinanceAt: now, FinanceBy: user.name, FinanceNote: note };
+    let status;
+    if (decision === 'reject') status = RI_ST.REJECTED;
+    else if (stage === 'proc' && (Number(row.Value) || 0) > riLimit_()) status = RI_ST.FINANCE;
+    else status = RI_ST.APPROVED;
+    setCells_(t, row, Object.assign({ Status: status }, stamp));
+    if (status === RI_ST.APPROVED) applyReceiptIssue_(row, user);
+    else logAction_(req.id, (status === RI_ST.REJECTED ? 'رفض مشكلة استلام ' : 'اعتمد التموين مشكلة استلام — بانتظار المالية ') + str_(row.IssueID) + ' (' + str_(row.ItemName) + ')' + (note ? ' — ' + note : ''), user.name);
+    row0 = row; out = { id: str_(row.IssueID), status: status };
+  });
+  // الإشعارات بعد القفل
+  const sub = function (ar) { return ar + ' · ' + req.id + ' (' + str_(row0.ItemName) + ')'; };
+  if (out.status === RI_ST.FINANCE) { nk_('receipt_issue'); notifyPerm_('finance', sub('مشكلة استلام بانتظار اعتماد المالية (فوق ' + riLimit_() + ' ر.س)'), mailMsg_({ order: ['ar'], id: req.id, req: req, ar: { title: 'مشكلة استلام بانتظار اعتمادك', lead: 'اعتمدها التموين (' + user.name + ') والقيمة فوق الحد.', btn: 'افتح الطلب' } })); }
+  else { nk_('receipt_issue'); notifyUser_(str_(row0.CreatedBy), sub(out.status === RI_ST.APPROVED ? 'اعتُمد تصحيح الاستلام — الناقص يُرسل تلقائياً' : 'رُفض تصحيح الاستلام'), mailMsg_({ order: ['ar'], id: req.id, req: req, ar: { title: out.status === RI_ST.APPROVED ? 'اعتُمد تصحيح الاستلام' : 'رُفض تصحيح الاستلام', lead: out.status === RI_ST.APPROVED ? 'تعدّل المستلم الفعلي، والناقص يُرسل لك كشحنة تابعة.' : 'السبب: ' + note, btn: 'افتح الطلب' } })); }
+  if (out.status === RI_ST.APPROVED) { nk_('receipt_issue'); notifyProcurement_(req.department, sub('ناقص بحاجة للإرسال كشحنة تابعة'), mailMsg_({ order: ['ar'], id: req.id, req: req, ar: { title: 'ناقص معتمد بحاجة للإرسال', lead: str_(row0.ItemName) + ' ×' + row0.ShortQty + ' — يظهر الآن متبقياً في الطلب، أرسله كشحنة تابعة للشحنة ' + row0.Batch + '.', btn: 'افتح الطلب' } })); }
+  return out;
+}
+function decideReceiptIssue_(user, id, decision, note) { return riDecide_(user, id, decision, note, 'proc'); }
+function financeReceiptIssue_(user, id, decision, note) { return riDecide_(user, id, decision, note, 'finance'); }
+/** تبويب «طلبات فيها مشكلة»: التموين (قسمه) + أصحاب receipt_audit / finance */
+function getReceiptIssues_(user) {
+  const reqs = {};
+  requestRows_().forEach(function (r) { const m = mapRequest_(r); reqs[m.id] = m; });
+  const dept = user.screen === 'procurement' ? userDept_(user) : '';
+  return { limit: riLimit_(), days: riDays_(), issues: read_('ReceiptIssues').rows.filter(function (r) { const q = reqs[str_(r.RequestID)]; return str_(r.IssueID) && q && deptMatch_(dept, q.department); })
+    .map(function (r) { return mapRcptIssue_(r, reqs); })
+    .sort(function (a, b) { const o = function (x) { return x.status === RI_ST.OPEN ? 0 : x.status === RI_ST.FINANCE ? 1 : 2; }; return o(a) - o(b) || toMs_(b.createdAt) - toMs_(a.createdAt); }) };
 }
 
 /* =====================================================================
@@ -1934,10 +2296,9 @@ function getRoles_() {
     .map(function (r) {
       const screen = str_(r.Screen);
       const o = { name: str_(r.RoleName), screen: screen };
-      if (MGMT_SCREENS.indexOf(screen) !== -1) {
-        o.custom = !!str_(r.Permissions) && screen !== 'admin';
-        o.perms = rolePerms_(screen, r.Permissions);
-      }
+      o.custom = !!str_(r.Permissions) && screen !== 'admin';
+      o.perms = rolePerms_(screen, r.Permissions);
+      if (MGMT_SCREENS.indexOf(screen) === -1) o.operational = true; // شاشة تشغيلية + ما يُمنح لأي دور
       return o;
     });
 }
@@ -1945,8 +2306,9 @@ function getRoles_() {
 /** صلاحيات دور: الأدمن كل شيء؛ وإلا المحفوظ في عمود Permissions (أو «none»)، وإلا الافتراضي لشاشته */
 function rolePerms_(screen, stored) {
   if (screen === 'admin') return PERMS.slice();
-  if (MGMT_SCREENS.indexOf(screen) === -1) return [];
   const v = str_(stored);
+  // الأدوار التشغيلية: فقط ما يُمنح لأي دور (مثل تنبيهات مشاكل الاستلام)
+  if (MGMT_SCREENS.indexOf(screen) === -1) return v && v !== '*' && v !== 'none' ? v.split(/[,،\s]+/).filter(function (p) { return GRANTABLE_ALL_.indexOf(p) !== -1; }) : [];
   if (v === 'none') return [];
   if (!v || v === '*') return (DEFAULT_PERMS[screen] || []).slice();
   return v.split(/[,،\s]+/).filter(function (p) { return PERMS.indexOf(p) !== -1; });
@@ -1959,7 +2321,10 @@ function hasAdmin_() {
 
 /** صلاحيات المستخدم الحالي. قبل إنشاء أي حساب أدمن تبقى الإدارة التنفيذية بكل الصلاحيات (حتى لا يُقفل النظام) */
 function permsOf_(user) {
-  if (MGMT_SCREENS.indexOf(user.screen) === -1) return [];
+  if (MGMT_SCREENS.indexOf(user.screen) === -1) {
+    const ro = read_('Roles').rows.filter(function (x) { return str_(x.RoleName) === str_(user.role); })[0];
+    return rolePerms_(user.screen, ro ? ro.Permissions : '');
+  }
   // الإدارة التنفيذية (أو لوحة المؤشرات القديمة) بكل الصلاحيات ما دام لا يوجد أدمن
   if ((user.screen === 'executive' || user.screen === 'dashboard') && !hasAdmin_()) return PERMS.slice();
   const r = read_('Roles').rows.filter(function (x) { return str_(x.RoleName) === str_(user.role); })[0];
@@ -2293,6 +2658,9 @@ function queryRequests_(filters) {
     r.comments = rc.comments[r.id] || 0;
     r.openComplaints = rc.open[r.id] || 0;
     Object.assign(r, arrivalOf_(r.id, st.ships));
+    r.openIssues = riOpenIndex_()[r.id] || 0;
+    const sb = statusByIndex_()[r.id];
+    if (sb && sb._last) r.lastBy = sb._last; // آخر من حدّث الحالة (التموين: أحمد / وائل …)
     // شحنة وصل بوكسها الفرع ولم تُستلم بعد → «وصل الفرع»
     const waiting = st.ships.filter(function (g) { return !g.received && g.delivered; });
     r.atBranch = waiting.length > 0;
@@ -3396,7 +3764,7 @@ function shipState_(req, rows) {
     const mine = byItem[it.item] || [];
     if (mine.length) {
       mine.forEach(function (x) {
-        parts.push({ batch: Number(x.Batch), qty: Number(x.Qty) || 0, at: x.DispatchedAt, receivedQty: x.ReceivedQty });
+        parts.push({ batch: Number(x.Batch), qty: Number(x.Qty) || 0, at: x.DispatchedAt, by: str_(x.DispatchedBy), receivedQty: x.ReceivedQty, short: Math.max(0, Number(x.ShortQty) || 0), followOf: Number(x.FollowOf) || 0 });
       });
     } else {
       let n = it.batch, at = it.dispatchedAt;
@@ -3412,13 +3780,15 @@ function shipState_(req, rows) {
       it.replaced = true;
     }
     let sent = 0;
+    it.shortFrom = parts.filter(function (p) { return p.short > 0; }).map(function (p) { return { batch: p.batch, qty: p.short }; });
     parts.forEach(function (p) {
-      sent += p.qty;
+      sent += p.qty - Math.min(p.qty, p.short || 0);
       const g = groups[p.batch] || (groups[p.batch] = { batch: p.batch, sentAt: p.at, items: [] });
       if (!g.sentAt || (p.at && toMs_(p.at) < toMs_(g.sentAt))) g.sentAt = p.at;
+      if (p.by && !g.sentBy) g.sentBy = p.by;
       g.items.push({
         item: it.item, returnId: it.returnId, originalBatch: it.originalBatch, substituteOf: it.substituteOf, qty: p.qty, target: target, requestedQty: it.requestedQty, approvedQty: it.approvedQty,
-        receivedQty: p.receivedQty === undefined || p.receivedQty === null ? '' : p.receivedQty
+        receivedQty: p.receivedQty === undefined || p.receivedQty === null ? '' : p.receivedQty, short: p.short || 0, followOf: p.followOf || 0
       });
     });
     it.target = target;
@@ -3452,7 +3822,7 @@ function shipState_(req, rows) {
     sentQty: sum(function (i) { return Math.min(i.sentQty, i.target); }),
     remainingQty: sum(function (i) { return i.remainingQty; }),
     remaining: items.filter(function (i) { return i.remainingQty > 0; })
-      .map(function (i) { return { item: i.item, qty: i.remainingQty, sent: i.sentQty, target: i.target }; }),
+      .map(function (i) { const o = { item: i.item, qty: i.remainingQty, sent: i.sentQty, target: i.target }; if ((i.shortFrom || []).length) o.shortFrom = i.shortFrom; return o; }),
     maxBatch: Math.max(maxBatch, ships.length ? ships[ships.length - 1].batch : 0),
     pending: ships.filter(function (g) { return !g.received; }).length,
     allDispatched: rows.length > 0 && items.every(function (i) { return i.done; }) && ships.length > 0
@@ -3474,6 +3844,8 @@ function writeShipment_(req, rows, st, lines, user, now, boxPick) {
   const block = lines.map(function (l) {
     const o = { RequestID: req.id, Batch: batch, ItemName: l.name, Qty: l.qty, DispatchedAt: now, DispatchedBy: user.name };
     if (lab) o.ReceivedQty = l.qty;
+    const sit = st.items.filter(function (i) { return i.item === l.name; })[0];
+    if (sit && sit.shortFrom && sit.shortFrom.length) o.FollowOf = sit.shortFrom[sit.shortFrom.length - 1].batch; // «ناقص — تابع للشحنة N»
     return headers.map(function (h) { return h in o ? o[h] : ''; });
   });
   if (block.length) sh.getRange(sh.getLastRow() + 1, 1, block.length, headers.length).setValues(block);
@@ -5190,7 +5562,7 @@ function receiveShipment_(user, requestId, batch, receivedItems, receiverName, s
   try { if (receiptDataUrl) receiptUrl = saveImage_(tag + '-receipt', receiptDataUrl).url; } catch (e) { console.error(e); }
   try { if (lastOne && mergedReceiptDataUrl) mergedUrl = saveImage_(requestId + '-receipt-all', mergedReceiptDataUrl).url; } catch (e) { console.error(e); }
 
-  let res;
+  let res, shortIssues = [];
   withLock_(function () {
     resetMemo_();
     const f = findRequest_(requestId);
@@ -5242,6 +5614,7 @@ function receiveShipment_(user, requestId, batch, receivedItems, receiverName, s
       res = { rejected: [], pendingIssues: rjNames, req: req };
     }
     try { unloadBox_(req.id, batch, user.name, 'استلام الممرضة'); } catch (e) { console.error('unloadBox_', e); }
+    shortIssues = receiptShortIssues_(req, ship, qty, rejects, user);
 
     const after = shipState_(req, rows);
     const complete = after.allDispatched && after.pending === 0;
@@ -5262,6 +5635,7 @@ function receiveShipment_(user, requestId, batch, receivedItems, receiverName, s
   });
   // التموين والطبيب يعرفون فوراً بالصنف المرفوض وسببه
   const r0 = res._req;
+  if (shortIssues.length) riAlert_(r0, shortIssues, 'receipt'); // المستلم أقل من المرسل: إشعار للمالية
   const rjLines = function (ar) { return (res.pendingIssues || []).map(function (x) { return x.item + ' ×' + x.qty + ': ' + x.reason; }); };
   if ((res.pendingIssues || []).length) {
     nk_('receipt_reject'); notifyProcurement_(r0.department, 'طلب رفض أو استرجاع بانتظار التموين - ' + requestId + ' · Item rejected at receipt', mailMsg_({ order: ['ar', 'en'], id: requestId, req: r0, step: 5, urgent: true,
@@ -5519,6 +5893,11 @@ function getRequestDetail_(user, requestId) {
     return it;
   });
   req.returns = getRequestReturns_(user, requestId);
+  const reqMap = {}; reqMap[req.id] = req;
+  req.issues = read_('ReceiptIssues').rows.filter(function (r) { return str_(r.RequestID) === req.id; }).map(function (r) { return mapRcptIssue_(r, reqMap); });
+  req.issueDays = riDays_();
+  const sb = statusByIndex_()[req.id] || {};
+  req.stageBy = sb; // كل حالة ومن غيّرها ومتى
   req.returnable = st.items.map(function (it) { const raw = itemsOf_(req.id).filter(function (r) { return str_(r.ItemName) === it.item; })[0]; const reserved = read_('RequestReturns').rows.filter(function (r) { return str_(r.RequestID) === req.id && str_(r.ItemName) === it.item && str_(r.Source) !== 'undispatched' && /^(pending|received)$/.test(str_(r.Status)); }).reduce(function (a, r) { return a + Number(r.Qty); }, 0); const c = getCatalog_(true).filter(function (c) { return c.name === it.item; })[0]; return { item: it.item, qty: c && !c.asset && raw ? Math.max(0, grossReceivedQty_(raw) - reserved) : 0 }; });
   req.returnable.forEach(function (entry) { entry.batches = st.ships.filter(function (g) { return g.received; }).map(function (g) { const line = g.items.filter(function (it) { return it.item === entry.item; })[0]; const held = read_('RequestReturns').rows.filter(function (r) { return str_(r.RequestID) === req.id && str_(r.ItemName) === entry.item && Number(r.Batch) === g.batch && str_(r.Source) !== 'undispatched' && /^(pending|received)$/.test(str_(r.Status)); }).reduce(function (a, r) { return a + Number(r.Qty); }, 0); return { batch: g.batch, qty: line ? Math.min(entry.qty, Math.max(0, Number(line.receivedQty || 0) - held)) : 0 }; }).filter(function (x) { return x.qty > 0; }); });
   req.comments = comments_(requestId);
@@ -5639,9 +6018,12 @@ function addComplaint_(user, requestId, type, message) {
 
 function getComplaints_(user, openOnly) {
   const ids = scopedRequestIds_();
+  // قسم الطلب (أسنان / جلدية) لتصنيف البلاغات
+  const dept = {};
+  requestRows_().forEach(function (r) { dept[str_(r.RequestID)] = normDept_(r.Department) || clinicDept_(r.Clinic) || ''; });
   return read_('Complaints').rows.filter(function (r) { return str_(r.ComplaintID) && (!ids || ids[str_(r.RequestID)]); })
     .map(function (r) {
-      return {
+      return { dept: dept[str_(r.RequestID)] || '',
         id: str_(r.ComplaintID), time: r.Timestamp, requestId: str_(r.RequestID), author: str_(r.Author),
         role: str_(r.Role), type: str_(r.Type), message: str_(r.Message),
         resolved: r.Resolved === true || str_(r.Resolved).toUpperCase() === 'TRUE',
@@ -5748,6 +6130,14 @@ function getAlerts_(user) {
   const now = Date.now();
   const alerts = [];
   if (user.screen === 'procurement' || user.screen === 'admin') { const pendingReturns = getRequestReturns_(user).filter(function (r) { return r.status === 'pending'; }).length; if (pendingReturns) alerts.push({ type: 'info', code: 'alert_returns_pending', n: pendingReturns }); }
+  // مشاكل الاستلام المؤثرة على الحسبة: التموين (قرار) + أصحاب receipt_audit (متابعة) + المالية (اعتماد فوق الحد)
+  if (user.screen === 'procurement' || user.screen === 'admin' || (user.perms || []).indexOf('receipt_audit') !== -1 || (user.perms || []).indexOf('finance') !== -1) {
+    const iss = getReceiptIssues_(user).issues;
+    const open = iss.filter(function (x) { return x.status === RI_ST.OPEN || ((user.perms || []).indexOf('receipt_audit') !== -1 && user.screen !== 'procurement' && x.status === RI_ST.FINANCE); }).length;
+    const fin = (user.perms || []).indexOf('finance') !== -1 ? iss.filter(function (x) { return x.status === RI_ST.FINANCE; }).length : 0;
+    if (open) alerts.push({ type: 'danger', code: 'alert_receipt_issue', n: open });
+    if (fin) alerts.push({ type: 'danger', code: 'alert_receipt_issue_fin', n: fin });
+  }
   const reqs = requestRows_().map(mapRequest_);
   function hoursSince(v) { return (now - toMs_(v)) / 36e5; }
   if (user.screen === 'nurse') {
@@ -6015,11 +6405,13 @@ const NOTIFY_TYPES_ = [
   ['item_removed', 'حذف الممرضة صنفاً من الطلب', 'التموين', 'التجهيز'],
   ['shipped', 'إرسال الطلب أو شحنة جزئية', 'الممرضة', 'الإرسال'],
   ['driver', 'مهام نقل البوكسات', 'السائق', 'الوصول للفرع'],
+  ['box_picked', 'استلام السواق للشحنة (جاري النقل للفرع)', 'الممرضة', 'الوصول للفرع'],
   ['box_arrived', 'وصول البوكس للفرع', 'الممرضة', 'الوصول للفرع'],
   ['arrived_watch', 'وصول الطلب للفرع — للمتابعة', 'الطبيب ومدير التشغيل ومدير الفرع', 'الوصول للفرع'],
   ['received', 'استلام الممرضة للطلب', 'الطبيب', 'الاستلام'],
   ['received_watch', 'تم الاستلام — للمتابعة', 'التموين ومدير الفرع', 'الاستلام'],
   ['receipt_reject', 'رفض صنف عند الاستلام', 'التموين', 'الاستلام'],
+  ['receipt_issue', 'مشكلة استلام تؤثر على الحسبة (نقص / صنف خطأ / تالف)', 'صلاحية مراجعة مشاكل الاستلام + التموين', 'الاستلام'],
   ['reverted', 'التراجع عن خطوة', 'الممرضة', 'كل المراحل'],
   ['nudge', 'تنبيه طلب متأخر (من المتابعة)', 'صاحب المرحلة', 'كل المراحل'],
   ['digest', 'ملخص المواعيد اليومي', 'التموين + صلاحية المتابعة', 'المتابعة'],
@@ -6416,6 +6808,30 @@ function getDoctorReport_(user, opts) {
  * ملخص + حسب الطبيب + حسب الفرع + حسب العيادة + الأصناف الأعلى قيمة + توزيع الحالات.
  * القيمة = الكمية المعتمدة (أو المطلوبة) × سعر الكتالوج، ولا تُحسب قيمة المرفوض.
  */
+/**
+ * الطارئ والشهري: كل طلبات الشهر (بدون الملغاة) مع أصنافها — الواجهة تجمعها حسب الطبيب / العيادة / الفرع
+ * month = YYYY-MM (فارغ = كل الأشهر) · branch اختياري
+ */
+function getTypeReport_(user, p) {
+  p = p || {};
+  const month = /^\d{4}-\d{2}$/.test(str_(p.month)) ? str_(p.month) : '', branch = str_(p.branch);
+  const items = {};
+  read_('RequestItems').rows.forEach(function (r) {
+    const q = targetQty_(r); if (!(q > 0)) return;
+    (items[str_(r.RequestID)] = items[str_(r.RequestID)] || []).push({ n: str_(r.ItemName), q: q });
+  });
+  const rows = [];
+  requestRows_().forEach(function (row) {
+    const r = mapRequest_(row);
+    if (!r.type || r.status === ST.CANCELLED) return;
+    const at = r.submittedAt || r.date, day = at ? riyadh_(toMs_(at)) : '';
+    if (month && day.slice(0, 7) !== month) return;
+    if (branch && r.branch !== branch) return;
+    rows.push({ id: r.id, date: day, month: day.slice(0, 7), type: r.type, exempt: r.exempt, status: r.status, doctor: r.doctor, clinic: r.clinic,
+      branch: r.branch, nurse: r.nurse, department: r.department, items: items[r.id] || [] });
+  });
+  return { month: month, branch: branch, rows: rows };
+}
 function getStatsReport_(user, opts) {
   opts = opts || {};
   const from = parseDay_(opts.from), to = parseDay_(opts.to, true);
@@ -7059,9 +7475,10 @@ function saveRole_(user, name, screen, perms) {
   // صلاحيات الأدوار الإدارية: قائمة مختارة من PERMS (فارغة = لا شيء، غير مرسلة = الافتراضي). الأدمن «*» دائماً
   let permCell = '';
   if (screen === 'admin') permCell = '*';
-  else if (MGMT_SCREENS.indexOf(screen) !== -1 && Array.isArray(perms)) {
-    const list = perms.map(str_).filter(function (p, i, a) { return PERMS.indexOf(p) !== -1 && a.indexOf(p) === i; });
-    permCell = list.length ? list.join(',') : 'none';
+  else if (Array.isArray(perms)) {
+    const allow = MGMT_SCREENS.indexOf(screen) !== -1 ? PERMS : GRANTABLE_ALL_;
+    const list = perms.map(str_).filter(function (p, i, a) { return allow.indexOf(p) !== -1 && a.indexOf(p) === i; });
+    permCell = list.length ? list.join(',') : (MGMT_SCREENS.indexOf(screen) !== -1 ? 'none' : '');
   }
   if (!name) throw new Error('ERR_REQUIRED');
   if (SCREENS.indexOf(screen) === -1) throw new Error('ERR_BAD_SCREEN');
@@ -8323,6 +8740,8 @@ function setDoctorCharge_(user, doctor, charge) {
  *  كل تعديل يُسجَّل في Log باسم من عدّله
  * ===================================================================== */
 const SETTING_KEYS_ = {
+  ReceiptIssueFinanceLimit: { roles: ['admin', 'finance'], kind: 'int', min: 0, max: 1000000, note: 'مشاكل الاستلام: فوق هذه القيمة (ر.س) يلزم اعتماد المالية بعد التموين — الافتراضي 500' },
+  ReceiptIssueDays:  { roles: ['admin'], kind: 'int', min: 1, max: 60, note: 'مهلة «تصحيح الاستلام» بعد التوقيع (أيام) — الافتراضي 7' },
   DriverEmail:       { roles: ['admin'], kind: 'email', note: 'إيميل السواق — يصله تنبيه البوكسات الجاهزة للنقل' },
   AppUrl:            { roles: ['admin'], kind: 'url', note: 'رابط الموقع الذي يدخل منه الفريق — زر «افتح الطلب» في الإيميلات يفتح الطلب مباشرة' },
   ReturnHistoryEnabled: { roles: ['admin'], kind: 'yesno', note: 'فتح إدخال المرتجعات السابقة بأثر رجعي؛ الخصم فقط عند استلام التموين' },

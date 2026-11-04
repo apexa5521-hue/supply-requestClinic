@@ -658,6 +658,18 @@ function log(msg) { console.log('  ✔ ' + msg); }
   await page.click('.topbar [data-act="sync"]');
   expect(await alertHas(page, 'مُرسل جزئياً'), 'procurement alert shows partially-sent requests with quantities left');
   await shot(page, 'proc-partial-dispatch');
+  // توزيع الحالات ← «أُرسل جزئياً»: تحت الطلب الأصناف المتبقية فقط (لا المرسلة كاملة)، وفي PDF و Excel نفس الشيء
+  await page.evaluate(() => { S.dash = S.dash || {}; S.dash.month = ''; ACT.dashStatus({ dataset: { stage: 'partial' } }); });
+  await page.waitForSelector('.modal .pr-rem-box');
+  const remBox = await page.textContent('.modal .pr-rem-box');
+  expect(remBox.includes('MICRO BRUSH FINE') && remBox.includes('المتبقي 3') && !remBox.includes('DENTAL FLOSS'), 'partial drill-down lists only the items not sent yet under the request');
+  await page.click('.modal #dsPdf');
+  await page.waitForFunction(() => /المتبقي من الطلبات المرسلة جزئياً/.test(document.getElementById('printArea').textContent));
+  const remPdf = await page.textContent('#printArea');
+  expect(remPdf.includes(newId) && remPdf.includes('MICRO BRUSH FINE') && !remPdf.includes('DENTAL FLOSS'), 'partial PDF: request number then only its remaining items');
+  await page.evaluate(() => { document.body.classList.remove('printing'); document.getElementById('printArea').innerHTML = ''; });
+  await page.keyboard.press('Escape');
+  await page.waitForSelector('.modal', { state: 'detached' }).catch(() => {});
   await page.click('.chip[data-g="all"]');
   await page.waitForSelector(`#exp-${newId} .dsp`);
   await page.check(`#exp-${newId} [data-change="dspAll"]`);
@@ -680,6 +692,14 @@ function log(msg) { console.log('  ✔ ' + msg); }
   await page.waitForSelector('#printArea .sticker', { state: 'attached' });
   expect(await page.textContent('#printArea .sticker .st-id') === bx.id && (await page.textContent('#printArea .sticker')).includes('?box=' + bx.id), 'sticker prints the box id + scan link (text when QR lib is offline)');
   await page.evaluate(() => { document.body.classList.remove('printing'); document.getElementById('printArea').innerHTML = ''; });
+  // التوزيع على سواق من التموين (سواق جديد يُضاف للقائمة)
+  expect((await page.textContent('#bxList')).includes('لم توزّع على سواق'), 'box card says it is not assigned to a driver yet');
+  await page.click('#bxList [data-act="bxAssign"]');
+  await page.selectOption('#baName', '__new');
+  await page.fill('#baNew', 'أبو فهد');
+  await page.click('#baOk');
+  await page.waitForFunction(() => (document.querySelector('#bxList') || {}).textContent.includes('موزّعة على أبو فهد'));
+  expect(await page.evaluate(() => BX.data.drivers.join()) === 'أبو فهد', 'procurement assigned the box to a driver; the name joins the drivers list');
   // صفحة السواق: المهام ← البوكس ← المكان + صورة + اسم ← تسليم
   // شبكة السواق الضعيفة: أول محاولتين تفشلان ← إعادة تلقائية بدون رسالة خطأ
   await page.evaluate(() => {
@@ -702,6 +722,14 @@ function log(msg) { console.log('  ✔ ' + msg); }
   // التسليم بالمسح فقط: بطاقات المهام للعرض ولا تحمل رمز البوكس
   expect(await page.isVisible('.drv-scan-hint') && await page.locator('.drv-task[data-act], button.drv-task').count() === 0, 'driver tasks are view-only: delivery only by scanning the box QR');
   expect(await page.evaluate(tk => __realCall('driverTasks', { k: tk }).then(l => l.every(x => !x.k)), await page.evaluate(() => BX.data.driverToken)), 'driver tasks do not expose box keys');
+  // السواق يختار اسمه ← «استلمت الطلبية» ← البطاقة «مع السواق»
+  expect((await page.textContent('.drv-task')).includes('مخصصة لـ أبو فهد'), 'driver page shows who the shipment is assigned to');
+  await page.selectOption('#drvMe', 'أبو فهد');
+  await page.waitForFunction(() => (document.querySelector('.drv-task') || {}).textContent.includes('مخصصة لك'));
+  await page.click('.drv-task [data-act="drvPick"]');
+  await page.waitForSelector('.drv-task.picked');
+  expect((await page.textContent('.drv-task.picked')).includes('جاري النقل · السواق أبو فهد') && !(await page.$('.drv-task [data-act="drvPick"]')), 'driver picked it up with their name; no second pickup button');
+  expect(await page.evaluate(() => __gas.dump('BoxMoves').filter(r => r[5] === 'استلام السواق').length) === 2, 'pickup logged for both shipments');
   await page.evaluate(b => showDriverBox(b.id, b.k), bx);
   await page.waitForSelector('#drvGo');
   expect(await page.getAttribute('.drv-place[data-p="' + bx.destination + '"]', 'aria-pressed') === 'true', 'destination branch preselected');
@@ -713,7 +741,7 @@ function log(msg) { console.log('  ✔ ' + msg); }
   expect((await page.textContent('#drvGo')).includes('डिलीवरी पूरी हुई'), 'driver page switches to Hindi');
   await page.click('.drv-lang[data-l="ar"]');
   expect((await page.textContent('#drvGo')).includes('تم التوصيل'), 'Arabic button reads «تم التوصيل»');
-  await page.fill('#drvName', 'أبو فهد');
+  expect(await page.inputValue('#drvName') === 'أبو فهد' && await page.getAttribute('#drvName', 'readonly') !== null, 'delivery name is locked to the driver who picked it up');
   await page.click('#drvGo');
   expect((await page.textContent('#drvErr')).includes('صوّر'), 'photo is required before delivery');
   await page.setInputFiles('#drvFile', { name: 'box.png', mimeType: 'image/png', buffer: Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==', 'base64') });
@@ -803,7 +831,8 @@ function log(msg) { console.log('  ✔ ' + msg); }
   await page.fill('#dComment', 'تم الاستلام، شكراً');
   await page.click('#dSend');
   await page.waitForSelector('.msg.mine');
-  expect(await page.locator('.modal .mtk-timeline .step.done').count() === 6 && /\d{2}:\d{2}:\d{2}/.test(await page.textContent('.modal .mtk-timeline')), 'detail timeline: all 6 stages done, each with date and time to the second');
+  expect(await page.locator('.modal .mtk-timeline .step.done').count() === 7 && /\d{2}:\d{2}:\d{2}/.test(await page.textContent('.modal .mtk-timeline')), 'detail timeline: all 7 stages done, each with date and time to the second');
+  expect((await page.textContent('.modal .mtk-timeline')).includes('استلمها السواق أبو فهد · جاري النقل للفرع'), 'timeline shows which driver carried it');
   await shot(page, 'request-detail');
   await page.evaluate(() => { window.print = () => {}; });
   await page.click('#dPrint');
@@ -2001,7 +2030,7 @@ function log(msg) { console.log('  ✔ ' + msg); }
   await openView(page, 'settings');
   await page.click('[data-act="mxSettingsTab"][data-tab="system"]'); // إعدادات النظام في تبويبها
   await page.waitForSelector('#stk_BackdateUntil', { state: 'attached' }); // التاريخ يُختار بقوائم منسدلة والقيمة في حقل مخفي
-  expect(await page.locator('.st-key').count() === 1 && !(await page.isVisible('[data-act="stClinic"]')), 'finance sees only the past-requests date');
+  expect(await page.locator('.st-key').count() === 2 && await page.locator('#stk_ReceiptIssueFinanceLimit').count() === 1 && !(await page.isVisible('[data-act="stClinic"]')), 'finance sees only the past-requests date and the receipt-problems approval limit');
   await logout(page);
 
   // ---------- Request rules: procurement sets limits → nurse sees the window bar and is stopped with a clear message ----------
