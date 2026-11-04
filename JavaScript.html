@@ -10194,13 +10194,13 @@ VIEWS.settings.mount = function(root) {
   call('getRequestFlows').then(d => { FLOW.data = d; flowRender(); }).catch(e => { const b = $('#flowBox'); if (b) b.innerHTML = emptyState('alert', errMsg(e)); });
 };
 /* ---------- «مع السواق»: التموين يوزّع البوكس على سواق، والسواق يضغط «استلمت الطلبية» باسمه ---------- */
-Object.assign(I18N.ar, { drv_me: 'اسمك', drv_me_pick: '— اختر اسمك —', drv_pick: 'استلمت الطلبية', drv_picked_by: 'مع السواق {d}', drv_for_you: 'مخصصة لك', drv_for: 'مخصصة لـ {d}',
-  drv_others: '{n} لسواقين آخرين', drv_pick_done: 'تم — الطلبية معك الآن. امسح QR البوكس عند التسليم', drv_pick_name: 'اختر اسمك أولاً',
-  ERR_BOX_PICKED: 'استلمها سواق آخر', ERR_NOT_YOUR_BOX: 'هذه الطلبية مخصصة لسواق آخر — راجع التموين', bxs_picked: 'مع السواق', st_picked: 'مع السواق · متجه للفرع',
-  ERR_NOT_PICKED: 'لم يستلمها سواق بعد — اضغط «استلمت الطلبية» باسمك أولاً', drv_pick_first: 'قبل التحرك: اختر اسمك واضغط «استلمت الطلبية» — بعدها تسلّم عند الوصول بمسح الـ QR', drv_picked_at: 'استلمتها {t}' });
-Object.assign(I18N.en, { drv_me: 'Your name', drv_me_pick: '— Choose your name —', drv_pick: 'I picked it up', drv_picked_by: 'With driver {d}', drv_for_you: 'Assigned to you', drv_for: 'Assigned to {d}',
-  drv_others: '{n} for other drivers', drv_pick_done: 'Done — it is with you now. Scan the box QR on delivery', drv_pick_name: 'Choose your name first',
-  ERR_BOX_PICKED: 'Another driver already picked it up', ERR_NOT_YOUR_BOX: 'This shipment is assigned to another driver — check with procurement', bxs_picked: 'With driver', st_picked: 'With driver · heading to branch',
+Object.assign(I18N.ar, { drv_me: 'اسمك', drv_me_pick: '— اختر اسمك —', drv_pick: 'استلمت الشحنة · جاري النقل للفرع', drv_picked_by: 'جاري النقل · السواق {d}', drv_for_you: 'مخصصة لك', drv_for: 'مخصصة لـ {d}',
+  drv_others: '{n} لسواقين آخرين', drv_pick_done: 'تم — الشحنة معك وجاري نقلها للفرع. امسح QR البوكس عند التسليم', drv_pick_name: 'اختر اسمك أولاً',
+  ERR_BOX_PICKED: 'استلمها سواق آخر', ERR_NOT_YOUR_BOX: 'هذه الطلبية مخصصة لسواق آخر — راجع التموين', bxs_picked: 'جاري النقل للفرع', st_picked: 'جاري النقل للفرع',
+  ERR_NOT_PICKED: 'لم يستلمها سواق بعد — اضغط «استلمت الشحنة» باسمك أولاً وأنت عند التموين', drv_pick_first: 'وأنت عند التموين: اختر اسمك واضغط «استلمت الشحنة · جاري النقل للفرع» — وعند الوصول سلّم بمسح الـ QR', drv_picked_at: 'استلمتها {t}' });
+Object.assign(I18N.en, { drv_me: 'Your name', drv_me_pick: '— Choose your name —', drv_pick: 'Picked up · on the way to the branch', drv_picked_by: 'In transit · driver {d}', drv_for_you: 'Assigned to you', drv_for: 'Assigned to {d}',
+  drv_others: '{n} for other drivers', drv_pick_done: 'Done — the shipment is with you, in transit to the branch. Scan the box QR on delivery', drv_pick_name: 'Choose your name first',
+  ERR_BOX_PICKED: 'Another driver already picked it up', ERR_NOT_YOUR_BOX: 'This shipment is assigned to another driver — check with procurement', bxs_picked: 'In transit to branch', st_picked: 'In transit to branch',
   ERR_NOT_PICKED: 'No driver has picked it up yet — tap “I picked it up” with your name first', drv_pick_first: 'Before you leave: choose your name and tap “I picked it up” — then deliver by scanning the QR on arrival', drv_picked_at: 'Picked up {t}' });
 Object.assign(I18N.bn, { drv_me: 'আপনার নাম', drv_me_pick: '— আপনার নাম বেছে নিন —', drv_pick: 'আমি নিয়েছি', drv_picked_by: 'চালক {d}-এর কাছে', drv_for_you: 'আপনার জন্য নির্ধারিত', drv_for: '{d}-এর জন্য নির্ধারিত',
   drv_others: 'অন্য চালকদের জন্য {n}টি', drv_pick_done: 'হয়েছে — এখন এটি আপনার কাছে। ডেলিভারির সময় বক্সের QR স্ক্যান করুন', drv_pick_name: 'আগে আপনার নাম বেছে নিন',
@@ -10246,7 +10246,7 @@ ACT.bxAssign = el => {
     body: '<div class="field"><label for="baName">' + esc(mtkText('السواق', 'Driver')) + '</label><select class="select" id="baName"><option value="">' + esc(mtkText('— بدون توزيع (أي سواق) —', '— Unassigned (any driver) —')) + '</option>' +
       names.map(n => '<option' + (n === b.driver ? ' selected' : '') + ' value="' + esc(n) + '">' + esc(n) + '</option>').join('') + '<option value="__new">' + esc(mtkText('+ سواق جديد…', '+ New driver…')) + '</option></select></div>' +
       '<div class="field hidden" id="baNewF"><label for="baNew">' + esc(mtkText('اسم السواق الجديد', 'New driver name')) + '</label><input class="input" id="baNew" maxlength="60"></div>' +
-      '<div class="hint">' + icon('info', 'i-sm') + ' ' + esc(mtkText('تظهر الطلبية في صفحة السواق باسمه، ويضغط «استلمت الطلبية» عند أخذها — فنعرف من شالها ومتى.', 'The shipment shows on the driver page under their name; they tap “I picked it up” when they take it, so we know who carried it and when.')) + '</div>' +
+      '<div class="hint">' + icon('info', 'i-sm') + ' ' + esc(mtkText('تظهر الشحنة في صفحة السواق باسمه، ويضغط «استلمت الشحنة · جاري النقل للفرع» وهو عند التموين — فنعرف من شالها ومتى قبل أن يتحرك.', 'The shipment shows on the driver page under their name; at procurement they tap “Picked up · on the way to the branch”, so we know who carries it and when before they leave.')) + '</div>' +
       '<div class="field-error hidden">' + icon('alert', 'i-sm') + '<span></span></div>',
     foot: '<span class="spacer"></span><button class="btn" data-close>' + esc(t('cancel')) + '</button><button class="btn btn-primary" id="baOk">' + icon('check', 'i-sm') + esc(t('save')) + '</button>' });
   $('#baName', m.el).addEventListener('change', e => { $('#baNewF', m.el).classList.toggle('hidden', e.target.value !== '__new'); if (e.target.value === '__new') $('#baNew', m.el).focus(); });
@@ -10339,7 +10339,7 @@ mtkTimeline = function(r) {
     [rejected ? mtkText('رفض الطبيب', 'Rejected') : mtkText('اعتماد الطبيب', 'Doctor approval'), rejected ? 'x' : 'steth', rejected ? r.reviewedAt : (r.approvedAt || r.reviewedAt)],
     [mtkText('التجهيز', 'Preparation'), 'package', r.prepAt],
     [mtkText('أُرسل · بانتظار السواق', 'Sent · awaiting driver'), 'send', r.sentAt || r.lastShipAt],
-    [(r.pickedBy ? mtkText('مع السواق ', 'With driver ') + r.pickedBy : mtkText('مع السواق', 'With driver')) + mtkText(' · متجه للفرع', ' · heading to branch'), 'truck', r.pickedAt],
+    [(r.pickedBy ? mtkText('استلمها السواق ', 'Picked up by ') + r.pickedBy + ' · ' : '') + mtkText('جاري النقل للفرع', 'In transit to branch'), 'truck', r.pickedAt],
     [mtkText('وصل الفرع', 'Arrived at branch'), 'pin', r.arrivedAt],
     [mtkText('استلام الممرضة', 'Nurse receipt'), 'pen', r.receivedAt]
   ];
@@ -10393,6 +10393,78 @@ function partialRemPrintHtml(month, f, list) {
   const sign = '<div class="rep-sign">' + [t('req_print_prepared'), t('req_print_receiver')].map(x => '<div><b>' + esc(x) + '</b><span>' + esc(t('req_print_sign')) + '</span></div>').join('') + '</div>';
   return '<div class="rep">' + head + body + sign + '</div>';
 }
+/* ---------- التصدير من الجوال (iPhone / التطبيق المثبّت على الشاشة الرئيسية) ----------
+   iPhone لا يدعم تنزيل الملفات من الصفحة، ويحجب الطباعة إذا لم تكن من لمسة المستخدم مباشرة:
+   Excel/CSV ← نافذة المشاركة (حفظ في الملفات، واتساب، إيميل…) · PDF ← معاينة التقرير وزر «طباعة / حفظ PDF» بلمسة مباشرة */
+Object.assign(I18N.ar, { ex_save: 'حفظ / مشاركة الملف', ex_ready: 'الملف جاهز: {f}', ex_pp_title: 'معاينة التقرير', ex_pp_print: 'طباعة / حفظ PDF', ex_pp_share: 'مشاركة', ex_pp_hint: 'لحفظه PDF: اضغط «طباعة / حفظ PDF» ثم من نافذة الطباعة اختر المشاركة ← «حفظ في الملفات». إذا لم تظهر نافذة الطباعة استخدم «مشاركة».' });
+Object.assign(I18N.en, { ex_save: 'Save / share the file', ex_ready: 'File ready: {f}', ex_pp_title: 'Report preview', ex_pp_print: 'Print / save PDF', ex_pp_share: 'Share', ex_pp_hint: 'To save as PDF: tap “Print / save PDF”, then share from the print screen → “Save to Files”. If the print screen does not open, use “Share”.' });
+const EX_IOS = /iP(hone|ad|od)/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+const EX_BLOBS = new Map();
+{
+  const create = URL.createObjectURL.bind(URL), revoke = URL.revokeObjectURL.bind(URL);
+  URL.createObjectURL = function(o) { const u = create(o); if (o instanceof Blob) EX_BLOBS.set(u, o); return u; };
+  URL.revokeObjectURL = function(u) { EX_BLOBS.delete(u); return revoke(u); };
+}
+function exCanShare(file) { try { return !!(navigator.share && navigator.canShare && navigator.canShare({ files: [file] })); } catch (e) { return false; } }
+function exShare(file) {
+  return navigator.share({ files: [file], title: file.name }).catch(e => { if (!e || e.name !== 'AbortError') throw e; });
+}
+/* اللمسة انتهت (الملف جُهّز بعد تحميل من الخادم): زر حفظ بلمسة جديدة */
+function exOffer(file) {
+  const m = openModal({ title: esc(t('ex_save')), icon: 'file', size: 'sm', body: '<div class="hint">' + esc(t('ex_ready', { f: file.name })) + '</div>',
+    foot: '<span class="spacer"></span><button class="btn" data-close>' + esc(t('close')) + '</button><button class="btn btn-primary" id="exGo">' + icon('file', 'i-sm') + esc(t('ex_save')) + '</button>' });
+  $('#exGo', m.el).addEventListener('click', () => {
+    if (exCanShare(file)) exShare(file).then(() => closeModal(m), e => toast(errMsg(e), 'error'));
+    else { window.open(URL.createObjectURL(file), '_blank'); closeModal(m); }
+  });
+}
+{
+  const click = HTMLAnchorElement.prototype.click;
+  HTMLAnchorElement.prototype.click = function() {
+    const blob = EX_IOS && this.download ? EX_BLOBS.get(this.href) : null;
+    if (!blob) return click.call(this);
+    const file = new File([blob], this.download, { type: blob.type || 'application/octet-stream' });
+    if (!exCanShare(file)) return exOffer(file);
+    exShare(file).catch(() => exOffer(file));
+  };
+}
+/* الطباعة: على iPhone معاينة + طباعة من لمسة مباشرة */
+function exPrintNow(html) {
+  let area = document.getElementById('printArea');
+  if (!area) { area = document.createElement('div'); area.id = 'printArea'; document.body.appendChild(area); }
+  area.innerHTML = html;
+  const theme = document.documentElement.dataset.theme;
+  document.documentElement.dataset.theme = 'light';
+  document.body.classList.add('printing');
+  let finished = false;
+  const done = () => { if (finished) return; finished = true; document.body.classList.remove('printing'); area.innerHTML = ''; document.documentElement.dataset.theme = theme; window.removeEventListener('afterprint', done); };
+  window.addEventListener('afterprint', done);
+  try { window.print(); } catch (e) { toast(errMsg(e), 'error'); }
+  setTimeout(done, 60000); // الطباعة على الجوال لا توقف الصفحة: التنظيف بعد إغلاق نافذة الطباعة
+}
+function exReportFile(html) {
+  const css = Array.from(document.querySelectorAll('style')).map(x => x.textContent).join('\n');
+  const doc = '<!doctype html><html lang="' + S.lang + '" dir="' + (S.lang === 'ar' ? 'rtl' : 'ltr') + '"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>MasarX</title><style>' + css + '</style></head><body style="padding:16px;background:#fff">' + html + '</body></html>';
+  return new File([doc], 'masarx-report-' + todayStr() + '.html', { type: 'text/html' });
+}
+const exLegacyPrint = printReport;
+printReport = function(html) {
+  if (!EX_IOS) return exLegacyPrint(html);
+  const el = document.createElement('div');
+  el.className = 'ex-pp'; el.setAttribute('role', 'dialog'); el.setAttribute('aria-modal', 'true');
+  el.innerHTML = '<div class="ex-pp-bar"><b>' + esc(t('ex_pp_title')) + '</b><span class="spacer"></span>' +
+    '<button type="button" class="btn btn-primary btn-sm" data-x="print">' + icon('file', 'i-sm') + esc(t('ex_pp_print')) + '</button>' +
+    '<button type="button" class="btn btn-sm" data-x="share">' + icon('ext', 'i-sm') + esc(t('ex_pp_share')) + '</button>' +
+    '<button type="button" class="btn btn-ghost btn-icon btn-sm" data-x="close" aria-label="' + esc(t('close')) + '">' + icon('x') + '</button></div>' +
+    '<div class="hint ex-pp-hint">' + esc(t('ex_pp_hint')) + '</div><div class="ex-pp-body">' + html + '</div>';
+  document.body.appendChild(el);
+  el.addEventListener('click', e => {
+    const b = e.target.closest('[data-x]'); if (!b) return;
+    if (b.dataset.x === 'close') el.remove();
+    else if (b.dataset.x === 'print') exPrintNow(html);
+    else if (b.dataset.x === 'share') { const f = exReportFile(html); if (exCanShare(f)) exShare(f).catch(er => toast(errMsg(er), 'error')); else window.open(URL.createObjectURL(f), '_blank'); }
+  });
+};
 /* MASAR_TRACK_END */
 
 /* الرابط الأساسي للنظام · الرابط القديم على GitHub Pages يبقى احتياطياً عند تعطل الأساسي فقط */

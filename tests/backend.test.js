@@ -2102,7 +2102,7 @@ test('driver pickup: procurement assigns a driver, the driver taps «picked up»
   api(null, 'boxPickup', { k: tk, box: box.id, driver: 'أبو فهد', clientKey: 'pk-1' });
   assert.equal(api(null, 'boxPickup', { k: tk, box: box.id, driver: 'أبو فهد', clientKey: 'pk-2' }).duplicate, true, 'double tap is ignored');
   assert.equal(rows(gas, 'BoxMoves').filter(m => m.Action === 'استلام السواق').length, 1);
-  assert.ok(gas.mails.some(m => /مع السواق أبو فهد/.test(m.subject)), 'the nurse is told who carries it');
+  assert.ok(gas.mails.some(m => /جاري نقل طلبك .* مع السواق أبو فهد/.test(m.subject)), 'the nurse is told who carries it');
   // بعد الاستلام: لا يُعاد التوزيع
   throwsCode(() => api(p, 'assignBoxDriver', box.id, 'سالم'), 'ERR_BOX_PICKED');
   dt = api(null, 'driverTasks', { k: tk, v: 2 });

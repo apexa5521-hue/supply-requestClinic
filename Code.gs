@@ -1630,7 +1630,7 @@ function boxPickup_(p) {
     info.forEach(function (l) {
       addBoxMove_(row, b.location, to, 'استلام السواق', driver, '', l.request, l.batch, clientKey);
       logAction_(l.request, 'استلم السواق ' + driver + ' بوكس ' + b.owner + ' (' + b.id + ') — الشحنة ' + l.batch + ' في الطريق إلى ' + to, driver);
-      append_('Comments', { Timestamp: now, RequestID: l.request, Author: driver, Role: 'سواق', Message: '🚚 استلم السواق ' + driver + ' البوكس ' + b.id + ' (الشحنة ' + l.batch + ') — في الطريق إلى ' + to });
+      append_('Comments', { Timestamp: now, RequestID: l.request, Author: driver, Role: 'سواق', Message: '🚚 استلم السواق ' + driver + ' البوكس ' + b.id + ' من التموين (الشحنة ' + l.batch + ') — جاري النقل إلى ' + to });
     });
     picked = { info: info, to: to, id: b.id };
   });
@@ -1644,8 +1644,8 @@ function boxPickup_(p) {
       if (!r || !str_(r.Nurse) || done[l.request]) return;
       done[l.request] = true;
       nk_('box_picked');
-      notifyUser_(str_(r.Nurse), 'طلبك ' + l.request + ' مع السواق ' + driver + ' في الطريق · On the way with driver ' + driver, mailMsg_({ order: ['ar', 'en'], id: l.request, req: mapRequest_(r), step: 4,
-        ar: { title: 'طلبك في الطريق إلى فرع ' + picked.to, lead: 'استلم السواق ' + driver + ' البوكس ' + picked.id + ' (الشحنة ' + l.batch + ') من التموين.', btn: 'افتح الطلب', foot: 'يصلك إشعار آخر عند وصول البوكس للفرع. رسالة آلية، لا تردي عليها.' },
+      notifyUser_(str_(r.Nurse), 'جاري نقل طلبك ' + l.request + ' للفرع مع السواق ' + driver + ' · In transit with driver ' + driver, mailMsg_({ order: ['ar', 'en'], id: l.request, req: mapRequest_(r), step: 4,
+        ar: { title: 'جاري نقل طلبك إلى فرع ' + picked.to, lead: 'استلم السواق ' + driver + ' البوكس ' + picked.id + ' (الشحنة ' + l.batch + ') من التموين.', btn: 'افتح الطلب', foot: 'يصلك إشعار آخر عند وصول البوكس للفرع. رسالة آلية، لا تردي عليها.' },
         en: { title: 'Your request is on the way to ' + picked.to, lead: 'Driver ' + driver + ' picked up box ' + picked.id + ' (shipment ' + l.batch + ') from procurement.', btn: 'Open request', foot: 'You will get another notice when the box reaches the branch. Automatic message, please do not reply.' } }));
     });
   }
@@ -6139,7 +6139,7 @@ const NOTIFY_TYPES_ = [
   ['item_removed', 'حذف الممرضة صنفاً من الطلب', 'التموين', 'التجهيز'],
   ['shipped', 'إرسال الطلب أو شحنة جزئية', 'الممرضة', 'الإرسال'],
   ['driver', 'مهام نقل البوكسات', 'السائق', 'الوصول للفرع'],
-  ['box_picked', 'استلام السواق للطلبية (في الطريق)', 'الممرضة', 'الوصول للفرع'],
+  ['box_picked', 'استلام السواق للشحنة (جاري النقل للفرع)', 'الممرضة', 'الوصول للفرع'],
   ['box_arrived', 'وصول البوكس للفرع', 'الممرضة', 'الوصول للفرع'],
   ['arrived_watch', 'وصول الطلب للفرع — للمتابعة', 'الطبيب ومدير التشغيل ومدير الفرع', 'الوصول للفرع'],
   ['received', 'استلام الممرضة للطلب', 'الطبيب', 'الاستلام'],

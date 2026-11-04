@@ -728,7 +728,7 @@ function log(msg) { console.log('  ✔ ' + msg); }
   await page.waitForFunction(() => (document.querySelector('.drv-task') || {}).textContent.includes('مخصصة لك'));
   await page.click('.drv-task [data-act="drvPick"]');
   await page.waitForSelector('.drv-task.picked');
-  expect((await page.textContent('.drv-task.picked')).includes('مع السواق أبو فهد') && !(await page.$('.drv-task [data-act="drvPick"]')), 'driver picked it up with their name; no second pickup button');
+  expect((await page.textContent('.drv-task.picked')).includes('جاري النقل · السواق أبو فهد') && !(await page.$('.drv-task [data-act="drvPick"]')), 'driver picked it up with their name; no second pickup button');
   expect(await page.evaluate(() => __gas.dump('BoxMoves').filter(r => r[5] === 'استلام السواق').length) === 2, 'pickup logged for both shipments');
   await page.evaluate(b => showDriverBox(b.id, b.k), bx);
   await page.waitForSelector('#drvGo');
@@ -832,7 +832,7 @@ function log(msg) { console.log('  ✔ ' + msg); }
   await page.click('#dSend');
   await page.waitForSelector('.msg.mine');
   expect(await page.locator('.modal .mtk-timeline .step.done').count() === 7 && /\d{2}:\d{2}:\d{2}/.test(await page.textContent('.modal .mtk-timeline')), 'detail timeline: all 7 stages done, each with date and time to the second');
-  expect((await page.textContent('.modal .mtk-timeline')).includes('مع السواق أبو فهد'), 'timeline shows which driver carried it');
+  expect((await page.textContent('.modal .mtk-timeline')).includes('استلمها السواق أبو فهد · جاري النقل للفرع'), 'timeline shows which driver carried it');
   await shot(page, 'request-detail');
   await page.evaluate(() => { window.print = () => {}; });
   await page.click('#dPrint');
