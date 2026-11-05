@@ -729,6 +729,7 @@ const API_ = {
   exportRequestItems:        { screens: ['procurement'].concat(MGMT), fn: function (u, ids) { return cachedRead_(function () { return exportRequestItems_(u, ids); }); } },
   updateItemApproval:        { screens: ['procurement'], fn: updateItemApproval_ },
   dispatchItems:             { screens: ['procurement'], fn: dispatchItems_ },
+  getAssetDoctors:           { screens: ['procurement'], fn: getAssetDoctors_ },
   proposeSubstitute:         { screens: ['procurement'], fn: proposeSubstitute_ },
   getFreeItems:              { screens: ['procurement'], fn: getFreeItems_ },
   reviewFreeItems:           { screens: ['procurement'], fn: reviewFreeItems_ },
@@ -2516,6 +2517,14 @@ function allDoctors_() {
   });
 }
 
+/** أطباء «على حساب طبيب» عند إرسال جهاز/أداة: طبيب الطلب وأطباء عيادته أولاً ثم الباقي */
+function getAssetDoctors_(user, requestId) {
+  const req = mapRequest_(findRequest_(requestId).row);
+  const all = allDoctors_();
+  const near = all.filter(function (d) { return d.clinic.split(/[,،]/).map(function (x) { return x.trim(); }).indexOf(req.clinic) !== -1; }).map(function (d) { return d.name; });
+  const names = [req.doctor].concat(near, all.map(function (d) { return d.name; })).filter(function (n, i, a) { return n && a.indexOf(n) === i; });
+  return { doctor: req.doctor, doctors: names };
+}
 function getDoctors_(user, clinicFilter, opts) {
   clinicFilter = str_(clinicFilter);
   if (opts && opts.all) {
@@ -4483,7 +4492,7 @@ function bulkUpdateStatus_(user, requestIds, newStatus, boxes) {
  */
 function dispatchItems_(user, requestId, lines, box) {
   lines = (lines || []).map(function (l) {
-    if (l && typeof l === 'object') return { name: str_(l.name), qty: l.qty === '' || l.qty === null || l.qty === undefined ? null : Number(l.qty) };
+    if (l && typeof l === 'object') return { name: str_(l.name), qty: l.qty === '' || l.qty === null || l.qty === undefined ? null : Number(l.qty), asset: l.asset && typeof l.asset === 'object' ? l.asset : null };
     return { name: str_(l), qty: null };
   }).filter(function (l) { return l.name; });
   if (!lines.length) throw new Error('ERR_NO_ITEMS');
@@ -4506,9 +4515,10 @@ function dispatchItems_(user, requestId, lines, box) {
       const q = l.qty === null ? it.remainingQty : Math.floor(l.qty);
       if (!(q >= 1)) throw new Error('ERR_BAD_QTY');
       if (q > it.remainingQty) throw new Error('ERR_QTY_EXCEEDS');
-      out.push({ name: l.name, qty: q, remainingAfter: it.remainingQty - q, target: it.target });
+      out.push({ name: l.name, qty: q, remainingAfter: it.remainingQty - q, target: it.target, asset: l.asset });
     });
     if (!out.length) throw new Error('ERR_NO_ITEMS');
+    assetChoices_(req, out); // جهاز/أداة: عهدة العيادة أو على حساب طبيب + الأرقام التسلسلية (قبل كتابة أي شيء)
     const now = new Date();
     const batch = writeShipment_(req, rows, st, out, user, now, box);
     custodyFromShipment_(req, out, batch, user, now);
@@ -8682,25 +8692,66 @@ function getClinicAssets_(user, opts) {
  * صنف عهدة (مثل الهاندبيس) تطلبه الممرضة ضمن طلب طبيب: عند إرساله يُسجَّل عهدة في عيادة الطلب مصروفة على الطبيب
  * (قطعة لكل وحدة للأداة ذات الرقم التسلسلي — يُكمل التموين الرقم من «العهدة»). إلغاء الشحنة يحذفها.
  */
+/**
+ * الأجهزة والأدوات (Ownership = عهدة) عند الإرسال: التموين يختار بجانب الصنف
+ *   custody = عهدة العيادة (بلا طبيب) · doctor = على حساب طبيب (يظهر في «العهدة المصروفة عليه» بتقرير الطبيب)
+ * والصنف ذو الرقم التسلسلي (Serialized = نعم) يلزمه رقم لكل قطعة — غير المسلسل بلا أرقام.
+ * طلب بلا اختيار (واجهة قديمة): كما كان — عهدة على طبيب الطلب إن وُجد.
+ */
+const ASSET_MODES_ = ['custody', 'doctor'];
+function assetChoices_(req, lines) {
+  const cat = assetCatalog_();
+  const docs = {};
+  allDoctors_().forEach(function (d) { docs[d.name] = true; });
+  const known = {};
+  read_('Assets').rows.forEach(function (r) { const s = str_(r.Serial).toLowerCase(); if (s) known[s] = true; });
+  const seen = {};
+  lines.forEach(function (l) {
+    const a = cat[l.name];
+    if (!a) { l.asset = null; return; }
+    if (!l.asset) return; // واجهة قديمة
+    const mode = str_(l.asset.mode);
+    if (ASSET_MODES_.indexOf(mode) === -1) throw new Error('ERR_ASSET_MODE:' + l.name);
+    const doctor = mode === 'doctor' ? clean_(l.asset.doctor, 120) || req.doctor : '';
+    if (mode === 'doctor' && !docs[doctor]) throw new Error('ERR_ASSET_DOCTOR:' + l.name);
+    let serials = [];
+    if (a.serialized) {
+      serials = (Array.isArray(l.asset.serials) ? l.asset.serials : str_(l.asset.serials).split(/[\n,،]+/)).map(function (x) { return clean_(x, 80); }).filter(String);
+      if (serials.length !== l.qty) throw new Error('ERR_SERIAL_REQUIRED:' + l.name);
+      serials.forEach(function (x) {
+        const k = x.toLowerCase();
+        if (seen[k]) throw new Error('ERR_SERIAL_DUP:' + x);
+        if (known[k]) throw new Error('ERR_SERIAL_EXISTS:' + x);
+        seen[k] = true;
+      });
+    }
+    l.asset = { mode: mode, doctor: doctor, serials: serials };
+  });
+}
 function custodyFromShipment_(req, lines, batch, user, now) {
-  if (!req.doctor) return;
+  if (!req.doctor && !lines.some(function (l) { return l.asset; })) return;
   const cat = assetCatalog_();
   const c = getClinics_().filter(function (x) { return x.name === req.clinic; })[0];
   const recs = [];
   lines.forEach(function (l) {
     const a = cat[l.name];
     if (!a) return;
+    const ch = l.asset; // اختيار التموين (أو null = السلوك القديم: على طبيب الطلب)
+    if (!ch && !req.doctor) return;
+    const doctor = ch ? ch.doctor : req.doctor;
     const n = a.serialized ? l.qty : 1;
     for (let i = 0; i < n; i++) {
       const id = reserveId_('AST-', function (prefix) { return maxSeq_(freshTable_('Assets').rows.concat(recs.map(function (r) { return { AssetID: r.AssetID }; })), 'AssetID', prefix); }).id;
-      recs.push({ AssetID: id, Item: l.name, Serial: '', Clinic: req.clinic, Branch: (c && c.branch) || req.branch, Qty: a.serialized ? 1 : l.qty,
-        Status: AS_ST.IN, IssuedAt: now, IssuedBy: user.name, Cost: a.price || 0, Notes: 'من الطلب ' + req.id + (a.serialized ? ' — أدخل الرقم التسلسلي' : ''),
-        UpdatedAt: now, UpdatedBy: user.name, Doctor: req.doctor, RequestID: req.id + '#' + batch });
+      const serial = ch && ch.serials.length ? ch.serials[i] : '';
+      recs.push({ AssetID: id, Item: l.name, Serial: serial, Clinic: req.clinic, Branch: (c && c.branch) || req.branch, Qty: a.serialized ? 1 : l.qty,
+        Status: AS_ST.IN, IssuedAt: now, IssuedBy: user.name, Cost: a.price || 0,
+        Notes: (ch ? (ch.mode === 'custody' ? 'عهدة العيادة' : 'على حساب الطبيب ' + doctor) + ' — ' : '') + 'من الطلب ' + req.id + (a.serialized && !serial ? ' — أدخل الرقم التسلسلي' : ''),
+        UpdatedAt: now, UpdatedBy: user.name, Doctor: doctor || '', RequestID: req.id + '#' + batch });
     }
   });
   if (!recs.length) return;
   appendMany_('Assets', recs);
-  logAction_(req.id, 'عهدة على ' + req.doctor + ': ' + recs.map(function (r) { return r.Item + (r.Qty > 1 ? ' ×' + r.Qty : ''); }).join('، '), user.name);
+  logAction_(req.id, 'صرف أجهزة/أدوات: ' + recs.map(function (r) { return r.Item + (r.Qty > 1 ? ' ×' + r.Qty : '') + (r.Serial ? ' [' + r.Serial + ']' : '') + ' — ' + (r.Doctor ? 'على حساب ' + r.Doctor : 'عهدة العيادة'); }).join('، '), user.name);
 }
 /** إلغاء شحنة: عهدتها التي صُرفت منها تُحذف (إن لم يُفتح عليها بلاغ) */
 function removeShipmentCustody_(requestId, batch) {

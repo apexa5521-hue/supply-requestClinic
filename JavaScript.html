@@ -3621,7 +3621,7 @@ function procItemsHtml(r) {
       const iname = esc(it.item);
       return '<tr class="dsp-row ' + state + '">' +
         (canPick ? '<td>' + (left > 0 ? '<input type="checkbox" class="check dsp" data-change="dspSel" data-id="' + rid + '" data-item="' + iname + '" aria-label="' + iname + '"' + (pk.sel[it.item] ? ' checked' : '') + '>' : icon('checkc', 'i-sm dsp-ok')) + '</td>' : '') +
-        '<td><div style="font-weight:600">' + (it.replaced || it.rejected ? '<s class="muted">' + iname + '</s>' : iname) + '</div>' + subTag(it, data.items) + rejTag(it, r.nurse) + rcvRejTag(it) +
+        '<td><div style="font-weight:600">' + (it.replaced || it.rejected ? '<s class="muted">' + iname + '</s>' : iname) + '</div>' + subTag(it, data.items) + rejTag(it, r.nurse) + rcvRejTag(it) + assetCell(it, r, canDispatch && left > 0 && !it.replaced && !it.rejected) +
           (canItemSt && it.rejected ? '<button type="button" class="link-btn" data-act="rejUndo" data-id="' + rid + '" data-item="' + iname + '">' + icon('refresh', 'i-sm') + esc(t('rej_undo')) + '</button> ' : '') +
           (canItemSt && left > 0 && !it.replaced && !(it.substituteOf && it.subStatus !== SUB_OK)
             ? '<button type="button" class="link-btn link-danger" data-act="rejItem" data-id="' + rid + '" data-item="' + iname + '">' + icon('x', 'i-sm') + esc(t('rej_add')) + '</button> ' : '') +
@@ -3911,7 +3911,19 @@ ACT.dispatch = el => {
     const q = Math.floor(Number(inp.value));
     if (!(q >= 1)) { toast(t('ERR_BAD_QTY'), 'warning'); inp.focus(); return; }
     if (q > Number(inp.max)) { toast(t('ERR_QTY_EXCEEDS') + ' (' + c.dataset.item + ': ' + inp.max + ')', 'warning'); inp.focus(); inp.select(); return; }
-    lines.push({ name: c.dataset.item, qty: q });
+    const line = { name: c.dataset.item, qty: q };
+    const info = catalogInfo(c.dataset.item);
+    if (info && info.asset) { // جهاز / أداة: عهدة العيادة أو على حساب طبيب + الرقم التسلسلي
+      const a = procPick(id).asset && procPick(id).asset[c.dataset.item] || {};
+      const rr = S.proc.list.find(x => x.id === id) || {};
+      if (!a.mode) { toast(t('as_mode_req', { n: c.dataset.item }), 'warning'); const sel = $('.dsp-amode', c.closest('tr')); if (sel) sel.focus(); return; }
+      const doctor = a.mode === 'doctor' ? (a.doctor || rr.doctor || '') : '';
+      if (a.mode === 'doctor' && !doctor) { toast(t('as_doc_req', { n: c.dataset.item }), 'warning'); return; }
+      const serials = info.serialized ? String(a.serials || '').split(/[\n,،]+/).map(x => x.trim()).filter(Boolean) : [];
+      if (info.serialized && serials.length !== q) { toast(t('as_serial_count', { n: c.dataset.item, q: q, s: serials.length }), 'warning'); const ta = $('.dsp-serials', c.closest('tr')); if (ta) ta.focus(); return; }
+      line.asset = { mode: a.mode, doctor: doctor, serials: serials };
+    }
+    lines.push(line);
   }
   if (!lines.length) { toast(t('select_item'), 'warning'); return; }
   const r = S.proc.list.find(x => x.id === id);
@@ -10720,6 +10732,40 @@ renderDetail = function(m, d) {
     d.issues.map(x => '<div class="ri-line">' + riStatus(x) + ' <b>' + esc(x.item) + '</b> · ' + esc(t('shipment_n', { n: x.batch })) + ' · ' + esc(t('ri_k_' + x.kind)) + ' · ' + esc(t('ri_actual')) + ' ' + x.actual + ' / ' + (x.stage === 'after_sign' ? x.signed : x.sent) +
       (x.decisionNote || x.financeNote ? '<div class="hint">' + esc([x.decisionNote, x.financeNote].filter(Boolean).join(' · ')) + '</div>' : '') + '</div>').join('') + '</section>');
 };
+/* ---------- الأجهزة والأدوات عند الإرسال: بجانب الصنف «عهدة العيادة / على حساب الطبيب» + الرقم التسلسلي ---------- */
+Object.assign(I18N.ar, { as_kind_tag: 'جهاز / أداة', as_mode_pick: '— عهدة أم على حساب طبيب؟ —', as_mode_custody: 'عهدة العيادة', as_mode_doctor: 'على حساب الطبيب',
+  as_serials_ph: 'رقم تسلسلي لكل قطعة ({n}) — سطر لكل رقم', as_serials_lbl: 'الأرقام التسلسلية', as_serial_need: 'يحتاج رقماً تسلسلياً', as_doc_lbl: 'الطبيب',
+  as_mode_req: 'حدد لـ «{n}»: عهدة العيادة أو على حساب الطبيب', as_doc_req: 'اختر الطبيب الذي يُحسب عليه «{n}»', as_serial_count: '«{n}» يحتاج {q} رقم تسلسلي (مكتوب {s})',
+  ERR_ASSET_MODE: 'حدد للجهاز/الأداة: عهدة العيادة أو على حساب الطبيب', ERR_ASSET_DOCTOR: 'اختر طبيباً صحيحاً للجهاز/الأداة' });
+Object.assign(I18N.en, { as_kind_tag: 'Device / tool', as_mode_pick: '— Custody or charge a doctor? —', as_mode_custody: 'Clinic custody', as_mode_doctor: 'Charge to doctor',
+  as_serials_ph: 'One serial per unit ({n}) — one per line', as_serials_lbl: 'Serial numbers', as_serial_need: 'needs a serial number', as_doc_lbl: 'Doctor',
+  as_mode_req: 'For «{n}» choose clinic custody or charge to doctor', as_doc_req: 'Choose the doctor charged for «{n}»', as_serial_count: '«{n}» needs {q} serial number(s) ({s} written)',
+  ERR_ASSET_MODE: 'Choose clinic custody or charge to doctor for the device/tool', ERR_ASSET_DOCTOR: 'Choose a valid doctor for the device/tool' });
+const ASD = {}; // أطباء «على حساب الطبيب» لكل طلب
+function assetCell(it, r, editable) {
+  const info = catalogInfo(it.item);
+  if (!info || !info.asset) return '';
+  const pk = procPick(r.id), a = (pk.asset || (pk.asset = {}))[it.item] || {};
+  let h = '<div class="dsp-asset"><span class="tag asset-tag">' + icon('tool', 'i-sm') + esc(t('as_kind_tag')) + (info.serialized ? ' · ' + esc(t('as_serial_need')) : '') + '</span>';
+  if (!editable) return h + '</div>';
+  const iname = esc(it.item), rid = esc(r.id), left = it.remainingQty || 0;
+  const q = Math.max(1, Math.floor(Number(pk.qty[it.item] !== undefined ? pk.qty[it.item] : left)) || left);
+  h += '<select class="select dsp-amode" data-change="dspAsset" data-id="' + rid + '" data-item="' + iname + '" aria-label="' + esc(t('as_kind_tag')) + '">' +
+    '<option value="">' + esc(t('as_mode_pick')) + '</option>' + ['custody', 'doctor'].map(m => '<option value="' + m + '"' + (a.mode === m ? ' selected' : '') + '>' + esc(t('as_mode_' + m)) + '</option>').join('') + '</select>';
+  if (a.mode === 'doctor') {
+    const list = ASD[r.id] ? ASD[r.id].doctors : (r.doctor ? [r.doctor] : []);
+    const cur = a.doctor || r.doctor || '';
+    h += '<select class="select dsp-adoc" data-change="dspAssetDoc" data-id="' + rid + '" data-item="' + iname + '" aria-label="' + esc(t('as_doc_lbl')) + '">' + (cur ? '' : '<option value="">' + esc(t('as_doc_lbl')) + '…</option>') +
+      list.map(n => '<option' + (n === cur ? ' selected' : '') + '>' + esc(n) + '</option>').join('') + '</select>';
+    if (!ASD[r.id]) call('getAssetDoctors', r.id).then(d => { ASD[r.id] = d; const exp = document.getElementById('exp-' + r.id); if (exp) { exp.innerHTML = procItemsHtml(r); animateBars(exp); syncDispatchBtn(exp); } }).catch(() => {});
+  }
+  if (info.serialized && a.mode) h += '<textarea class="input dsp-serials" rows="2" data-input="dspSerials" data-id="' + rid + '" data-item="' + iname + '" placeholder="' + esc(t('as_serials_ph', { n: q })) + '" dir="ltr">' + esc(a.serials || '') + '</textarea>';
+  return h + '</div>';
+}
+const asRedraw = id => { const r = S.proc.list.find(x => x.id === id), exp = document.getElementById('exp-' + id); if (r && exp) { exp.innerHTML = procItemsHtml(r); animateBars(exp); syncDispatchBtn(exp); } };
+ACT.dspAsset = el => { const pk = procPick(el.dataset.id); (pk.asset || (pk.asset = {}))[el.dataset.item] = Object.assign({}, pk.asset[el.dataset.item], { mode: el.value }); asRedraw(el.dataset.id); };
+ACT.dspAssetDoc = el => { const pk = procPick(el.dataset.id); (pk.asset || (pk.asset = {}))[el.dataset.item] = Object.assign({}, pk.asset[el.dataset.item], { doctor: el.value }); };
+ACT.dspSerials = el => { const pk = procPick(el.dataset.id); (pk.asset || (pk.asset = {}))[el.dataset.item] = Object.assign({}, pk.asset[el.dataset.item], { serials: el.value }); };
 /* MASAR_TRACK_END */
 
 /* الرابط الأساسي للنظام · الرابط القديم على GitHub Pages يبقى احتياطياً عند تعطل الأساسي فقط */

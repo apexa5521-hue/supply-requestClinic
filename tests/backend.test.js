@@ -4395,3 +4395,29 @@ test('who updated each status: procurement name per stage, on the card and per s
   r = api(p, 'getRequests', {}).find(x => x.id === id);
   assert.equal(r.lastBy.by, 'علي');
 });
+
+test('devices/tools at dispatch: clinic custody or charged to a doctor; serials required only for serialized items', () => {
+  const { api, login, gas } = boot();
+  const n = login('سارة', '1111'), dr = login('د. خالد', '4444'), p = login('علي', '3333');
+  const id = api(n, 'createRequest', { doctor: 'د. خالد', type: 'شهري', items: [{ name: 'Handpiece Low Speed', qty: 2 }, { name: 'Curing Light', qty: 1 }, { name: 'DENTAL FLOSS', qty: 1 }] }).id;
+  api(dr, 'doctorReview', id, 'اعتمد');
+  api(p, 'bulkUpdateStatus', [id], 'قيد التجهيز');
+  assert.deepEqual(api(p, 'getAssetDoctors', id).doctors[0], 'د. خالد', 'the request doctor comes first');
+  const hp = s => ({ name: 'Handpiece Low Speed', qty: 2, asset: Object.assign({ mode: 'doctor' }, s) });
+  throwsCode(() => api(p, 'dispatchItems', id, [{ name: 'Handpiece Low Speed', qty: 2, asset: { mode: 'x' } }]), 'ERR_ASSET_MODE');
+  throwsCode(() => api(p, 'dispatchItems', id, [hp({ serials: ['SN-1'] })]), 'ERR_SERIAL_REQUIRED');
+  throwsCode(() => api(p, 'dispatchItems', id, [hp({ serials: ['SN-1', 'sn-1'] })]), 'ERR_SERIAL_DUP');
+  throwsCode(() => api(p, 'dispatchItems', id, [hp({ doctor: 'طبيب غير موجود', serials: ['SN-1', 'SN-2'] })]), 'ERR_ASSET_DOCTOR');
+  api(p, 'dispatchItems', id, [hp({ serials: ['SN-1', 'SN-2'] }), { name: 'Curing Light', qty: 1, asset: { mode: 'custody', serials: ['ignored'] } }, { name: 'DENTAL FLOSS', qty: 1 }]);
+  const A = rows(gas, 'Assets').filter(r => String(r.RequestID).startsWith(id));
+  assert.deepEqual(A.filter(r => r.Item === 'Handpiece Low Speed').map(r => [r.Serial, r.Doctor, r.Qty]), [['SN-1', 'د. خالد', 1], ['SN-2', 'د. خالد', 1]], 'charged to the doctor, one record per serial');
+  assert.deepEqual(A.filter(r => r.Item === 'Curing Light').map(r => [r.Serial, r.Doctor, r.Qty]), [['', '', 1]], 'clinic custody, no serial for a non-serialized tool');
+  assert.ok(!A.some(r => r.Item === 'DENTAL FLOSS'), 'consumables are not custody');
+  // الرقم المسجّل لا يتكرر
+  const id2 = api(n, 'createRequest', { doctor: 'د. خالد', type: 'طارئ', items: [{ name: 'Handpiece Low Speed', qty: 1 }] }).id;
+  api(dr, 'doctorReview', id2, 'اعتمد');
+  throwsCode(() => api(p, 'dispatchItems', id2, [{ name: 'Handpiece Low Speed', qty: 1, asset: { mode: 'custody', serials: ['SN-2'] } }]), 'ERR_SERIAL_EXISTS');
+  // تقرير الطبيب: ما على حسابه فقط
+  const rep = api(login('نواف', '7777'), 'getDoctorReport', { doctor: 'د. خالد' });
+  assert.deepEqual(rep.custody.filter(c => c.request === id).map(c => c.serial).sort(), ['SN-1', 'SN-2']);
+});
