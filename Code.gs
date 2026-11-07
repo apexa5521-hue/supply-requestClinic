@@ -142,13 +142,13 @@ const DEFAULT_ROLES = [
  * notices: إرسال التنبيهات · monitor: متابعة التموين والمواعيد · finance: شاشة المالية
  * prices_edit: تعديل أسعار الكتالوج · users: المستخدمون والأدوار
  */
-const PERMS = ['overview', 'reports', 'complaints', 'complaints_close', 'notices', 'monitor', 'finance', 'prices_edit', 'lab_view', 'assets', 'users', 'doctors_live', 'surveys', 'doctor_prices', 'boxes', 'order_rules', 'maint', 'receipt_audit'];
+const PERMS = ['overview', 'reports', 'complaints', 'complaints_close', 'notices', 'monitor', 'finance', 'prices_edit', 'lab_view', 'assets', 'users', 'doctors_live', 'surveys', 'doctor_prices', 'boxes', 'order_rules', 'maint', 'receipt_audit', 'governance'];
 /** صلاحيات تُمنح لأي دور (حتى الأدوار التشغيلية مثل التموين): receipt_audit = تنبيهات مشاكل الاستلام المؤثرة على الحسبة + تبويب «طلبات فيها مشكلة» */
 const GRANTABLE_ALL_ = ['receipt_audit'];
 const DEFAULT_PERMS = {
   admin: PERMS,
   executive: ['overview', 'reports', 'complaints', 'complaints_close', 'notices', 'monitor', 'lab_view', 'assets', 'doctors_live', 'surveys', 'doctor_prices', 'boxes', 'order_rules', 'maint', 'receipt_audit'],
-  quality: ['overview', 'reports', 'complaints', 'complaints_close', 'notices', 'monitor', 'lab_view', 'assets', 'doctors_live', 'surveys', 'doctor_prices', 'order_rules', 'maint'],
+  quality: ['overview', 'reports', 'complaints', 'complaints_close', 'notices', 'monitor', 'lab_view', 'assets', 'doctors_live', 'surveys', 'doctor_prices', 'order_rules', 'maint', 'governance'],
   finance: ['finance', 'prices_edit', 'reports', 'monitor', 'assets', 'doctor_prices', 'order_rules', 'maint', 'receipt_audit'],
   dashboard: ['overview', 'reports', 'complaints', 'notices'],
   // مدير الفرع: مشاهدة فرعه + تقاريره ومؤشراته + التنبيه والشكاوى (بدون اعتماد أو إرسال)
@@ -174,7 +174,7 @@ const COMPLAINT_TYPES = ['تأخير', 'نقص', 'زيادة', 'أخرى'];
  *  التجهيز التلقائي بعد النشر (مرة واحدة لكل إصدار) — بلا أي خطوة يدوية:
  *  تبويبات الإعداد (Settings / LabMaterials)، قائمة العيادات المعتمدة، المشغّلات (النسخ الليلي + onChange)
  * ===================================================================== */
-const SETUP_VERSION_ = '2026-11-setup-v13';
+const SETUP_VERSION_ = '2026-11-setup-v14';
 function autoSetup_() {
   try {
     const cache = CacheService.getScriptCache();
@@ -206,6 +206,7 @@ function runSetupSteps_(force) {
     ['survey', 'استبيان الأطباء (الأسئلة + صلاحية النتائج للجودة والتنفيذي)', function () { seedSurvey_(); grantPerm_('surveys', ['executive', 'quality']); }],
     ['perms', 'صلاحية العهدة للإدارة والجودة والمالية', function () { grantPerm_('assets', ['executive', 'quality', 'finance']); }],
     ['receipt_audit', 'تنبيهات مشاكل الاستلام المؤثرة على الحسبة (المالية والتنفيذي وقسم الجودة — بدون أخصائية الجودة)', grantReceiptAudit_],
+    ['governance', 'الحوكمة والمراقبة للجودة (والأدمن دائماً)', function () { grantPerm_('governance', ['quality']); }],
     ['doctors_live', 'صفحة «الأطباء — مباشر» للجودة والتنفيذي', function () { grantPerm_('doctors_live', ['executive', 'quality']); }],
     ['boxes_view', 'تبويب البوكسات (اطلاع) لمدراء الفروع والتنفيذي', function () { grantPerm_('boxes', ['branch', 'executive']); }],
     ['maint', 'بلاغات الفرع والصيانة: دور «صيانة» + الاطلاع للتنفيذي والجودة والمالية', function () { ensureMgmtRoles_(); grantPerm_('maint', ['executive', 'quality', 'finance']); }],
@@ -654,7 +655,7 @@ function allowed_(def, user) {
   if (def.screens === '*' || def.screens.indexOf(user.screen) !== -1) return true;
   // الأدمن يملك كل تبويبات التموين وعملياتها (الطلبات، الأصناف الحرة، البوكسات…)
   if (user.screen === 'admin' && def.screens.indexOf('procurement') !== -1) return true;
-  return !!def.perm && (user.perms || []).indexOf(def.perm) !== -1;
+  return [].concat(def.perm || []).some(function (p) { return (user.perms || []).indexOf(p) !== -1; });
 }
 
 function batch_(token, calls) {
@@ -761,7 +762,9 @@ const API_ = {
   getReportDoctors:          { screens: [], perm: 'reports', fn: getReportDoctors_ },
   getStatsReport:            { screens: [], perm: 'reports', fn: getStatsReport_ },
   getTypeReport:             { screens: [], perm: 'reports', fn: getTypeReport_ },
-  getDelayReport:            { screens: ['procurement'], perm: 'reports', fn: getDelayReport_ },
+  getDelayReport:            { screens: ['procurement'], perm: ['reports', 'governance'], fn: getDelayReport_ },
+  getRequestNotes:           { screens: ['procurement'], perm: ['reports', 'governance'], fn: getRequestNotes_ },
+  getGovernance:             { screens: [], perm: 'governance', fn: getGovernance_ },
   addNotice:                 { screens: [], perm: 'notices', fn: addNotice_ },
   getExecutiveStats:         { screens: [], perm: 'overview', fn: getExecutiveStats_ },
   getQualityReport:          { screens: [], perm: 'overview', fn: function (u, m) { return getQualityReport_(m); } },
@@ -2815,7 +2818,7 @@ function slaOf_(r, R, now) {
     if (!ms(a)) return;
     if (!ms(b) && !live) return; // طلب منتهٍ بلا ختم لهذه المرحلة: لا يُحسب
     const end = ms(b) || now, h = Math.max(0, (end - ms(a)) / H), target = slaTarget_(R, k, r.type, r.branch);
-    st.push({ k: k, hrs: round1_(h), target: target, done: !!ms(b), late: h > target });
+    st.push({ k: k, hrs: round1_(h), target: target, done: !!ms(b), late: h > target, start: ms(a), end: ms(b) || 0 });
   };
   if (r.needsReview) add('appr', sub, cleared || (r.status === ST.REJECTED ? r.reviewedAt : ''));
   if (cleared && r.status !== ST.REJECTED) {
@@ -3118,27 +3121,151 @@ function getDelayReport_(user, p) {
   p = p || {};
   const from = parseDay_(p.from), to = parseDay_(p.to, true);
   if (from && to && from > to) throw new Error('ERR_BAD_RANGE');
-  const type = p.type === 'طارئ' || p.type === 'شهري' ? p.type : '', branch = str_(p.branch);
+  const type = p.type === 'طارئ' || p.type === 'شهري' ? p.type : '';
+  const f = { branch: str_(p.branch), doctor: str_(p.doctor), clinic: str_(p.clinic), nurse: str_(p.nurse), who: str_(p.who) };
   const R = orderRules_(), now = Date.now();
-  const measured = {}, rows = [];
+  const measured = {}, rows = [], reqs = [], opts = { doctors: {}, clinics: {}, nurses: {}, who: {} };
   SLA_STAGES_.forEach(function (k) { measured[k] = 0; });
-  let reqs = 0;
+  const rc = reqCounts_(), iss = riOpenIndex_();
+  const allIss = {}, rets = {}, rejs = {};
+  read_('ReceiptIssues').rows.forEach(function (r) { const k = str_(r.RequestID); if (k) allIss[k] = (allIss[k] || 0) + 1; });
+  read_('RequestReturns').rows.forEach(function (r) { const k = str_(r.RequestID); if (k && /^(pending|received)$/.test(str_(r.Status))) rets[k] = (rets[k] || 0) + 1; });
+  read_('ShipmentItems').rows.forEach(function (r) { const k = str_(r.RequestID); if (k && str_(r.RejectReason)) rejs[k] = (rejs[k] || 0) + 1; });
   queryRequests_({}).forEach(function (r) {
-    if (isOff_(r.status) || r.backdated || (type && r.type !== type) || (branch && r.branch !== branch)) return;
+    if (isOff_(r.status) || r.backdated || (type && r.type !== type) || (f.branch && r.branch !== f.branch)) return;
     const ms = toMs_(r.submittedAt || r.date);
     if ((from && ms < from.getTime()) || (to && ms > to.getTime())) return;
-    reqs++;
-    slaOf_(r, R, now).forEach(function (x) {
+    if (r.doctor) opts.doctors[r.doctor] = 1; if (r.clinic) opts.clinics[r.clinic] = 1; if (r.nurse) opts.nurses[r.nurse] = 1;
+    if ((f.doctor && r.doctor !== f.doctor) || (f.clinic && r.clinic !== f.clinic) || (f.nurse && r.nurse !== f.nurse)) return;
+    const st = slaOf_(r, R, now), late = [];
+    st.forEach(function (x) {
       measured[x.k] = (measured[x.k] || 0) + 1;
-      if (!x.late) return;
+      if (!x.late || round1_(x.hrs - x.target) < 0.1) return; // تأخير بالثواني لا يُعد
       const o = stageOwner_(r, x.k);
-      rows.push({ id: r.id, type: r.type, branch: r.branch, clinic: r.clinic, doctor: r.doctor, nurse: r.nurse, submittedAt: r.submittedAt || r.date,
-        stage: x.k, stageAr: SLA_STAGE_AR_[x.k], hrs: x.hrs, target: x.target, over: round1_(x.hrs - x.target), live: !x.done, role: o.role, roleAr: o.roleAr, who: o.who });
+      if (o.who) opts.who[o.who] = 1;
+      if (f.who && o.who !== f.who) return;
+      // الموعد المفترض = بداية المرحلة (انتهاء ما قبلها) + وقتها في «قواعد الطلبات»
+      const line = { id: r.id, type: r.type, branch: r.branch, clinic: r.clinic, doctor: r.doctor, nurse: r.nurse, submittedAt: r.submittedAt || r.date,
+        stage: x.k, stageAr: SLA_STAGE_AR_[x.k], hrs: x.hrs, target: x.target, over: round1_(x.hrs - x.target), live: !x.done, role: o.role, roleAr: o.roleAr, who: o.who,
+        start: x.start ? new Date(x.start) : '', due: x.start ? new Date(x.start + x.target * 36e5) : '', end: x.end ? new Date(x.end) : '' };
+      rows.push(line); late.push(line);
+    });
+    if (!late.length) return;
+    // أثر التأخير على الطلب كاملاً: المدة من الرفع حتى الاستلام (أو الآن) مقابل مجموع أوقات مراحله
+    const endMs = toMs_(r.receivedAt) || now, total = round1_((endMs - ms) / 36e5);
+    const tgt = round1_(st.reduce(function (a, x) { return a + x.target; }, 0));
+    reqs.push({ id: r.id, type: r.type, status: r.status, branch: r.branch, clinic: r.clinic, doctor: r.doctor, nurse: r.nurse, submittedAt: r.submittedAt || r.date,
+      receivedAt: r.receivedAt || '', open: !r.receivedAt, totalHrs: total, totalTarget: tgt, totalOver: round1_(late.reduce(function (a, x) { return a + x.over; }, 0)),
+      lateStages: late.length, comments: rc.comments[r.id] || 0, complaints: rc.open[r.id] || 0, issues: allIss[r.id] || 0, openIssues: iss[r.id] || 0, returns: rets[r.id] || 0, rejects: rejs[r.id] || 0 });
+  });
+  rows.sort(function (a, b) { return toMs_(a.submittedAt) - toMs_(b.submittedAt) || SLA_STAGES_.indexOf(a.stage) - SLA_STAGES_.indexOf(b.stage); });
+  reqs.sort(function (a, b) { return toMs_(a.submittedAt) - toMs_(b.submittedAt); });
+  const keys = function (o) { return Object.keys(o).sort(function (a, b) { return a.localeCompare(b); }); };
+  return { from: p.from || '', to: p.to || '', type: type, filters: f, requests: queryCount_(reqs, rows), measured: measured, rows: rows, reqs: reqs,
+    options: { doctors: keys(opts.doctors), clinics: keys(opts.clinics), nurses: keys(opts.nurses), who: keys(opts.who) },
+    rules: SLA_STAGES_.map(function (k) { return { stage: k, stageAr: SLA_STAGE_AR_[k], role: STAGE_ROLE_[k], roleAr: SLA_ROLE_AR_[STAGE_ROLE_[k]], monthly: R[SLA_KEY_[k] + 'M'], emergency: R[SLA_KEY_[k] + 'E'] }; }) };
+}
+function queryCount_(reqs) { return reqs.length; }
+/** ملاحظات الطلب للمراجعة (الجودة / الأدمن / التقارير): التعليقات والبلاغات ومشاكل الاستلام والمرتجعات والرفض والتراجعات */
+function getRequestNotes_(user, requestId) {
+  const req = mapRequest_(findRequest_(requestId).row);
+  const reqMap = {}; reqMap[req.id] = req;
+  return {
+    id: req.id, comments: comments_(req.id),
+    complaints: read_('Complaints').rows.filter(function (r) { return str_(r.RequestID) === req.id; }).map(function (r) {
+      return { time: r.Timestamp, author: str_(r.Author), type: str_(r.Type), message: str_(r.Message), resolved: r.Resolved === true || str_(r.Resolved).toUpperCase() === 'TRUE', reply: str_(r.ProcReply), note: str_(r.ResolveNote) }; }),
+    issues: read_('ReceiptIssues').rows.filter(function (r) { return str_(r.RequestID) === req.id; }).map(function (r) { return mapRcptIssue_(r, reqMap); }),
+    returns: getRequestReturns_(user, req.id),
+    rejects: receiptRejects_().filter(function (x) { return x.id === req.id; }),
+    reversals: read_('Reversals').rows.filter(function (r) { return str_(r.RequestID) === req.id; }).map(function (r) { return { time: r.Timestamp, user: str_(r.User), scope: str_(r.Scope), from: str_(r.From), to: str_(r.To), reason: str_(r.Reason) }; })
+  };
+}
+/* =====================================================================
+ *  الحوكمة والمراقبة (صلاحية governance — الجودة والأدمن): كل ما يحتاج متابعة في مكان واحد
+ *  مراحل متأخرة الآن · أصناف لم تُرسل · ملاحظات داخل الطلبات (شكوى / عدم رضا / نقص / زيادة / استرجاع / رفض / تالف)
+ *  · البلاغات المفتوحة · مشاكل الاستلام · المرتجعات · الرفض عند الاستلام · أصناف رفضها التموين
+ * ===================================================================== */
+const GOV_FLAGS_ = [
+  ['complaint', /شكو|شكوى|اشتكي|بلاغ/],
+  ['unhappy', /غير\s*راض|عدم\s*رض|مو\s*راض|مستاء|زعلان|سيئ|ردي[ءئ]|غير\s*مقبول|متأخر\s*جدا/],
+  ['short', /نقص|ناقص|ما\s*وصل|لم\s*يصل|ماوصل|ما\s*جا|ناقصة/],
+  ['excess', /زياد|زايد|فوق\s*الحاج|اكثر\s*من\s*الحاج|أكثر\s*من\s*الحاج|اكثر\s*من\s*اللازم|أكثر\s*من\s*اللازم/],
+  ['return', /استرج|ارجاع|إرجاع|مرتجع|رجعت/],
+  ['reject', /رفض|مرفوض/],
+  ['damaged', /تالف|خرب|مكسور|منتهي/]
+];
+function govFlag_(msg) { const m = str_(msg); const out = []; GOV_FLAGS_.forEach(function (g) { if (g[1].test(m)) out.push(g[0]); }); return out; }
+function getGovernance_(user, p) {
+  p = p || {};
+  const days = Math.max(1, Math.min(365, Math.floor(Number(p.days)) || 30)), since = Date.now() - days * 864e5, now = Date.now();
+  const R = orderRules_();
+  const all = queryRequests_({}), byId = {};
+  all.forEach(function (r) { byId[r.id] = r; });
+  const info = function (r) { return r ? { type: r.type, branch: r.branch, clinic: r.clinic, doctor: r.doctor, nurse: r.nurse, department: r.department } : {}; };
+  // 1) مراحل متأخرة الآن
+  const late = [];
+  all.forEach(function (r) {
+    if (isOff_(r.status) || r.status === ST.RECEIVED || r.backdated) return;
+    slaOf_(r, R, now).forEach(function (x) {
+      if (x.done || !x.late || round1_(x.hrs - x.target) < 0.1) return;
+      const o = stageOwner_(r, x.k);
+      late.push(Object.assign({ id: r.id, stage: x.k, hrs: x.hrs, target: x.target, over: round1_(x.hrs - x.target), role: o.role, who: o.who,
+        start: x.start ? new Date(x.start) : '', due: x.start ? new Date(x.start + x.target * 36e5) : '', submittedAt: r.submittedAt || r.date }, info(r)));
     });
   });
-  rows.sort(function (a, b) { return b.over - a.over; });
-  return { from: p.from || '', to: p.to || '', type: type, branch: branch, requests: reqs, measured: measured, rows: rows,
-    rules: SLA_STAGES_.map(function (k) { return { stage: k, stageAr: SLA_STAGE_AR_[k], role: STAGE_ROLE_[k], roleAr: SLA_ROLE_AR_[STAGE_ROLE_[k]], monthly: R[SLA_KEY_[k] + 'M'], emergency: R[SLA_KEY_[k] + 'E'] }; }) };
+  late.sort(function (a, b) { return b.over - a.over; });
+  // 2) أصناف لم تُرسل بعد (طلبات أُرسل جزء منها)
+  const unsent = all.filter(function (r) { return !isOff_(r.status) && r.sentQty > 0 && r.remainingQty > 0; }).map(function (r) {
+    return Object.assign({ id: r.id, items: r.remainingItems || [], remainingQty: r.remainingQty, since: r.firstShipAt || r.lastShipAt, submittedAt: r.submittedAt || r.date }, info(r));
+  }).sort(function (a, b) { return toMs_(a.since) - toMs_(b.since); });
+  // 3) ملاحظات داخل الطلبات تحتاج انتباه
+  const notes = [];
+  read_('Comments').rows.forEach(function (c) {
+    const id = str_(c.RequestID), r = byId[id], t = toMs_(c.Timestamp), msg = str_(c.Message);
+    if (!r || t < since || !msg || /^(📦|🚚|↩️|⚠️ اعتُمد)/.test(msg) || str_(c.Role) === 'سواق' || str_(c.Author) === 'النظام') return;
+    const fl = govFlag_(msg);
+    if (fl.length) notes.push(Object.assign({ id: id, time: c.Timestamp, author: str_(c.Author), role: str_(c.Role), message: msg, flags: fl }, info(r)));
+  });
+  notes.sort(function (a, b) { return toMs_(b.time) - toMs_(a.time); });
+  // 4) البلاغات المفتوحة · مشاكل الاستلام · المرتجعات · الرفض عند الاستلام · رفض التموين لصنف
+  const complaints = getComplaints_(user, true).filter(function (c) { return byId[c.requestId]; }).map(function (c) { return Object.assign({ id: c.requestId, time: c.time, author: c.author, ctype: c.type, message: c.message, progress: c.progress }, info(byId[c.requestId])); });
+  const reqMap = byId;
+  const issues = read_('ReceiptIssues').rows.filter(function (r) { return byId[str_(r.RequestID)] && [RI_ST.OPEN, RI_ST.FINANCE].indexOf(str_(r.Status)) !== -1; }).map(function (r) { const x = mapRcptIssue_(r, reqMap); x.id = x.request; return x; });
+  const returns = getRequestReturns_(user).filter(function (x) { return byId[x.request] && (x.status === 'pending' || toMs_(x.createdAt) >= since); }).map(function (x) { const o = Object.assign({}, x); o.id = x.request; return Object.assign(o, info(byId[x.request])); });
+  const rejects = receiptRejects_().filter(function (x) { return byId[x.id] && toMs_(x.time) >= since; });
+  const procRejects = [];
+  read_('RequestItems').rows.forEach(function (it) {
+    const id = str_(it.RequestID);
+    if (!it.RejectAt || !byId[id] || toMs_(it.RejectAt) < since) return;
+    procRejects.push(Object.assign({ id: id, time: it.RejectAt, item: str_(it.ItemName), by: str_(it.RejectBy), note: str_(it.RejectNote), qty: Number(it.RejectQty) || 0 }, info(byId[id])));
+  });
+  procRejects.sort(function (a, b) { return toMs_(b.time) - toMs_(a.time); });
+  return { days: days, generatedAt: new Date(), late: late, unsent: unsent, notes: notes, complaints: complaints, issues: issues, returns: returns, rejects: rejects, procRejects: procRejects,
+    counts: { late: late.length, unsent: unsent.length, notes: notes.length, complaints: complaints.length, issues: issues.length, returns: returns.filter(function (x) { return x.status === 'pending'; }).length, rejects: rejects.length, procRejects: procRejects.length } };
+}
+/** ملخص يومي للحوكمة لأصحاب الصلاحية (من cronTick_ مرة في اليوم) */
+const GOV_DAY_KEY_ = 'GovDigestSentOn';
+function govDigest_(now) {
+  const today = riyadh_(now);
+  let go = false;
+  withLock_(function () {
+    resetMemo_();
+    const t = freshTable_('Settings'), row = t.rows.filter(function (r) { return str_(r.Key) === GOV_DAY_KEY_; })[0];
+    if (row && str_(row.Value) === today) return;
+    if (row) setCells_(t, row, { Value: today }); else append_('Settings', { Key: GOV_DAY_KEY_, Value: today, Notes: 'آخر يوم أُرسل فيه ملخص الحوكمة (لا يُعدَّل يدوياً)' });
+    go = true;
+  });
+  if (!go) return -1;
+  resetMemo_();
+  const g = getGovernance_({ screen: 'admin', perms: PERMS.slice(), name: 'النظام' }, { days: 1 }), c = g.counts;
+  const total = c.late + c.unsent + c.notes + c.complaints + c.issues + c.returns + c.rejects + c.procRejects;
+  if (!total) return 0;
+  const lines = [['مراحل متأخرة الآن', c.late], ['طلبات فيها أصناف لم تُرسل', c.unsent], ['ملاحظات تحتاج انتباه (آخر 24 ساعة)', c.notes], ['بلاغات مفتوحة', c.complaints],
+    ['مشاكل استلام مفتوحة', c.issues], ['مرتجعات بانتظار التموين', c.returns], ['رفض عند الاستلام (24 ساعة)', c.rejects], ['أصناف رفضها التموين (24 ساعة)', c.procRejects]]
+    .filter(function (x) { return x[1]; }).map(function (x) { return x[0] + ': ' + x[1]; });
+  nk_('governance');
+  notifyPerm_('governance', 'ملخص الحوكمة والمراقبة — ' + today + ' (' + total + ')', mailMsg_({ order: ['ar'], ar: { title: 'ملخص الحوكمة والمراقبة', lead: 'ما يحتاج متابعة اليوم:', lines: lines, foot: 'التفاصيل في تبويب «الحوكمة والمراقبة». وصلك لأن لديك صلاحية الحوكمة.' } }));
+  return total;
 }
 function stageOf_(r) {
   if (isOff_(r.status) || r.status === ST.RECEIVED) return { stage: 'done', owner: '' };
@@ -6251,6 +6378,14 @@ function getAlerts_(user) {
     if (open) alerts.push({ type: 'danger', code: 'alert_receipt_issue', n: open });
     if (fin) alerts.push({ type: 'danger', code: 'alert_receipt_issue_fin', n: fin });
   }
+  // الحوكمة: كل ما يحتاج متابعة (الجودة والأدمن)
+  if ((user.perms || []).indexOf('governance') !== -1) {
+    const gc = getGovernance_(user, { days: 2 }).counts;
+    if (gc.late) alerts.push({ type: 'danger', code: 'alert_gov_late', n: gc.late });
+    const fl = gc.notes + gc.issues + gc.returns + gc.rejects + gc.procRejects;
+    if (fl) alerts.push({ type: 'warning', code: 'alert_gov_flags', n: fl });
+    if (gc.unsent) alerts.push({ type: 'warning', code: 'alert_gov_unsent', n: gc.unsent });
+  }
   // مراحل متأخرة عن «قواعد الطلبات» يملكها هذا الدور الآن
   if (['nurse', 'doctor', 'procurement', 'branch', 'admin'].indexOf(user.screen) !== -1) { const late = myLateStages_(user); if (late) alerts.push({ type: 'danger', code: 'alert_stage_late', n: late }); }
   const reqs = requestRows_().map(mapRequest_);
@@ -6530,6 +6665,7 @@ const NOTIFY_TYPES_ = [
   ['reverted', 'التراجع عن خطوة', 'الممرضة', 'كل المراحل'],
   ['nudge', 'تنبيه طلب متأخر (من المتابعة)', 'صاحب المرحلة', 'كل المراحل'],
   ['stage_late', 'تأخر مرحلة عن وقتها في «قواعد الطلبات» (تلقائي)', 'صاحب المرحلة: الطبيب / مدير الفرع / التموين / الممرضة', 'كل المراحل'],
+  ['governance', 'ملخص الحوكمة والمراقبة اليومي', 'صلاحية الحوكمة (الجودة والأدمن)', 'المتابعة'],
   ['digest', 'ملخص المواعيد اليومي', 'التموين + صلاحية المتابعة', 'المتابعة'],
   ['reminder', 'تذكير مهلة الطلب الشهري', 'الأطباء والممرضات', 'قبل الرفع'],
   ['complaint', 'البلاغات (شحنة / عهدة / مستهلك)', 'التموين والجودة والإدارة', 'بعد الاستلام'],
@@ -6702,6 +6838,7 @@ const DIGEST_DAY_KEY_ = 'DailyDigestSentOn';
 function cronTick_(nowMs) {
   NK_ = '';
   const now = nowMs || Date.now(), res = { reminders: monthlyReminders_(now).length, digest: -1, extOrders: extOrderReminders_(now), stageLate: stageLateAlerts_(now) };
+  if (new Date(now + 3 * 36e5).getUTCHours() >= 8) { try { res.governance = govDigest_(now); } catch (e) { console.error('govDigest_', e); } }
   const today = riyadh_(now);
   if (new Date(now + 3 * 36e5).getUTCHours() >= 8) {
     let go = false;

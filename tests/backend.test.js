@@ -1507,7 +1507,7 @@ test('roles split: legacy quality/executive/finance migrate; executive keeps ful
   throwsCode(() => api(e, 'getUsers'), 'ERR_FORBIDDEN'); // بعد وجود الأدمن: صلاحيات التنفيذي الافتراضية فقط (فوراً)
   assert.ok(api(e, 'getExecutiveStats'));
   const a = login('admin', '9999');
-  assert.equal(api(a, 'getConfig').user.perms.length, 18);
+  assert.equal(api(a, 'getConfig').user.perms.length, 19);
   const f = login('نواف', '7777');
   assert.ok(api(f, 'getFinance', {}).summary);
   throwsCode(() => api(f, 'getComplaints'), 'ERR_FORBIDDEN');
@@ -4450,4 +4450,40 @@ test('stage delays: the late stage alerts its owner once (cron), shows in the be
   assert.ok(R.measured.prep >= 1 && R.rules.some(x => x.stage === 'prep' && x.emergency === 2));
   assert.equal(api(q, 'getDelayReport', { from: '2000-01-01', to: day, type: 'شهري' }).rows.filter(r => r.id === id).length, 0, 'type filter');
   throwsCode(() => api(n, 'getDelayReport', {}), 'ERR_FORBIDDEN');
+});
+
+test('governance (quality/admin): late stages with due time, unsent items, flagged notes; delay report per request with impact and notes', () => {
+  const { api, login, gas, ctx } = boot();
+  const n = login('سارة', '1111'), dr = login('د. خالد', '4444'), p = login('علي', '3333'), q = login('منى', '5555');
+  const id = api(n, 'createRequest', { doctor: 'د. خالد', type: 'طارئ', items: [{ name: 'DENTAL FLOSS', qty: 4 }, { name: 'PROPHY PASTE', qty: 2 }] }).id;
+  api(dr, 'doctorReview', id, 'اعتمد');
+  const sh = gas.ss.getSheetByName('Requests'), hd = sh._data[0], row = sh._data.find(r => r[hd.indexOf('RequestID')] === id);
+  row[hd.indexOf('SubmittedAt')] = new Date(Date.now() - 6 * 36e5); row[hd.indexOf('ApprovedAt')] = new Date(Date.now() - 5 * 36e5); row[hd.indexOf('ReviewedAt')] = new Date(Date.now() - 5 * 36e5);
+  ctx.onEdit({ range: { getSheet: () => sh } });
+  api(n, 'addComment', id, 'الطلب ناقص ومو راضين عن التأخير');
+  const g = api(q, 'getGovernance', { days: 30 });
+  const lt = g.late.find(x => x.id === id && x.stage === 'prep');
+  assert.ok(lt && lt.role === 'procurement' && lt.over > 0 && lt.due, 'late stage now, with its due time');
+  assert.ok(Math.abs(new Date(lt.due) - (new Date(lt.start).getTime() + 2 * 36e5)) < 1000, 'due = previous stage end + rule target (2h emergency)');
+  const nt = g.notes.find(x => x.id === id);
+  assert.ok(nt && nt.flags.includes('short') && nt.flags.includes('unhappy'), 'note flagged as shortage + dissatisfaction');
+  assert.ok(api(q, 'getAlerts').some(a => a.code === 'alert_gov_late'), 'quality bell');
+  throwsCode(() => api(p, 'getGovernance', {}), 'ERR_FORBIDDEN');
+  // أصناف لم تُرسل
+  api(p, 'bulkUpdateStatus', [id], 'قيد التجهيز');
+  api(p, 'dispatchItems', id, ['DENTAL FLOSS']);
+  assert.ok(api(q, 'getGovernance', {}).unsent.some(x => x.id === id && x.items.some(i => i.item === 'PROPHY PASTE')));
+  // التقرير لكل طلب + الملاحظات
+  const day = new Date(Date.now() + 3 * 36e5).toISOString().slice(0, 10);
+  const R = api(q, 'getDelayReport', { from: '2000-01-01', to: day, nurse: 'سارة' });
+  const rq = R.reqs.find(x => x.id === id);
+  assert.ok(rq && rq.lateStages >= 1 && rq.totalOver > 0 && rq.comments >= 1 && rq.open, 'request impact and notes count');
+  assert.ok(R.options.nurses.includes('سارة') && R.options.doctors.includes('د. خالد'));
+  assert.equal(api(q, 'getDelayReport', { from: '2000-01-01', to: day, nurse: 'ريم' }).reqs.filter(x => x.id === id).length, 0, 'nurse filter');
+  const notes = api(q, 'getRequestNotes', id);
+  assert.ok(notes.comments.some(c => /ناقص/.test(c.message)));
+  // ملخص يومي
+  gas.mails.length = 0;
+  ctx.govDigest_(Date.now());
+  assert.ok(gas.mails.some(m => /ملخص الحوكمة والمراقبة/.test(m.subject)), 'daily governance digest');
 });
