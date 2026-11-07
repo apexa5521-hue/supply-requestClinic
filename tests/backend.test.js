@@ -4421,3 +4421,33 @@ test('devices/tools at dispatch: clinic custody or charged to a doctor; serials 
   const rep = api(login('نواف', '7777'), 'getDoctorReport', { doctor: 'د. خالد' });
   assert.deepEqual(rep.custody.filter(c => c.request === id).map(c => c.serial).sort(), ['SN-1', 'SN-2']);
 });
+
+test('stage delays: the late stage alerts its owner once (cron), shows in the bell, and the delay report names who was responsible', () => {
+  const { api, login, gas, ctx } = boot();
+  const n = login('سارة', '1111'), dr = login('د. خالد', '4444'), p = login('علي', '3333'), q = login('منى', '5555');
+  const id = api(n, 'createRequest', { doctor: 'د. خالد', type: 'طارئ', items: [{ name: 'DENTAL FLOSS', qty: 1 }] }).id;
+  api(dr, 'doctorReview', id, 'اعتمد');
+  // الطارئ: بدء التجهيز خلال ساعتين من الاعتماد — نُرجع وقت الاعتماد 5 ساعات
+  const sh = gas.ss.getSheetByName('Requests'), hd = sh._data[0], row = sh._data.find(r => r[hd.indexOf('RequestID')] === id);
+  const back = h => new Date(Date.now() - h * 36e5);
+  row[hd.indexOf('SubmittedAt')] = back(6); row[hd.indexOf('ApprovedAt')] = back(5); row[hd.indexOf('ReviewedAt')] = back(5);
+  ctx.onEdit({ range: { getSheet: () => sh } });
+  assert.ok(api(p, 'getAlerts').some(a => a.code === 'alert_stage_late' && a.n >= 1), 'procurement bell: its stage is late');
+  assert.ok(!api(dr, 'getAlerts').some(a => a.code === 'alert_stage_late'), 'not the doctor (he approved on time... his stage is done)');
+  gas.mails.length = 0;
+  const sent = ctx.cronTick_(Date.now()).stageLate;
+  assert.ok(sent >= 1);
+  assert.ok(gas.mails.some(m => m.to.includes('ali@example.com') && /تأخر مرحلة «بدء التجهيز»/.test(m.subject)), 'procurement is alerted for the preparation stage');
+  gas.mails.length = 0;
+  ctx.cronTick_(Date.now());
+  assert.ok(!gas.mails.some(m => /تأخر مرحلة «بدء التجهيز»/.test(m.subject) && m.subject.includes(id)), 'once only per request and stage');
+  // التقرير
+  api(p, 'bulkUpdateStatus', [id], 'قيد التجهيز');
+  const day = new Date(Date.now() + 3 * 36e5).toISOString().slice(0, 10);
+  const R = api(q, 'getDelayReport', { from: '2000-01-01', to: day, type: 'طارئ' });
+  const line = R.rows.find(r => r.id === id && r.stage === 'prep');
+  assert.ok(line && line.over > 0 && line.role === 'procurement' && line.who === 'علي', 'delay attributed to procurement (علي)');
+  assert.ok(R.measured.prep >= 1 && R.rules.some(x => x.stage === 'prep' && x.emergency === 2));
+  assert.equal(api(q, 'getDelayReport', { from: '2000-01-01', to: day, type: 'شهري' }).rows.filter(r => r.id === id).length, 0, 'type filter');
+  throwsCode(() => api(n, 'getDelayReport', {}), 'ERR_FORBIDDEN');
+});

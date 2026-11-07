@@ -43,6 +43,7 @@ const SCHEMA = {
                  'UnitPrice'], // سعر الوحدة مثبّت لحظة الاستلام: حسبة الطبيب لا تتغير لو تغيّر سعر الكتالوج بعده // رفض التموين لصنف: السبب يظهر للطبيب والممرضة، والكمية الأصلية للتراجع
   // سجل التراجعات: كل تراجع عن خطوة (شحنة أُرسلت بالغلط، حالة طلب، حالة صنف) مع السبب والوقت — تراه الجودة والإدارة
   Reversals:    ['Timestamp', 'RequestID', 'User', 'Role', 'Scope', 'From', 'To', 'Reason', 'Details'],
+  StageAlerts:  ['Timestamp', 'RequestID', 'Stage', 'Owner', 'Hours', 'Target'], // تنبيه تأخر مرحلة أُرسل (مرة واحدة لكل طلب ومرحلة)
   // منصة استبيان التمريض: نسخة من كل بلاغ (طلب/شحنة، عهدة) + ما يُرفع من الاستبيان نفسه (لا يذهب للتموين)
   NurseIssues:  ['IssueID', 'Timestamp', 'Source', 'SourceID', 'RequestID', 'Author', 'Role', 'Clinic', 'Branch', 'Type', 'Message', 'Status', 'StatusNote', 'UpdatedAt', 'UpdatedBy'],
   // الطلبات الخارجية (للمورد/المندوب): رأس الطلبية + أصنافها، ونسخة طلب عرض السعر كما صُدّر وقتها
@@ -760,6 +761,7 @@ const API_ = {
   getReportDoctors:          { screens: [], perm: 'reports', fn: getReportDoctors_ },
   getStatsReport:            { screens: [], perm: 'reports', fn: getStatsReport_ },
   getTypeReport:             { screens: [], perm: 'reports', fn: getTypeReport_ },
+  getDelayReport:            { screens: ['procurement'], perm: 'reports', fn: getDelayReport_ },
   addNotice:                 { screens: [], perm: 'notices', fn: addNotice_ },
   getExecutiveStats:         { screens: [], perm: 'overview', fn: getExecutiveStats_ },
   getQualityReport:          { screens: [], perm: 'overview', fn: function (u, m) { return getQualityReport_(m); } },
@@ -3037,6 +3039,107 @@ function deadline_(r, nowMs) {
 }
 
 /** أين يقف الطلب الآن ومن المسؤول عنه */
+/* =====================================================================
+ *  تأخر المراحل حسب «قواعد الطلبات»: من المسؤول عن كل مرحلة، تنبيه تلقائي له، وتقرير التأخيرات
+ *  الاعتماد ← الطبيب (أو مدير الفرع) · التجهيز والإرسال ← التموين · الوصول ← السواق (يتابعه التموين) · الاستلام ← الممرضة
+ * ===================================================================== */
+const STAGE_ROLE_ = { appr: 'doctor', prep: 'procurement', send: 'procurement', arr: 'driver', rcv: 'nurse' };
+const SLA_STAGE_AR_ = { appr: 'الاعتماد', prep: 'بدء التجهيز', send: 'الإرسال للفرع', arr: 'الوصول للفرع', rcv: 'استلام الممرضة' };
+const SLA_ROLE_AR_ = { doctor: 'الطبيب', branch: 'مدير الفرع', procurement: 'التموين', driver: 'السواق', nurse: 'الممرضة' };
+/** المسؤول عن مرحلة في طلب: الدور + الاسم إن عُرف */
+function stageOwner_(r, k) {
+  const role = k === 'appr' && r.approver === 'branch' ? 'branch' : STAGE_ROLE_[k];
+  let who = '';
+  if (k === 'appr') who = role === 'branch' ? branchManagers_(r.branch).join('، ') : r.doctor;
+  else if (k === 'prep') { const sb = statusByIndex_()[r.id] || {}; who = (sb[ST.PREP] || sb[ST.VENDOR_WAIT] || sb[ST.SENT] || {}).by || ''; }
+  else if (k === 'send') { const si = (shipItemsIndex_()[r.id] || []).slice().sort(function (a, b) { return Number(a.Batch) - Number(b.Batch); })[0]; who = si ? str_(si.DispatchedBy) : ''; }
+  else if (k === 'arr') { let d = null; const dl = deliveriesIndex_(); Object.keys(dl).forEach(function (key) { if (key.split('#')[0] === r.id && (!d || toMs_(dl[key].at) < toMs_(d.at))) d = dl[key]; }); who = r.pickedBy || (d ? d.by : ''); }
+  else if (k === 'rcv') who = r.nurse;
+  return { role: role, roleAr: SLA_ROLE_AR_[role], who: who };
+}
+/** تنبيه تلقائي لصاحب المرحلة المتأخرة الآن (مرة واحدة لكل طلب ومرحلة) — من cronTick_ */
+function stageLateAlerts_(now) {
+  now = now || Date.now();
+  const R = orderRules_();
+  const live = queryRequests_({}).filter(function (r) { return !isOff_(r.status) && r.status !== ST.RECEIVED && !r.backdated; });
+  const sent = {};
+  read_('StageAlerts').rows.forEach(function (a) { sent[str_(a.RequestID) + '|' + str_(a.Stage)] = true; });
+  const due = [];
+  live.forEach(function (r) {
+    slaOf_(r, R, now).forEach(function (x) { if (!x.done && x.late && !sent[r.id + '|' + x.k]) due.push({ r: r, x: x }); });
+  });
+  if (!due.length) return 0;
+  const batch = due.slice(0, 60); // حد في كل دورة حتى لا تتكدس الرسائل
+  withLock_(function () {
+    tableWithCols_('StageAlerts');
+    batch.forEach(function (d) { append_('StageAlerts', { Timestamp: new Date(now), RequestID: d.r.id, Stage: d.x.k, Owner: stageOwner_(d.r, d.x.k).role, Hours: d.x.hrs, Target: d.x.target }); });
+  });
+  const docs = doctorAccounts_();
+  batch.forEach(function (d) {
+    const r = d.r, k = d.x.k, o = stageOwner_(r, k);
+    const subject = 'تأخر مرحلة «' + SLA_STAGE_AR_[k] + '» في الطلب ' + r.id + ' (' + d.x.hrs + ' ساعة من ' + d.x.target + ') · Stage overdue';
+    const body = mailMsg_({ order: ['ar', 'en'], id: r.id, req: r,
+      ar: { title: 'مرحلة «' + SLA_STAGE_AR_[k] + '» تجاوزت وقتها', lead: 'مضى ' + d.x.hrs + ' ساعة والوقت المحدد في قواعد الطلبات ' + d.x.target + ' ساعة (' + (r.type || '') + ').',
+        action: 'المسؤول عن هذه المرحلة: ' + o.roleAr + (o.who ? ' (' + o.who + ')' : '') + '. أنجزها الآن أو اكتب سبب التأخير في الطلب.', btn: 'افتح الطلب', foot: 'تنبيه آلي من «قواعد الطلبات».' },
+      en: { title: 'The «' + k + '» stage is overdue', lead: d.x.hrs + ' hours passed; the target is ' + d.x.target + ' hours.', btn: 'Open request', foot: 'Automatic alert from the request rules.' } });
+    nk_('stage_late');
+    if (o.role === 'doctor') { if (docs[r.doctor]) notifyUser_(docs[r.doctor], subject, body); }
+    else if (o.role === 'branch') notifyNames_(branchManagers_(r.branch), subject, body);
+    else if (o.role === 'nurse') { if (r.nurse) notifyUser_(r.nurse, subject, body); }
+    else notifyProcurement_(r.department, subject, body); // التجهيز والإرسال، والوصول (التموين يتابع السواق)
+    logAction_(r.id, 'تنبيه تأخر مرحلة «' + SLA_STAGE_AR_[k] + '» (' + d.x.hrs + '/' + d.x.target + ' ساعة) ← ' + o.roleAr, 'النظام');
+  });
+  return batch.length;
+}
+/** عدد المراحل المتأخرة الآن التي يملكها المستخدم (للجرس) */
+function myLateStages_(user) {
+  const R = orderRules_(), now = Date.now();
+  const role = user.screen === 'procurement' || user.screen === 'admin' ? 'procurement' : user.screen;
+  let list;
+  if (user.screen === 'nurse') list = queryRequests_({ nurse: user.name });
+  else if (user.screen === 'doctor') list = queryRequests_({ doctorUser: user });
+  else list = queryRequests_({});
+  let n = 0;
+  list.forEach(function (r) {
+    if (isOff_(r.status) || r.status === ST.RECEIVED || r.backdated) return;
+    slaOf_(r, R, now).forEach(function (x) {
+      if (x.done || !x.late) return;
+      const o = stageOwner_(r, x.k).role;
+      if (o === role || (role === 'procurement' && o === 'driver') || (user.screen === 'branch' && o === 'branch' && (!user.branch || r.branch === user.branch))) n++;
+    });
+  });
+  return n;
+}
+/**
+ * تقرير التأخيرات: لطلبات الفترة (حسب تاريخ الرفع) ونوعها وفرعها — كل مرحلة تجاوزت وقتها في «قواعد الطلبات»،
+ * بكم ساعة، ومن المسؤول (الدور والاسم). measured = عدد المراحل المقاسة لكل مرحلة (لنسبة الالتزام).
+ */
+function getDelayReport_(user, p) {
+  p = p || {};
+  const from = parseDay_(p.from), to = parseDay_(p.to, true);
+  if (from && to && from > to) throw new Error('ERR_BAD_RANGE');
+  const type = p.type === 'طارئ' || p.type === 'شهري' ? p.type : '', branch = str_(p.branch);
+  const R = orderRules_(), now = Date.now();
+  const measured = {}, rows = [];
+  SLA_STAGES_.forEach(function (k) { measured[k] = 0; });
+  let reqs = 0;
+  queryRequests_({}).forEach(function (r) {
+    if (isOff_(r.status) || r.backdated || (type && r.type !== type) || (branch && r.branch !== branch)) return;
+    const ms = toMs_(r.submittedAt || r.date);
+    if ((from && ms < from.getTime()) || (to && ms > to.getTime())) return;
+    reqs++;
+    slaOf_(r, R, now).forEach(function (x) {
+      measured[x.k] = (measured[x.k] || 0) + 1;
+      if (!x.late) return;
+      const o = stageOwner_(r, x.k);
+      rows.push({ id: r.id, type: r.type, branch: r.branch, clinic: r.clinic, doctor: r.doctor, nurse: r.nurse, submittedAt: r.submittedAt || r.date,
+        stage: x.k, stageAr: SLA_STAGE_AR_[x.k], hrs: x.hrs, target: x.target, over: round1_(x.hrs - x.target), live: !x.done, role: o.role, roleAr: o.roleAr, who: o.who });
+    });
+  });
+  rows.sort(function (a, b) { return b.over - a.over; });
+  return { from: p.from || '', to: p.to || '', type: type, branch: branch, requests: reqs, measured: measured, rows: rows,
+    rules: SLA_STAGES_.map(function (k) { return { stage: k, stageAr: SLA_STAGE_AR_[k], role: STAGE_ROLE_[k], roleAr: SLA_ROLE_AR_[STAGE_ROLE_[k]], monthly: R[SLA_KEY_[k] + 'M'], emergency: R[SLA_KEY_[k] + 'E'] }; }) };
+}
 function stageOf_(r) {
   if (isOff_(r.status) || r.status === ST.RECEIVED) return { stage: 'done', owner: '' };
   if (r.awaitingDoctor) return { stage: 'doctor', owner: 'doctor' };
@@ -6148,6 +6251,8 @@ function getAlerts_(user) {
     if (open) alerts.push({ type: 'danger', code: 'alert_receipt_issue', n: open });
     if (fin) alerts.push({ type: 'danger', code: 'alert_receipt_issue_fin', n: fin });
   }
+  // مراحل متأخرة عن «قواعد الطلبات» يملكها هذا الدور الآن
+  if (['nurse', 'doctor', 'procurement', 'branch', 'admin'].indexOf(user.screen) !== -1) { const late = myLateStages_(user); if (late) alerts.push({ type: 'danger', code: 'alert_stage_late', n: late }); }
   const reqs = requestRows_().map(mapRequest_);
   function hoursSince(v) { return (now - toMs_(v)) / 36e5; }
   if (user.screen === 'nurse') {
@@ -6424,6 +6529,7 @@ const NOTIFY_TYPES_ = [
   ['receipt_issue', 'مشكلة استلام تؤثر على الحسبة (نقص / صنف خطأ / تالف)', 'صلاحية مراجعة مشاكل الاستلام + التموين', 'الاستلام'],
   ['reverted', 'التراجع عن خطوة', 'الممرضة', 'كل المراحل'],
   ['nudge', 'تنبيه طلب متأخر (من المتابعة)', 'صاحب المرحلة', 'كل المراحل'],
+  ['stage_late', 'تأخر مرحلة عن وقتها في «قواعد الطلبات» (تلقائي)', 'صاحب المرحلة: الطبيب / مدير الفرع / التموين / الممرضة', 'كل المراحل'],
   ['digest', 'ملخص المواعيد اليومي', 'التموين + صلاحية المتابعة', 'المتابعة'],
   ['reminder', 'تذكير مهلة الطلب الشهري', 'الأطباء والممرضات', 'قبل الرفع'],
   ['complaint', 'البلاغات (شحنة / عهدة / مستهلك)', 'التموين والجودة والإدارة', 'بعد الاستلام'],
@@ -6595,7 +6701,7 @@ function monthlyReminders_(nowMs) {
 const DIGEST_DAY_KEY_ = 'DailyDigestSentOn';
 function cronTick_(nowMs) {
   NK_ = '';
-  const now = nowMs || Date.now(), res = { reminders: monthlyReminders_(now).length, digest: -1, extOrders: extOrderReminders_(now) };
+  const now = nowMs || Date.now(), res = { reminders: monthlyReminders_(now).length, digest: -1, extOrders: extOrderReminders_(now), stageLate: stageLateAlerts_(now) };
   const today = riyadh_(now);
   if (new Date(now + 3 * 36e5).getUTCHours() >= 8) {
     let go = false;
@@ -6613,7 +6719,7 @@ function cronTick_(nowMs) {
   return res;
 }
 /** Apps Script (الرابط البديل): مشغّل كل ساعة للتذكيرات — يُثبَّت يدوياً فقط إذا صار هو النظام الأساسي */
-function reminderTick(e) { if (!e || !e.triggerUid) return 0; return monthlyReminders_(Date.now()).length; }
+function reminderTick(e) { if (!e || !e.triggerUid) return 0; const n = monthlyReminders_(Date.now()).length; try { stageLateAlerts_(Date.now()); } catch (x) { console.error('stageLateAlerts_', x); } return n; }
 function installReminders() {
   const has = ScriptApp.getProjectTriggers().some(function (t) { return t.getHandlerFunction() === 'reminderTick'; });
   if (!has) ScriptApp.newTrigger('reminderTick').timeBased().everyHours(1).create();

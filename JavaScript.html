@@ -10766,6 +10766,104 @@ const asRedraw = id => { const r = S.proc.list.find(x => x.id === id), exp = doc
 ACT.dspAsset = el => { const pk = procPick(el.dataset.id); (pk.asset || (pk.asset = {}))[el.dataset.item] = Object.assign({}, pk.asset[el.dataset.item], { mode: el.value }); asRedraw(el.dataset.id); };
 ACT.dspAssetDoc = el => { const pk = procPick(el.dataset.id); (pk.asset || (pk.asset = {}))[el.dataset.item] = Object.assign({}, pk.asset[el.dataset.item], { doctor: el.value }); };
 ACT.dspSerials = el => { const pk = procPick(el.dataset.id); (pk.asset || (pk.asset = {}))[el.dataset.item] = Object.assign({}, pk.asset[el.dataset.item], { serials: el.value }); };
+/* ---------- تأخر المراحل حسب «قواعد الطلبات»: تقرير التأخيرات (الفترة + نوع الطلب) ومن المسؤول ---------- */
+Object.assign(I18N.ar, { dl_title: 'تقرير التأخيرات حسب المرحلة', dl_sub: 'لكل مرحلة تجاوزت وقتها في «قواعد الطلبات»: بكم ساعة، ومن المسؤول عنها (الدور والاسم)',
+  dl_from: 'من', dl_to: 'إلى', dl_type: 'نوع الطلب', dl_all_types: 'الكل', dl_show: 'عرض', dl_xlsx: 'Excel', dl_pdf: 'PDF',
+  dl_rules: 'الأوقات المستهدفة (قواعد الطلبات)', dl_by_stage: 'حسب المرحلة', dl_by_who: 'حسب المسؤول', dl_detail: 'تفاصيل التأخيرات',
+  dl_stage: 'المرحلة', dl_owner: 'المسؤول', dl_name: 'الاسم', dl_measured: 'مقاسة', dl_late: 'متأخرة', dl_ontime: 'الالتزام', dl_avg_over: 'متوسط التأخير (س)', dl_max_over: 'أطول تأخير (س)',
+  dl_count: 'عدد التأخيرات', dl_sum_over: 'مجموع ساعات التأخير', dl_took: 'استغرقت (س)', dl_target: 'المستهدف (س)', dl_over: 'التأخير (س)', dl_state: 'الحالة', dl_live: 'جارية', dl_done: 'منتهية',
+  dl_monthly: 'شهري', dl_emergency: 'طارئ', dl_sum: '{r} طلب في الفترة · {n} مرحلة متأخرة', dl_none: 'لا توجد تأخيرات في هذه الفترة 👌', dl_unknown: 'غير محدد',
+  alert_stage_late: '<b>{n}</b> مرحلة متأخرة عن وقتها في قواعد الطلبات — مسؤوليتك' });
+Object.assign(I18N.en, { dl_title: 'Delays by stage', dl_sub: 'Every stage past its target in the request rules: by how many hours, and who was responsible (role and name)',
+  dl_from: 'From', dl_to: 'To', dl_type: 'Request type', dl_all_types: 'All', dl_show: 'Show', dl_xlsx: 'Excel', dl_pdf: 'PDF',
+  dl_rules: 'Target times (request rules)', dl_by_stage: 'By stage', dl_by_who: 'By responsible person', dl_detail: 'Delay details',
+  dl_stage: 'Stage', dl_owner: 'Responsible', dl_name: 'Name', dl_measured: 'Measured', dl_late: 'Late', dl_ontime: 'On time', dl_avg_over: 'Avg delay (h)', dl_max_over: 'Longest delay (h)',
+  dl_count: 'Delays', dl_sum_over: 'Total delay hours', dl_took: 'Took (h)', dl_target: 'Target (h)', dl_over: 'Delay (h)', dl_state: 'State', dl_live: 'Ongoing', dl_done: 'Finished',
+  dl_monthly: 'Monthly', dl_emergency: 'Emergency', dl_sum: '{r} requests in the period · {n} late stages', dl_none: 'No delays in this period 👌', dl_unknown: 'Not set',
+  alert_stage_late: '<b>{n}</b> stage(s) past the request-rules target — your responsibility' });
+const DLY = { from: '', to: '', type: '', branch: '', data: null };
+const dlStageName = k => mxText(({ appr: 'الاعتماد', prep: 'بدء التجهيز', send: 'الإرسال للفرع', arr: 'الوصول للفرع', rcv: 'استلام الممرضة' })[k], ({ appr: 'Approval', prep: 'Start preparing', send: 'Dispatch', arr: 'Arrival at branch', rcv: 'Nurse receipt' })[k]);
+const dlRoleName = r => mxText(({ doctor: 'الطبيب', branch: 'مدير الفرع', procurement: 'التموين', driver: 'السواق', nurse: 'الممرضة' })[r] || r, ({ doctor: 'Doctor', branch: 'Branch manager', procurement: 'Procurement', driver: 'Driver', nurse: 'Nurse' })[r] || r);
+function dlStages() {
+  const d = DLY.data; if (!d) return [];
+  return d.rules.map(x => {
+    const rows = d.rows.filter(r => r.stage === x.stage), m = d.measured[x.stage] || 0;
+    return { stage: x.stage, role: x.role, measured: m, late: rows.length, ontime: m ? Math.round((m - rows.length) / m * 100) : null,
+      avg: rows.length ? Math.round(rows.reduce((a, r) => a + r.over, 0) / rows.length * 10) / 10 : 0, max: rows.reduce((a, r) => Math.max(a, r.over), 0), monthly: x.monthly, emergency: x.emergency };
+  });
+}
+function dlWho() {
+  const g = {};
+  (DLY.data ? DLY.data.rows : []).forEach(r => {
+    const k = (r.who || t('dl_unknown')) + '|' + r.role, x = g[k] || (g[k] = { who: r.who || t('dl_unknown'), role: r.role, n: 0, sum: 0, stages: {} });
+    x.n++; x.sum = Math.round((x.sum + r.over) * 10) / 10; x.stages[r.stage] = (x.stages[r.stage] || 0) + 1;
+  });
+  return Object.values(g).sort((a, b) => b.n - a.n || b.sum - a.sum);
+}
+function dlRender() {
+  const out = $('#dlOut'); if (!out) return;
+  if (!DLY.data) { out.innerHTML = skeletonList(2); return; }
+  const d = DLY.data, st = dlStages(), who = dlWho();
+  $$('#dlCard [data-dl-x]').forEach(b => { b.disabled = !d.rows.length; });
+  const th = a => '<thead><tr>' + a.map(x => '<th' + (x[1] ? ' class="num"' : '') + '>' + esc(x[0]) + '</th>').join('') + '</tr></thead>';
+  out.innerHTML = '<div class="hint" style="margin-bottom:8px"><b>' + esc(t('dl_sum', { r: d.requests, n: d.rows.length })) + '</b></div>' +
+    '<h3 class="dl-h">' + esc(t('dl_by_stage')) + '</h3><div class="table-wrap"><table class="table">' + th([[t('dl_stage')], [t('dl_owner')], [t('dl_target') + ' · ' + t('dl_monthly') + ' / ' + t('dl_emergency'), 1], [t('dl_measured'), 1], [t('dl_late'), 1], [t('dl_ontime'), 1], [t('dl_avg_over'), 1], [t('dl_max_over'), 1]]) + '<tbody>' +
+      st.map(x => '<tr' + (x.late ? ' class="tr-high"' : '') + '><td><b>' + esc(dlStageName(x.stage)) + '</b></td><td>' + esc(dlRoleName(x.role)) + '</td><td class="num">' + x.monthly + ' / ' + x.emergency + '</td><td class="num">' + x.measured + '</td><td class="num"><b>' + x.late + '</b></td><td class="num">' + (x.ontime === null ? '—' : x.ontime + '%') + '</td><td class="num">' + (x.late ? x.avg : '—') + '</td><td class="num">' + (x.late ? x.max : '—') + '</td></tr>').join('') + '</tbody></table></div>' +
+    (d.rows.length ? '<h3 class="dl-h">' + esc(t('dl_by_who')) + '</h3><div class="table-wrap"><table class="table">' + th([[t('dl_name')], [t('dl_owner')], [t('dl_count'), 1], [t('dl_sum_over'), 1], [t('dl_stage')]]) + '<tbody>' +
+      who.map(x => '<tr><td><b>' + esc(x.who) + '</b></td><td>' + esc(dlRoleName(x.role)) + '</td><td class="num"><b>' + x.n + '</b></td><td class="num">' + x.sum + '</td><td>' + Object.keys(x.stages).map(k => esc(dlStageName(k)) + ' ×' + x.stages[k]).join('، ') + '</td></tr>').join('') + '</tbody></table></div>' +
+    '<h3 class="dl-h">' + esc(t('dl_detail')) + '</h3><div class="table-wrap" style="max-height:55vh;overflow:auto"><table class="table">' + th([[t('xl_req')], [t('xl_type')], [t('xl_branch')], [t('dl_stage')], [t('dl_owner')], [t('dl_name')], [t('dl_took'), 1], [t('dl_target'), 1], [t('dl_over'), 1], [t('dl_state')]]) + '<tbody>' +
+      d.rows.slice(0, 300).map(r => '<tr><td><button class="btn btn-ghost btn-sm mono" data-act="detail" data-id="' + esc(r.id) + '" style="min-height:26px;padding:2px 6px">' + esc(r.id) + '</button></td><td>' + esc(t(r.type === 'طارئ' ? 'type_emergency' : 'type_monthly')) + '</td><td>' + esc(r.branch || '—') + '</td><td>' + esc(dlStageName(r.stage)) + '</td><td>' + esc(dlRoleName(r.role)) + '</td><td>' + esc(r.who || '—') + '</td>' +
+        '<td class="num">' + r.hrs + '</td><td class="num">' + r.target + '</td><td class="num"><b class="neg">+' + r.over + '</b></td><td>' + esc(t(r.live ? 'dl_live' : 'dl_done')) + '</td></tr>').join('') + '</tbody></table></div>'
+    : emptyState('checkc', t('dl_none')));
+}
+function dlLoad() {
+  DLY.data = null; dlRender();
+  call('getDelayReport', { from: DLY.from, to: DLY.to, type: DLY.type, branch: DLY.branch }).then(d => { DLY.data = d; dlRender(); })
+    .catch(e => { const o = $('#dlOut'); if (o) o.innerHTML = emptyState('alert', errMsg(e)); });
+}
+ACT.dlGo = () => { DLY.from = ($('#dlFrom') || {}).value || ''; DLY.to = ($('#dlTo') || {}).value || ''; DLY.type = ($('#dlType') || {}).value || ''; DLY.branch = ($('#dlBranch') || {}).value || ''; dlLoad(); };
+ACT.dlXlsx = () => {
+  const rows = DLY.data ? DLY.data.rows : [];
+  const blob = xlsxBlob(t('dl_title').slice(0, 30), [t('xl_req'), t('xl_date'), t('xl_type'), t('xl_branch'), t('xl_clinic'), t('xl_doctor'), t('xl_nurse'), t('dl_stage'), t('dl_owner'), t('dl_name'), t('dl_took'), t('dl_target'), t('dl_over'), t('dl_state')],
+    rows.map(r => [r.id, ymdOf(r.submittedAt), t(r.type === 'طارئ' ? 'type_emergency' : 'type_monthly'), r.branch, r.clinic, r.doctor, r.nurse, dlStageName(r.stage), dlRoleName(r.role), r.who, r.hrs, r.target, r.over, t(r.live ? 'dl_live' : 'dl_done')]),
+    [18, 12, 10, 14, 22, 22, 16, 18, 14, 18, 10, 10, 10, 10]);
+  const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
+  a.download = 'masarx-delays-' + (DLY.from || 'all') + '_' + (DLY.to || 'all') + (DLY.type ? '-' + (DLY.type === 'طارئ' ? 'emergency' : 'monthly') : '') + '.xlsx';
+  document.body.appendChild(a); a.click(); setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 500);
+};
+ACT.dlPdf = () => {
+  const d = DLY.data; if (!d) return;
+  const logo = ($('#companyLogo') && $('#companyLogo').getAttribute('src')) ? '<img class="rep-logo" src="' + $('#companyLogo').src + '" alt="">' : '';
+  const st = dlStages(), who = dlWho();
+  const tb = (head, body) => '<section class="rep-req"><table class="table rep-table"><thead><tr>' + head.map(h => '<th>' + esc(h) + '</th>').join('') + '</tr></thead><tbody>' + body + '</tbody></table></section>';
+  printReport('<div class="rep"><div class="rep-head">' + logo + '<div class="rep-meta"><h2>' + esc(t('dl_title')) + '</h2>' +
+    '<div><b>' + esc(t('dl_from')) + ':</b> ' + esc(d.from || '—') + ' · <b>' + esc(t('dl_to')) + ':</b> ' + esc(d.to || '—') + ' · <b>' + esc(t('dl_type')) + ':</b> ' + esc(d.type ? t(d.type === 'طارئ' ? 'type_emergency' : 'type_monthly') : t('dl_all_types')) + (d.branch ? ' · <b>' + esc(t('branch')) + ':</b> ' + esc(d.branch) : '') + '</div>' +
+    '<div><b>' + esc(t('dl_sum', { r: d.requests, n: d.rows.length })) + '</b></div><div class="muted">' + esc(t('rep_generated')) + ' ' + esc(fmtDateTime(new Date())) + ' · ' + esc(S.user.name) + '</div></div></div>' +
+    '<div class="pr-req-h"><b>' + esc(t('dl_by_stage')) + '</b></div>' + tb([t('dl_stage'), t('dl_owner'), t('dl_target') + ' (' + t('dl_monthly') + ' / ' + t('dl_emergency') + ')', t('dl_measured'), t('dl_late'), t('dl_ontime'), t('dl_avg_over')],
+      st.map(x => '<tr><td><b>' + esc(dlStageName(x.stage)) + '</b></td><td>' + esc(dlRoleName(x.role)) + '</td><td>' + x.monthly + ' / ' + x.emergency + '</td><td>' + x.measured + '</td><td><b>' + x.late + '</b></td><td>' + (x.ontime === null ? '—' : x.ontime + '%') + '</td><td>' + (x.late ? x.avg : '—') + '</td></tr>').join('')) +
+    (who.length ? '<div class="pr-req-h"><b>' + esc(t('dl_by_who')) + '</b></div>' + tb([t('dl_name'), t('dl_owner'), t('dl_count'), t('dl_sum_over'), t('dl_stage')],
+      who.map(x => '<tr><td><b>' + esc(x.who) + '</b></td><td>' + esc(dlRoleName(x.role)) + '</td><td>' + x.n + '</td><td>' + x.sum + '</td><td>' + Object.keys(x.stages).map(k => esc(dlStageName(k)) + ' ×' + x.stages[k]).join('، ') + '</td></tr>').join('')) : '') +
+    (d.rows.length ? '<div class="pr-req-h"><b>' + esc(t('dl_detail')) + '</b></div>' + tb([t('xl_req'), t('xl_type'), t('xl_branch'), t('dl_stage'), t('dl_owner'), t('dl_name'), t('dl_took'), t('dl_target'), t('dl_over')],
+      d.rows.map(r => '<tr><td class="mono">' + esc(r.id) + '</td><td>' + esc(t(r.type === 'طارئ' ? 'type_emergency' : 'type_monthly')) + '</td><td>' + esc(r.branch || '—') + '</td><td>' + esc(dlStageName(r.stage)) + '</td><td>' + esc(dlRoleName(r.role)) + '</td><td>' + esc(r.who || '—') + '</td><td>' + r.hrs + '</td><td>' + r.target + '</td><td><b>+' + r.over + '</b></td></tr>').join('')) : '') + '</div>');
+};
+const dlReportsMount = VIEWS.reports.mount;
+VIEWS.reports.mount = function(root) {
+  dlReportsMount.call(this, root);
+  const host = $('#trCard') || $('#rpDocCard');
+  if (!host || $('#dlCard')) return;
+  if (!DLY.from) { const d = todayStr(); DLY.from = d.slice(0, 8) + '01'; DLY.to = d; }
+  host.insertAdjacentHTML('afterend', '<section class="card" id="dlCard"><div class="card-head"><div><h2>' + icon('clock') + esc(t('dl_title')) + '</h2><div class="hint">' + esc(t('dl_sub')) + '</div></div></div><div class="card-body stack">' +
+    '<div class="row-wrap tr-bar-ctl">' +
+      '<div class="field"><label for="dlFrom">' + esc(t('dl_from')) + '</label><input class="input" type="date" id="dlFrom" value="' + esc(DLY.from) + '"></div>' +
+      '<div class="field"><label for="dlTo">' + esc(t('dl_to')) + '</label><input class="input" type="date" id="dlTo" value="' + esc(DLY.to) + '"></div>' +
+      '<div class="field"><label for="dlType">' + esc(t('dl_type')) + '</label><select class="select" id="dlType"><option value="">' + esc(t('dl_all_types')) + '</option>' + ['شهري', 'طارئ'].map(x => '<option value="' + x + '"' + (DLY.type === x ? ' selected' : '') + '>' + esc(t(x === 'طارئ' ? 'type_emergency' : 'type_monthly')) + '</option>').join('') + '</select></div>' +
+      (S.branches.length ? '<div class="field"><label for="dlBranch">' + esc(t('branch')) + '</label><select class="select" id="dlBranch"><option value="">' + esc(t('all_branches')) + '</option>' + S.branches.map(b => '<option' + (b === DLY.branch ? ' selected' : '') + '>' + esc(b) + '</option>').join('') + '</select></div>' : '') +
+      '<button class="btn btn-primary" data-act="dlGo">' + icon('refresh', 'i-sm') + esc(t('dl_show')) + '</button>' +
+      '<button class="btn" data-act="dlXlsx" data-dl-x disabled>' + icon('file', 'i-sm') + esc(t('dl_xlsx')) + '</button>' +
+      '<button class="btn" data-act="dlPdf" data-dl-x disabled>' + icon('file', 'i-sm') + esc(t('dl_pdf')) + '</button></div>' +
+    '<div id="dlOut"></div></div></section>');
+  dlLoad();
+};
 /* MASAR_TRACK_END */
 
 /* الرابط الأساسي للنظام · الرابط القديم على GitHub Pages يبقى احتياطياً عند تعطل الأساسي فقط */
