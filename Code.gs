@@ -4925,7 +4925,8 @@ function closeRemaining_(user, requestId, items, reason, linked) {
     resetMemo_();
     const f = findRequest_(requestId);
     const cur = str_(f.row.Status);
-    if (DISPATCHABLE.indexOf(cur) === -1 || !cleared_(f.row)) throw new Error('ERR_NEEDS_APPROVAL');
+    // أي مرحلة بعد الاعتماد — حتى «تم الإرسال» أو «تم الاستلام» إذا بقي من الطلب شيء لم يُرسل
+    if (isOff_(cur) || !cleared_(f.row)) throw new Error('ERR_NEEDS_APPROVAL');
     const req = mapRequest_(f.row);
     const ri = tableWithCols_('RequestItems');
     const rows = ri.rows.filter(function (r) { return str_(r.RequestID) === req.id; });

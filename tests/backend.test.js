@@ -3233,6 +3233,18 @@ test('cancel the remaining of a partially sent request with a reason, linked to 
   assert.ok(api(n, 'getRequestDetail', id).comments.some(c => c.message.includes('أُلغي المتبقي: DENTAL FLOSS ×10 — مرفوع بالطلب ' + id2)));
   assert.ok(api(n, 'getRequestDetail', id2).comments.some(c => c.message.includes('يغطي المتبقي من الطلب ' + id)));
   assert.ok(rows(gas, 'Log').some(l => l.RequestID === id && /أُلغي المتبقي/.test(l.Action)));
+  // طلب حالته «تم الإرسال» (أو «تم الاستلام») وبقي منه شيء — الحالة الشائعة في الواقع: يُلغى المتبقي أيضاً
+  const id3 = mk([{ name: 'PROPHY PASTE', qty: 2 }, { name: 'DENTAL FLOSS', qty: 5 }]);
+  api(d, 'doctorReview', id3, 'اعتمد', '', [], [{ item: 'DENTAL FLOSS', qty: 5 }, { item: 'PROPHY PASTE', qty: 2 }]);
+  api(p, 'dispatchItems', id3, ['PROPHY PASTE', { name: 'DENTAL FLOSS', qty: 2 }]);
+  const t = gas.ss.getSheetByName('Requests'), h = t._data[0];
+  t._data.find(x => x[0] === id3)[h.indexOf('Status')] = 'تم الاستلام';
+  const f3 = api(p, 'closeRemaining', id3, ['DENTAL FLOSS'], 'رُفع المتبقي بطلب جديد', id2);
+  assert.equal(f3.items.find(i => i.item === 'DENTAL FLOSS').remainingQty, 0);
+  assert.equal(f3.items.find(i => i.item === 'DENTAL FLOSS').target, 2);
+  assert.equal(rows(gas, 'Requests').find(x => x.RequestID === id3).Status, 'تم الاستلام');
+  t._data.find(x => x[0] === id3)[h.indexOf('Status')] = 'ملغي';
+  throwsCode(() => api(p, 'closeRemaining', id3, [], 'x', id2), 'ERR_NEEDS_APPROVAL');
 });
 
 test('procurement rejects one item with a reason the doctor and nurse see; restore; last item rejected completes the request', () => {

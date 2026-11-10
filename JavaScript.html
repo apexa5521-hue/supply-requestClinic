@@ -3548,9 +3548,10 @@ function crTag(it) {
     (it.linkedRequest ? ' · ' + esc(t('cr_linked')) + ' <button type="button" class="link-btn" data-act="detail" data-id="' + esc(it.linkedRequest) + '">' + esc(it.linkedRequest) + '</button>' : '') +
     (why ? ' · ' + esc(why) : '') + (it.rejectBy ? ' <span class="muted">— ' + esc(it.rejectBy) + (it.rejectAt ? ' · ' + esc(fmtDateTime(it.rejectAt)) : '') + '</span>' : '') + '</div>';
 }
+const crCan = r => !!r && r.cleared !== false && [ST.CANCELLED, ST.REJECTED, ST.NEW, ST.REVIEW].indexOf(r.status) === -1 && ['procurement', 'admin'].indexOf(S.user.screen) !== -1;
 ACT.crOpen = el => {
-  const id = el.dataset.id, data = S.proc.items[id];
-  if (!data) return;
+  const id = el.dataset.id, data = (S.proc && S.proc.items || {})[id];
+  if (!data) { busy(el, true); call('getRequestItemsFull', id).then(d => { busy(el, false); S.proc = S.proc || {}; S.proc.items = S.proc.items || {}; S.proc.items[id] = d; ACT.crOpen(el); }).catch(e => { busy(el, false); toast(errMsg(e), 'error'); }); return; }
   const open = data.items.filter(it => it.remainingQty > 0 && !it.replaced);
   const reasons = [t('cr_r_new'), t('cr_r_na'), t('cr_r_nolonger')];
   const m = openModal({ title: esc(t('cr_title')), sub: esc(id), icon: 'x', tone: 'danger',
@@ -3575,7 +3576,9 @@ ACT.crOpen = el => {
     busy(b, true);
     call('closeRemaining', id, items, reason, link).then(d => {
       busy(b, false); closeModal(m); toast(t('cr_done'), 'success');
-      S.proc.items[id] = d; loadProc(true);
+      S.proc.items[id] = d;
+      if (S.user.screen === 'procurement') loadProc(true);
+      const box = el.closest('.pr-rem-box'); if (box) box.innerHTML = '<div class="hint">' + icon('checkc', 'i-sm') + ' ' + esc(t('cr_done')) + '</div>';
     }).catch(er => { busy(b, false); show(errMsg(er)); });
   });
 };
@@ -3646,7 +3649,7 @@ function procItemsHtml(r) {
   const nc = data.noteCounts || {};
   const open = data.items.filter(it => it.remainingQty > 0);
   const rid = esc(r.id);
-  const crOpen = canDispatch && open.some(it => !it.replaced) && data.items.some(it => (it.sentQty || 0) > 0);
+  const crOpen = crCan(r) && open.some(it => !it.replaced) && data.items.some(it => (it.sentQty || 0) > 0);
   return shipSummary(data.items, data.shipments, r) +
     (crOpen ? '<div class="cr-bar"><button type="button" class="btn btn-sm btn-ghost link-danger" data-act="crOpen" data-id="' + rid + '">' + icon('x', 'i-sm') + esc(t('cr_btn')) + '</button><span class="hint">' + esc(t('cr_bar_hint')) + '</span></div>' : '') +
     '<div class="table-wrap"><table class="table dsp-table"><thead><tr>' +
@@ -10569,7 +10572,8 @@ Object.assign(I18N.en, { pr_left_title: 'Remaining — not sent yet', pr_item: '
 const partialRem = r => (r.remainingItems || []).filter(i => i.qty > 0);
 function partialRemRow(r, cols) {
   const rem = partialRem(r);
-  return '<tr class="pr-rem"><td colspan="' + cols + '"><div class="pr-rem-box"><div class="pr-rem-h">' + icon('package', 'i-sm') + ' ' + esc(t('pr_left_title')) + '</div>' +
+  return '<tr class="pr-rem"><td colspan="' + cols + '"><div class="pr-rem-box"><div class="pr-rem-h">' + icon('package', 'i-sm') + ' ' + esc(t('pr_left_title')) +
+    (rem.length && crCan(Object.assign({ cleared: true }, r)) ? ' <button type="button" class="link-btn link-danger" data-act="crOpen" data-id="' + esc(r.id) + '">' + icon('x', 'i-sm') + esc(t('cr_btn')) + '</button>' : '') + '</div>' +
     (rem.length ? '<ul>' + rem.map(i => '<li><span>' + esc(i.item) + '</span><b>' + esc(t('pr_left')) + ' ' + fmtNum(i.qty, 0) + '</b><small>' + esc(i.sent ? t('pr_sent') + ' ' + fmtNum(i.sent, 0) + ' / ' + fmtNum(i.target, 0) : t('pr_not_sent')) + '</small></li>').join('') + '</ul>'
       : '<div class="hint">' + esc(t('pr_none')) + '</div>') + '</div></td></tr>';
 }
@@ -11126,7 +11130,8 @@ function govItems(tab, d) {
   return L.slice(0, 200).map(x => {
     if (tab === 'late') return card('var(--t-red)', '<div class="row-wrap">' + govReq(x) + '<b>' + esc(dlyStageName(x.stage)) + '</b><span class="tag late">' + esc(t('dl_now_late', { h: x.over })) + '</span>' + govNotesBtn(x) + '</div>' +
       '<div>' + esc(dlyRoleName(x.role)) + (x.who ? ' · <b>' + esc(x.who) + '</b>' : '') + ' · ' + esc(t('dl_due')) + ': <b>' + esc(dlyStamp(x.due)) + '</b> (' + x.target + ' ' + esc(mxText('س', 'h')) + ')</div>' + govWho(x));
-    if (tab === 'unsent') return card('var(--t-amber)', '<div class="row-wrap">' + govReq(x) + '<span class="muted">' + esc(t('gv_since')) + ' ' + esc(relTime(x.since)) + '</span>' + govNotesBtn(x) + '</div><div>' +
+    if (tab === 'unsent') return card('var(--t-amber)', '<div class="row-wrap">' + govReq(x) + '<span class="muted">' + esc(t('gv_since')) + ' ' + esc(relTime(x.since)) + '</span>' + govNotesBtn(x) +
+      (crCan({ cleared: true, status: ST.PREP }) ? '<button type="button" class="btn btn-ghost btn-sm link-danger" data-act="crOpen" data-id="' + esc(x.id) + '">' + icon('x', 'i-sm') + esc(t('cr_btn')) + '</button>' : '') + '</div><div>' +
       x.items.map(i => esc(i.item) + ' <b>×' + i.qty + '</b>' + (i.sent ? ' <small class="muted">(' + esc(t('sent_of', { a: i.sent, b: i.target })) + ')</small>' : '')).join(' · ') + '</div>' + govWho(x));
     if (tab === 'notes') return card('var(--t-violet)', '<div class="row-wrap">' + govReq(x) + x.flags.map(f => '<span class="tag late">' + esc(t('gv_f_' + f)) + '</span>').join('') + govNotesBtn(x) + '</div><div class="nt-text">' + esc(x.message) + '</div><span class="muted">' + esc(x.author + ' · ' + fmtDateTime(x.time)) + '</span> ' + govWho(x));
     if (tab === 'complaints') return card('var(--t-red)', '<div class="row-wrap">' + govReq(x) + '<b>' + esc(x.ctype) + '</b>' + (x.progress ? '<span class="tag">' + esc(x.progress) + '</span>' : '') + govNotesBtn(x) + '</div><div class="nt-text">' + esc(x.message) + '</div><span class="muted">' + esc(x.author + ' · ' + fmtDateTime(x.time)) + '</span> ' + govWho(x));
