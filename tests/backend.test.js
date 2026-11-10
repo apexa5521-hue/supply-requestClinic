@@ -1507,7 +1507,7 @@ test('roles split: legacy quality/executive/finance migrate; executive keeps ful
   throwsCode(() => api(e, 'getUsers'), 'ERR_FORBIDDEN'); // بعد وجود الأدمن: صلاحيات التنفيذي الافتراضية فقط (فوراً)
   assert.ok(api(e, 'getExecutiveStats'));
   const a = login('admin', '9999');
-  assert.equal(api(a, 'getConfig').user.perms.length, 18);
+  assert.equal(api(a, 'getConfig').user.perms.length, 19);
   const f = login('نواف', '7777');
   assert.ok(api(f, 'getFinance', {}).summary);
   throwsCode(() => api(f, 'getComplaints'), 'ERR_FORBIDDEN');
@@ -3207,6 +3207,34 @@ test('housekeeper: nurse-like requests seen only by her, straight to procurement
   assert.deepEqual([rows(gas, 'Requests').find(x => x.RequestID === id3).Branch, rows(gas, 'Requests').find(x => x.RequestID === id3).Status], ['الرياض', 'جديد']);
 });
 
+test('cancel the remaining of a partially sent request with a reason, linked to the new request that carries it', () => {
+  const { api, login, gas } = boot();
+  const n = login('سارة', '1111'), p = login('علي', '3333'), d = login('د. خالد', '4444');
+  const mk = items => api(n, 'createRequest', { clinic: 'عيادة الأسنان 1', doctor: 'د. خالد', type: 'شهري', items }).id;
+  const id = mk([{ name: 'PROPHY PASTE', qty: 4 }, { name: 'DENTAL FLOSS', qty: 10 }]);
+  api(d, 'doctorReview', id, 'اعتمد', '', [], [{ item: 'DENTAL FLOSS', qty: 10 }, { item: 'PROPHY PASTE', qty: 4 }]);
+  // لم يُرسل شيء بعد → ليس «جزئياً»
+  throwsCode(() => api(p, 'closeRemaining', id, [], 'رُفع المتبقي بطلب جديد', ''), 'ERR_NOT_PARTIAL');
+  api(p, 'dispatchItems', id, ['PROPHY PASTE']);
+  const id2 = mk([{ name: 'DENTAL FLOSS', qty: 10 }]);
+  const other = api(n, 'createRequest', { clinic: 'عيادة الأسنان 1', doctor: 'د. خالد', type: 'شهري', items: [{ name: 'PROPHY PASTE', qty: 1 }] }).id;
+  throwsCode(() => api(n, 'closeRemaining', id, [], 'x', id2), 'ERR_FORBIDDEN');
+  throwsCode(() => api(p, 'closeRemaining', id, [], '', id2), 'ERR_REASON_REQUIRED');
+  throwsCode(() => api(p, 'closeRemaining', id, [], 'x', id), 'ERR_LINK_SAME');
+  throwsCode(() => api(p, 'closeRemaining', id, [], 'x', 'REQ-NOPE-1'), 'ERR_LINK_NOT_FOUND');
+  throwsCode(() => api(p, 'closeRemaining', id, [], 'x', other), 'ERR_LINK_NO_ITEM');
+
+  const full = api(p, 'closeRemaining', id, [], 'رُفع المتبقي بطلب جديد', id2.toLowerCase());
+  const fl = full.items.find(i => i.item === 'DENTAL FLOSS');
+  assert.equal(fl.remainingQty, 0); assert.equal(fl.linkedRequest, id2); assert.equal(fl.rejected, true);
+  assert.match(fl.rejectNote, new RegExp('^إلغاء المتبقي — مرفوع بالطلب ' + id2 + ': رُفع المتبقي بطلب جديد'));
+  assert.equal(api(n, 'getMyRequests').find(r => r.id === id).status, 'تم الإرسال');
+  // الإثبات على الطلبين
+  assert.ok(api(n, 'getRequestDetail', id).comments.some(c => c.message.includes('أُلغي المتبقي: DENTAL FLOSS ×10 — مرفوع بالطلب ' + id2)));
+  assert.ok(api(n, 'getRequestDetail', id2).comments.some(c => c.message.includes('يغطي المتبقي من الطلب ' + id)));
+  assert.ok(rows(gas, 'Log').some(l => l.RequestID === id && /أُلغي المتبقي/.test(l.Action)));
+});
+
 test('procurement rejects one item with a reason the doctor and nurse see; restore; last item rejected completes the request', () => {
   const { api, login, gas } = boot();
   const n = login('سارة', '1111'), p = login('علي', '3333'), d = login('د. خالد', '4444');
@@ -4394,4 +4422,96 @@ test('who updated each status: procurement name per stage, on the card and per s
   assert.equal(api(n, 'getMyRequests').find(x => x.id === id).lastBy.by, 'التموين');
   r = api(p, 'getRequests', {}).find(x => x.id === id);
   assert.equal(r.lastBy.by, 'علي');
+});
+
+test('devices/tools at dispatch: clinic custody or charged to a doctor; serials required only for serialized items', () => {
+  const { api, login, gas } = boot();
+  const n = login('سارة', '1111'), dr = login('د. خالد', '4444'), p = login('علي', '3333');
+  const id = api(n, 'createRequest', { doctor: 'د. خالد', type: 'شهري', items: [{ name: 'Handpiece Low Speed', qty: 2 }, { name: 'Curing Light', qty: 1 }, { name: 'DENTAL FLOSS', qty: 1 }] }).id;
+  api(dr, 'doctorReview', id, 'اعتمد');
+  api(p, 'bulkUpdateStatus', [id], 'قيد التجهيز');
+  assert.deepEqual(api(p, 'getAssetDoctors', id).doctors[0], 'د. خالد', 'the request doctor comes first');
+  const hp = s => ({ name: 'Handpiece Low Speed', qty: 2, asset: Object.assign({ mode: 'doctor' }, s) });
+  throwsCode(() => api(p, 'dispatchItems', id, [{ name: 'Handpiece Low Speed', qty: 2, asset: { mode: 'x' } }]), 'ERR_ASSET_MODE');
+  throwsCode(() => api(p, 'dispatchItems', id, [hp({ serials: ['SN-1'] })]), 'ERR_SERIAL_REQUIRED');
+  throwsCode(() => api(p, 'dispatchItems', id, [hp({ serials: ['SN-1', 'sn-1'] })]), 'ERR_SERIAL_DUP');
+  throwsCode(() => api(p, 'dispatchItems', id, [hp({ doctor: 'طبيب غير موجود', serials: ['SN-1', 'SN-2'] })]), 'ERR_ASSET_DOCTOR');
+  api(p, 'dispatchItems', id, [hp({ serials: ['SN-1', 'SN-2'] }), { name: 'Curing Light', qty: 1, asset: { mode: 'custody', serials: ['ignored'] } }, { name: 'DENTAL FLOSS', qty: 1 }]);
+  const A = rows(gas, 'Assets').filter(r => String(r.RequestID).startsWith(id));
+  assert.deepEqual(A.filter(r => r.Item === 'Handpiece Low Speed').map(r => [r.Serial, r.Doctor, r.Qty]), [['SN-1', 'د. خالد', 1], ['SN-2', 'د. خالد', 1]], 'charged to the doctor, one record per serial');
+  assert.deepEqual(A.filter(r => r.Item === 'Curing Light').map(r => [r.Serial, r.Doctor, r.Qty]), [['', '', 1]], 'clinic custody, no serial for a non-serialized tool');
+  assert.ok(!A.some(r => r.Item === 'DENTAL FLOSS'), 'consumables are not custody');
+  // الرقم المسجّل لا يتكرر
+  const id2 = api(n, 'createRequest', { doctor: 'د. خالد', type: 'طارئ', items: [{ name: 'Handpiece Low Speed', qty: 1 }] }).id;
+  api(dr, 'doctorReview', id2, 'اعتمد');
+  throwsCode(() => api(p, 'dispatchItems', id2, [{ name: 'Handpiece Low Speed', qty: 1, asset: { mode: 'custody', serials: ['SN-2'] } }]), 'ERR_SERIAL_EXISTS');
+  // تقرير الطبيب: ما على حسابه فقط
+  const rep = api(login('نواف', '7777'), 'getDoctorReport', { doctor: 'د. خالد' });
+  assert.deepEqual(rep.custody.filter(c => c.request === id).map(c => c.serial).sort(), ['SN-1', 'SN-2']);
+});
+
+test('stage delays: the late stage alerts its owner once (cron), shows in the bell, and the delay report names who was responsible', () => {
+  const { api, login, gas, ctx } = boot();
+  const n = login('سارة', '1111'), dr = login('د. خالد', '4444'), p = login('علي', '3333'), q = login('منى', '5555');
+  const id = api(n, 'createRequest', { doctor: 'د. خالد', type: 'طارئ', items: [{ name: 'DENTAL FLOSS', qty: 1 }] }).id;
+  api(dr, 'doctorReview', id, 'اعتمد');
+  // الطارئ: بدء التجهيز خلال ساعتين من الاعتماد — نُرجع وقت الاعتماد 5 ساعات
+  const sh = gas.ss.getSheetByName('Requests'), hd = sh._data[0], row = sh._data.find(r => r[hd.indexOf('RequestID')] === id);
+  const back = h => new Date(Date.now() - h * 36e5);
+  row[hd.indexOf('SubmittedAt')] = back(6); row[hd.indexOf('ApprovedAt')] = back(5); row[hd.indexOf('ReviewedAt')] = back(5);
+  ctx.onEdit({ range: { getSheet: () => sh } });
+  assert.ok(api(p, 'getAlerts').some(a => a.code === 'alert_stage_late' && a.n >= 1), 'procurement bell: its stage is late');
+  assert.ok(!api(dr, 'getAlerts').some(a => a.code === 'alert_stage_late'), 'not the doctor (he approved on time... his stage is done)');
+  gas.mails.length = 0;
+  const sent = ctx.cronTick_(Date.now()).stageLate;
+  assert.ok(sent >= 1);
+  assert.ok(gas.mails.some(m => m.to.includes('ali@example.com') && /تأخر مرحلة «بدء التجهيز»/.test(m.subject)), 'procurement is alerted for the preparation stage');
+  gas.mails.length = 0;
+  ctx.cronTick_(Date.now());
+  assert.ok(!gas.mails.some(m => /تأخر مرحلة «بدء التجهيز»/.test(m.subject) && m.subject.includes(id)), 'once only per request and stage');
+  // التقرير
+  api(p, 'bulkUpdateStatus', [id], 'قيد التجهيز');
+  const day = new Date(Date.now() + 3 * 36e5).toISOString().slice(0, 10);
+  const R = api(q, 'getDelayReport', { from: '2000-01-01', to: day, type: 'طارئ' });
+  const line = R.rows.find(r => r.id === id && r.stage === 'prep');
+  assert.ok(line && line.over > 0 && line.role === 'procurement' && line.who === 'علي', 'delay attributed to procurement (علي)');
+  assert.ok(R.measured.prep >= 1 && R.rules.some(x => x.stage === 'prep' && x.emergency === 2));
+  assert.equal(api(q, 'getDelayReport', { from: '2000-01-01', to: day, type: 'شهري' }).rows.filter(r => r.id === id).length, 0, 'type filter');
+  throwsCode(() => api(n, 'getDelayReport', {}), 'ERR_FORBIDDEN');
+});
+
+test('governance (quality/admin): late stages with due time, unsent items, flagged notes; delay report per request with impact and notes', () => {
+  const { api, login, gas, ctx } = boot();
+  const n = login('سارة', '1111'), dr = login('د. خالد', '4444'), p = login('علي', '3333'), q = login('منى', '5555');
+  const id = api(n, 'createRequest', { doctor: 'د. خالد', type: 'طارئ', items: [{ name: 'DENTAL FLOSS', qty: 4 }, { name: 'PROPHY PASTE', qty: 2 }] }).id;
+  api(dr, 'doctorReview', id, 'اعتمد');
+  const sh = gas.ss.getSheetByName('Requests'), hd = sh._data[0], row = sh._data.find(r => r[hd.indexOf('RequestID')] === id);
+  row[hd.indexOf('SubmittedAt')] = new Date(Date.now() - 6 * 36e5); row[hd.indexOf('ApprovedAt')] = new Date(Date.now() - 5 * 36e5); row[hd.indexOf('ReviewedAt')] = new Date(Date.now() - 5 * 36e5);
+  ctx.onEdit({ range: { getSheet: () => sh } });
+  api(n, 'addComment', id, 'الطلب ناقص ومو راضين عن التأخير');
+  const g = api(q, 'getGovernance', { days: 30 });
+  const lt = g.late.find(x => x.id === id && x.stage === 'prep');
+  assert.ok(lt && lt.role === 'procurement' && lt.over > 0 && lt.due, 'late stage now, with its due time');
+  assert.ok(Math.abs(new Date(lt.due) - (new Date(lt.start).getTime() + 2 * 36e5)) < 1000, 'due = previous stage end + rule target (2h emergency)');
+  const nt = g.notes.find(x => x.id === id);
+  assert.ok(nt && nt.flags.includes('short') && nt.flags.includes('unhappy'), 'note flagged as shortage + dissatisfaction');
+  assert.ok(api(q, 'getAlerts').some(a => a.code === 'alert_gov_late'), 'quality bell');
+  throwsCode(() => api(p, 'getGovernance', {}), 'ERR_FORBIDDEN');
+  // أصناف لم تُرسل
+  api(p, 'bulkUpdateStatus', [id], 'قيد التجهيز');
+  api(p, 'dispatchItems', id, ['DENTAL FLOSS']);
+  assert.ok(api(q, 'getGovernance', {}).unsent.some(x => x.id === id && x.items.some(i => i.item === 'PROPHY PASTE')));
+  // التقرير لكل طلب + الملاحظات
+  const day = new Date(Date.now() + 3 * 36e5).toISOString().slice(0, 10);
+  const R = api(q, 'getDelayReport', { from: '2000-01-01', to: day, nurse: 'سارة' });
+  const rq = R.reqs.find(x => x.id === id);
+  assert.ok(rq && rq.lateStages >= 1 && rq.totalOver > 0 && rq.comments >= 1 && rq.open, 'request impact and notes count');
+  assert.ok(R.options.nurses.includes('سارة') && R.options.doctors.includes('د. خالد'));
+  assert.equal(api(q, 'getDelayReport', { from: '2000-01-01', to: day, nurse: 'ريم' }).reqs.filter(x => x.id === id).length, 0, 'nurse filter');
+  const notes = api(q, 'getRequestNotes', id);
+  assert.ok(notes.comments.some(c => /ناقص/.test(c.message)));
+  // ملخص يومي
+  gas.mails.length = 0;
+  ctx.govDigest_(Date.now());
+  assert.ok(gas.mails.some(m => /ملخص الحوكمة والمراقبة/.test(m.subject)), 'daily governance digest');
 });
