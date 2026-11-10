@@ -39,7 +39,7 @@ const SCHEMA = {
   // ItemStatus: حالة الصنف داخل الطلبية (قيد التجهيز / بانتظار المندوب / استلم المندوب) قبل إرساله
   RequestItems: ['RequestID', 'ItemName', 'RequestedQty', 'ApprovedQty', 'ReceivedQty', 'DispatchedAt', 'DispatchBatch', 'ItemStatus', 'ItemStatusAt', 'ItemStatusBy',
                  'SubstituteOf', 'SubStatus', 'SubNote', 'SubBy', 'SubAt', // البديل: سطر جديد يشير لاسم الصنف الأصلي
-                 'RejectNote', 'RejectBy', 'RejectAt', 'RejectQty', 'ReturnID', 'OriginalBatch',
+                 'RejectNote', 'RejectBy', 'RejectAt', 'RejectQty', 'ReturnID', 'OriginalBatch', 'LinkedRequest',
                  'UnitPrice'], // سعر الوحدة مثبّت لحظة الاستلام: حسبة الطبيب لا تتغير لو تغيّر سعر الكتالوج بعده // رفض التموين لصنف: السبب يظهر للطبيب والممرضة، والكمية الأصلية للتراجع
   // سجل التراجعات: كل تراجع عن خطوة (شحنة أُرسلت بالغلط، حالة طلب، حالة صنف) مع السبب والوقت — تراه الجودة والإدارة
   Reversals:    ['Timestamp', 'RequestID', 'User', 'Role', 'Scope', 'From', 'To', 'Reason', 'Details'],
@@ -738,6 +738,7 @@ const API_ = {
   reviewSubstitute:          { screens: ['doctor'], fn: reviewSubstitute_ },
   setItemsStatus:            { screens: ['procurement'], fn: setItemsStatus_ },
   rejectItems:               { screens: ['procurement'], fn: rejectItems_ },
+  closeRemaining:            { screens: ['procurement', 'admin'], fn: closeRemaining_ },
   getRevertPlan:             { screens: ['procurement'], fn: function (u, id) { return cachedRead_(function () { return revertPlan_(id).plan; }); } },
   revertStep:                { screens: ['procurement'], fn: revertStep_ },
   getReversals:              { screens: ['procurement'], perm: 'monitor', fn: getReversals_ },
@@ -3928,7 +3929,7 @@ function mapItem_(r, batches) {
     receivedQty: r.ReceivedQty, dispatchedAt: r.DispatchedAt,
     itemStatus: str_(r.ItemStatus), itemStatusAt: r.ItemStatusAt,
     substituteOf: str_(r.SubstituteOf), subStatus: str_(r.SubStatus), subNote: str_(r.SubNote),
-    rejected: !!r.RejectAt, rejectNote: str_(r.RejectNote), rejectBy: str_(r.RejectBy), rejectAt: r.RejectAt || '',
+    rejected: !!r.RejectAt, rejectNote: str_(r.RejectNote), rejectBy: str_(r.RejectBy), rejectAt: r.RejectAt || '', linkedRequest: str_(r.LinkedRequest),
     batch: batches ? batches.of(r) : (Number(r.DispatchBatch) || 0)
   };
 }
@@ -4856,7 +4857,7 @@ function rejectItems_(user, requestId, items, note, undo) {
     const cur = str_(f.row.Status);
     if ((DISPATCHABLE.indexOf(cur) === -1 && cur !== ST.NEW) || !cleared_(f.row)) throw new Error('ERR_NEEDS_APPROVAL');
     const req = mapRequest_(f.row);
-    const ri = read_('RequestItems');
+    const ri = tableWithCols_('RequestItems');
     const rows = ri.rows.filter(function (r) { return str_(r.RequestID) === req.id; });
     const st = shipState_(req, rows);
     const byName = {};
@@ -4869,7 +4870,7 @@ function rejectItems_(user, requestId, items, note, undo) {
       if (!row || !it) throw new Error('ERR_NOT_FOUND');
       if (undo) {
         if (!row.RejectAt) return;
-        ups.push({ row: row, obj: { ApprovedQty: row.RejectQty === undefined ? '' : row.RejectQty, RejectNote: '', RejectBy: '', RejectAt: '', RejectQty: '' } });
+        ups.push({ row: row, obj: { ApprovedQty: row.RejectQty === undefined ? '' : row.RejectQty, RejectNote: '', RejectBy: '', RejectAt: '', RejectQty: '', LinkedRequest: '' } });
         return;
       }
       if (row.RejectAt) return;
@@ -4903,6 +4904,69 @@ function rejectItems_(user, requestId, items, note, undo) {
     if (res.completed) notifyNurseSent_(res.req);
   }
   delete res.req;
+  return getRequestItemsFull_(user, requestId);
+}
+
+/**
+ * إلغاء المتبقي من طلب أُرسل جزئياً لأن الممرضة رفعت المتبقي بطلب جديد (أو أي سبب آخر):
+ * الكمية المعتمدة تصير ما أُرسل فعلاً، ويُحفظ السبب ورقم الطلب الجديد إثباتاً («مرفوع بالطلب REQ-…»).
+ * linked اختياري لكنه يُتحقق منه: موجود، ليس نفس الطلب، ولنفس العيادة، ويحوي الصنف (على الأقل واحداً منها).
+ * items فارغة = كل الأصناف التي بقي منها شيء.
+ */
+function closeRemaining_(user, requestId, items, reason, linked) {
+  reason = clean_(reason, 400);
+  linked = str_(linked).toUpperCase().replace(/\s+/g, '');
+  if (linked && !/^REQ-/.test(linked)) linked = 'REQ-' + linked.replace(/^-+/, '');
+  if (!reason) throw new Error('ERR_REASON_REQUIRED');
+  requestId = str_(requestId);
+  if (linked && linked === requestId.toUpperCase()) throw new Error('ERR_LINK_SAME');
+  let res;
+  withLock_(function () {
+    resetMemo_();
+    const f = findRequest_(requestId);
+    const cur = str_(f.row.Status);
+    if (DISPATCHABLE.indexOf(cur) === -1 || !cleared_(f.row)) throw new Error('ERR_NEEDS_APPROVAL');
+    const req = mapRequest_(f.row);
+    const ri = tableWithCols_('RequestItems');
+    const rows = ri.rows.filter(function (r) { return str_(r.RequestID) === req.id; });
+    const st = shipState_(req, rows);
+    if (!st.items.some(function (i) { return i.sentQty > 0; })) throw new Error('ERR_NOT_PARTIAL');
+    const want = (Array.isArray(items) ? items : items ? [items] : []).map(str_).filter(String);
+    const open = st.items.filter(function (i) { return i.remainingQty > 0 && !i.replaced && (!want.length || want.indexOf(i.item) !== -1); });
+    if (!open.length) throw new Error('ERR_NO_ITEMS');
+    let lreq = null;
+    if (linked) {
+      const lr = read_('Requests').rows.filter(function (r) { return str_(r.RequestID).toUpperCase() === linked; })[0];
+      if (!lr) throw new Error('ERR_LINK_NOT_FOUND');
+      lreq = mapRequest_(lr);
+      if (lreq.clinic !== req.clinic) throw new Error('ERR_LINK_OTHER_CLINIC');
+      if ([ST.CANCELLED, ST.REJECTED].indexOf(lreq.status) !== -1) throw new Error('ERR_LINK_CANCELLED');
+      const has = {};
+      ri.rows.forEach(function (r) { if (str_(r.RequestID) === lreq.id) has[str_(r.ItemName)] = true; });
+      if (!open.some(function (i) { return has[i.item]; })) throw new Error('ERR_LINK_NO_ITEM');
+      linked = lreq.id;
+    }
+    const now = new Date();
+    const note = 'إلغاء المتبقي' + (linked ? ' — مرفوع بالطلب ' + linked : '') + ': ' + reason;
+    const ups = open.map(function (it) {
+      const row = rows.filter(function (r) { return str_(r.ItemName) === it.item; })[0];
+      return { row: row, obj: { ApprovedQty: it.sentQty, RejectNote: note, RejectBy: user.name, RejectAt: now,
+        RejectQty: row.ApprovedQty === undefined ? '' : row.ApprovedQty, LinkedRequest: linked } };
+    });
+    setMany_(ri, ups);
+    const lines = open.map(function (i) { return i.item + ' ×' + i.remainingQty; });
+    const msg = '✂️ أُلغي المتبقي: ' + lines.join('، ') + (linked ? ' — مرفوع بالطلب ' + linked : '') + ' — السبب: ' + reason;
+    append_('Comments', { Timestamp: now, RequestID: req.id, Author: user.name, Role: user.role, Message: msg });
+    logAction_(req.id, msg, user.name);
+    if (lreq) {
+      const m2 = '🔗 هذا الطلب يغطي المتبقي من الطلب ' + req.id + ': ' + lines.join('، ');
+      append_('Comments', { Timestamp: now, RequestID: lreq.id, Author: user.name, Role: user.role, Message: m2 });
+      logAction_(lreq.id, m2, user.name);
+    }
+    const completed = settleRequest_(f, cur, user, 'بعد إلغاء المتبقي') === ST.SENT;
+    res = { completed: completed, req: mapRequest_(f.row), lines: lines };
+  });
+  if (res.completed) notifyNurseSent_(res.req);
   return getRequestItemsFull_(user, requestId);
 }
 

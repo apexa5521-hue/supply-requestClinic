@@ -105,7 +105,7 @@ const I18N = {
     step_arrived: 'وصل الفرع', grp_deliver: 'بانتظار التوصيل', grp_await_receipt: 'وصل · بانتظار الاستلام', grp_signed: 'استُلم بالتوقيع',
     drv_scan_hint: 'للتسليم: امسح الباركود (QR) على البوكس نفسه بكاميرا الجوال', drv_locked: 'تم التسليم', drv_locked_sub: 'هذا البوكس سُلِّم مسبقاً ولا توجد عليه مهمة توصيل الآن', drv_last: 'آخر تسليم: {p} · {t} · {d}', ERR_BOX_DELIVERED: 'تم التسليم مسبقاً — لا توجد مهمة توصيل لهذا البوكس الآن',
     link_will: 'سيرتبط بـ: {n}', link_none: 'لا يوجد طبيب يطابق اسم الحساب — اختر الطبيب من القائمة', link_grp_free: 'أطباء بلا حساب', link_grp_taken: 'مرتبطون بحسابات أخرى', ERR_DOCTOR_LINK: 'حساب الطبيب لازم يرتبط بطبيب — اختر اسمه من «الطبيب المرتبط بالحساب»',
-    rej_add: 'رفض الصنف', rej_title: 'رفض صنف من الطلب', rej_note: 'سبب الرفض — يظهر للطبيب والممرضة', rej_note_ph: 'مثال: غير متوفر لدى المورد، موقوف، مكرر في طلب آخر…', rej_go: 'رفض الصنف', rej_done: 'رُفض الصنف وأُبلغ الطبيب والممرضة بالسبب', rej_undo: 'إعادة الصنف', rej_undone: 'أُعيد الصنف للطلب', rej_tag: 'رفضه التموين', rej_hint: 'لن يُرسل هذا الصنف (أو ما تبقى منه). يمكنك إعادته لاحقاً ما دام الطلب لم يُرسل كاملاً.', ERR_ITEM_REJECTED: 'هذا الصنف مرفوض من التموين — أعده أولاً', ERR_ALL_REJECTED: 'لا يمكن رفض كل أصناف الطلب — ألغِ الطلب كاملاً بدلاً من ذلك (مع السبب)',
+    cr_btn: 'إلغاء المتبقي', cr_bar_hint: 'أُرسل جزء من الطلب — إن رُفع الباقي بطلب جديد ألغِه هنا واربطه برقمه', cr_title: 'إلغاء المتبقي من الطلب', cr_items: 'الأصناف المتبقية التي ستُلغى', cr_reason: 'السبب', cr_r_new: 'رُفع المتبقي بطلب جديد', cr_r_na: 'غير متوفر لدى المورد', cr_r_nolonger: 'العيادة لم تعد تحتاجه', cr_r_other: 'سبب آخر (اكتبه)', cr_note_ph: 'تفاصيل إضافية (اختياري)', cr_link: 'رقم الطلب الجديد', cr_link_hint: 'إثبات أن المتبقي مرفوع بهذا الطلب — يُتحقق أنه لنفس العيادة ويحوي الصنف', cr_go: 'إلغاء المتبقي', cr_done: 'أُلغي المتبقي وسُجّل السبب', cr_tag: 'أُلغي المتبقي', cr_linked: 'مرفوع بالطلب', ERR_LINK_REQUIRED: 'اكتب رقم الطلب الجديد الذي رُفع فيه المتبقي', ERR_LINK_NOT_FOUND: 'رقم الطلب المرتبط غير موجود', ERR_LINK_SAME: 'لا يمكن ربط الطلب بنفسه', ERR_LINK_OTHER_CLINIC: 'الطلب المرتبط لعيادة أخرى', ERR_LINK_CANCELLED: 'الطلب المرتبط ملغى أو مرفوض', ERR_LINK_NO_ITEM: 'الطلب المرتبط لا يحوي أياً من الأصناف المتبقية', ERR_NOT_PARTIAL: 'لم يُرسل شيء من هذا الطلب بعد — استخدم رفض الصنف أو إلغاء الطلب', rej_add: 'رفض الصنف', rej_title: 'رفض صنف من الطلب', rej_note: 'سبب الرفض — يظهر للطبيب والممرضة', rej_note_ph: 'مثال: غير متوفر لدى المورد، موقوف، مكرر في طلب آخر…', rej_go: 'رفض الصنف', rej_done: 'رُفض الصنف وأُبلغ الطبيب والممرضة بالسبب', rej_undo: 'إعادة الصنف', rej_undone: 'أُعيد الصنف للطلب', rej_tag: 'رفضه التموين', rej_hint: 'لن يُرسل هذا الصنف (أو ما تبقى منه). يمكنك إعادته لاحقاً ما دام الطلب لم يُرسل كاملاً.', ERR_ITEM_REJECTED: 'هذا الصنف مرفوض من التموين — أعده أولاً', ERR_ALL_REJECTED: 'لا يمكن رفض كل أصناف الطلب — ألغِ الطلب كاملاً بدلاً من ذلك (مع السبب)',
     xl_export: 'تصدير Excel', xl_title: 'تصدير الأصناف إلى Excel', xl_sub: 'صف لكل صنف — حسب الفلاتر الحالية (الطبيب، العيادة، الفرع، المرحلة، البحث)', xl_from: 'من تاريخ', xl_to: 'إلى تاريخ', xl_count: 'سيُصدَّر {n} طلب', xl_go: 'تصدير', xl_none: 'لا توجد طلبات في هذه المدة بالفلاتر الحالية', xl_done: 'تم تصدير {n} صنف', xl_item: 'اسم الصنف', xl_type: 'نوع الطلب', xl_status: 'حالة الطلب', xl_doctor: 'الطبيب', xl_nurse: 'الممرضة', xl_branch: 'الفرع للتسليم', xl_clinic: 'العيادة', xl_req: 'رقم الطلب', xl_date: 'تاريخ الطلب', xl_req_qty: 'الكمية المطلوبة', xl_ok_qty: 'الكمية المعتمدة', xl_sent_qty: 'الكمية المرسلة', xl_sub_of: 'بديل عن', xl_sheet: 'الأصناف',
     act_prep: 'قيد التجهيز', act_vendor_wait: 'بانتظار المندوب', act_vendor_recv: 'استلم المندوب', act_review: 'إعادة لمراجعة الطبيب', act_send: 'إرسال للفرع',
     bulk_done: 'تم تحديث {n} طلب', bulk_skipped_title: 'بعض الطلبات لم تُحدَّث', bulk_skipped_sub: 'تم تحديث {a} وتخطي {b} للأسباب التالية:',
@@ -257,7 +257,7 @@ const I18N = {
     step_arrived: 'At branch', grp_deliver: 'Awaiting delivery', grp_await_receipt: 'Arrived · awaiting receipt', grp_signed: 'Received & signed',
     drv_scan_hint: 'To deliver: scan the QR code on the box itself with your phone camera', drv_locked: 'Delivered', drv_locked_sub: 'This box was already delivered and has no delivery task now', drv_last: 'Last delivery: {p} · {t} · {d}', ERR_BOX_DELIVERED: 'Already delivered — this box has no delivery task now',
     link_will: 'Will link to: {n}', link_none: 'No doctor matches this account name — pick the doctor from the list', link_grp_free: 'Doctors without an account', link_grp_taken: 'Linked to other accounts', ERR_DOCTOR_LINK: 'A doctor account must be linked to a doctor — pick the name in “Linked doctor”',
-    rej_add: 'Reject item', rej_title: 'Reject an item from the request', rej_note: 'Reason — shown to the doctor and the nurse', rej_note_ph: 'e.g. not available from the supplier, discontinued, duplicated…', rej_go: 'Reject item', rej_done: 'Item rejected — doctor and nurse were told why', rej_undo: 'Restore item', rej_undone: 'Item restored to the request', rej_tag: 'Rejected by procurement', rej_hint: 'This item (or what is left of it) will not be sent. You can restore it while the request is not fully sent.', ERR_ITEM_REJECTED: 'This item was rejected by procurement — restore it first', ERR_ALL_REJECTED: 'You cannot reject every item — cancel the whole request instead (with a reason)',
+    cr_btn: 'Cancel remaining', cr_bar_hint: 'Part of this request was sent — if the rest was raised in a new request, cancel it here and link that number', cr_title: 'Cancel the remaining quantity', cr_items: 'Remaining items to cancel', cr_reason: 'Reason', cr_r_new: 'Remaining raised in a new request', cr_r_na: 'Not available from the supplier', cr_r_nolonger: 'No longer needed by the clinic', cr_r_other: 'Other reason (type it)', cr_note_ph: 'More details (optional)', cr_link: 'New request number', cr_link_hint: 'Proof the remaining was raised in this request — checked to be the same clinic and to contain the item', cr_go: 'Cancel remaining', cr_done: 'Remaining cancelled and reason recorded', cr_tag: 'Remaining cancelled', cr_linked: 'raised in', ERR_LINK_REQUIRED: 'Enter the new request number the remaining was raised in', ERR_LINK_NOT_FOUND: 'The linked request number does not exist', ERR_LINK_SAME: 'A request cannot be linked to itself', ERR_LINK_OTHER_CLINIC: 'The linked request belongs to another clinic', ERR_LINK_CANCELLED: 'The linked request is cancelled or rejected', ERR_LINK_NO_ITEM: 'The linked request has none of the remaining items', ERR_NOT_PARTIAL: 'Nothing was sent from this request yet — reject the item or cancel the request instead', rej_add: 'Reject item', rej_title: 'Reject an item from the request', rej_note: 'Reason — shown to the doctor and the nurse', rej_note_ph: 'e.g. not available from the supplier, discontinued, duplicated…', rej_go: 'Reject item', rej_done: 'Item rejected — doctor and nurse were told why', rej_undo: 'Restore item', rej_undone: 'Item restored to the request', rej_tag: 'Rejected by procurement', rej_hint: 'This item (or what is left of it) will not be sent. You can restore it while the request is not fully sent.', ERR_ITEM_REJECTED: 'This item was rejected by procurement — restore it first', ERR_ALL_REJECTED: 'You cannot reject every item — cancel the whole request instead (with a reason)',
     xl_export: 'Export Excel', xl_title: 'Export items to Excel', xl_sub: 'One row per item — uses the current filters (doctor, clinic, branch, stage, search)', xl_from: 'From', xl_to: 'To', xl_count: '{n} request(s) will be exported', xl_go: 'Export', xl_none: 'No requests in this period with the current filters', xl_done: '{n} item(s) exported', xl_item: 'Item', xl_type: 'Request type', xl_status: 'Request status', xl_doctor: 'Doctor', xl_nurse: 'Nurse', xl_branch: 'Delivery branch', xl_clinic: 'Clinic', xl_req: 'Request #', xl_date: 'Request date', xl_req_qty: 'Requested qty', xl_ok_qty: 'Approved qty', xl_sent_qty: 'Sent qty', xl_sub_of: 'Substitute for', xl_sheet: 'Items',
     act_prep: 'In progress', act_vendor_wait: 'Awaiting vendor', act_vendor_recv: 'Vendor received', act_review: 'Back to doctor review', act_send: 'Dispatch',
     bulk_done: '{n} request(s) updated', bulk_skipped_title: 'Some requests were not updated', bulk_skipped_sub: '{a} updated, {b} skipped:',
@@ -3517,6 +3517,7 @@ function subTag(it, all) {
 /* صنف رفضه التموين: السبب يظهر للطبيب والممرضة والتموين */
 const ADMIN_RM_NOTE = 'حذف إداري: ';
 function rejTag(it, nurse) {
+  if (it.rejected && /^إلغاء المتبقي/.test(it.rejectNote || '')) return crTag(it);
   const adm = String(it.rejectNote || '').indexOf(ADMIN_RM_NOTE) === 0, note = adm ? it.rejectNote.slice(ADMIN_RM_NOTE.length) : it.rejectNote;
   const k = adm ? 'rej_tag_admin' : nurse && it.rejectBy === nurse ? 'rej_tag_nurse' : 'rej_tag';
   return it.rejected ? '<div class="hint sub-tag rej-tag" style="--tone:var(--t-red)">' + icon('xc', 'i-sm') + '<b>' + esc(t(k)) + '</b>' +
@@ -3538,6 +3539,44 @@ ACT.rejItem = el => {
       busy(b, false); closeModal(m); toast(t('rej_done'), 'success');
       S.proc.items[id] = data; loadProc(true);
     }).catch(er => { busy(b, false); err.querySelector('span').textContent = errMsg(er); err.classList.remove('hidden'); });
+  });
+};
+/* إلغاء المتبقي من طلب أُرسل جزئياً — مع السبب ورقم الطلب الجديد الذي رُفع فيه المتبقي (إثبات) */
+function crTag(it) {
+  const why = String(it.rejectNote || '').replace(/^إلغاء المتبقي(?: — مرفوع بالطلب [^:]+)?:\s*/, '');
+  return '<div class="hint sub-tag rej-tag" style="--tone:var(--t-amber)">' + icon('x', 'i-sm') + '<b>' + esc(t('cr_tag')) + '</b>' +
+    (it.linkedRequest ? ' · ' + esc(t('cr_linked')) + ' <button type="button" class="link-btn" data-act="detail" data-id="' + esc(it.linkedRequest) + '">' + esc(it.linkedRequest) + '</button>' : '') +
+    (why ? ' · ' + esc(why) : '') + (it.rejectBy ? ' <span class="muted">— ' + esc(it.rejectBy) + (it.rejectAt ? ' · ' + esc(fmtDateTime(it.rejectAt)) : '') + '</span>' : '') + '</div>';
+}
+ACT.crOpen = el => {
+  const id = el.dataset.id, data = S.proc.items[id];
+  if (!data) return;
+  const open = data.items.filter(it => it.remainingQty > 0 && !it.replaced);
+  const reasons = [t('cr_r_new'), t('cr_r_na'), t('cr_r_nolonger')];
+  const m = openModal({ title: esc(t('cr_title')), sub: esc(id), icon: 'x', tone: 'danger',
+    body: '<div class="field"><label>' + esc(t('cr_items')) + '</label><div class="cr-items">' +
+        open.map(it => '<label class="cr-it"><input type="checkbox" class="check" data-cr="' + esc(it.item) + '" checked> <span>' + esc(it.item) + '</span> <b>×' + esc(fmtNum(it.remainingQty, 0)) + '</b></label>').join('') + '</div></div>' +
+      '<div class="field"><label for="crWhy">' + esc(t('cr_reason')) + '</label><select class="input" id="crWhy">' + reasons.map(x => '<option>' + esc(x) + '</option>').join('') + '<option value="">' + esc(t('cr_r_other')) + '</option></select>' +
+        '<textarea class="input" id="crNote" rows="2" maxlength="300" placeholder="' + esc(t('cr_note_ph')) + '" style="margin-top:6px"></textarea></div>' +
+      '<div class="field"><label for="crLink">' + esc(t('cr_link')) + '</label><input class="input" id="crLink" dir="ltr" placeholder="REQ-…" autocomplete="off"><div class="hint">' + esc(t('cr_link_hint')) + '</div></div>' +
+      '<div class="field-error hidden" id="crErr">' + icon('alert', 'i-sm') + '<span></span></div>',
+    foot: '<span class="spacer"></span><button class="btn" data-close>' + esc(t('cancel')) + '</button><button class="btn btn-danger" id="crOk">' + icon('x', 'i-sm') + esc(t('cr_go')) + '</button>' });
+  $('#crOk', m.el).addEventListener('click', e => {
+    const b = e.currentTarget, err = $('#crErr', m.el);
+    const show = msg => { err.querySelector('span').textContent = msg; err.classList.remove('hidden'); };
+    err.classList.add('hidden');
+    const items = Array.from(m.el.querySelectorAll('[data-cr]')).filter(x => x.checked).map(x => x.dataset.cr);
+    const sel = $('#crWhy', m.el).value, extra = $('#crNote', m.el).value.trim();
+    const reason = [sel, extra].filter(Boolean).join(' — ');
+    const link = $('#crLink', m.el).value.trim();
+    if (!items.length) return show(t('ERR_NO_ITEMS'));
+    if (!reason) return show(t('ERR_REASON_REQUIRED'));
+    if (sel === t('cr_r_new') && !link) return show(t('ERR_LINK_REQUIRED'));
+    busy(b, true);
+    call('closeRemaining', id, items, reason, link).then(d => {
+      busy(b, false); closeModal(m); toast(t('cr_done'), 'success');
+      S.proc.items[id] = d; loadProc(true);
+    }).catch(er => { busy(b, false); show(errMsg(er)); });
   });
 };
 ACT.rejUndo = el => {
@@ -3607,7 +3646,9 @@ function procItemsHtml(r) {
   const nc = data.noteCounts || {};
   const open = data.items.filter(it => it.remainingQty > 0);
   const rid = esc(r.id);
+  const crOpen = canDispatch && open.some(it => !it.replaced) && data.items.some(it => (it.sentQty || 0) > 0);
   return shipSummary(data.items, data.shipments, r) +
+    (crOpen ? '<div class="cr-bar"><button type="button" class="btn btn-sm btn-ghost link-danger" data-act="crOpen" data-id="' + rid + '">' + icon('x', 'i-sm') + esc(t('cr_btn')) + '</button><span class="hint">' + esc(t('cr_bar_hint')) + '</span></div>' : '') +
     '<div class="table-wrap"><table class="table dsp-table"><thead><tr>' +
       (canPick ? '<th style="width:36px">' + (open.length ? '<input type="checkbox" class="check" data-change="dspAll" data-id="' + rid + '" title="' + esc(t('select_remaining')) + '" aria-label="' + esc(t('select_remaining')) + '">' : '') + '</th>' : '') +
       '<th>' + esc(t('items')) + '</th><th class="num">' + esc(t('requested')) + '</th><th class="num">' + esc(t('approved')) + '</th><th>' + esc(t('item_status')) + '</th><th>' + esc(t('sent_progress')) + '</th>' +

@@ -3207,6 +3207,34 @@ test('housekeeper: nurse-like requests seen only by her, straight to procurement
   assert.deepEqual([rows(gas, 'Requests').find(x => x.RequestID === id3).Branch, rows(gas, 'Requests').find(x => x.RequestID === id3).Status], ['الرياض', 'جديد']);
 });
 
+test('cancel the remaining of a partially sent request with a reason, linked to the new request that carries it', () => {
+  const { api, login, gas } = boot();
+  const n = login('سارة', '1111'), p = login('علي', '3333'), d = login('د. خالد', '4444');
+  const mk = items => api(n, 'createRequest', { clinic: 'عيادة الأسنان 1', doctor: 'د. خالد', type: 'شهري', items }).id;
+  const id = mk([{ name: 'PROPHY PASTE', qty: 4 }, { name: 'DENTAL FLOSS', qty: 10 }]);
+  api(d, 'doctorReview', id, 'اعتمد', '', [], [{ item: 'DENTAL FLOSS', qty: 10 }, { item: 'PROPHY PASTE', qty: 4 }]);
+  // لم يُرسل شيء بعد → ليس «جزئياً»
+  throwsCode(() => api(p, 'closeRemaining', id, [], 'رُفع المتبقي بطلب جديد', ''), 'ERR_NOT_PARTIAL');
+  api(p, 'dispatchItems', id, ['PROPHY PASTE']);
+  const id2 = mk([{ name: 'DENTAL FLOSS', qty: 10 }]);
+  const other = api(n, 'createRequest', { clinic: 'عيادة الأسنان 1', doctor: 'د. خالد', type: 'شهري', items: [{ name: 'PROPHY PASTE', qty: 1 }] }).id;
+  throwsCode(() => api(n, 'closeRemaining', id, [], 'x', id2), 'ERR_FORBIDDEN');
+  throwsCode(() => api(p, 'closeRemaining', id, [], '', id2), 'ERR_REASON_REQUIRED');
+  throwsCode(() => api(p, 'closeRemaining', id, [], 'x', id), 'ERR_LINK_SAME');
+  throwsCode(() => api(p, 'closeRemaining', id, [], 'x', 'REQ-NOPE-1'), 'ERR_LINK_NOT_FOUND');
+  throwsCode(() => api(p, 'closeRemaining', id, [], 'x', other), 'ERR_LINK_NO_ITEM');
+
+  const full = api(p, 'closeRemaining', id, [], 'رُفع المتبقي بطلب جديد', id2.toLowerCase());
+  const fl = full.items.find(i => i.item === 'DENTAL FLOSS');
+  assert.equal(fl.remainingQty, 0); assert.equal(fl.linkedRequest, id2); assert.equal(fl.rejected, true);
+  assert.match(fl.rejectNote, new RegExp('^إلغاء المتبقي — مرفوع بالطلب ' + id2 + ': رُفع المتبقي بطلب جديد'));
+  assert.equal(api(n, 'getMyRequests').find(r => r.id === id).status, 'تم الإرسال');
+  // الإثبات على الطلبين
+  assert.ok(api(n, 'getRequestDetail', id).comments.some(c => c.message.includes('أُلغي المتبقي: DENTAL FLOSS ×10 — مرفوع بالطلب ' + id2)));
+  assert.ok(api(n, 'getRequestDetail', id2).comments.some(c => c.message.includes('يغطي المتبقي من الطلب ' + id)));
+  assert.ok(rows(gas, 'Log').some(l => l.RequestID === id && /أُلغي المتبقي/.test(l.Action)));
+});
+
 test('procurement rejects one item with a reason the doctor and nurse see; restore; last item rejected completes the request', () => {
   const { api, login, gas } = boot();
   const n = login('سارة', '1111'), p = login('علي', '3333'), d = login('د. خالد', '4444');
