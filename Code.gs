@@ -8909,7 +8909,7 @@ function isAssetOwnership_(v) { return /عهد|asset|company|شركة|custody/i.
 
 function assetCatalog_() {
   const out = {};
-  getCatalog_(true).forEach(function (c) { if (c.asset) out[c.name] = { name: c.name, serialized: !!c.serialized, price: c.price || 0, category: c.category }; });
+  getCatalog_(true).forEach(function (c) { if (c.asset) out[c.name] = { name: c.name, serialized: !!c.serialized, price: c.price || 0, category: c.category, aliases: c.aliases || [] }; });
   return out;
 }
 /**
