@@ -19,7 +19,8 @@
       ['فني المعمل', '8888', 'المعمل', '', 'lab@example.com']
     ]);
     // دورة استبيان مفتوحة اليوم (الافتراضي الحقيقي: أول دورة بعد 50 يوماً من التحديث)
-    gas.seed('Settings', ['Key', 'Value', 'Notes'], [['SurveyStart', new Date(Date.now() + 3 * 36e5).toISOString().slice(0, 10), '']]);
+    // نافذة «الطلبات السابقة بأثر رجعي» مفتوحة في الاختبارات (الافتراضي في النظام ينتهي بتاريخ ثابت)
+    gas.seed('Settings', ['Key', 'Value', 'Notes'], [['SurveyStart', new Date(Date.now() + 3 * 36e5).toISOString().slice(0, 10), ''], ['BackdateUntil', '2099-12-31', '']]);
     gas.seed('Clinics', ['ClinicName', 'Branch', 'Type'], [
       ['عيادة الأسنان 1', 'الرياض', 'أسنان'], ['عيادة الأسنان 2', 'جدة', 'أسنان'], ['عيادة الجلدية 1', 'الرياض', 'جلدية'],
       ['Sterilization', 'الرياض', 'تعقيم'], ['Sterilization', 'جدة', 'تعقيم'] // نفس القسم في فرعين
