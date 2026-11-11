@@ -3207,6 +3207,23 @@ test('housekeeper: nurse-like requests seen only by her, straight to procurement
   assert.deepEqual([rows(gas, 'Requests').find(x => x.RequestID === id3).Branch, rows(gas, 'Requests').find(x => x.RequestID === id3).Status], ['الرياض', 'جديد']);
 });
 
+test('nurse and housekeeper never receive any price — even with a grant — while the receipt price is still locked internally', () => {
+  const { api, login, gas } = boot();
+  const n = login('سارة', '1111'), p = login('علي', '3333'), d = login('د. خالد', '4444');
+  const PNG = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==';
+  const u = gas.ss.getSheetByName('Users'), uh = u._data[0];
+  u._data.find(r => r[0] === 'سارة')[uh.indexOf('PriceView')] = 'يرى الأسعار'; // منح لا يُعتد به للتمريض
+  const id = api(n, 'createRequest', { clinic: 'عيادة الأسنان 1', doctor: 'د. خالد', type: 'شهري', items: [{ name: 'PROPHY PASTE', qty: 2 }] }).id;
+  api(d, 'doctorReview', id, 'اعتمد', '', [], [{ item: 'PROPHY PASTE', qty: 2 }]);
+  api(p, 'dispatchItems', id, ['PROPHY PASTE']);
+  api(n, 'receiveShipment', id, 1, [{ name: 'PROPHY PASTE', qty: 2 }], 'سارة', PNG, PNG, PNG);
+  const money = /"(price|unitPrice|value|total|cost|lineValue)":\s*[1-9]/;
+  const lg = api(null, 'login', 'سارة', '1111');
+  assert.equal(lg.user.noPrices, true);
+  for (const out of [lg, api(n, 'getMyRequests'), api(n, 'getRequestDetail', id), api(n, 'getAssetConfig')]) assert.ok(!money.test(JSON.stringify(out)), 'no price reaches the nurse');
+  assert.equal(Number(rows(gas, 'RequestItems').find(r => r.RequestID === id).UnitPrice), 60, 'receipt price still locked');
+});
+
 test('finance: doctor-review saving counts only the doctor\'s cut; procurement rejects and cancelled remaining are shown apart; dispatched skips confirmed shortage', () => {
   const { api, login, gas } = boot();
   const n = login('سارة', '1111'), p = login('علي', '3333'), d = login('د. خالد', '4444'), fin = login('نواف', '7777');

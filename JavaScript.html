@@ -1429,7 +1429,7 @@ const PERM_LIST = ['overview', 'monitor', 'doctors_live', 'surveys', 'doctor_pri
 const GRANTABLE_ALL = ['receipt_audit']; // تُمنح لأي دور حتى التشغيلي
 const WF_NAV = { id: 'workflow', icon: 'route', k: 'nav_workflow' };
 /* طبيبة الجلدية: بدون أي سعر أو قيمة في صفحتها (الخادم لا يرسلها أصلاً) */
-const noPrices = () => !!(S.user && (S.user.noPrices || (['doctor', 'branch'].indexOf(S.user.screen) !== -1 && S.user.priceView !== 'all')));
+const noPrices = () => !!(S.user && (S.user.noPrices || ['nurse', 'housekeeper'].indexOf(S.user.screen) !== -1 || (['doctor', 'branch'].indexOf(S.user.screen) !== -1 && S.user.priceView !== 'all')));
 const isMgmt = () => !!S.user && MGMT_SCREENS.indexOf(S.user.screen) !== -1;
 const hasPerm = p => !!S.user && (S.user.perms || []).indexOf(p) !== -1;
 function navItems() {

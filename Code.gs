@@ -2096,7 +2096,10 @@ function parsePriceView_(v) {
 }
 const PRICE_VIEW_LABEL_ = { all: 'يرى الأسعار', none: 'بدون أسعار' };
 const PRICE_GATED_ = ['doctor', 'branch']; // أدوار لا ترى أي سعر إلا بمنح صريح
+// التمريض والهاوس كيبر (ومسؤول التعقيم والأشعة): لا يصلهم أي سعر أو قيمة أبداً — حتى بمنح
+const PRICE_NEVER_ = ['nurse', 'housekeeper'];
 function userPriceView_(user) {
+  if (PRICE_NEVER_.indexOf(user.screen) !== -1) return 'none';
   if (PRICE_GATED_.indexOf(user.screen) === -1) return 'all';
   const r = read_('Users').rows.filter(function (u) { return str_(u.Name) === user.name; })[0];
   return (r && parsePriceView_(r.PriceView)) || 'none';
@@ -2288,7 +2291,8 @@ function getCatalog_(withPrice) {
     const dp = normDept_(r.Department); if (dp) o.dept = dp;
     if (isYes_(r.Exempt)) o.exempt = true;
     const ml = monthLimitOf_(r.MonthlyLimit); if (ml) o.monthLimit = ml; // حد الصنف الشهري لكل طبيب
-    if (withPrice && !priceVisible_()) o.priceHidden = true;
+    // withPrice = 'raw': حسبة داخلية (تثبيت سعر الاستلام…) بالسعر الحقيقي مهما كان دور من نفّذ العملية — لا يُرسل للمتصفح
+    if (withPrice && withPrice !== 'raw' && !priceVisible_()) o.priceHidden = true;
     else if (withPrice) {
       o.price = price_(r.Price) || 0;
       const issue = priceProblem_(r.Price);
@@ -5077,7 +5081,7 @@ function unitPrice_(it, catPrice) {
 /** أسعار الاستلام الفعلية: العهدة صفر (لا تُحسب كمستهلك) */
 function receivePrices_() {
   const p = {};
-  getCatalog_(true).forEach(function (c) { p[c.name.toLowerCase()] = c.asset ? 0 : (Number(c.price) || 0); });
+  getCatalog_('raw').forEach(function (c) { p[c.name.toLowerCase()] = c.asset ? 0 : (Number(c.price) || 0); });
   return p;
 }
 /** يثبّت السعر على سطر الصنف أول مرة يُستلم (السعر الصفر لا يُثبّت: يُسعَّر لاحقاً من الكتالوج) */
@@ -5087,7 +5091,7 @@ function stampPrice_(row, obj, prices) {
 }
 function catalogPrices_() {
   const price = {};
-  getCatalog_(true).forEach(function (c) { price[c.name.toLowerCase()] = Number(c.price) || 0; });
+  getCatalog_('raw').forEach(function (c) { price[c.name.toLowerCase()] = Number(c.price) || 0; });
   return price;
 }
 /** الطلب كاملاً للأدمن: الأصناف بكمياتها وقيمتها، والشحنات، وسجل التراجعات */
