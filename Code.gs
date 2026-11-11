@@ -3560,26 +3560,36 @@ function getFinance_(user, opts) {
   let requested = 0, received = 0, returned = 0, dispatched = 0;
   // «المعتمد» = ما اعتمده الطبيب (أو لا يحتاج اعتماده) فقط · ما زال لدى الطبيب يظهر منفصلاً
   // «التوفير من المراجعة» = المطلوب − المعتمد في الطلبات المعتمدة نفسها
-  let approved = 0, reqCleared = 0, pendingDoc = 0;
-  const byType = {};
+  let approved = 0, reqCleared = 0, docCleared = 0, pendingDoc = 0, cutAfter = 0;
+  const byType = {}, byTypeRcv = {};
+  // أصناف حلّ محلها بديل معتمد: لا تدخل في «وفر المراجعة» (ليست قراراً من الطبيب بتقليل الكمية)
+  const replacedBy = {};
+  read_('RequestItems').rows.forEach(function (it) { if (str_(it.SubstituteOf) && str_(it.SubStatus) === SUB_ST.OK) replacedBy[str_(it.RequestID) + '|' + str_(it.SubstituteOf)] = true; });
   // اتجاه 12 شهراً (قيمة المعتمد حسب شهر الرفع) — مستقل عن الفترة المختارة، وبنفس قاعدة بطاقة «المعتمد»
   const byMonth = {};
+  const lineP = {}; // سعر واحد لكل سطر في كل البطاقات: المثبّت عند الاستلام، وإلا الكتالوج الحالي
   read_('RequestItems').rows.forEach(function (it) {
-    const id = str_(it.RequestID), p = pr(it.ItemName);
+    const id = str_(it.RequestID), p = unitPrice_(it, pr(it.ItemName));
+    lineP[id + '|' + str_(it.ItemName)] = p;
     const any = byId[id];
     if (any && !any.awaitingDoctor) { const m = monthOf_(any.submittedAt || any.date); byMonth[m] = (byMonth[m] || 0) + targetQty_(it) * p; }
     const r = inRange[id];
     if (!r) return;
     requested += (num_(it.RequestedQty) || 0) * p;
-    const up = unitPrice_(it, p); // المستلم بسعر الاستلام المثبّت
+    const up = p; // المستلم بسعر الاستلام المثبّت
     received += grossReceivedQty_(it) * up; returned += returnedQty_(it) * up;
+    const t = r.type || '—';
+    byTypeRcv[t] = round2_((byTypeRcv[t] || 0) + receivedQty_(it) * up); // صافي المستلم لكل نوع — بنفس قاعدة «صافي المستلم»
     if (r.awaitingDoctor) { pendingDoc += targetQty_(it) * p; return; }
     approved += targetQty_(it) * p;
-    if (!str_(it.SubstituteOf)) reqCleared += (num_(it.RequestedQty) || 0) * p;
-    const t = r.type || '—';
+    // ما اعتمده الطبيب قبل أي رفض/حذف/إلغاء متبقٍ بعد الاعتماد (الكمية السابقة محفوظة في RejectQty)
+    const before = it.RejectAt ? (str_(it.RejectQty) !== '' && !isNaN(num_(it.RejectQty)) ? num_(it.RejectQty) : num_(it.RequestedQty) || 0) : targetQty_(it);
+    if (it.RejectAt) cutAfter += Math.max(0, before - targetQty_(it)) * p;
+    if (!str_(it.SubstituteOf) && !replacedBy[id + '|' + str_(it.ItemName)]) { reqCleared += (num_(it.RequestedQty) || 0) * p; docCleared += before * p; }
     byType[t] = round2_((byType[t] || 0) + targetQty_(it) * p); // جزء من «المعتمد»
   });
-  read_('ShipmentItems').rows.forEach(function (s) { if (inRange[str_(s.RequestID)]) dispatched += (num_(s.Qty) || 0) * pr(s.ItemName); });
+  // المُرسل = المشحون فعلاً: النقص المعتمد في الشحنة (ShortQty) يُعاد إرساله بشحنة تابعة فلا يُحسب مرتين
+  read_('ShipmentItems').rows.forEach(function (s) { if (inRange[str_(s.RequestID)]) dispatched += Math.max(0, (num_(s.Qty) || 0) - Math.max(0, num_(s.ShortQty) || 0)) * (lineP[str_(s.RequestID) + '|' + str_(s.ItemName)] !== undefined ? lineP[str_(s.RequestID) + '|' + str_(s.ItemName)] : pr(s.ItemName)); });
   const now = new Date(), trend = [];
   for (let i = 11; i >= 0; i--) {
     const m = Utilities.formatDate(new Date(now.getFullYear(), now.getMonth() - i, 15), TZ, 'yyyy-MM');
@@ -3588,9 +3598,9 @@ function getFinance_(user, opts) {
   return {
     from: rep.from, to: rep.to, branch: branch, generatedAt: new Date(),
     summary: { requests: rep.summary.requests - rep.summary.rejected - rep.summary.cancelled, requested: round2_(requested), approved: round2_(approved), pendingDoctor: round2_(pendingDoc),
-      dispatched: round2_(dispatched), received: round2_(Math.max(0, received - returned)), receivedGross: round2_(received), returned: round2_(returned), reviewSaving: round2_(Math.max(0, reqCleared - approved)),
+      dispatched: round2_(dispatched), received: round2_(Math.max(0, received - returned)), receivedGross: round2_(received), returned: round2_(returned), reviewSaving: round2_(Math.max(0, reqCleared - docCleared)), cutAfterApproval: round2_(cutAfter),
       avgValue: rep.summary.avgValue, value: rep.summary.value, emergency: rep.summary.emergency },
-    byType: byType, branches: rep.branches, clinics: rep.clinics, doctors: rep.doctors, billing: rep.billing, docBranches: rep.docBranches, topItems: rep.topItems,
+    byType: byType, byTypeReceived: byTypeRcv, branches: rep.branches, clinics: rep.clinics, doctors: rep.doctors, billing: rep.billing, docBranches: rep.docBranches, topItems: rep.topItems,
     badPrices: rep.badPrices, trend: trend
   };
 }

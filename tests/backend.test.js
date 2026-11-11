@@ -3207,6 +3207,41 @@ test('housekeeper: nurse-like requests seen only by her, straight to procurement
   assert.deepEqual([rows(gas, 'Requests').find(x => x.RequestID === id3).Branch, rows(gas, 'Requests').find(x => x.RequestID === id3).Status], ['الرياض', 'جديد']);
 });
 
+test('finance: doctor-review saving counts only the doctor\'s cut; procurement rejects and cancelled remaining are shown apart; dispatched skips confirmed shortage', () => {
+  const { api, login, gas } = boot();
+  const n = login('سارة', '1111'), p = login('علي', '3333'), d = login('د. خالد', '4444'), fin = login('نواف', '7777');
+  const mk = (type, items) => api(n, 'createRequest', { clinic: 'عيادة الأسنان 1', doctor: 'د. خالد', type, items }).id;
+  const A = mk('شهري', [{ name: 'PROPHY PASTE', qty: 4 }, { name: 'DENTAL FLOSS', qty: 10 }]);
+  api(d, 'doctorReview', A, 'اعتمد', '', [], [{ item: 'DENTAL FLOSS', qty: 8 }, { item: 'PROPHY PASTE', qty: 4 }]); // الطبيب وفّر 2 × 12.5 = 25
+  const B = mk('طارئ', [{ name: 'PROPHY PASTE', qty: 2 }, { name: 'DENTAL FLOSS', qty: 20 }]);
+  api(d, 'doctorReview', B, 'اعتمد', '', [], [{ item: 'DENTAL FLOSS', qty: 20 }, { item: 'PROPHY PASTE', qty: 2 }]);
+  api(p, 'rejectItems', B, ['DENTAL FLOSS'], 'غير متوفر'); // 20 × 12.5 = 250 — ليس وفراً من الطبيب
+  api(p, 'dispatchItems', B, ['PROPHY PASTE']);
+  const C = mk('شهري', [{ name: 'PROPHY PASTE', qty: 5 }, { name: 'DENTAL FLOSS', qty: 10 }]);
+  api(d, 'doctorReview', C, 'اعتمد', '', [], [{ item: 'DENTAL FLOSS', qty: 10 }, { item: 'PROPHY PASTE', qty: 5 }]);
+  api(p, 'dispatchItems', C, ['PROPHY PASTE', { name: 'DENTAL FLOSS', qty: 4 }]);
+  api(p, 'closeRemaining', C, ['DENTAL FLOSS'], 'رُفع المتبقي بطلب جديد', A); // 6 × 12.5 = 75
+  // نقص معتمد في شحنة: لا يُحسب «مُرسلاً» مرتين
+  const si = gas.ss.getSheetByName('ShipmentItems'), sh = si._data[0];
+  const line = si._data.find(r => r[sh.indexOf('RequestID')] === C && r[sh.indexOf('ItemName')] === 'PROPHY PASTE');
+  line[sh.indexOf('ShortQty')] = 1;
+  const s = api(fin, 'getFinance', {}).summary;
+  assert.equal(s.reviewSaving, 25);
+  assert.equal(s.cutAfterApproval, 325);
+  assert.equal(s.dispatched, 2 * 60 + 5 * 60 + 4 * 12.5 - 60); // B: 2 PROPHY · C: 5 PROPHY (−1 نقص) + 4 FLOSS
+  // سعر الكتالوج يتغير بعد الاستلام: المعتمد والمرسل والمستلم بنفس السعر المثبّت لكل سطر (البطاقات متوافقة)
+  const PNG = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==';
+  const D = mk('شهري', [{ name: 'PROPHY PASTE', qty: 3 }]);
+  api(d, 'doctorReview', D, 'اعتمد', '', [], [{ item: 'PROPHY PASTE', qty: 3 }]);
+  api(p, 'dispatchItems', D, ['PROPHY PASTE']);
+  api(n, 'receiveShipment', D, 1, [{ name: 'PROPHY PASTE', qty: 3 }], 'سارة', PNG, PNG, PNG);
+  const before = api(fin, 'getFinance', {}).summary;
+  api(fin, 'setItemPrice', 'PROPHY PASTE', 100);
+  const after = api(fin, 'getFinance', {}).summary;
+  assert.equal(after.received - before.received, 0, 'received keeps the stamped price');
+  assert.equal(after.approved - before.approved, (4 + 2 + 5) * 40, 'only unreceived lines move with the catalog');
+});
+
 test('cancel the remaining of a partially sent request with a reason, linked to the new request that carries it', () => {
   const { api, login, gas } = boot();
   const n = login('سارة', '1111'), p = login('علي', '3333'), d = login('د. خالد', '4444');
