@@ -7465,7 +7465,7 @@ function asDoctorSelect(id, clinic, cur) {
 function asClinicCard(c, role) {
   const canReport = role === 'nurse';
   const canManage = role === 'procurement';
-  return '<section class="card"><div class="card-head"><h3>' + icon('building') + esc(c.clinic) + ' ' + branchTag(c.branch) +
+  return '<section class="card" data-asc="' + esc(c.clinic) + '"><div class="card-head"><h3>' + icon('building') + esc(c.clinic) + ' ' + branchTag(c.branch) +
       (c.shortage ? ' <span class="tag late">' + esc(t('as_shortage')) + ' ' + c.shortage + '</span>' : '') + '</h3>' +
       (canManage ? '<div class="row-wrap"><button class="btn btn-soft btn-sm" data-act="asStd" data-clinic="' + esc(c.clinic) + '">' + icon('edit', 'i-sm') + esc(t('as_set_std')) + '</button>' +
         '<button class="btn btn-primary btn-sm" data-act="asIssue" data-clinic="' + esc(c.clinic) + '">' + icon('plus', 'i-sm') + esc(t('as_issue')) + '</button></div>' : '') + '</div>' +
@@ -7508,7 +7508,7 @@ ACT.asGroup = el => { AS.group = el.dataset.g; resetPage('as'); asRenderTickets(
 function asLoad(silent) {
   const role = S.user.screen;
   const jobs = [asCfg()];
-  if (role !== 'procurement' || AS.tab === 'clinics') jobs.push(swr('getClinicAssets', [{}], d => { AS.clinics = d || []; asRenderClinics(); }, e => { if (!silent) toast(errMsg(e), 'error'); }));
+  if (role !== 'procurement' || AS.tab === 'clinics') jobs.push(swr('getClinicAssets', [{}], d => { AS.clinics = d || []; asRenderClinics(); asLookRun(); }, e => { if (!silent) toast(errMsg(e), 'error'); }));
   if (role !== 'doctor' && (role !== 'procurement' || AS.tab === 'tickets')) jobs.push(swr('getAssetTickets', [{}], d => { AS.tickets = d || []; asRenderTickets(); }, () => {}));
   return Promise.all(jobs).then(() => { const n = $('#asNoCat'); if (n) n.classList.toggle('hidden', !!(AS.cfg && AS.cfg.items.length)); }).catch(() => {});
 }
@@ -7547,6 +7547,45 @@ function asRenderClinics() {
     (empty ? '<div class="hint" style="text-align:center">' + icon('info', 'i-sm') + ' ' + esc(t('as_empty_clinics', { n: empty })) + '</div>' : '') +
     (!AS.clinics.length ? emptyState('building', t(role === 'nurse' ? 'as_no_clinic' : 'as_no_items'), role === 'nurse' ? t('as_no_clinic_sub') : '') : '');
 }
+/* بحث سريع في العهدة عبر كل العيادات: «هاي سبيد» → كم عيادة عندها، كم قطعة، وين النقص — بدل الفرز اليدوي */
+const AS_LOOK_HTML = () => '<section class="card as-look"><div class="card-body"><div class="input-icon">' + icon('search') +
+  '<input class="input" id="asLookQ" type="search" dir="auto" autocomplete="off" placeholder="' + esc(t('al_ph')) + '"></div><div id="asLookR"></div></div></section>';
+function asLookRun() {
+  const inp = $('#asLookQ'), box = $('#asLookR'); if (!inp || !box) return;
+  const q = inp.value.trim();
+  if (q.length < 2) { box.innerHTML = q ? '' : '<div class="hint">' + esc(t('al_tip')) + '</div>'; return; }
+  const names = {};
+  (AS.clinics || []).forEach(c => (c.items || []).forEach(i => { names[i.item] = 1; }));
+  ((AS.cfg && AS.cfg.items) || []).forEach(i => { names[i.name] = 1; });
+  const meta = n => { const it = ((AS.cfg && AS.cfg.items) || []).find(i => i.name === n) || {}; return { aliases: it.aliases, category: it.category }; };
+  const hits = Object.keys(names).map(n => { const e = smartEntry_(n, meta(n)), r = smartScore_(q, e); return { n: n, s: r.miss ? 0 : r.s }; })
+    .filter(h => h.s > 0).sort((a, b) => b.s - a.s);
+  if (!hits.length) { box.innerHTML = '<div class="hint">' + icon('info', 'i-sm') + ' ' + esc(t('sel_find_none')) + '</div>'; return; }
+  const top = hits.filter(h => h.s >= hits[0].s - 20).slice(0, 4);
+  box.innerHTML = top.map(h => {
+    const rows = [];
+    (AS.clinics || []).forEach(c => { const i = (c.items || []).find(x => x.item === h.n); if (i && (i.inClinic || i.away || i.standard)) rows.push({ c: c, i: i }); });
+    rows.sort((a, b) => (a.c.branch || '').localeCompare(b.c.branch || '') || b.i.inClinic - a.i.inClinic || a.c.clinic.localeCompare(b.c.clinic));
+    const sum = k => rows.reduce((a, r) => a + (Number(r.i[k]) || 0), 0);
+    const have = rows.filter(r => r.i.inClinic > 0).length, short = rows.filter(r => r.i.shortage > 0).length;
+    const docs = r => { const d = {}; (r.i.assets || []).forEach(a => { if (a.doctor && a.status === 'في العيادة') d[a.doctor] = (d[a.doctor] || 0) + a.qty; }); return Object.keys(d).map(k => k + ' ×' + d[k]).join('، '); };
+    return '<div class="al-item"><div class="al-head"><b dir="ltr">' + esc(h.n) + '</b>' +
+      '<span class="tag ok">' + esc(t('al_clinics', { n: have })) + '</span><span class="tag">' + esc(t('al_units', { n: sum('inClinic') })) + '</span>' +
+      (sum('away') ? '<span class="tag warn">' + esc(t('al_away', { n: sum('away') })) + '</span>' : '') +
+      (short ? '<span class="tag late">' + esc(t('al_short', { n: short, q: sum('shortage') })) + '</span>' : '') + '</div>' +
+      (rows.length ? '<div class="table-wrap"><table class="table al-table"><thead><tr><th>' + esc(t('branch')) + '</th><th>' + esc(t('clinic')) + '</th><th class="num">' + esc(t('al_in')) + '</th><th class="num">' + esc(t('as_standard')) + '</th><th class="num">' + esc(t('al_away_h')) + '</th><th class="num">' + esc(t('al_short_h')) + '</th><th>' + esc(t('al_doc')) + '</th></tr></thead><tbody>' +
+        rows.map(r => '<tr class="' + (r.i.shortage ? 'al-short' : r.i.inClinic ? '' : 'al-zero') + '"><td>' + esc(r.c.branch || '—') + '</td><td><button type="button" class="link-btn" data-act="asLookGo" data-b="' + esc(r.c.branch || '—') + '" data-c="' + esc(r.c.clinic) + '">' + esc(r.c.clinic) + '</button></td>' +
+          '<td class="num"><b>' + fmtNum(r.i.inClinic || 0, 0) + '</b></td><td class="num">' + (r.i.standard ? fmtNum(r.i.standard, 0) : '—') + '</td><td class="num">' + (r.i.away ? fmtNum(r.i.away, 0) : '—') + '</td><td class="num">' + (r.i.shortage ? '<b class="txt-red">' + fmtNum(r.i.shortage, 0) + '</b>' : '—') + '</td><td class="muted">' + esc(docs(r) || '—') + '</td></tr>').join('') +
+        '</tbody></table></div>' : '<div class="hint">' + esc(t('al_none')) + '</div>') + '</div>';
+  }).join('');
+}
+ACT.asLookGo = el => {
+  AS.branch = el.dataset.b; store.set('asBranch', AS.branch); asRenderClinics();
+  const card = $$('#asClinics [data-asc]').find(x => x.dataset.asc === el.dataset.c);
+  if (card) { card.scrollIntoView({ behavior: 'smooth', block: 'start' }); card.classList.add('flash'); setTimeout(() => card.classList.remove('flash'), 1600); }
+};
+Object.assign(I18N.ar, { al_ph: 'ابحث عن أداة في كل العيادات — مثل: هاي سبيد، curing، ابكس', al_tip: 'اكتب اسم الأداة وتطلع لك العيادات اللي عندها وكم قطعة، والنقص عن المعيار', al_clinics: 'موجودة في {n} عيادة', al_units: '{n} قطعة في العيادات', al_away: '{n} خارج العيادة (صيانة/تموين)', al_short: 'نقص في {n} عيادة ({q})', al_in: 'في العيادة', al_away_h: 'خارجها', al_short_h: 'النقص', al_doc: 'مصروفة على', al_none: 'لا توجد هذه الأداة في أي عيادة' });
+Object.assign(I18N.en, { al_ph: 'Find a tool across all clinics — e.g. high speed, curing, apex', al_tip: 'Type a tool name to see which clinics have it, how many, and shortages against the standard', al_clinics: 'In {n} clinic(s)', al_units: '{n} unit(s) in clinics', al_away: '{n} away (repair/procurement)', al_short: 'Short in {n} clinic(s) ({q})', al_in: 'In clinic', al_away_h: 'Away', al_short_h: 'Short', al_doc: 'Charged to', al_none: 'This tool is not in any clinic' });
 VIEWS.assets = {
   title: 'nav_assets',
   get sub() { const r = S.user && S.user.screen; return r === 'doctor' ? 'sub_assets_doc' : r === 'procurement' ? 'sub_assets_proc' : ''; },
@@ -7558,7 +7597,7 @@ VIEWS.assets = {
       return noCat + segmented('asTab', [{ v: 'clinics', label: t('as_tab_clinics'), icon: 'building' }, { v: 'tickets', label: t('as_tab_tickets'), icon: 'alert' },
           { v: 'find', label: t('as_tab_find'), icon: 'search' }, { v: 'stats', label: t('as_tab_stats'), icon: 'chart' }], AS.tab) +
         (AS.tab === 'tickets' ? '<div id="asChips"></div><div class="list stagger" id="asTickets">' + skeletonList(2) + '</div>'
-          : AS.tab === 'clinics' ? '<div class="stack" id="asClinics">' + skeletonList(2) + '</div>'
+          : AS.tab === 'clinics' ? AS_LOOK_HTML() + '<div class="stack" id="asClinics">' + skeletonList(2) + '</div>'
           : AS.tab === 'find' ? '<div class="input-icon">' + icon('search') + '<input class="input" id="asFindQ" dir="ltr" placeholder="' + esc(t('as_find_ph')) + '"></div><div class="stack" id="asFound"></div>'
           : '<div id="asStats">' + skeletonList(2) + '</div>');
     }
@@ -7567,7 +7606,7 @@ VIEWS.assets = {
       ? '<section class="card as-report-cta"><div class="card-body between" style="gap:12px;flex-wrap:wrap"><div><h2 style="margin:0">' + icon('alert') + esc(t('as_report_cta')) + '</h2><div class="hint">' + esc(t('as_report_cta_hint')) + '</div></div>' +
           '<button class="btn btn-danger btn-lg" data-act="asReportNew" id="asReportBtn">' + icon('alert', 'i-sm') + esc(t('as_report_cta')) + '</button></div></section>'
       : '') +
-      '<div class="stack" id="asClinics">' + skeletonList(2) + '</div>' +
+      (role === 'nurse' ? '' : AS_LOOK_HTML()) + '<div class="stack" id="asClinics">' + skeletonList(2) + '</div>' +
       (role === 'nurse' ? '<section class="card"><div class="card-head"><h3>' + icon('clipboard') + esc(t('as_my_tickets')) + '</h3></div><div class="card-body"><div id="asChips"></div><div class="list" id="asTickets"></div></div></section>' : '');
   },
   mount(root) {
@@ -7578,6 +7617,8 @@ VIEWS.assets = {
       return;
     }
     if (S.user.screen === 'procurement' && AS.tab === 'stats') { asStatsLoad('#asStats'); return; }
+    const lq = $('#asLookQ', root);
+    if (lq) { lq.addEventListener('input', debounce(asLookRun, 150)); asLookRun(); }
     asLoad();
   },
   refresh() { asLoad(true); }
