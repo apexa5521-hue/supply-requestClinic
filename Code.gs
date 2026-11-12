@@ -7620,7 +7620,7 @@ function getExecutiveStats_(user, month) {
   });
 
   // الأصناف الأكثر طلباً (بديل تقريبي عن دوران المخزون - النظام لا يتتبع أرصدة المستودع)
-  // الكمية = المعتمدة (أو المطلوبة إن لم تُعدَّل) · لا يُحسب الطلب الملغي/المرفوض ولا الصنف المرفوض ولا البديل غير الموافق عليه
+  // الكمية = المطلوبة · لا يُحسب الطلب الملغي/المرفوض
   const reqOf = {};
   all.forEach(function (r) { reqOf[r.id] = r; });
   const itemTotals = {}, by = {};
@@ -7633,7 +7633,8 @@ function getExecutiveStats_(user, month) {
       if (Number(r.ReceivedQty) < expected) shortages++;
     }
     if (isOff_(q0.status)) return;
-    const q = targetQty_(r), n = str_(r.ItemName), k = n.toLowerCase();
+    // «الأكثر طلباً» = الكمية المطلوبة — نفس أساس «أصناف كل طبيب» (اقتراح التموين البديل لا يُعد طلباً من العيادة)
+    const q = str_(r.SubstituteOf) ? 0 : Math.max(0, Math.floor(num_(r.RequestedQty) || 0)), n = str_(r.ItemName), k = n.toLowerCase();
     if (!q || !n) return;
     const it = itemTotals[k] || (itemTotals[k] = { name: n, qty: 0, requests: 0 });
     it.qty += q; it.requests++;
