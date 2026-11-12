@@ -1467,7 +1467,7 @@ function log(msg) { console.log('  ✔ ' + msg); }
   await page.waitForSelector('#fnBody .rp-tile');
   const fNav = await page.$$eval('.sidebar .nav-item', els => [].concat(...els.map(e => (e.dataset.members ? e.dataset.members.split(' ') : [e.dataset.view]))));
   expect(fNav[0] === 'finance' && !fNav.includes('users') && !fNav.includes('complaints'), 'finance lands on its own screen: ' + fNav.join(','));
-  expect(await page.locator('#fnBody .rp-tile').count() === 10, 'finance shows 10 money figures (incl. awaiting doctor approval, net received and returns)');
+  expect(await page.locator('#fnBody .rp-tile').count() === 11, 'finance shows 11 money figures (incl. awaiting doctor approval, cut after approval, net received and returns)');
   await page.waitForSelector('#fnPrices tr:has-text("Itero Sleeve") .price-in');
   await page.fill('#fnPrices tr:has-text("Itero Sleeve") .price-in', '320');
   await page.click('#fnPrices tr:has-text("Itero Sleeve") [data-act="priceSave"]');
