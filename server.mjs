@@ -11,7 +11,7 @@ import { fileURLToPath } from 'node:url';
 import * as XLSX from 'xlsx';
 import { createGas } from './server/gas.mjs';
 import { driveConfigFromEnv, driveViewUrl, driveAccessToken } from './server/drive.mjs';
-import { backupFolder, uploadBackup, folderUrl } from './server/backup.mjs';
+import { backupFolder, uploadBackup, folderUrl, nightlyBackupDue, BACKUP_RETRY_MS } from './server/backup.mjs';
 import { googleAccessToken, mirrorToSheet, runExclusive } from './server/sync.mjs';
 import { Store, storageState, encodeGrid } from './server/store.mjs';
 import { exportWorkbook, instantFromCell } from './server/workbook.mjs';
@@ -261,19 +261,23 @@ app.post('/admin/import', express.raw({ type: '*/*', limit: '60mb' }), async (re
 // every 10 min while the server is awake; Render's free plan sleeps when idle, so any use of the app (/api)
 // and the 15-min pg_cron call (/sync/run) also run it. Code.gs keeps a log, so nothing is sent twice.
 let lastTick = 0;
+let backupRetryAt = 0; // after a failed nightly backup: no new try before this time
 function tick(force) {
   if (!force && Date.now() - lastTick < 10 * 60e3) return null;
   lastTick = Date.now();
   return ready.then(() => bootError ? null : serial(async () => {
     const r = JSON.parse(JSON.stringify(ctx.cronTick_()));
     // nightly backup to Drive: once a day from 2 am (Riyadh), the first tick after that
-    if (driveCfg) {
-      const now = new Date(Date.now() + 3 * 36e5).toISOString(), last = (() => { try { return JSON.parse(gas.props['backup:last'] || 'null'); } catch (e) { return null; } })();
-      const lastDay = last && last.url && last.at ? new Date(Date.parse(last.at) + 3 * 36e5).toISOString().slice(0, 10) : '';
-      if (Number(now.slice(11, 13)) >= 2 && lastDay !== now.slice(0, 10)) {
-        const prev = gas.props['backup:last'];
-        try { ctx.runBackup_('النظام (تلقائي)'); await sendBackups(); r.backup = true; }
-        catch (e) { console.error('[backup] nightly failed:', e.message); gas.pendingBackups.length = 0; if (prev === undefined) delete gas.props['backup:last']; else gas.props['backup:last'] = prev; }
+    if (driveCfg && nightlyBackupDue(Date.now(), gas.props['backup:last'], backupRetryAt)) {
+      const prev = gas.props['backup:last'];
+      try {
+        // the Drive link first: when it is broken, nothing is run or written (no «backup taken» log row for a backup that failed)
+        await driveAccessToken(driveCfg);
+        ctx.runBackup_('النظام (تلقائي)'); await sendBackups(); r.backup = true; backupRetryAt = 0;
+      } catch (e) {
+        backupRetryAt = Date.now() + BACKUP_RETRY_MS;
+        console.error('[backup] nightly failed (next try in ' + BACKUP_RETRY_MS / 36e5 + ' h):', e.message);
+        gas.pendingBackups.length = 0; if (prev === undefined) delete gas.props['backup:last']; else gas.props['backup:last'] = prev;
       }
     }
     await store.flush(gas);

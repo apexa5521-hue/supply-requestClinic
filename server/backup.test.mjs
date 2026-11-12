@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { backupFolder, uploadBackup, BACKUP_PREFIX, BACKUP_KEEP, folderUrl } from './backup.mjs';
+import { backupFolder, uploadBackup, BACKUP_PREFIX, BACKUP_KEEP, folderUrl, nightlyBackupDue, BACKUP_RETRY_MS } from './backup.mjs';
 
 const calls = [];
 const ok = body => ({ ok: true, status: 200, json: async () => body });
@@ -52,3 +52,19 @@ refuseConvert = false;
 const bad = async () => ({ ok: false, status: 403, json: async () => ({ error: { message: 'insufficient scope' } }) });
 await assert.rejects(uploadBackup({ token: 't', folderId: 'f', name: 'n', xlsx: Buffer.from('x') }, bad), /drive backup start: insufficient scope/);
 console.log('backup tests ok');
+
+// nightly schedule: from 2 am Riyadh (23:00 UTC), once a day, and a failure waits BACKUP_RETRY_MS
+{
+  const at = iso => Date.parse(iso);
+  const done = JSON.stringify({ at: '2026-11-12T00:30:00Z', url: 'https://docs.google.com/x' }); // 03:30 Riyadh on the 12th
+  assert.equal(nightlyBackupDue(at('2026-11-11T22:30:00Z'), null), false, '01:30 Riyadh: too early');
+  assert.equal(nightlyBackupDue(at('2026-11-11T23:10:00Z'), null), true, '02:10 Riyadh, none yet: due');
+  assert.equal(nightlyBackupDue(at('2026-11-12T10:00:00Z'), done), false, 'already done today (Riyadh date)');
+  assert.equal(nightlyBackupDue(at('2026-11-12T23:10:00Z'), done), true, 'next night: due again');
+  assert.equal(nightlyBackupDue(at('2026-11-12T10:00:00Z'), JSON.stringify({ at: '2026-11-12T00:30:00Z' })), true, 'no url = not a real backup');
+  assert.equal(nightlyBackupDue(at('2026-11-12T10:00:00Z'), 'not json'), true);
+  const failedAt = at('2026-11-12T10:00:00Z');
+  assert.equal(nightlyBackupDue(failedAt + 10 * 60e3, null, failedAt + BACKUP_RETRY_MS), false, '10 min after a failure: wait');
+  assert.equal(nightlyBackupDue(failedAt + BACKUP_RETRY_MS, null, failedAt + BACKUP_RETRY_MS), true, 'after the wait: try again');
+  console.log('nightly backup schedule: ok');
+}
