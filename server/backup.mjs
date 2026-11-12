@@ -8,6 +8,21 @@ export const BACKUP_FOLDER = 'مسار — نسخ احتياطية';
 export const BACKUP_PREFIX = 'مسار — نسخة ';
 export const BACKUP_KEEP = 30;
 
+// a failed nightly backup waits this long before the next try (it used to retry every 10-minute tick, all day)
+export const BACKUP_RETRY_MS = 6 * 36e5;
+
+/**
+ * Is the nightly backup due? Once a day from 2 am Riyadh, unless today's backup is done,
+ * or the last attempt failed less than BACKUP_RETRY_MS ago (retryAt = when trying again is allowed).
+ */
+export function nightlyBackupDue(nowMs, lastJson, retryAtMs = 0) {
+  if (nowMs < retryAtMs) return false;
+  const riyadh = new Date(nowMs + 3 * 36e5).toISOString();
+  let last = null; try { last = JSON.parse(lastJson || 'null'); } catch (e) { last = null; }
+  const lastDay = last && last.url && last.at ? new Date(Date.parse(last.at) + 3 * 36e5).toISOString().slice(0, 10) : '';
+  return Number(riyadh.slice(11, 13)) >= 2 && lastDay !== riyadh.slice(0, 10);
+}
+
 const q = s => "'" + String(s).replace(/\\/g, '\\\\').replace(/'/g, "\\'") + "'";
 async function j(res, what) {
   const body = await res.json().catch(() => ({}));
