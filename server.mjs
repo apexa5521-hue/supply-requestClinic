@@ -14,6 +14,7 @@ import { driveConfigFromEnv, driveViewUrl, driveAccessToken } from './server/dri
 import { backupFolder, uploadBackup, folderUrl, nightlyBackupDue, BACKUP_RETRY_MS } from './server/backup.mjs';
 import { googleAccessToken, mirrorToSheet, runExclusive } from './server/sync.mjs';
 import { Store, storageState, encodeGrid } from './server/store.mjs';
+import { readPublicKey, verifyTicket, UsedTickets } from './server/sso.mjs';
 import { exportWorkbook, instantFromCell } from './server/workbook.mjs';
 import { mailConfigFromEnv, createMailer, createPusher, loadVapid, SERVICE_WORKER, MANIFEST, HEAD_TAGS } from './server/notify.mjs';
 const SHEET_TZ = process.env.SHEET_TZ || 'Asia/Riyadh';
@@ -117,6 +118,31 @@ app.post('/api', express.text({ type: '*/*', limit: '25mb' }), async (req, res) 
     // known refusals (e.g. ERR_STORAGE_FULL) reach the app as their code; anything else stays generic
     const code = err && typeof err.code === 'string' && /^ERR_[A-Z_]+$/.test(err.code) ? err.code : 'ERR_SERVER';
     res.status(500).json({ ok: false, error: code });
+  }
+});
+
+/* ---------- single sign-on from the operations platform ----------
+ * The page opened at /#sso=<ticket> posts the ticket here. It is checked with the platform's public key
+ * (SSO_PUBLIC_KEY); the user named in it gets an ordinary session. Off when SSO_PUBLIC_KEY is not set. */
+const SSO_KEY = readPublicKey(process.env.SSO_PUBLIC_KEY);
+if (process.env.SSO_PUBLIC_KEY && !SSO_KEY) console.error('[sso] SSO_PUBLIC_KEY is not a valid PEM public key: single sign-on is off');
+const ssoUsed = new UsedTickets();
+app.post('/sso', express.json({ limit: '16kb' }), async (req, res) => {
+  if (!SSO_KEY) return res.status(404).json({ ok: false, error: 'ERR_SSO_OFF' });
+  const claims = verifyTicket(req.body && req.body.ticket, { key: SSO_KEY, audience: process.env.SSO_APP_ID || 'masar', used: ssoUsed });
+  if (!claims) { console.log('[sso] refused a ticket'); return res.status(401).json({ ok: false, error: 'ERR_SSO' }); }
+  try {
+    await ready;
+    if (bootError) throw bootError;
+    const plan = req.body && typeof req.body.plan === 'object' ? req.body.plan : null;
+    const data = await serial(async () => { const out = JSON.parse(JSON.stringify(ctx.ssoApi_(claims.sub, plan))); await store.flush(gas); return out; });
+    console.log('[sso] signed in from the platform:', claims.sub);
+    res.json({ ok: true, data });
+  } catch (err) {
+    const msg = String((err && err.message) || err);
+    if (msg === 'ERR_SSO') { console.log('[sso] no Masar user named', JSON.stringify(claims.sub)); return res.status(401).json({ ok: false, error: 'ERR_SSO_USER' }); }
+    console.error('[sso]', err);
+    res.status(500).json({ ok: false, error: 'ERR_SERVER' });
   }
 });
 

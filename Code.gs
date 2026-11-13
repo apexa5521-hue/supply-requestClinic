@@ -1358,6 +1358,12 @@ function login_(name, password, preload) {
     } catch (e) { console.error(e); } // الترقية تحسين فقط — لا تمنع الدخول
   }
 
+  return openSession_(row, preload);
+}
+
+/** يفتح جلسة لصف المستخدم (بعد التحقق من كلمة السر، أو من تذكرة الدخول الموحد) */
+function openSession_(row, preload) {
+  const cache = CacheService.getScriptCache();
   migrateRoles_();
   const screen = roleScreen_(row.Role);
   if (!screen) throw new Error('ERR_ROLE_UNMAPPED');
@@ -1374,6 +1380,32 @@ function login_(name, password, preload) {
   const calls = preload && typeof preload === 'object' ? preload[user.screen] : null;
   if (Array.isArray(calls) && calls.length && calls.length <= BATCH_MAX) out.preload = runBatch_(user, calls);
   return out;
+}
+
+/**
+ * الدخول الموحد من منصة التشغيل: الخادم (server.mjs) تحقق من التذكرة الموقّعة، وهنا تُفتح الجلسة
+ * لاسم المستخدم المذكور فيها. هذه الدالة لا تُستدعى من الواجهة: ليست في API_ ولا في apiCore_.
+ */
+function ssoApi_(name, preload) {
+  NO_PRICES_ = false; PRICE_VIEW_ = 'all'; NK_ = '';
+  MEMO_ = {};
+  CACHED_READS_ = true;
+  SCOPE_BRANCH_ = '';
+  name = str_(name);
+  const key = loginKey_(name);
+  if (!key) throw new Error('ERR_SSO');
+  preamble_('', '', '');
+  autoSetup_();
+  try {
+    const rows = read_('Users').rows.filter(function (r) { return str_(r.Name) && loginKey_(r.Name) === key; });
+    const row = rows.filter(function (r) { return str_(r.Name) === name; })[0] || rows[0];
+    if (!row) throw new Error('ERR_SSO');
+    return sanitize_(openSession_(row, preload));
+  } finally {
+    flushDirty_();
+    CACHED_READS_ = false;
+    SCOPE_BRANCH_ = '';
+  }
 }
 
 function logout_(token) {

@@ -23,7 +23,7 @@ const I18N = {
     flow_1: 'رفع الطلب', flow_2: 'التجهيز', flow_3: 'اعتماد الطبيب', flow_4: 'الإرسال', flow_5: 'الاستلام والتوقيع',
     login_title: 'مرحباً بعودتك', login_sub: 'سجّل الدخول بالاسم والرقم السري المسجّلين لدى الإدارة.',
     login_name_label: 'الاسم', login_name_ph: 'اكتب اسمك كما هو مسجّل', login_pass_label: 'الرقم السري', login_pass_ph: '••••••',
-    login_btn: 'دخول', show_password: 'إظهار/إخفاء', login_error: 'الاسم أو الرقم السري غير صحيح', login_empty: 'اكتب الاسم والرقم السري',
+    login_btn: 'دخول', show_password: 'إظهار/إخفاء', login_error: 'الاسم أو الرقم السري غير صحيح', sso_failed: 'تعذّر الدخول من المنصة. ارجع للمنصة وحاول مجدداً، أو ادخل بالاسم والرقم السري', sso_no_user: 'حسابك في المنصة غير مربوط باسمك في مسار. ادخل بالاسم والرقم السري، واطلب من الإدارة تصحيح اسم الدخول', login_empty: 'اكتب الاسم والرقم السري',
     logout: 'تسجيل الخروج', sync: 'مزامنة الآن', synced_at: 'آخر مزامنة', nav_section: 'القائمة',
     screen_nurse: 'تمريض', screen_procurement: 'تموين', screen_doctor: 'طبيب', screen_dashboard: 'لوحة مؤشرات (قديم)', screen_admin: 'أدمن — كل الصلاحيات',
     nav_new: 'طلب جديد', nav_mine: 'طلباتي', nav_requests: 'الطلبات', nav_complaints: 'البلاغات', nav_reviews: 'المراجعات',
@@ -175,7 +175,7 @@ const I18N = {
     flow_1: 'Request', flow_2: 'Prepare', flow_3: 'Doctor approval', flow_4: 'Dispatch', flow_5: 'Receive & sign',
     login_title: 'Welcome back', login_sub: 'Sign in with the name and password registered by your admin.',
     login_name_label: 'Name', login_name_ph: 'Your registered name', login_pass_label: 'Password', login_pass_ph: '••••••',
-    login_btn: 'Sign in', show_password: 'Show/hide', login_error: 'Incorrect name or password', login_empty: 'Enter your name and password',
+    login_btn: 'Sign in', show_password: 'Show/hide', login_error: 'Incorrect name or password', sso_failed: 'Could not sign in from the platform. Go back and try again, or sign in with your name and password', sso_no_user: 'Your platform account is not linked to your Masar name. Sign in with your name and password, and ask the administrator to fix the login name', login_empty: 'Enter your name and password',
     logout: 'Sign out', sync: 'Sync now', synced_at: 'Last sync', nav_section: 'Menu',
     screen_nurse: 'Nursing', screen_procurement: 'Procurement', screen_doctor: 'Doctor', screen_dashboard: 'Dashboard (legacy)', screen_admin: 'Admin — full access',
     nav_new: 'New request', nav_mine: 'My requests', nav_requests: 'Requests', nav_complaints: 'Issues', nav_reviews: 'Reviews',
@@ -11266,6 +11266,31 @@ function showBackupBar() {
   function startApp() {
   // البنغالي والهندي لصفحة السواق فقط — باقي النظام عربي/إنجليزي
   if (S.lang !== 'ar' && S.lang !== 'en') { S.lang = 'en'; applyLang(); }
+  // فُتح من منصة التشغيل: #sso=<تذكرة>. تُحذف من شريط العنوان أولاً، ثم تُستبدل بجلسة عادية
+  const sso = /^#sso=([A-Za-z0-9_.-]+)$/.exec(location.hash);
+  if (sso && !isBackupSite()) {
+    history.replaceState(null, '', location.pathname + location.search);
+    const plan = preloadPlan('');
+    fetch('/sso', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ticket: sso[1], plan: plan }) })
+      .then(r => r.json().catch(() => ({ ok: false })))
+      .then(j => {
+        const res = j && j.ok ? j.data : null;
+        if (!res || !res.success) {
+          done(); showLogin();
+          loginError(t(j && j.error === 'ERR_SSO_USER' ? 'sso_no_user' : 'sso_failed'));
+          return;
+        }
+        session.clear(); RC.clear();
+        S.token = res.token;
+        session.set({ token: res.token, cfg: res.config });
+        const calls = plan[res.user.screen] || [];
+        (res.preload || []).forEach((r, i) => { if (r && r.ok && calls[i]) seedRC(calls[i][0], calls[i][1], r.data); });
+        done();
+        enterApp(res.config);
+      })
+      .catch(() => { done(); showLogin(); loginError(t('sso_failed')); });
+    return;
+  }
   const saved = session.get();
   if (saved && saved.token && saved.cfg && saved.cfg.user) {
     // إعادة تحميل الصفحة: نفتح فوراً بآخر بيانات معروفة، ثم نحدّث كل شيء بطلب واحد في الخلفية
