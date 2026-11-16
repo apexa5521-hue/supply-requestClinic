@@ -1620,6 +1620,10 @@ function log(msg) { console.log('  ✔ ' + msg); }
   await page.evaluate(() => call('createUser', { name: 'فني الصيانة', password: '2468', role: 'صيانة', email: '' }));
   await logout(page);
   await login(page, 'فني الصيانة', '2468');
+  // الصيانة تبدأ على «مهام القسم» — ننتقل لتبويب «بلاغات الفرع»
+  await page.waitForSelector('[data-seg-name="mtTab"][data-v="tickets"]');
+  expect(await page.locator('#mtkTop').count() === 1, 'maintenance lands on department tasks');
+  await page.click('[data-seg-name="mtTab"][data-v="tickets"]');
   await page.waitForSelector('#mtList .req');
   await page.click('#mtList .req [data-act="mtOpen"]');
   await page.click('.modal [data-a="receive"]');

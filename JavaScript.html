@@ -788,6 +788,7 @@ STATUS[ST.CANCELLED]   = { k: 'st_cancelled', tone: 'var(--t-gray)', step: 0 };
 /* سبب الإلغاء (يظهر للممرضة والطبيب والتموين حتى لا ينتظر أحد الطلب) */
 function cancelBox(r) {
   return r && r.status === ST.CANCELLED ? '<div class="reject-box cancel-box">' + icon('xc') + '<div><b>' + esc(t('cancel_reason')) + ':</b> ' + esc(r.cancelReason || '—') +
+    (r.duplicateOf ? ' <button type="button" class="link-btn" data-act="detail" data-id="' + esc(r.duplicateOf) + '">' + icon('link', 'i-sm') + esc(t('dup_open', { n: r.duplicateOf })) + '</button>' : '') +
     (r.cancelledBy ? '<div class="hint">' + esc(r.cancelledBy) + (r.cancelledAt ? ' · ' + esc(fmtDateTime(r.cancelledAt)) : '') + '</div>' : '') + '</div></div>' : '';
 }
 function stMeta(s) { return STATUS[s] || { k: s, tone: 'var(--t-gray)', step: 0 }; }
@@ -3500,11 +3501,38 @@ function procCard(r) {
       '<button class="btn btn-sm' + (open ? ' btn-soft' : '') + '" data-act="procToggle" data-id="' + esc(r.id) + '">' + icon('package', 'i-sm') + esc(t('view_items')) + icon('chevd', 'i-sm chev' + (open ? ' open' : '')) + '</button>' +
       '<button class="btn btn-sm btn-ghost" data-act="detail" data-id="' + esc(r.id) + '">' + icon('eye', 'i-sm') + esc(t('details')) + '</button>' +
       (canRevert(r) ? '<button class="btn btn-sm btn-ghost revert-btn" data-act="revertStep" data-id="' + esc(r.id) + '">' + icon('refresh', 'i-sm') + esc(t('revert_step')) + '</button>' : '') +
+      (CANCELLABLE.indexOf(r.status) !== -1 && !(r.shipmentCount > 0) && r.status !== ST.REJECTED ? '<button class="btn btn-sm btn-ghost link-danger" data-act="dupCancel" data-id="' + esc(r.id) + '">' + icon('layers', 'i-sm') + esc(t('dup_btn')) + '</button>' : '') +
       (S.user.screen === 'procurement' && [ST.RECEIVED, ST.CANCELLED, ST.REJECTED].indexOf(r.status) === -1 ? '<button class="btn btn-sm btn-ghost" data-act="eoFromReq" data-id="' + esc(r.id) + '">' + icon('cart', 'i-sm') + esc(t('eo_from_req')) + '</button>' : '') +
     '</div>' +
     (open ? '<div class="req-expand" id="exp-' + esc(r.id) + '">' + procItemsHtml(r) + '</div>' : '') +
   '</article>';
 }
+/* الخيار الثاني: الطلب الجديد مكرر — يُلغى ويُكمل المتبقي من الطلب القديم المرسل جزئياً (الإثبات على الطلبين) */
+ACT.dupCancel = el => {
+  const id = el.dataset.id;
+  const r = (S.proc.list || []).find(x => x.id === id) || {};
+  const olds = (S.proc.list || []).filter(x => x.id !== id && x.clinic === r.clinic && x.sentQty > 0 && x.remainingQty > 0 && [ST.CANCELLED, ST.REJECTED].indexOf(x.status) === -1);
+  const m = openModal({ title: esc(t('dup_title')), sub: esc(id + (r.clinic ? ' · ' + r.clinic : '')), icon: 'layers', tone: 'danger', size: 'sm',
+    body: '<div class="field"><label for="dupOld">' + esc(t('dup_old')) + '</label><input class="input" id="dupOld" dir="ltr" list="dupOldL" placeholder="REQ-…" autocomplete="off">' +
+        '<datalist id="dupOldL">' + olds.map(x => '<option value="' + esc(x.id) + '">' + esc(fmtDate(x.date)) + '</option>').join('') + '</datalist>' +
+        (olds.length ? '<div class="hint">' + esc(t('dup_olds', { n: olds.length })) + ' ' + olds.slice(0, 4).map(x => '<button type="button" class="link-btn" data-pick="' + esc(x.id) + '">' + esc(x.id) + '</button>').join(' ') + '</div>' : '') + '</div>' +
+      '<div class="field"><label for="dupNote">' + esc(t('dup_note')) + '</label><input class="input" id="dupNote" maxlength="300"></div>' +
+      '<div class="hint">' + icon('info', 'i-sm') + ' ' + esc(t('dup_hint')) + '</div>' +
+      '<div class="field-error hidden" id="dupErr">' + icon('alert', 'i-sm') + '<span></span></div>',
+    foot: '<span class="spacer"></span><button class="btn" data-close>' + esc(t('close')) + '</button><button class="btn btn-danger" id="dupOk">' + icon('x', 'i-sm') + esc(t('dup_go')) + '</button>' });
+  m.el.querySelectorAll('[data-pick]').forEach(b => b.addEventListener('click', () => { $('#dupOld', m.el).value = b.dataset.pick; }));
+  $('#dupOk', m.el).addEventListener('click', e => {
+    const b = e.currentTarget, err = $('#dupErr', m.el), old = $('#dupOld', m.el).value.trim();
+    err.classList.add('hidden');
+    if (!old) { err.querySelector('span').textContent = t('ERR_LINK_REQUIRED'); err.classList.remove('hidden'); return; }
+    busy(b, true);
+    call('cancelAsDuplicate', id, old, $('#dupNote', m.el).value.trim()).then(res => {
+      busy(b, false); closeModal(m); toast(t('dup_done', { n: res.keep }), 'success'); loadProc(true);
+    }).catch(er => { busy(b, false); err.querySelector('span').textContent = errMsg(er); err.classList.remove('hidden'); });
+  });
+};
+Object.assign(I18N.ar, { dup_btn: 'إلغاء كمكرر', dup_title: 'إلغاء الطلب لأنه مكرر', dup_old: 'رقم الطلب القديم المرسل جزئياً', dup_olds: 'طلبات لنفس العيادة فيها متبقٍ:', dup_note: 'ملاحظة (اختياري)', dup_hint: 'يُلغى هذا الطلب ويُكمل التموين إرسال المتبقي من الطلب القديم. يُتحقق أنه لنفس العيادة وفيه متبقٍ من نفس الأصناف، ويُسجل الإثبات على الطلبين.', dup_go: 'إلغاء كمكرر', dup_done: 'أُلغي الطلب — المتبقي يُرسل من {n}', dup_open: 'فتح الطلب {n}', ERR_LINK_NO_REMAINING: 'الطلب القديم ليس فيه متبقٍ من أصناف هذا الطلب', ERR_HAS_SHIPMENTS: 'أُرسل شيء من هذا الطلب — لا يُلغى كاملاً' });
+Object.assign(I18N.en, { dup_btn: 'Cancel as duplicate', dup_title: 'Cancel this request as a duplicate', dup_old: 'Older partially-sent request number', dup_olds: 'Same-clinic requests with items left:', dup_note: 'Note (optional)', dup_hint: 'This request is cancelled and procurement sends the remaining from the older request. It is checked to be the same clinic with the same items left, and the proof is recorded on both requests.', dup_go: 'Cancel as duplicate', dup_done: 'Cancelled — the remaining ships from {n}', dup_open: 'Open {n}', ERR_LINK_NO_REMAINING: 'The older request has nothing left of this request’s items', ERR_HAS_SHIPMENTS: 'Something from this request was already sent — it cannot be cancelled whole' });
 /* مستهلك بديل: التموين يقترحه لصنف غير متوفر بعد اعتماد الطبيب، والطبيب يوافق أو يرفض */
 const SUB_PENDING = 'بانتظار الطبيب', SUB_OK = 'معتمد';
 function subTag(it, all) {
@@ -8143,11 +8171,244 @@ VIEWS.maint = {
     return (role === 'branch' ? '<section class="card as-report-cta"><div class="card-body between" style="gap:12px;flex-wrap:wrap"><div><h2 style="margin:0">' + icon('tool') + esc(t('mt_cta')) + '</h2><div class="hint">' + esc(t('mt_cta_h')) + '</div></div>' +
         '<div class="row-wrap"><button class="btn btn-danger btn-lg" data-act="mtNew" data-kind="صيانة" id="mtNewBtn">' + icon('tool', 'i-sm') + esc(t('mt_new')) + '</button>' +
         '<button class="btn btn-soft btn-lg" data-act="mtNew" data-kind="طلب للفرع">' + icon('plus', 'i-sm') + esc(t('mt_new_req')) + '</button></div></div></section>' : '') +
-      '<div id="mtTop"></div><div id="mtChips"></div><div class="list stagger" id="mtList">' + skeletonList(2) + '</div><div id="mtStats"></div>';
+      (mtkAccess() ? segmented('mtTab', [{ v: 'tasks', label: t('mtk_tab'), icon: 'clipboard' }, { v: 'tickets', label: t('mtk_tab_tickets'), icon: 'tool' }], mtTab()) : '') +
+      (mtTab() === 'tasks' ? '<div id="mtkTop">' + skeletonList(2) + '</div><div id="mtkList"></div>'
+        : '<div id="mtTop"></div><div id="mtChips"></div><div class="list stagger" id="mtList">' + skeletonList(2) + '</div><div id="mtStats"></div>');
   },
-  mount() { mtLoad(); },
-  refresh() { mtLoad(true); }
+  mount(root) { $$('.segmented', root).forEach(placeThumb); if (mtTab() === 'tasks') mtkLoad(); else mtLoad(); },
+  refresh() { if (mtTab() === 'tasks') mtkLoad(true); else mtLoad(true); }
 };
+/* تبويبا الصيانة: مهام القسم (بديل الشيت) وبلاغات الفرع — الافتراضي: مدير الفرع البلاغات، والبقية المهام */
+// مهام القسم خاصة بين الإدارة التنفيذية والصيانة (والأدمن) — والمالية ترى ما أُتيحت قيمته لها فقط · مدير الفرع والجودة: البلاغات فقط
+const mtkAccess = () => !!S.user && ['maintenance', 'admin', 'executive', 'finance'].indexOf(S.user.screen) !== -1;
+function mtTab() { if (!mtkAccess()) return 'tickets'; if (!MT.tab) MT.tab = store.get('mtTab', 'tasks'); return MT.tab; }
+SEG_HANDLERS.mtTab = v => { MT.tab = v; store.set('mtTab', v); go('maint', true); };
+/* ===================== مهام قسم الصيانة والتشغيل ===================== */
+const MTS = { data: null, st: 'open', br: '', cat: '', q: '', limit: 40 };
+const MTK_TONE = { 'مخطط': 'var(--t-gray)', 'جارٍ': 'var(--t-blue)', 'متوقف': 'var(--t-red)', 'مكتمل': 'var(--t-green)' };
+function mtkLoad(silent) {
+  return swr('getMaintTasks', [], d => { MTS.data = d; mtkRender(); }, e => { if (!silent) { const b = $('#mtkTop'); if (b) b.innerHTML = emptyState('alert', errMsg(e)); } });
+}
+function mtkFiltered() {
+  const d = MTS.data || { tasks: [] }, q = MTS.q.trim();
+  return d.tasks.filter(x => (!MTS.br || x.branch === MTS.br) && (!MTS.cat || x.category === MTS.cat) &&
+    (MTS.st === 'all' || (q && MTS.st === 'open') || (MTS.st === 'open' ? x.status !== 'مكتمل' : MTS.st === 'late' ? (x.overdue || x.stale) : x.status === MTS.st)) &&
+    (!q || (() => { const e = smartEntry_(x.title + ' ' + x.notes + ' ' + x.location, { category: x.category }), r = smartScore_(q, e); return !r.miss && r.s > 0; })()));
+}
+function mtkRender() {
+  const top = $('#mtkTop'), box = $('#mtkList'); if (!top || !box || !MTS.data) return;
+  const d = MTS.data, all = d.tasks.filter(x => !MTS.br || x.branch === MTS.br);
+  const n = st => all.filter(x => x.status === st).length, done = n('مكتمل');
+  const durs = all.filter(x => x.status === 'مكتمل' && x.days !== null).map(x => x.days).sort((a, b) => a - b);
+  const med = durs.length ? Math.round(durs.reduce((a, b) => a + b, 0) / durs.length * 10) / 10 : 0; // متوسط الأيام من البدء للاكتمال
+  const late = all.filter(x => x.overdue || x.stale).length;
+  const tiles = [['clipboard', 'var(--t-blue)', t('mtk_total'), all.length], ['checkc', 'var(--t-green)', t('mtk_done'), done],
+    ['activity', 'var(--primary)', t('mtk_rate'), (all.length ? Math.round(done / all.length * 100) : 0) + '%'], ['clock', 'var(--t-blue)', t('mtk_work'), n('جارٍ')],
+    ['calendar', 'var(--t-gray)', t('mtk_plan'), n('مخطط')], ['xc', 'var(--t-red)', t('mtk_stop'), n('متوقف')], ['alert', 'var(--t-amber)', t('mtk_late'), late],
+    ['layers', 'var(--t-violet)', t('mtk_median'), t('mtk_days', { n: med })]];
+  const val = all.reduce((a, x) => a + (Number(x.cost) || 0), 0);
+  if (!noPrices() && (val || d.role === 'finance')) tiles.push(['cart', 'var(--t-teal)', t(d.role === 'finance' ? 'mtk_val_fin' : 'mtk_val'), fmtNum(val, 2) + ' ' + t('currency')]);
+  const cats = {}; all.forEach(x => { const c = cats[x.category] || (cats[x.category] = { n: 0, open: 0 }); c.n++; if (x.status !== 'مكتمل') c.open++; });
+  const brs = {}; d.tasks.forEach(x => { const b = brs[x.branch || '—'] || (brs[x.branch || '—'] = { n: 0, done: 0 }); b.n++; if (x.status === 'مكتمل') b.done++; });
+  const groups = [{ id: 'open', k: 'mtk_g_open' }, { id: 'جارٍ', k: 'mtk_work', tone: MTK_TONE['جارٍ'] }, { id: 'مخطط', k: 'mtk_plan', tone: MTK_TONE['مخطط'] },
+    { id: 'متوقف', k: 'mtk_stop', tone: MTK_TONE['متوقف'] }, { id: 'late', k: 'mtk_late', tone: 'var(--t-amber)' }, { id: 'مكتمل', k: 'mtk_done', tone: MTK_TONE['مكتمل'] }, { id: 'all', k: 'mtk_g_all' }];
+  const cnt = { open: all.filter(x => x.status !== 'مكتمل').length, all: all.length, late: late }; MTK_STATUSES_UI.forEach(st => { cnt[st] = n(st); });
+  const branches = Object.keys(brs).sort();
+  top.innerHTML = '<div class="row-wrap" style="gap:8px;margin:6px 0 10px">' +
+      (branches.length > 1 ? '<select class="select" id="mtkBr" style="width:auto"><option value="">' + esc(t('mt_all_branches')) + '</option>' + branches.map(b => '<option' + (MTS.br === b ? ' selected' : '') + '>' + esc(b) + '</option>').join('') + '</select>' : '') +
+      '<select class="select" id="mtkCat" style="width:auto"><option value="">' + esc(t('mtk_all_cats')) + '</option>' + Object.keys(cats).sort().map(c => '<option' + (MTS.cat === c ? ' selected' : '') + '>' + esc(c) + '</option>').join('') + '</select>' +
+      '<div class="input-icon" style="flex:1;min-width:200px">' + icon('search') + '<input class="input" id="mtkQ" type="search" dir="auto" value="' + esc(MTS.q) + '" placeholder="' + esc(t('mtk_search')) + '"></div>' +
+      (d.canEdit ? '<button class="btn btn-primary btn-sm" data-act="mtkEdit">' + icon('plus', 'i-sm') + esc(t('mtk_new')) + '</button>' : '') +
+      (d.canImport ? '<button class="btn btn-soft btn-sm" data-act="mtkImport">' + icon('ext', 'i-sm') + esc(t('mtk_import')) + '</button>' : '') +
+      '<button class="btn btn-sm" data-act="mtkXlsx">' + icon('file', 'i-sm') + esc(t('rr_xlsx')) + '</button></div>' +
+    '<div class="rp-tiles">' + tiles.map(x => '<div class="rp-tile" style="--tone:' + x[1] + '"><span class="ic">' + icon(x[0]) + '</span><div><span>' + esc(x[2]) + '</span><b>' + esc(x[3]) + '</b></div></div>').join('') + '</div>' +
+    '<div class="grid-2"><section class="card"><div class="card-head"><h3>' + icon('pin') + esc(t('mtk_by_branch')) + '</h3></div><div class="card-body">' +
+      branches.map(b => { const v = brs[b], pc = v.n ? Math.round(v.done / v.n * 100) : 0; return '<div class="mtk-bar"><span>' + esc(b) + '</span><div class="progress"><i style="width:' + pc + '%"></i></div><b>' + v.done + '/' + v.n + ' · ' + pc + '%</b></div>'; }).join('') + '</div></section>' +
+    '<section class="card"><div class="card-head"><h3>' + icon('layers') + esc(t('mtk_by_cat')) + '</h3></div><div class="card-body mtk-cats">' +
+      Object.keys(cats).sort((a, b) => cats[b].n - cats[a].n).map(c => '<button type="button" class="chip" data-act="mtkCat" data-c="' + esc(c) + '" aria-pressed="' + (MTS.cat === c) + '">' + esc(c) + '<span class="count-pill">' + cats[c].n + '</span>' + (cats[c].open ? '<span class="tag warn">' + esc(t('mtk_open_n', { n: cats[c].open })) + '</span>' : '') + '</button>').join('') + '</div></section></div>' +
+    chipsHtml(groups, MTS.st, 'mtkSt', cnt);
+  $('#mtkBr') && $('#mtkBr').addEventListener('change', e => { MTS.br = e.target.value; MTS.limit = 40; mtkRender(); });
+  $('#mtkCat').addEventListener('change', e => { MTS.cat = e.target.value; MTS.limit = 40; mtkRender(); });
+  const qi = $('#mtkQ'); qi.addEventListener('input', debounce(() => { MTS.q = qi.value; MTS.limit = 40; mtkRenderList(); }, 200));
+  mtkRenderList();
+}
+const MTK_STATUSES_UI = ['مخطط', 'جارٍ', 'متوقف', 'مكتمل'];
+function mtkRenderList() {
+  const box = $('#mtkList'); if (!box || !MTS.data) return;
+  const list = mtkFiltered(), canEdit = MTS.data.canEdit;
+  if (!list.length) { box.innerHTML = emptyState('clipboard', t('no_match')); return; }
+  box.innerHTML = '<div class="hint" style="margin:4px 0">' + esc(t('mtk_n', { n: list.length })) + '</div><div class="list">' + list.slice(0, MTS.limit).map(x => {
+    const tone = MTK_TONE[x.status] || 'var(--t-gray)';
+    return '<article class="card mtk-card" style="--tone:' + tone + '"><div class="card-body"><div class="between" style="gap:8px;flex-wrap:wrap"><div style="min-width:0"><b class="mtk-title">' + esc(x.title) + '</b>' +
+        '<div class="hint">' + icon('pin', 'i-sm') + esc(x.branch || '—') + (x.location ? ' · ' + esc(x.location) : '') + ' · ' + esc(x.category) + (x.priority ? ' · ' + esc(x.priority) : '') + '</div></div>' +
+        '<div class="row-wrap" style="gap:6px"><span class="badge" style="--tone:' + tone + '"><i class="dot"></i>' + esc(x.status) + '</span>' +
+          (x.source === 'الإدارة التنفيذية' ? '<span class="tag">' + esc(t('mtk_from_exec')) + '</span>' : '') +
+          (x.cost && !noPrices() ? '<span class="tag ok">' + esc(fmtNum(x.cost, 2) + ' ' + t('currency')) + '</span>' : '') + (x.costShared && MTS.data.role !== 'finance' ? '<span class="tag">' + icon('cart', 'i-sm') + esc(t('mtk_shared')) + '</span>' : '') +
+          (x.overdue ? '<span class="tag late">' + esc(t('mtk_overdue')) + '</span>' : '') + (x.stale ? '<span class="tag warn">' + esc(t('mtk_stale')) + '</span>' : '') + '</div></div>' +
+      '<div class="mtk-prog"><div class="progress"><i style="width:' + x.progress + '%"></i></div><b>' + x.progress + '%</b></div>' +
+      (x.notes ? '<div class="mtk-notes">' + esc(x.notes).replace(/\n/g, '<br>') + '</div>' : '') +
+      (x.status === 'متوقف' && x.stopReason ? '<div class="alert danger" style="margin:6px 0 0"><span class="alert-ic">' + icon('xc') + '</span><span><b>' + esc(t('mtk_stop_reason')) + ':</b> ' + esc(x.stopReason) + '</span></div>' : '') +
+      '<div class="between" style="gap:8px;flex-wrap:wrap;margin-top:8px"><span class="hint">' + esc(t('mtk_start')) + ' ' + esc(x.start ? fmtDate(x.start) : '—') +
+        (x.done ? ' · ' + esc(t('mtk_done_at')) + ' ' + esc(fmtDate(x.done)) : '') + (x.due ? ' · ' + esc(t('mtk_due')) + ' ' + esc(fmtDate(x.due)) : '') + (x.days !== null ? ' · ' + esc(t('mtk_days', { n: x.days })) : '') +
+        (x.updatedBy ? ' · ' + esc(t('mtk_by', { n: x.updatedBy })) : '') + '</span>' +
+        '<span class="row-wrap" style="gap:6px"><button class="btn btn-ghost btn-sm" data-act="mtkLog" data-id="' + esc(x.id) + '">' + icon('clock', 'i-sm') + esc(t('mtk_log')) + '</button>' +
+        (canEdit ? '<button class="btn btn-soft btn-sm" data-act="mtkEdit" data-id="' + esc(x.id) + '">' + icon('edit', 'i-sm') + esc(t('mtk_update')) + '</button>' : '') + '</span></div></div></article>';
+  }).join('') + '</div>' + (list.length > MTS.limit ? '<div style="text-align:center;margin:10px"><button class="btn btn-soft" data-act="mtkMore">' + esc(t('mtk_more', { n: list.length - MTS.limit })) + '</button></div>' : '');
+}
+ACT.mtkSt = el => { MTS.st = el.dataset.g; MTS.limit = 40; mtkRender(); };
+ACT.mtkCat = el => { MTS.cat = MTS.cat === el.dataset.c ? '' : el.dataset.c; MTS.limit = 40; mtkRender(); };
+ACT.mtkMore = () => { MTS.limit += 60; mtkRenderList(); };
+ACT.mtkEdit = el => {
+  const d = MTS.data, x = el.dataset.id ? d.tasks.find(k => k.id === el.dataset.id) : null;
+  const v = x || { title: '', branch: MTS.br || (d.branches.length === 1 ? d.branches[0] : ''), category: '', location: '', priority: '', status: 'جارٍ', progress: 0, notes: '', stopReason: '', due: '' };
+  const opt = (list, cur, blank) => (blank ? '<option value="">' + esc(blank) + '</option>' : '') + list.map(o => '<option' + (o === cur ? ' selected' : '') + '>' + esc(o) + '</option>').join('');
+  const m = openModal({ title: esc(t(x ? 'mtk_update' : 'mtk_new')), sub: x ? esc(x.title) : '', icon: 'clipboard',
+    body: '<div class="field"><label for="mkTitle">' + esc(t('mtk_title')) + '</label><input class="input" id="mkTitle" maxlength="200" value="' + esc(v.title) + '"></div>' +
+      '<div class="grid-2"><div class="field"><label for="mkBr">' + esc(t('branch')) + '</label><select class="select" id="mkBr">' + opt(d.branches, v.branch, '—') + '</select></div>' +
+      '<div class="field"><label for="mkCat">' + esc(t('mtk_cat')) + '</label><select class="select" id="mkCat">' + opt(d.categories, v.category, t('mtk_cat_auto')) + '</select></div></div>' +
+      '<div class="grid-2"><div class="field"><label for="mkLoc">' + esc(t('mtk_loc')) + '</label><input class="input" id="mkLoc" maxlength="120" value="' + esc(v.location) + '" placeholder="' + esc(t('mtk_loc_ph')) + '"></div>' +
+      '<div class="field"><label for="mkPri">' + esc(t('mtk_pri')) + '</label><select class="select" id="mkPri">' + opt(d.priorities, v.priority, '—') + '</select></div></div>' +
+      '<div class="grid-2"><div class="field"><label for="mkSt">' + esc(t('mtk_status')) + '</label><select class="select" id="mkSt">' + opt(d.statuses, v.status) + '</select></div>' +
+      '<div class="field"><label for="mkPg">' + esc(t('mtk_prog')) + ' <b id="mkPgV">' + v.progress + '%</b></label><input type="range" id="mkPg" min="0" max="100" step="5" value="' + v.progress + '"></div></div>' +
+      '<div class="field hidden" id="mkStopW"><label for="mkStop">' + esc(t('mtk_stop_reason')) + '</label><input class="input" id="mkStop" maxlength="300" value="' + esc(v.stopReason) + '"></div>' +
+      '<div class="field"><label for="mkNotes">' + esc(t('mtk_notes')) + '</label><textarea class="textarea" id="mkNotes" rows="4" maxlength="2000">' + esc(v.notes) + '</textarea></div>' +
+      '<div class="grid-2"><div class="field"><label for="mkCost">' + esc(t('mtk_val_one')) + '</label><input class="input" id="mkCost" inputmode="decimal" value="' + esc(v.cost || '') + '" placeholder="0"></div>' +
+      (d.canShare ? '<div class="field"><span class="label">' + esc(t('mtk_share_h')) + '</span><label class="row-wrap" style="gap:8px;min-height:42px"><input type="checkbox" class="check" id="mkShare"' + (v.costShared ? ' checked' : '') + '> ' + esc(t('mtk_share')) + '</label></div>' : '<div></div>') + '</div>' +
+      '<div class="grid-2"><div class="field"><label for="mkDue">' + esc(t('mtk_due')) + '</label><input class="input" type="date" id="mkDue" value="' + esc(v.due ? ymdOf(v.due) : '') + '"></div>' +
+      (x ? '<div class="field"><label for="mkNote">' + esc(t('mtk_change_note')) + '</label><input class="input" id="mkNote" maxlength="300"></div>' : '<div></div>') + '</div>' +
+      '<div class="field-error hidden" id="mkErr">' + icon('alert', 'i-sm') + '<span></span></div>',
+    foot: '<span class="spacer"></span><button class="btn" data-close>' + esc(t('close')) + '</button><button class="btn btn-primary" id="mkOk">' + icon('check', 'i-sm') + esc(t('save')) + '</button>' });
+  const st = $('#mkSt', m.el), pg = $('#mkPg', m.el);
+  const sync = () => { $('#mkStopW', m.el).classList.toggle('hidden', st.value !== 'متوقف'); if (st.value === 'مكتمل') pg.value = 100; $('#mkPgV', m.el).textContent = pg.value + '%'; };
+  st.addEventListener('change', sync); pg.addEventListener('input', () => { if (pg.value === '100') st.value = 'مكتمل'; else if (st.value === 'مكتمل') st.value = 'جارٍ'; sync(); }); sync();
+  $('#mkOk', m.el).addEventListener('click', e => {
+    const b = e.currentTarget, err = $('#mkErr', m.el); err.classList.add('hidden');
+    const p = { id: x ? x.id : '', title: $('#mkTitle', m.el).value.trim(), branch: $('#mkBr', m.el).value, category: $('#mkCat', m.el).value, location: $('#mkLoc', m.el).value.trim(),
+      priority: $('#mkPri', m.el).value, status: st.value, cost: $('#mkCost', m.el).value.trim(), costShared: $('#mkShare', m.el) ? $('#mkShare', m.el).checked : undefined, progress: Number(pg.value), stopReason: $('#mkStop', m.el).value.trim(), notes: $('#mkNotes', m.el).value.trim(), due: $('#mkDue', m.el).value, note: x ? $('#mkNote', m.el).value.trim() : '' };
+    busy(b, true);
+    call('saveMaintTask', p).then(res => {
+      busy(b, false); closeModal(m); toast(t('mtk_saved'), 'success');
+      const i = MTS.data.tasks.findIndex(k => k.id === res.id); if (i === -1) MTS.data.tasks.unshift(res); else MTS.data.tasks[i] = res; mtkRender();
+    }).catch(er => { busy(b, false); err.querySelector('span').textContent = errMsg(er); err.classList.remove('hidden'); });
+  });
+};
+ACT.mtkLog = el => {
+  const x = MTS.data.tasks.find(k => k.id === el.dataset.id) || {};
+  const m = openModal({ title: esc(t('mtk_log')), sub: esc(x.title || ''), icon: 'clock', body: '<div id="mkLog">' + skeletonList(2) + '</div>', foot: '<span class="spacer"></span><button class="btn" data-close>' + esc(t('close')) + '</button>' });
+  call('getMaintTaskLog', el.dataset.id).then(list => {
+    $('#mkLog', m.el).innerHTML = list.length ? '<div class="list">' + list.map(l => '<div class="mtk-log"><b>' + esc(l.action) + '</b> · <span class="muted">' + esc(fmtDateTime(l.at)) + (l.by ? ' · ' + esc(l.by) : '') + '</span><div>' + esc(l.details) + (l.note ? ' — ' + esc(l.note) : '') + '</div></div>').join('') + '</div>' : emptyState('clock', t('no_data'));
+  }).catch(e => { $('#mkLog', m.el).innerHTML = emptyState('alert', errMsg(e)); });
+};
+ACT.mtkXlsx = () => {
+  const list = mtkFiltered();
+  const head = [t('mtk_id'), t('mtk_title'), t('branch'), t('mtk_cat'), t('mtk_loc'), t('mtk_pri'), t('mtk_status'), t('mtk_prog'), t('mtk_notes'), t('mtk_stop_reason'), t('mtk_start'), t('mtk_done_at'), t('mtk_due'), t('mtk_days_h'), t('mtk_by_h'), t('mtk_val_one'), t('mtk_shared')].filter((h, i) => i < 15 || !noPrices());
+  const data = list.map(x => [x.id, x.title, x.branch, x.category, x.location, x.priority, x.status, x.progress, x.notes, x.stopReason, x.start ? ymdOf(x.start) : '', x.done ? ymdOf(x.done) : '', x.due ? ymdOf(x.due) : '', x.days === null ? '' : x.days, x.updatedBy].concat(noPrices() ? [] : [x.cost || 0, x.costShared ? t('mtk_shared') : '']));
+  const blob = xlsxBlob(t('mtk_tab').slice(0, 30), head, data, [18, 40, 12, 18, 16, 8, 10, 8, 50, 30, 12, 12, 12, 8, 16]);
+  const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'maintenance-tasks-' + todayStr() + '.xlsx';
+  document.body.appendChild(a); a.click(); setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 500);
+};
+/* قراءة ملف Excel داخل المتصفح (بدون مكتبات): فك ZIP + XML — للاستيراد من شيت القسم */
+async function readXlsx(file) {
+  const buf = new Uint8Array(await file.arrayBuffer()), dv = new DataView(buf.buffer);
+  let eocd = -1; for (let i = buf.length - 22; i >= Math.max(0, buf.length - 66000); i--) if (dv.getUint32(i, true) === 0x06054b50) { eocd = i; break; }
+  if (eocd < 0) throw new Error('ERR_BAD_FILE');
+  const n = dv.getUint16(eocd + 10, true); let off = dv.getUint32(eocd + 16, true); const files = {};
+  const dec = new TextDecoder('utf-8');
+  for (let k = 0; k < n; k++) {
+    const method = dv.getUint16(off + 10, true), csize = dv.getUint32(off + 20, true), nl = dv.getUint16(off + 28, true), el = dv.getUint16(off + 30, true), cl = dv.getUint16(off + 32, true), lo = dv.getUint32(off + 42, true);
+    const name = dec.decode(buf.subarray(off + 46, off + 46 + nl));
+    files[name] = { method, csize, lo }; off += 46 + nl + el + cl;
+  }
+  const get = async name => {
+    const f = files[name]; if (!f) return '';
+    const start = f.lo + 30 + dv.getUint16(f.lo + 26, true) + dv.getUint16(f.lo + 28, true), data = buf.subarray(start, start + f.csize);
+    if (f.method === 0) return dec.decode(data);
+    const ds = new DecompressionStream('deflate-raw'); const out = await new Response(new Blob([data]).stream().pipeThrough(ds)).arrayBuffer();
+    return dec.decode(out);
+  };
+  const xml = s => new DOMParser().parseFromString(s, 'application/xml');
+  const ss = []; const sst = await get('xl/sharedStrings.xml');
+  if (sst) Array.from(xml(sst).getElementsByTagName('si')).forEach(si => ss.push(Array.from(si.getElementsByTagName('t')).map(x => x.textContent).join('')));
+  const wb = xml(await get('xl/workbook.xml')), rels = xml(await get('xl/_rels/workbook.xml.rels'));
+  const target = {}; Array.from(rels.getElementsByTagName('Relationship')).forEach(r => { target[r.getAttribute('Id')] = r.getAttribute('Target'); });
+  const out = {};
+  for (const sh of Array.from(wb.getElementsByTagName('sheet'))) {
+    const rid = sh.getAttribute('r:id') || sh.getAttributeNS('http://schemas.openxmlformats.org/officeDocument/2006/relationships', 'id');
+    let path = target[rid] || ''; path = path.replace(/^\/?xl\//, ''); const doc = xml(await get('xl/' + path));
+    const rows = [];
+    Array.from(doc.getElementsByTagName('row')).forEach(r => {
+      const vals = [];
+      Array.from(r.getElementsByTagName('c')).forEach(c => {
+        const ref = c.getAttribute('r') || '', col = (ref.match(/[A-Z]+/) || ['A'])[0].split('').reduce((a, ch) => a * 26 + ch.charCodeAt(0) - 64, 0) - 1;
+        const tp = c.getAttribute('t'), v = c.getElementsByTagName('v')[0];
+        vals[col] = tp === 's' && v ? ss[Number(v.textContent)] : tp === 'inlineStr' ? Array.from(c.getElementsByTagName('t')).map(x => x.textContent).join('') : v ? v.textContent : '';
+      });
+      if (vals.some(x => x !== undefined && x !== '')) rows.push(Array.from(vals, x => x === undefined ? '' : x));
+    });
+    out[sh.getAttribute('name')] = rows;
+  }
+  return out;
+}
+const xlDate = v => { if (v === '' || v === null || v === undefined) return ''; const n = Number(v); if (!isNaN(n) && n > 20000 && n < 80000) return new Date((n - 25569) * 864e5 - 3 * 36e5).toISOString(); const d = new Date(v); return isNaN(d) ? '' : d.toISOString(); };
+function mtkParseSheets(book) {
+  const names = Object.keys(book);
+  const find = (re, cols) => names.map(n => book[n]).find(rows => rows.length && cols.every(c => rows[0].some(h => c.test(String(h))))) || (names.find(n => re.test(n)) && book[names.find(n => re.test(n))]);
+  const T = find(/مهام|tasks/i, [/العنوان|title/i, /الحالة|status/i]), L = find(/سجل|log/i, [/نوع العملية|action/i, /معرف المهمة|task/i]);
+  if (!T || !T.length) throw new Error('ERR_MTK_NO_SHEET');
+  const col = (rows, re) => rows[0].findIndex(h => re.test(String(h)));
+  const c = { id: col(T, /المعرف|^id/i), title: col(T, /العنوان|title/i), branch: col(T, /الفرع|branch/i), status: col(T, /الحالة|status/i), progress: col(T, /الإنجاز|نسبة|progress/i),
+    notes: col(T, /الوصف|notes|desc/i), stop: col(T, /التوقف|stop/i), start: col(T, /البدء|start/i), done: col(T, /الاكتمال|done|complete/i), created: col(T, /التسجيل|created/i), updated: col(T, /آخر تحديث|updated/i) };
+  const g = (r, i) => i >= 0 ? String(r[i] === undefined ? '' : r[i]).trim() : '';
+  const tasks = T.slice(1).map(r => ({ id: g(r, c.id), title: g(r, c.title), branch: g(r, c.branch), status: g(r, c.status), progress: g(r, c.progress), notes: g(r, c.notes), stopReason: g(r, c.stop),
+    start: xlDate(g(r, c.start)), done: xlDate(g(r, c.done)), createdAt: xlDate(g(r, c.created)), updatedAt: xlDate(g(r, c.updated)) })).filter(x => x.title);
+  let log = [];
+  if (L && L.length > 1) {
+    const k = { at: col(L, /وقت|time/i), action: col(L, /نوع العملية|action/i), id: col(L, /معرف/i), title: col(L, /عنوان/i), branch: col(L, /الفرع/i), details: col(L, /التفاصيل|details/i), note: col(L, /ملاحظة|note/i) };
+    log = L.slice(1).map(r => ({ at: xlDate(g(r, k.at)), action: g(r, k.action), taskId: g(r, k.id), title: g(r, k.title), branch: g(r, k.branch), details: g(r, k.details), note: g(r, k.note) })).filter(x => x.at && x.taskId);
+  }
+  return { tasks, log };
+}
+ACT.mtkImport = () => {
+  const m = openModal({ title: esc(t('mtk_import')), icon: 'ext', size: 'sm',
+    body: '<div class="hint">' + esc(t('mtk_import_hint')) + '</div><div class="field"><input class="input" type="file" id="mkFile" accept=".xlsx"></div><div id="mkPrev"></div>' +
+      '<div class="field-error hidden" id="mkIErr">' + icon('alert', 'i-sm') + '<span></span></div>',
+    foot: '<span class="spacer"></span><button class="btn" data-close>' + esc(t('close')) + '</button><button class="btn btn-primary" id="mkIOk" disabled>' + icon('check', 'i-sm') + esc(t('mtk_import_go')) + '</button>' });
+  let parsed = null;
+  const err = msg => { const e = $('#mkIErr', m.el); e.querySelector('span').textContent = msg; e.classList.toggle('hidden', !msg); };
+  $('#mkFile', m.el).addEventListener('change', async e => {
+    err(''); parsed = null; $('#mkIOk', m.el).disabled = true;
+    const f = e.target.files[0]; if (!f) return;
+    try {
+      parsed = mtkParseSheets(await readXlsx(f));
+      const have = {}; (MTS.data.tasks || []).forEach(x => { have[x.id] = 1; });
+      const upd = parsed.tasks.filter(x => have[x.id]).length, st = {}; parsed.tasks.forEach(x => { st[x.status || '—'] = (st[x.status || '—'] || 0) + 1; });
+      $('#mkPrev', m.el).innerHTML = '<div class="alert info"><span class="alert-ic">' + icon('info') + '</span><span>' + esc(t('mtk_import_prev', { n: parsed.tasks.length, a: parsed.tasks.length - upd, u: upd, l: parsed.log.length })) + '<br>' +
+        Object.keys(st).map(k => esc(k) + ' ' + st[k]).join(' · ') + '</span></div>';
+      $('#mkIOk', m.el).disabled = !parsed.tasks.length;
+    } catch (ex) { err(errMsg(ex)); }
+  });
+  $('#mkIOk', m.el).addEventListener('click', e => {
+    if (!parsed) return; const b = e.currentTarget; busy(b, true);
+    call('importMaintTasks', parsed).then(res => {
+      busy(b, false); closeModal(m);
+      toast(t('mtk_import_done', { a: res.added, u: res.updated, l: res.log }), 'success');
+      if (res.unknownBranches && res.unknownBranches.length) toast(t('mtk_unknown_br', { b: res.unknownBranches.map(x => x.branch + ' (' + x.count + ')').join('، ') }), 'warning');
+      mtkLoad();
+    }).catch(er => { busy(b, false); err(errMsg(er)); });
+  });
+};
+Object.assign(I18N.ar, { mtk_tab: 'مهام القسم', mtk_tab_tickets: 'بلاغات الفرع', mtk_val: 'قيمة المهام', mtk_val_fin: 'قيمة المهام المتاحة للمالية', mtk_val_one: 'القيمة (ر.س)', mtk_share_h: 'المالية', mtk_share: 'إتاحة رؤية القيمة للمالية', mtk_shared: 'متاحة للمالية', mtk_from_exec: 'من الإدارة التنفيذية', mtk_total: 'إجمالي المهام', mtk_done: 'مكتملة', mtk_rate: 'نسبة الإنجاز', mtk_work: 'جارية', mtk_plan: 'مخططة', mtk_stop: 'متوقفة', mtk_late: 'متأخرة / بلا تحديث', mtk_median: 'متوسط مدة الإنجاز', mtk_days: '{n} يوم',
+  mtk_by_branch: 'الإنجاز حسب الفرع', mtk_by_cat: 'حسب التصنيف', mtk_open_n: '{n} مفتوحة', mtk_g_open: 'المفتوحة', mtk_g_all: 'الكل', mtk_all_cats: 'كل التصنيفات', mtk_search: 'ابحث في المهام — مكيف، سكن، سباهي…', mtk_new: 'مهمة جديدة', mtk_import: 'استيراد من الشيت', mtk_update: 'تحديث المهمة',
+  mtk_n: '{n} مهمة', mtk_overdue: 'تجاوزت الموعد', mtk_stale: 'بلا تحديث أسبوعين', mtk_stop_reason: 'سبب التوقف', mtk_start: 'البدء', mtk_done_at: 'الاكتمال', mtk_due: 'الموعد المستهدف', mtk_by: 'آخر تحديث: {n}', mtk_log: 'السجل', mtk_more: 'عرض المزيد ({n})',
+  mtk_title: 'عنوان المهمة', mtk_cat: 'التصنيف', mtk_cat_auto: 'تلقائي من العنوان', mtk_loc: 'المكان', mtk_loc_ph: 'مثل: عيادة ٩، سكن التمريض، الاستقبال', mtk_pri: 'الأولوية', mtk_status: 'الحالة', mtk_prog: 'نسبة الإنجاز', mtk_notes: 'الوصف / آخر المستجدات', mtk_change_note: 'ملاحظة على التحديث (اختياري)', mtk_saved: 'حُفظت المهمة',
+  mtk_id: 'المعرف', mtk_days_h: 'المدة (يوم)', mtk_by_h: 'آخر تحديث بواسطة', mtk_import_hint: 'ارفع ملف Excel الخاص بمهام القسم (تبويب «المهام» و«سجل_التعديلات»). المهام الموجودة بنفس المعرف تتحدث بدل ما تتكرر.', mtk_import_go: 'استيراد',
+  mtk_import_prev: '{n} مهمة في الملف: {a} جديدة و{u} تتحدث · {l} سطر من سجل التعديلات', mtk_import_done: 'تم الاستيراد: {a} جديدة، {u} محدّثة، {l} سطر سجل', mtk_unknown_br: 'فروع غير مسجلة في النظام: {b} — أضفها من الإعدادات حتى تظهر لمدير الفرع', ERR_MTK_NO_SHEET: 'ما لقيت تبويب المهام في الملف (أعمدة العنوان والحالة)', ERR_BAD_FILE: 'الملف غير صالح — ارفع ملف ‎.xlsx' });
+Object.assign(I18N.en, { mtk_tab: 'Department tasks', mtk_tab_tickets: 'Branch tickets', mtk_val: 'Tasks value', mtk_val_fin: 'Value of tasks shared with finance', mtk_val_one: 'Value (SAR)', mtk_share_h: 'Finance', mtk_share: 'Let finance see the value', mtk_shared: 'Shared with finance', mtk_from_exec: 'From executive management', mtk_total: 'Total tasks', mtk_done: 'Completed', mtk_rate: 'Completion rate', mtk_work: 'In progress', mtk_plan: 'Planned', mtk_stop: 'Stopped', mtk_late: 'Overdue / stale', mtk_median: 'Median time to finish', mtk_days: '{n} d',
+  mtk_by_branch: 'Completion by branch', mtk_by_cat: 'By category', mtk_open_n: '{n} open', mtk_g_open: 'Open', mtk_g_all: 'All', mtk_all_cats: 'All categories', mtk_search: 'Search tasks — AC, housing, CBAHI…', mtk_new: 'New task', mtk_import: 'Import from sheet', mtk_update: 'Update task',
+  mtk_n: '{n} task(s)', mtk_overdue: 'Past due', mtk_stale: 'No update for 2 weeks', mtk_stop_reason: 'Stop reason', mtk_start: 'Started', mtk_done_at: 'Completed', mtk_due: 'Target date', mtk_by: 'Last update: {n}', mtk_log: 'History', mtk_more: 'Show more ({n})',
+  mtk_title: 'Task title', mtk_cat: 'Category', mtk_cat_auto: 'Auto from title', mtk_loc: 'Location', mtk_loc_ph: 'e.g. clinic 9, nurse housing, reception', mtk_pri: 'Priority', mtk_status: 'Status', mtk_prog: 'Progress', mtk_notes: 'Description / latest update', mtk_change_note: 'Note on this update (optional)', mtk_saved: 'Task saved',
+  mtk_id: 'ID', mtk_days_h: 'Duration (days)', mtk_by_h: 'Last updated by', mtk_import_hint: 'Upload the department Excel file («المهام» and «سجل_التعديلات» tabs). Tasks with the same ID are updated instead of duplicated.', mtk_import_go: 'Import',
+  mtk_import_prev: '{n} task(s) in file: {a} new, {u} to update · {l} history line(s)', mtk_import_done: 'Imported: {a} new, {u} updated, {l} history line(s)', mtk_unknown_br: 'Branches not set up in the system: {b} — add them in settings so branch managers see them', ERR_MTK_NO_SHEET: 'No tasks tab found in the file (title and status columns)', ERR_BAD_FILE: 'Invalid file — upload an .xlsx' });
 function mtLoad(silent) {
   const cfgP = MT.cfg ? Promise.resolve(MT.cfg) : call('getMaintConfig').then(c => (MT.cfg = c));
   return cfgP.then(() => swr('getMaintTickets', [{}], d => { MT.list = d || []; mtRender(); }, e => { if (!silent) toast(errMsg(e), 'error'); }))
