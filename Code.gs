@@ -95,7 +95,7 @@ const SCHEMA = {
   // بلاغات الفرع (صيانة) وطلبات الفرع: يرفعها مدير الفرع، وينفذها دور «صيانة»، ويؤكد مدير الفرع الإصلاح ليُغلق
   // مهام قسم الصيانة والتشغيل (منقولة من شيت القسم): الصيانة تضيف وتحدّث، والإدارة ومدير الفرع يتابعون
   MaintTasks: ['TaskID', 'Title', 'Branch', 'Category', 'Location', 'Priority', 'Status', 'Progress', 'Notes', 'StopReason', 'StartDate', 'DoneDate', 'DueDate',
-               'TicketID', 'CreatedAt', 'CreatedBy', 'UpdatedAt', 'UpdatedBy'],
+               'TicketID', 'CreatedAt', 'CreatedBy', 'UpdatedAt', 'UpdatedBy', 'Cost', 'CostShared', 'Source'], // CostShared = نعم: المالية ترى المهمة وقيمتها للمراجعة · Source: الإدارة التنفيذية / الصيانة
   MaintTaskLog: ['Timestamp', 'TaskID', 'Action', 'Title', 'Branch', 'Details', 'Note', 'User'],
   BranchTickets: ['TicketID', 'Kind', 'Branch', 'Area', 'Clinic', 'Spot', 'Category', 'Priority', 'Stops', 'Description', 'Photos', 'Status',
                   'CreatedAt', 'CreatedBy', 'ApprovedAt', 'ApprovedBy', 'RejectNote', 'ReceivedAt', 'ReceivedBy', 'StartedAt', 'WaitNote',
@@ -787,9 +787,9 @@ const API_ = {
   updateMaintTicket:         { screens: ['branch', 'maintenance', 'admin'], perm: 'maint', fn: updateMaintTicket_ },
   getMaintStats:             { screens: ['maintenance', 'admin'], perm: 'maint', fn: getMaintStats_ },
   saveMaintConfig:           { screens: ['executive', 'admin'], fn: saveMaintConfig_ },
-  getMaintTasks:             { screens: ['branch', 'maintenance', 'admin'], perm: 'maint', fn: getMaintTasks_ },
-  getMaintTaskLog:           { screens: ['branch', 'maintenance', 'admin'], perm: 'maint', fn: getMaintTaskLog_ },
-  saveMaintTask:             { screens: ['maintenance'], fn: saveMaintTask_ },
+  getMaintTasks:             { screens: ['maintenance', 'admin', 'executive', 'finance'], fn: getMaintTasks_ },
+  getMaintTaskLog:           { screens: ['maintenance', 'admin', 'executive', 'finance'], fn: getMaintTaskLog_ },
+  saveMaintTask:             { screens: ['maintenance', 'admin', 'executive'], fn: saveMaintTask_ },
   importMaintTasks:          { screens: ['maintenance', 'admin'], fn: importMaintTasks_ },
   saveNotifyConfig:          { screens: [], perm: 'users', fn: saveNotifyConfig_ },
   getSetupStatus:            { screens: [], perm: 'users', fn: function () { return getSetupStatus_(); } },
@@ -9844,7 +9844,8 @@ function mtVisible_(user, t) {
 /* =====================================================================
  *  مهام قسم الصيانة والتشغيل — بديل شيت «المهام» (نفس الحالات والأعمدة التي يعرفها القسم)
  *  الحالة: مخطط / جارٍ / متوقف (بسبب) / مكتمل · نسبة الإنجاز · البدء والاكتمال تلقائياً · سجل لكل تعديل
- *  الصيانة تضيف وتحدّث · الأدمن والتنفيذي (صلاحية maint) يرون الكل · مدير الفرع فرعه فقط
+ *  خاصة بين الإدارة التنفيذية والصيانة: الصيانة تضيف وتنفّذ، والتنفيذي والأدمن يسجّلون مهاماً للصيانة ويتابعون الكل
+ *  القيمة: تُتاح للمالية بزر «إتاحة القيمة للمالية» (التنفيذي/الأدمن) فترى المالية تلك المهام فقط للمراجعة · مدير الفرع والجودة لا يرونها
  *  الاستيراد من الشيت: إضافة أو تحديث بنفس المعرف (لا تكرار) + نقل سجل التعديلات
  * ===================================================================== */
 const MTK_ST = { PLAN: 'مخطط', WORK: 'جارٍ', STOP: 'متوقف', DONE: 'مكتمل' };
@@ -9885,26 +9886,34 @@ function mapMtk_(r, now) {
   const end = st === MTK_ST.DONE && done ? done : now;
   return { id: str_(r.TaskID), title: str_(r.Title), branch: str_(r.Branch), category: str_(r.Category) || mtkCategory_(r.Title), location: str_(r.Location),
     priority: str_(r.Priority), status: st, progress: Math.max(0, Math.min(100, Math.round(num_(r.Progress) || (st === MTK_ST.DONE ? 100 : 0)))),
+    cost: price_(r.Cost) || 0, costShared: isYes_(r.CostShared), source: str_(r.Source) || 'الصيانة',
     notes: str_(r.Notes), stopReason: str_(r.StopReason), start: r.StartDate || '', done: r.DoneDate || '', due: r.DueDate || '', ticket: str_(r.TicketID),
     createdAt: r.CreatedAt || '', createdBy: str_(r.CreatedBy), updatedAt: r.UpdatedAt || '', updatedBy: str_(r.UpdatedBy),
     days: start ? Math.max(0, Math.round((end - start) / 864e5)) : null,
     overdue: st !== MTK_ST.DONE && !!due && due < now,
     stale: st === MTK_ST.WORK && !!upd && now - upd > 14 * 864e5 }; // جارٍ بلا تحديث أسبوعين
 }
+function mtkRole_(user) {
+  if (user.screen === 'maintenance') return 'maint';
+  if (user.screen === 'admin' || user.screen === 'executive') return 'exec';
+  if (user.screen === 'finance') return 'finance';
+  return '';
+}
 function mtkVisible_(user, t) {
-  const role = mtRole_(user);
-  if (role === 'branch') return t.branch === userBranch_(user);
+  const role = mtkRole_(user);
   if (role === 'maint') return true;
-  if (role === 'mgmt') return inScope_(t.branch);
+  if (role === 'exec') return inScope_(t.branch) || !t.branch;
+  if (role === 'finance') return t.costShared && (inScope_(t.branch) || !t.branch);
   return false;
 }
 function getMaintTasks_(user) {
-  if (!mtRole_(user)) throw new Error('ERR_FORBIDDEN');
+  if (!mtkRole_(user)) throw new Error('ERR_FORBIDDEN');
   const now = Date.now();
   const list = read_('MaintTasks').rows.filter(function (r) { return str_(r.TaskID) && str_(r.Title); }).map(function (r) { return mapMtk_(r, now); })
     .filter(function (t) { return mtkVisible_(user, t); })
     .sort(function (a, b) { return (a.status === MTK_ST.DONE) - (b.status === MTK_ST.DONE) || toMs_(b.updatedAt || b.start) - toMs_(a.updatedAt || a.start); });
-  return { tasks: list, canEdit: mtRole_(user) === 'maint', canImport: mtRole_(user) === 'maint' || user.screen === 'admin', statuses: MTK_STATUSES_,
+  const role = mtkRole_(user);
+  return { tasks: list, role: role, canEdit: role === 'maint' || role === 'exec', canShare: role === 'exec', canImport: role === 'maint' || user.screen === 'admin', statuses: MTK_STATUSES_,
     categories: MTK_CAT_RULES_.map(function (x) { return x[0]; }).concat(['أخرى']), branches: getBranches_(), priorities: MT_PRIORITIES_ };
 }
 function getMaintTaskLog_(user, id) {
@@ -9917,7 +9926,8 @@ function getMaintTaskLog_(user, id) {
 }
 function saveMaintTask_(user, p) {
   p = p || {};
-  if (mtRole_(user) !== 'maint') throw new Error('ERR_FORBIDDEN');
+  const role = mtkRole_(user);
+  if (role !== 'maint' && role !== 'exec') throw new Error('ERR_FORBIDDEN');
   const title = clean_(p.title, 200), branch = str_(p.branch);
   if (!title) throw new Error('ERR_REQUIRED');
   if (!branch || getBranches_().indexOf(branch) === -1) throw new Error('ERR_BRANCH_REQUIRED');
@@ -9930,6 +9940,10 @@ function saveMaintTask_(user, p) {
   const obj = { Title: title, Branch: branch, Category: clean_(p.category, 60) || mtkCategory_(title), Location: clean_(p.location, 120),
     Priority: MT_PRIORITIES_.indexOf(str_(p.priority)) !== -1 ? str_(p.priority) : '', Status: status, Progress: progress, Notes: clean_(p.notes, 2000),
     StopReason: status === MTK_ST.STOP ? stopReason : '', DueDate: mtkDate_(p.due), UpdatedAt: now, UpdatedBy: user.name };
+  if (p.cost !== undefined && p.cost !== '') { const c = price_(p.cost); if (isNaN(c) || c < 0 || c > PRICE_MAX) throw new Error('ERR_BAD_PRICE'); obj.Cost = c; }
+  else if (p.cost === '') obj.Cost = '';
+  if (role === 'exec' && p.costShared !== undefined) obj.CostShared = p.costShared ? 'نعم' : ''; // الإتاحة للمالية: التنفيذي/الأدمن فقط
+  let notifyNew = false;
   let res;
   withLock_(function () {
     resetMemo_();
@@ -9939,6 +9953,8 @@ function saveMaintTask_(user, p) {
     if (id && !row) throw new Error('ERR_NOT_FOUND');
     if (row) {
       const before = mapMtk_(row, now.getTime()), ch = [];
+      if (obj.Cost !== undefined && before.cost !== (Number(obj.Cost) || 0)) ch.push('القيمة: ' + before.cost + ' → ' + (Number(obj.Cost) || 0));
+      if (obj.CostShared !== undefined && before.costShared !== !!obj.CostShared) ch.push(obj.CostShared ? 'أُتيحت القيمة للمالية' : 'حُجبت القيمة عن المالية');
       if (before.status !== status) ch.push('الحالة: ' + before.status + ' → ' + status);
       if (before.progress !== progress) ch.push('الإنجاز: ' + before.progress + '% → ' + progress + '%');
       if (before.title !== title) ch.push('العنوان');
@@ -9952,18 +9968,22 @@ function saveMaintTask_(user, p) {
       res = id;
     } else {
       const nid = 't_' + now.getTime() + Math.floor(Math.random() * 1000);
-      obj.TaskID = nid; obj.CreatedAt = now; obj.CreatedBy = user.name;
+      obj.TaskID = nid; obj.CreatedAt = now; obj.CreatedBy = user.name; obj.Source = role === 'exec' ? 'الإدارة التنفيذية' : 'الصيانة';
+      notifyNew = role === 'exec';
       obj.StartDate = status === MTK_ST.PLAN ? '' : now; obj.DoneDate = status === MTK_ST.DONE ? now : '';
       append_('MaintTasks', obj);
       append_('MaintTaskLog', { Timestamp: now, TaskID: nid, Action: 'إضافة', Title: title, Branch: branch, Details: 'تم إضافة المهمة — الحالة: ' + status, Note: '', User: user.name });
       res = nid;
     }
   });
+  if (notifyNew) { nk_('maint_new'); notifyRole_('maintenance', '🛠 مهمة جديدة من الإدارة التنفيذية: ' + title + ' · ' + branch, mailMsg_({ order: ['ar', 'en'], id: '', step: -1,
+    ar: { title: 'مهمة جديدة للصيانة', lead: title + ' — ' + branch, lines: [clean_(p.notes, 300) || ''], foot: 'افتح «الصيانة ← مهام القسم» لتنفيذها. رسالة آلية.' },
+    en: { title: 'New task for maintenance', lead: title + ' — ' + branch, lines: [], foot: 'Open Maintenance → Department tasks. Automatic message.' } })); }
   return getMaintTasks_(user).tasks.filter(function (x) { return x.id === res; })[0];
 }
 /** استيراد من شيت القسم: tasks = صفوف «المهام» · log = صفوف «سجل_التعديلات» (التواريخ ISO من المتصفح) */
 function importMaintTasks_(user, payload) {
-  if (!(mtRole_(user) === 'maint' || user.screen === 'admin')) throw new Error('ERR_FORBIDDEN');
+  if (!(mtkRole_(user) === 'maint' || user.screen === 'admin')) throw new Error('ERR_FORBIDDEN');
   payload = payload || {};
   const tasks = (Array.isArray(payload.tasks) ? payload.tasks : []).slice(0, 3000), log = (Array.isArray(payload.log) ? payload.log : []).slice(0, 10000);
   if (!tasks.length) throw new Error('ERR_NO_ITEMS');

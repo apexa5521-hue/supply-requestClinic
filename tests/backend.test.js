@@ -4610,7 +4610,7 @@ test('maintenance department tasks: import from the sheet (upsert by id + histor
   const { api, login, gas } = boot();
   const adm = login('المدير', '1234');
   api(adm, 'createUser', { name: 'بدر', password: '1357', role: 'مدير فرع', branch: 'الرياض' });
-  api(adm, 'createUser', { name: 'صالح', password: '2468', role: 'صيانة' });
+  api(adm, 'createUser', { name: 'صالح', password: '2468', role: 'صيانة', email: 'fix@example.com' });
   const bm = login('بدر', '1357'), mt = login('صالح', '2468'), ex = login('فيصل', '6666'), n = login('سارة', '1111');
   const sheet = {
     tasks: [
@@ -4637,13 +4637,26 @@ test('maintenance department tasks: import from the sheet (upsert by id + histor
   assert.equal(byId('t_2').progress, 75);
   assert.equal(byId('t_1').category, 'تكييف'); assert.equal(byId('t_2').category, 'سباكة ومياه'); assert.equal(byId('t_3').category, 'أجهزة طبية');
   assert.equal(byId('t_1').days, 4);
-  // الإدارة تشاهد فقط · مدير الفرع فرعه فقط · الممرضة لا
-  const exv = api(ex, 'getMaintTasks'); assert.equal(exv.canEdit, false); assert.equal(exv.tasks.length, 4);
-  assert.equal(api(adm, 'getMaintTasks').canEdit, false);
-  assert.deepEqual(api(bm, 'getMaintTasks').tasks.map(x => x.id).sort(), ['t_1', 't_3']);
-  throwsCode(() => api(n, 'getMaintTasks'), 'ERR_FORBIDDEN');
-  throwsCode(() => api(ex, 'saveMaintTask', { title: 'x', branch: 'الرياض' }), 'ERR_FORBIDDEN');
-  throwsCode(() => api(bm, 'getMaintTaskLog', 't_2'), 'ERR_NOT_FOUND');
+  // خاصة بين التنفيذي والأدمن والصيانة · مدير الفرع والجودة والممرضة لا · المالية ما أُتيح لها فقط
+  const exv = api(ex, 'getMaintTasks'); assert.equal(exv.canEdit, true); assert.equal(exv.canShare, true); assert.equal(exv.tasks.length, 4);
+  assert.equal(api(mt, 'getMaintTasks').canShare, false);
+  for (const who of [bm, n, login('منى', '5555')]) throwsCode(() => api(who, 'getMaintTasks'), 'ERR_FORBIDDEN');
+  throwsCode(() => api(bm, 'getMaintTaskLog', 't_1'), 'ERR_FORBIDDEN');
+  const fin = login('نواف', '7777');
+  assert.equal(api(fin, 'getMaintTasks').tasks.length, 0);
+  // التنفيذي يسجّل مهمة للصيانة بقيمة ويتيحها للمالية · الصيانة تُبلَّغ
+  const exTask = api(ex, 'saveMaintTask', { title: 'تأسيس فرع الرس — تمديدات الكهرباء', branch: 'الرياض', status: 'مخطط', cost: '12500', costShared: true });
+  assert.deepEqual([exTask.source, exTask.cost, exTask.costShared], ['الإدارة التنفيذية', 12500, true]);
+  assert.ok(gas.mails.some(m => /مهمة جديدة من الإدارة التنفيذية/.test(m.subject)), 'maintenance notified');
+  const fv = api(fin, 'getMaintTasks');
+  assert.deepEqual([fv.canEdit, fv.tasks.map(x => x.id)], [false, [exTask.id]]);
+  assert.equal(fv.tasks[0].cost, 12500);
+  throwsCode(() => api(fin, 'saveMaintTask', { id: exTask.id, title: 'x', branch: 'الرياض' }), 'ERR_FORBIDDEN');
+  // الصيانة لا تغيّر الإتاحة (التنفيذي فقط)
+  api(mt, 'saveMaintTask', { id: exTask.id, title: exTask.title, branch: 'الرياض', status: 'جارٍ', progress: 10, cost: '12500', costShared: false });
+  assert.equal(api(fin, 'getMaintTasks').tasks.length, 1, 'share toggle stays as executive set it');
+  api(ex, 'saveMaintTask', { id: exTask.id, title: exTask.title, branch: 'الرياض', status: 'جارٍ', progress: 10, costShared: false });
+  assert.equal(api(fin, 'getMaintTasks').tasks.length, 0);
   // الصيانة تضيف وتحدّث: التوقف يحتاج سبب، 100% = مكتمل، والسجل يوثّق التغيير
   throwsCode(() => api(mt, 'saveMaintTask', { title: '', branch: 'الرياض' }), 'ERR_REQUIRED');
   throwsCode(() => api(mt, 'saveMaintTask', { title: 'x', branch: 'فرع وهمي' }), 'ERR_BRANCH_REQUIRED');
@@ -4654,5 +4667,5 @@ test('maintenance department tasks: import from the sheet (upsert by id + histor
   assert.equal(nw.category, 'أبواب وأقفال'); assert.ok(nw.start);
   const log = api(mt, 'getMaintTaskLog', 't_2');
   assert.ok(log.some(l => /الحالة: جارٍ → مكتمل/.test(l.details) && /الإنجاز: 75% → 100%/.test(l.details) && l.note === 'تم الإصلاح' && l.by === 'صالح'));
-  assert.equal(api(bm, 'getMaintTaskLog', 't_1')[0].action, 'إضافة');
+  assert.equal(api(ex, 'getMaintTaskLog', 't_1').slice(-1)[0].action, 'إضافة');
 });
