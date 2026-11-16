@@ -35,7 +35,7 @@ const SCHEMA = {
                  'PrepAt', 'VendorWaitAt', 'VendorReceivedAt', 'ReviewAt', 'ReviewedAt',
                  'RejectionReason', 'ReceiptURL', 'Branch', 'ApprovedAt', 'ClientKey', 'Department', 'Backdated',
                  'CancelReason', 'CancelledAt', 'CancelledBy', 'Approver',
-                 'Exempt', 'Flow'], // Flow: مسار الطلب كما كان وقت رفعه (من «مسارات الطلبات») · Exempt = نعم: طارئ كل أصنافه «مستهلك مستثنى» — لا يُحسب من حد الطوارئ // Approver: «مدير الفرع» لطلبات الهاوس كيبر (فارغ = الطبيب)
+                 'Exempt', 'Flow', 'DuplicateOf'], // DuplicateOf: أُلغي لأنه مكرر والمتبقي يُرسل من هذا الطلب · Flow: مسار الطلب كما كان وقت رفعه (من «مسارات الطلبات») · Exempt = نعم: طارئ كل أصنافه «مستهلك مستثنى» — لا يُحسب من حد الطوارئ // Approver: «مدير الفرع» لطلبات الهاوس كيبر (فارغ = الطبيب)
   // ItemStatus: حالة الصنف داخل الطلبية (قيد التجهيز / بانتظار المندوب / استلم المندوب) قبل إرساله
   RequestItems: ['RequestID', 'ItemName', 'RequestedQty', 'ApprovedQty', 'ReceivedQty', 'DispatchedAt', 'DispatchBatch', 'ItemStatus', 'ItemStatusAt', 'ItemStatusBy',
                  'SubstituteOf', 'SubStatus', 'SubNote', 'SubBy', 'SubAt', // البديل: سطر جديد يشير لاسم الصنف الأصلي
@@ -744,6 +744,7 @@ const API_ = {
   getReversals:              { screens: ['procurement'], perm: 'monitor', fn: getReversals_ },
   bulkUpdateStatus:          { screens: ['procurement'], fn: bulkUpdateStatus_ },
   cancelRequests:            { screens: ['procurement'], fn: cancelRequests_ },
+  cancelAsDuplicate:         { screens: ['procurement', 'admin'], fn: cancelAsDuplicate_ },
   getDoctorRequests:         { screens: ['doctor', 'branch'], fn: getDoctorRequests_ },
   getDoctorReviewContext:    { screens: ['doctor', 'procurement'].concat(MGMT), fn: function (user, id) { return { priceAccess: priceVisible_() ? 'all' : 'none', items: getRequestItemsWithCatalog_(user, id) }; } },
   getRequestItemsWithCatalog:{ screens: ['doctor', 'procurement'].concat(MGMT), fn: getRequestItemsWithCatalog_ },
@@ -2623,7 +2624,7 @@ function mapRequest_(r) {
     sentAt: r.SentAt, receivedAt: r.ReceivedAt, receiver: str_(r.ReceiverName), approvedAt: r.ApprovedAt,
     signature: str_(r.SignatureURL), receiptUrl: str_(r.ReceiptURL),
     rejectionReason: str_(r.RejectionReason),
-    cancelReason: str_(r.CancelReason), cancelledAt: r.CancelledAt, cancelledBy: str_(r.CancelledBy),
+    cancelReason: str_(r.CancelReason), cancelledAt: r.CancelledAt, cancelledBy: str_(r.CancelledBy), duplicateOf: str_(r.DuplicateOf),
     backdated: isBackdated_(r), exempt: isYes_(r.Exempt)
   };
 }
@@ -4682,6 +4683,54 @@ function cancelRequests_(user, requestIds, reason) {
       ar: { title: 'ألغى التموين طلبك', lead: 'السبب: ' + reason, lines: ['لا تنتظري هذا الطلب — ارفعي طلباً جديداً إن احتجتِ.'], foot: 'وصلك هذا الإيميل لأنك رفعتِ الطلب. رسالة آلية، لا تردي عليها.' } }));
   });
   return result;
+}
+
+/**
+ * الخيار الثاني لطلب أُرسل جزئياً ثم رُفع متبقيه بطلب جديد: يُلغى الطلب الجديد «مكرراً»
+ * ويُكمل التموين إرسال المتبقي من الطلب القديم — مع الإثبات على الطلبين.
+ * الجديد: لم يُرسل منه شيء · القديم: لنفس العيادة، غير ملغي، وفيه متبقٍ من صنف واحد على الأقل من أصناف الجديد.
+ */
+function cancelAsDuplicate_(user, newId, oldId, note) {
+  newId = str_(newId);
+  oldId = str_(oldId).toUpperCase().replace(/\s+/g, '');
+  if (oldId && !/^REQ-/.test(oldId)) oldId = 'REQ-' + oldId.replace(/^-+/, '');
+  note = clean_(note, 300);
+  if (!oldId) throw new Error('ERR_LINK_REQUIRED');
+  if (oldId === newId.toUpperCase()) throw new Error('ERR_LINK_SAME');
+  let reason = '', lines = [];
+  withLock_(function () {
+    resetMemo_();
+    const fN = findRequest_(newId);
+    const nReq = mapRequest_(fN.row);
+    if (CANCELLABLE_.indexOf(nReq.status) === -1) throw new Error('ERR_BAD_TRANSITION');
+    const all = read_('RequestItems').rows;
+    const nRows = all.filter(function (r) { return str_(r.RequestID) === nReq.id; });
+    if (shipState_(nReq, nRows).ships.length) throw new Error('ERR_HAS_SHIPMENTS');
+    const oRow = read_('Requests').rows.filter(function (r) { return str_(r.RequestID).toUpperCase() === oldId; })[0];
+    if (!oRow) throw new Error('ERR_LINK_NOT_FOUND');
+    const oReq = mapRequest_(oRow);
+    if (oReq.clinic !== nReq.clinic) throw new Error('ERR_LINK_OTHER_CLINIC');
+    if (isOff_(oReq.status)) throw new Error('ERR_LINK_CANCELLED');
+    const oSt = shipState_(oReq, all.filter(function (r) { return str_(r.RequestID) === oReq.id; }));
+    const want = {}; nRows.forEach(function (r) { want[str_(r.ItemName)] = true; });
+    const rem = oSt.items.filter(function (i) { return i.remainingQty > 0 && want[i.item]; });
+    if (!rem.length) throw new Error('ERR_LINK_NO_REMAINING');
+    lines = rem.map(function (i) { return i.item + ' ×' + i.remainingQty; });
+    reason = 'مكرر — المتبقي يُرسل من الطلب ' + oReq.id + (note ? ': ' + note : '');
+    oldId = oReq.id;
+  });
+  const res = cancelRequests_(user, [newId], reason);
+  if (!res.cancelled.length) throw new Error((res.skipped[0] && res.skipped[0].reason) || 'ERR_BAD_TRANSITION');
+  withLock_(function () {
+    resetMemo_();
+    const t = tableWithCols_('Requests');
+    const row = t.rows.filter(function (r) { return str_(r.RequestID) === newId; })[0];
+    if (row) setCells_(t, row, { DuplicateOf: oldId });
+    const m = '🔗 الطلب ' + newId + ' أُلغي لأنه مكرر — المتبقي من هذا الطلب يُرسل منه: ' + lines.join('، ');
+    append_('Comments', { Timestamp: new Date(), RequestID: oldId, Author: user.name, Role: user.role, Message: m });
+    logAction_(oldId, m, user.name);
+  });
+  return { cancelled: newId, keep: oldId, lines: lines };
 }
 
 function bulkUpdateStatus_(user, requestIds, newStatus, boxes) {

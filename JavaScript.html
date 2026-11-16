@@ -788,6 +788,7 @@ STATUS[ST.CANCELLED]   = { k: 'st_cancelled', tone: 'var(--t-gray)', step: 0 };
 /* سبب الإلغاء (يظهر للممرضة والطبيب والتموين حتى لا ينتظر أحد الطلب) */
 function cancelBox(r) {
   return r && r.status === ST.CANCELLED ? '<div class="reject-box cancel-box">' + icon('xc') + '<div><b>' + esc(t('cancel_reason')) + ':</b> ' + esc(r.cancelReason || '—') +
+    (r.duplicateOf ? ' <button type="button" class="link-btn" data-act="detail" data-id="' + esc(r.duplicateOf) + '">' + icon('link', 'i-sm') + esc(t('dup_open', { n: r.duplicateOf })) + '</button>' : '') +
     (r.cancelledBy ? '<div class="hint">' + esc(r.cancelledBy) + (r.cancelledAt ? ' · ' + esc(fmtDateTime(r.cancelledAt)) : '') + '</div>' : '') + '</div></div>' : '';
 }
 function stMeta(s) { return STATUS[s] || { k: s, tone: 'var(--t-gray)', step: 0 }; }
@@ -3500,11 +3501,38 @@ function procCard(r) {
       '<button class="btn btn-sm' + (open ? ' btn-soft' : '') + '" data-act="procToggle" data-id="' + esc(r.id) + '">' + icon('package', 'i-sm') + esc(t('view_items')) + icon('chevd', 'i-sm chev' + (open ? ' open' : '')) + '</button>' +
       '<button class="btn btn-sm btn-ghost" data-act="detail" data-id="' + esc(r.id) + '">' + icon('eye', 'i-sm') + esc(t('details')) + '</button>' +
       (canRevert(r) ? '<button class="btn btn-sm btn-ghost revert-btn" data-act="revertStep" data-id="' + esc(r.id) + '">' + icon('refresh', 'i-sm') + esc(t('revert_step')) + '</button>' : '') +
+      (CANCELLABLE.indexOf(r.status) !== -1 && !(r.shipmentCount > 0) && r.status !== ST.REJECTED ? '<button class="btn btn-sm btn-ghost link-danger" data-act="dupCancel" data-id="' + esc(r.id) + '">' + icon('layers', 'i-sm') + esc(t('dup_btn')) + '</button>' : '') +
       (S.user.screen === 'procurement' && [ST.RECEIVED, ST.CANCELLED, ST.REJECTED].indexOf(r.status) === -1 ? '<button class="btn btn-sm btn-ghost" data-act="eoFromReq" data-id="' + esc(r.id) + '">' + icon('cart', 'i-sm') + esc(t('eo_from_req')) + '</button>' : '') +
     '</div>' +
     (open ? '<div class="req-expand" id="exp-' + esc(r.id) + '">' + procItemsHtml(r) + '</div>' : '') +
   '</article>';
 }
+/* الخيار الثاني: الطلب الجديد مكرر — يُلغى ويُكمل المتبقي من الطلب القديم المرسل جزئياً (الإثبات على الطلبين) */
+ACT.dupCancel = el => {
+  const id = el.dataset.id;
+  const r = (S.proc.list || []).find(x => x.id === id) || {};
+  const olds = (S.proc.list || []).filter(x => x.id !== id && x.clinic === r.clinic && x.sentQty > 0 && x.remainingQty > 0 && [ST.CANCELLED, ST.REJECTED].indexOf(x.status) === -1);
+  const m = openModal({ title: esc(t('dup_title')), sub: esc(id + (r.clinic ? ' · ' + r.clinic : '')), icon: 'layers', tone: 'danger', size: 'sm',
+    body: '<div class="field"><label for="dupOld">' + esc(t('dup_old')) + '</label><input class="input" id="dupOld" dir="ltr" list="dupOldL" placeholder="REQ-…" autocomplete="off">' +
+        '<datalist id="dupOldL">' + olds.map(x => '<option value="' + esc(x.id) + '">' + esc(fmtDate(x.date)) + '</option>').join('') + '</datalist>' +
+        (olds.length ? '<div class="hint">' + esc(t('dup_olds', { n: olds.length })) + ' ' + olds.slice(0, 4).map(x => '<button type="button" class="link-btn" data-pick="' + esc(x.id) + '">' + esc(x.id) + '</button>').join(' ') + '</div>' : '') + '</div>' +
+      '<div class="field"><label for="dupNote">' + esc(t('dup_note')) + '</label><input class="input" id="dupNote" maxlength="300"></div>' +
+      '<div class="hint">' + icon('info', 'i-sm') + ' ' + esc(t('dup_hint')) + '</div>' +
+      '<div class="field-error hidden" id="dupErr">' + icon('alert', 'i-sm') + '<span></span></div>',
+    foot: '<span class="spacer"></span><button class="btn" data-close>' + esc(t('close')) + '</button><button class="btn btn-danger" id="dupOk">' + icon('x', 'i-sm') + esc(t('dup_go')) + '</button>' });
+  m.el.querySelectorAll('[data-pick]').forEach(b => b.addEventListener('click', () => { $('#dupOld', m.el).value = b.dataset.pick; }));
+  $('#dupOk', m.el).addEventListener('click', e => {
+    const b = e.currentTarget, err = $('#dupErr', m.el), old = $('#dupOld', m.el).value.trim();
+    err.classList.add('hidden');
+    if (!old) { err.querySelector('span').textContent = t('ERR_LINK_REQUIRED'); err.classList.remove('hidden'); return; }
+    busy(b, true);
+    call('cancelAsDuplicate', id, old, $('#dupNote', m.el).value.trim()).then(res => {
+      busy(b, false); closeModal(m); toast(t('dup_done', { n: res.keep }), 'success'); loadProc(true);
+    }).catch(er => { busy(b, false); err.querySelector('span').textContent = errMsg(er); err.classList.remove('hidden'); });
+  });
+};
+Object.assign(I18N.ar, { dup_btn: 'إلغاء كمكرر', dup_title: 'إلغاء الطلب لأنه مكرر', dup_old: 'رقم الطلب القديم المرسل جزئياً', dup_olds: 'طلبات لنفس العيادة فيها متبقٍ:', dup_note: 'ملاحظة (اختياري)', dup_hint: 'يُلغى هذا الطلب ويُكمل التموين إرسال المتبقي من الطلب القديم. يُتحقق أنه لنفس العيادة وفيه متبقٍ من نفس الأصناف، ويُسجل الإثبات على الطلبين.', dup_go: 'إلغاء كمكرر', dup_done: 'أُلغي الطلب — المتبقي يُرسل من {n}', dup_open: 'فتح الطلب {n}', ERR_LINK_NO_REMAINING: 'الطلب القديم ليس فيه متبقٍ من أصناف هذا الطلب', ERR_HAS_SHIPMENTS: 'أُرسل شيء من هذا الطلب — لا يُلغى كاملاً' });
+Object.assign(I18N.en, { dup_btn: 'Cancel as duplicate', dup_title: 'Cancel this request as a duplicate', dup_old: 'Older partially-sent request number', dup_olds: 'Same-clinic requests with items left:', dup_note: 'Note (optional)', dup_hint: 'This request is cancelled and procurement sends the remaining from the older request. It is checked to be the same clinic with the same items left, and the proof is recorded on both requests.', dup_go: 'Cancel as duplicate', dup_done: 'Cancelled — the remaining ships from {n}', dup_open: 'Open {n}', ERR_LINK_NO_REMAINING: 'The older request has nothing left of this request’s items', ERR_HAS_SHIPMENTS: 'Something from this request was already sent — it cannot be cancelled whole' });
 /* مستهلك بديل: التموين يقترحه لصنف غير متوفر بعد اعتماد الطبيب، والطبيب يوافق أو يرفض */
 const SUB_PENDING = 'بانتظار الطبيب', SUB_OK = 'معتمد';
 function subTag(it, all) {

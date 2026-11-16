@@ -3259,6 +3259,32 @@ test('finance: doctor-review saving counts only the doctor\'s cut; procurement r
   assert.equal(after.approved - before.approved, (4 + 2 + 5) * 40, 'only unreceived lines move with the catalog');
 });
 
+test('option B: cancel the new request as a duplicate — the remaining keeps shipping from the older partial request, proof on both', () => {
+  const { api, login, gas } = boot();
+  const n = login('سارة', '1111'), p = login('علي', '3333'), d = login('د. خالد', '4444');
+  const mk = items => api(n, 'createRequest', { clinic: 'عيادة الأسنان 1', doctor: 'د. خالد', type: 'شهري', items }).id;
+  const old = mk([{ name: 'PROPHY PASTE', qty: 4 }, { name: 'DENTAL FLOSS', qty: 10 }]);
+  api(d, 'doctorReview', old, 'اعتمد', '', [], [{ item: 'DENTAL FLOSS', qty: 10 }, { item: 'PROPHY PASTE', qty: 4 }]);
+  api(p, 'dispatchItems', old, ['PROPHY PASTE', { name: 'DENTAL FLOSS', qty: 3 }]);
+  const dup = mk([{ name: 'DENTAL FLOSS', qty: 7 }]);
+  const other = mk([{ name: 'PROPHY PASTE', qty: 1 }]);
+  throwsCode(() => api(n, 'cancelAsDuplicate', dup, old, ''), 'ERR_FORBIDDEN');
+  throwsCode(() => api(p, 'cancelAsDuplicate', dup, '', ''), 'ERR_LINK_REQUIRED');
+  throwsCode(() => api(p, 'cancelAsDuplicate', dup, dup, ''), 'ERR_LINK_SAME');
+  throwsCode(() => api(p, 'cancelAsDuplicate', dup, 'REQ-NOPE', ''), 'ERR_LINK_NOT_FOUND');
+  throwsCode(() => api(p, 'cancelAsDuplicate', other, old, ''), 'ERR_LINK_NO_REMAINING'); // PROPHY أُرسل كاملاً
+  const res = api(p, 'cancelAsDuplicate', dup, old.toLowerCase(), 'رفعته الممرضة مرة ثانية');
+  assert.deepEqual([res.cancelled, res.keep], [dup, old]);
+  const r = rows(gas, 'Requests').find(x => x.RequestID === dup);
+  assert.equal(r.Status, 'ملغي'); assert.equal(r.DuplicateOf, old);
+  assert.match(r.CancelReason, new RegExp('^مكرر — المتبقي يُرسل من الطلب ' + old));
+  assert.equal(api(n, 'getMyRequests').find(x => x.id === dup).duplicateOf, old);
+  assert.ok(api(n, 'getRequestDetail', old).comments.some(c => c.message.includes('الطلب ' + dup + ' أُلغي لأنه مكرر') && c.message.includes('DENTAL FLOSS ×7')));
+  // القديم ما زال قابلاً للإرسال بالمتبقي
+  const full = api(p, 'getRequestItemsFull', old);
+  assert.equal(full.items.find(i => i.item === 'DENTAL FLOSS').remainingQty, 7);
+});
+
 test('cancel the remaining of a partially sent request with a reason, linked to the new request that carries it', () => {
   const { api, login, gas } = boot();
   const n = login('سارة', '1111'), p = login('علي', '3333'), d = login('د. خالد', '4444');
