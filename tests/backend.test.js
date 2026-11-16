@@ -4605,3 +4605,54 @@ test('governance (quality/admin): late stages with due time, unsent items, flagg
   ctx.govDigest_(Date.now());
   assert.ok(gas.mails.some(m => /ملخص الحوكمة والمراقبة/.test(m.subject)), 'daily governance digest');
 });
+
+test('maintenance department tasks: import from the sheet (upsert by id + history), maintenance edits, management views, branch manager sees own branch', () => {
+  const { api, login, gas } = boot();
+  const adm = login('المدير', '1234');
+  api(adm, 'createUser', { name: 'بدر', password: '1357', role: 'مدير فرع', branch: 'الرياض' });
+  api(adm, 'createUser', { name: 'صالح', password: '2468', role: 'صيانة' });
+  const bm = login('بدر', '1357'), mt = login('صالح', '2468'), ex = login('فيصل', '6666'), n = login('سارة', '1111');
+  const sheet = {
+    tasks: [
+      { id: 't_1', title: 'صيانة مكيف عيادة ٩', branch: 'الرياض', status: 'مكتمل', progress: '100', notes: 'بانتظار الوكيل', start: '2026-04-29T00:00:00Z', done: '2026-05-03T00:00:00Z' },
+      { id: 't_2', title: 'فحص تسريب المياه في سكن التمريض', branch: 'جدة', status: 'جارٍ', progress: '50', notes: '', start: '2026-05-01T00:00:00Z' },
+      { id: 't_3', title: 'متابعة صيانة كرسي أسنان عيادة ٢', branch: 'الرياض', status: 'متوقف', progress: '0', stopReason: 'غير ضرورية', start: '2026-05-02T00:00:00Z' },
+      { id: 't_4', title: 'البحث عن موقع جديد بالرس', branch: 'الرس', status: 'مخطط', progress: '0' }
+    ],
+    log: [{ at: '2026-04-29T10:00:00Z', action: 'إضافة', taskId: 't_1', title: 'صيانة مكيف عيادة ٩', branch: 'الرياض', details: 'تم إضافة المهمة — الحالة: جارٍ' }]
+  };
+  throwsCode(() => api(n, 'importMaintTasks', sheet), 'ERR_FORBIDDEN');
+  throwsCode(() => api(bm, 'importMaintTasks', sheet), 'ERR_FORBIDDEN');
+  let res = api(adm, 'importMaintTasks', sheet);
+  assert.deepEqual([res.added, res.updated, res.log], [4, 0, 1]);
+  assert.deepEqual(res.unknownBranches, [{ branch: 'الرس', count: 1 }]);
+  // إعادة الاستيراد: تحديث لا تكرار، والسجل لا يتكرر
+  sheet.tasks[1].progress = '75';
+  res = api(mt, 'importMaintTasks', sheet);
+  assert.deepEqual([res.added, res.updated, res.log], [0, 4, 0]);
+  assert.equal(rows(gas, 'MaintTasks').length, 4);
+  const all = api(mt, 'getMaintTasks');
+  assert.equal(all.canEdit, true);
+  const byId = id => all.tasks.find(x => x.id === id);
+  assert.equal(byId('t_2').progress, 75);
+  assert.equal(byId('t_1').category, 'تكييف'); assert.equal(byId('t_2').category, 'سباكة ومياه'); assert.equal(byId('t_3').category, 'أجهزة طبية');
+  assert.equal(byId('t_1').days, 4);
+  // الإدارة تشاهد فقط · مدير الفرع فرعه فقط · الممرضة لا
+  const exv = api(ex, 'getMaintTasks'); assert.equal(exv.canEdit, false); assert.equal(exv.tasks.length, 4);
+  assert.equal(api(adm, 'getMaintTasks').canEdit, false);
+  assert.deepEqual(api(bm, 'getMaintTasks').tasks.map(x => x.id).sort(), ['t_1', 't_3']);
+  throwsCode(() => api(n, 'getMaintTasks'), 'ERR_FORBIDDEN');
+  throwsCode(() => api(ex, 'saveMaintTask', { title: 'x', branch: 'الرياض' }), 'ERR_FORBIDDEN');
+  throwsCode(() => api(bm, 'getMaintTaskLog', 't_2'), 'ERR_NOT_FOUND');
+  // الصيانة تضيف وتحدّث: التوقف يحتاج سبب، 100% = مكتمل، والسجل يوثّق التغيير
+  throwsCode(() => api(mt, 'saveMaintTask', { title: '', branch: 'الرياض' }), 'ERR_REQUIRED');
+  throwsCode(() => api(mt, 'saveMaintTask', { title: 'x', branch: 'فرع وهمي' }), 'ERR_BRANCH_REQUIRED');
+  throwsCode(() => api(mt, 'saveMaintTask', { id: 't_2', title: 'فحص تسريب', branch: 'جدة', status: 'متوقف' }), 'ERR_REASON_REQUIRED');
+  const done = api(mt, 'saveMaintTask', { id: 't_2', title: 'فحص تسريب المياه في سكن التمريض', branch: 'جدة', status: 'جارٍ', progress: 100, note: 'تم الإصلاح' });
+  assert.deepEqual([done.status, done.progress, !!done.done], ['مكتمل', 100, true]);
+  const nw = api(mt, 'saveMaintTask', { title: 'تغيير قفل باب الاستقبال', branch: 'الرياض', status: 'جارٍ', progress: 25 });
+  assert.equal(nw.category, 'أبواب وأقفال'); assert.ok(nw.start);
+  const log = api(mt, 'getMaintTaskLog', 't_2');
+  assert.ok(log.some(l => /الحالة: جارٍ → مكتمل/.test(l.details) && /الإنجاز: 75% → 100%/.test(l.details) && l.note === 'تم الإصلاح' && l.by === 'صالح'));
+  assert.equal(api(bm, 'getMaintTaskLog', 't_1')[0].action, 'إضافة');
+});
