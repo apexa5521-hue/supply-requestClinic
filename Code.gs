@@ -790,7 +790,7 @@ const API_ = {
   getMaintTasks:             { screens: ['maintenance', 'admin', 'executive', 'finance'], fn: getMaintTasks_ },
   getMaintTaskLog:           { screens: ['maintenance', 'admin', 'executive', 'finance'], fn: getMaintTaskLog_ },
   saveMaintTask:             { screens: ['maintenance', 'admin', 'executive'], fn: saveMaintTask_ },
-  importMaintTasks:          { screens: ['maintenance', 'admin'], fn: importMaintTasks_ },
+  importMaintTasks:          { screens: ['admin'], fn: importMaintTasks_ }, // الاستيراد للأدمن فقط — الصيانة لا تتحكم في البيانات المنقولة
   saveNotifyConfig:          { screens: [], perm: 'users', fn: saveNotifyConfig_ },
   getSetupStatus:            { screens: [], perm: 'users', fn: function () { return getSetupStatus_(); } },
   runSetupNow:               { screens: [], perm: 'users', fn: runSetupNow_ },
@@ -9913,7 +9913,7 @@ function getMaintTasks_(user) {
     .filter(function (t) { return mtkVisible_(user, t); })
     .sort(function (a, b) { return (a.status === MTK_ST.DONE) - (b.status === MTK_ST.DONE) || toMs_(b.updatedAt || b.start) - toMs_(a.updatedAt || a.start); });
   const role = mtkRole_(user);
-  return { tasks: list, role: role, canEdit: role === 'maint' || role === 'exec', canShare: role === 'exec', canImport: role === 'maint' || user.screen === 'admin', statuses: MTK_STATUSES_,
+  return { tasks: list, role: role, canEdit: role === 'maint' || role === 'exec', canShare: role === 'exec', canImport: user.screen === 'admin', statuses: MTK_STATUSES_,
     categories: MTK_CAT_RULES_.map(function (x) { return x[0]; }).concat(['أخرى']), branches: getBranches_(), priorities: MT_PRIORITIES_ };
 }
 function getMaintTaskLog_(user, id) {
@@ -9983,7 +9983,7 @@ function saveMaintTask_(user, p) {
 }
 /** استيراد من شيت القسم: tasks = صفوف «المهام» · log = صفوف «سجل_التعديلات» (التواريخ ISO من المتصفح) */
 function importMaintTasks_(user, payload) {
-  if (!(mtkRole_(user) === 'maint' || user.screen === 'admin')) throw new Error('ERR_FORBIDDEN');
+  if (user.screen !== 'admin') throw new Error('ERR_FORBIDDEN');
   payload = payload || {};
   const tasks = (Array.isArray(payload.tasks) ? payload.tasks : []).slice(0, 3000), log = (Array.isArray(payload.log) ? payload.log : []).slice(0, 10000);
   if (!tasks.length) throw new Error('ERR_NO_ITEMS');

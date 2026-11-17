@@ -4628,7 +4628,9 @@ test('maintenance department tasks: import from the sheet (upsert by id + histor
   assert.deepEqual(res.unknownBranches, [{ branch: 'الرس', count: 1 }]);
   // إعادة الاستيراد: تحديث لا تكرار، والسجل لا يتكرر
   sheet.tasks[1].progress = '75';
-  res = api(mt, 'importMaintTasks', sheet);
+  throwsCode(() => api(mt, 'importMaintTasks', sheet), 'ERR_FORBIDDEN'); // الاستيراد للأدمن فقط
+  assert.equal(api(mt, 'getMaintTasks').canImport, false);
+  res = api(adm, 'importMaintTasks', sheet);
   assert.deepEqual([res.added, res.updated, res.log], [0, 4, 0]);
   assert.equal(rows(gas, 'MaintTasks').length, 4);
   const all = api(mt, 'getMaintTasks');
