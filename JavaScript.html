@@ -8206,8 +8206,16 @@ function mtkRender() {
     ['activity', 'var(--primary)', t('mtk_rate'), (all.length ? Math.round(done / all.length * 100) : 0) + '%'], ['clock', 'var(--t-blue)', t('mtk_work'), n('جارٍ')],
     ['calendar', 'var(--t-gray)', t('mtk_plan'), n('مخطط')], ['xc', 'var(--t-red)', t('mtk_stop'), n('متوقف')], ['alert', 'var(--t-amber)', t('mtk_late'), late],
     ['layers', 'var(--t-violet)', t('mtk_median'), t('mtk_days', { n: med })]];
-  const val = all.reduce((a, x) => a + (Number(x.cost) || 0), 0);
-  if (!noPrices() && (val || d.role === 'finance')) tiles.push(['cart', 'var(--t-teal)', t(d.role === 'finance' ? 'mtk_val_fin' : 'mtk_val'), fmtNum(val, 2) + ' ' + t('currency')]);
+  const ym = todayStr().slice(0, 7), doneMonth = all.filter(x => x.status === 'مكتمل' && x.done && ymdOf(x.done).slice(0, 7) === ym).length;
+  const withDue = all.filter(x => x.due && x.status === 'مكتمل'), onTime = withDue.filter(x => x.done && toDate(x.done) <= new Date(toDate(x.due).getTime() + 864e5)).length;
+  const urgentOpen = all.filter(x => x.priority === 'عاجل' && x.status !== 'مكتمل').length;
+  tiles.splice(2, 0, ['calendar', 'var(--t-green)', t('mts_done_month'), doneMonth]);
+  if (withDue.length) tiles.push(['clock', 'var(--t-teal)', t('mts_on_time'), Math.round(onTime / withDue.length * 100) + '%']);
+  if (urgentOpen) tiles.push(['zap', 'var(--t-red)', t('mts_urgent_open'), urgentOpen]);
+  const finTasks = all.filter(x => x.costShared);
+  const val = (d.role === 'finance' ? all : finTasks.length ? finTasks : all).reduce((a, x) => a + (Number(x.cost) || 0), 0);
+  if (finTasks.length && d.role !== 'finance') tiles.push(['cart', 'var(--t-amber)', t('mts_fin_n'), finTasks.length]);
+  if (!noPrices() && (val || d.role === 'finance')) tiles.push(['cart', 'var(--t-teal)', t(d.role === 'finance' || finTasks.length ? 'mtk_val_fin' : 'mtk_val'), fmtNum(val, 2) + ' ' + t('currency')]);
   const cats = {}; all.forEach(x => { const c = cats[x.category] || (cats[x.category] = { n: 0, open: 0 }); c.n++; if (x.status !== 'مكتمل') c.open++; });
   const brs = {}; d.tasks.forEach(x => { const b = brs[x.branch || '—'] || (brs[x.branch || '—'] = { n: 0, done: 0 }); b.n++; if (x.status === 'مكتمل') b.done++; });
   const groups = [{ id: 'open', k: 'mtk_g_open' }, { id: 'جارٍ', k: 'mtk_work', tone: MTK_TONE['جارٍ'] }, { id: 'مخطط', k: 'mtk_plan', tone: MTK_TONE['مخطط'] },
@@ -8237,15 +8245,20 @@ function mtkRenderList() {
   const box = $('#mtkList'); if (!box || !MTS.data) return;
   const list = mtkFiltered(), canEdit = MTS.data.canEdit;
   if (!list.length) { box.innerHTML = emptyState('clipboard', t('no_match')); return; }
-  box.innerHTML = '<div class="hint" style="margin:4px 0">' + esc(t('mtk_n', { n: list.length })) + '</div><div class="list">' + list.slice(0, MTS.limit).map(x => {
+  MTS.sel = MTS.sel || {};
+  box.innerHTML = '<div class="between" style="margin:4px 0;gap:8px"><span class="hint">' + esc(t('mtk_n', { n: list.length })) + '</span>' +
+      (canEdit ? '<label class="hint row-wrap" style="gap:6px;cursor:pointer"><input type="checkbox" class="check" data-change="mtkSelAll"> ' + esc(t('mts_sel_all')) + '</label>' : '') + '</div>' +
+    '<div class="mts-bulkbar" id="mtkBulk"></div><div class="list">' + list.slice(0, MTS.limit).map(x => {
     const tone = MTK_TONE[x.status] || 'var(--t-gray)';
-    return '<article class="card mtk-card" style="--tone:' + tone + '"><div class="card-body"><div class="between" style="gap:8px;flex-wrap:wrap"><div style="min-width:0"><b class="mtk-title">' + esc(x.title) + '</b>' +
-        '<div class="hint">' + icon('pin', 'i-sm') + esc(x.branch || '—') + (x.location ? ' · ' + esc(x.location) : '') + ' · ' + esc(x.category) + (x.priority ? ' · ' + esc(x.priority) : '') + '</div></div>' +
+    return '<article class="card mtk-card' + (MTS.sel[x.id] ? ' sel' : '') + '" style="--tone:' + tone + '"><div class="card-body"><div class="between" style="gap:8px;flex-wrap:wrap"><div style="min-width:0;display:flex;gap:10px;align-items:flex-start">' +
+        (canEdit ? '<input type="checkbox" class="check" data-change="mtkSel" data-id="' + esc(x.id) + '"' + (MTS.sel[x.id] ? ' checked' : '') + ' aria-label="' + esc(x.title) + '" style="margin-top:3px">' : '') + '<div style="min-width:0"><b class="mtk-title">' + esc(x.title) + '</b>' +
+        '<div class="hint">' + icon('pin', 'i-sm') + esc(x.branch || '—') + (x.location ? ' · ' + esc(x.location) : '') + ' · ' + esc(x.category) + (x.priority ? ' · ' + esc(x.priority) : '') + '</div></div></div>' +
         '<div class="row-wrap" style="gap:6px"><span class="badge" style="--tone:' + tone + '"><i class="dot"></i>' + esc(x.status) + '</span>' +
           (x.source === 'الإدارة التنفيذية' ? '<span class="tag">' + esc(t('mtk_from_exec')) + '</span>' : '') +
-          (x.cost && !noPrices() ? '<span class="tag ok">' + esc(fmtNum(x.cost, 2) + ' ' + t('currency')) + '</span>' : '') + (x.costShared && MTS.data.role !== 'finance' ? '<span class="tag">' + icon('cart', 'i-sm') + esc(t('mtk_shared')) + '</span>' : '') +
+          (x.cost && !noPrices() ? '<span class="tag ok">' + esc(fmtNum(x.cost, 2) + ' ' + t('currency')) + '</span>' : '') + (x.costShared && MTS.data.role !== 'finance' ? '<span class="tag warn">' + icon('cart', 'i-sm') + esc(t('mtk_shared')) + '</span>' : '') +
           (x.overdue ? '<span class="tag late">' + esc(t('mtk_overdue')) + '</span>' : '') + (x.stale ? '<span class="tag warn">' + esc(t('mtk_stale')) + '</span>' : '') + '</div></div>' +
       '<div class="mtk-prog"><div class="progress"><i style="width:' + x.progress + '%"></i></div><b>' + x.progress + '%</b></div>' +
+      (x.costShared && x.costNote && !noPrices() ? '<div class="hint">' + icon('cart', 'i-sm') + esc(x.costNote) + '</div>' : '') +
       (x.notes ? '<div class="mtk-notes">' + esc(x.notes).replace(/\n/g, '<br>') + '</div>' : '') +
       (x.status === 'متوقف' && x.stopReason ? '<div class="alert danger" style="margin:6px 0 0"><span class="alert-ic">' + icon('xc') + '</span><span><b>' + esc(t('mtk_stop_reason')) + ':</b> ' + esc(x.stopReason) + '</span></div>' : '') +
       '<div class="between" style="gap:8px;flex-wrap:wrap;margin-top:8px"><span class="hint">' + esc(t('mtk_start')) + ' ' + esc(x.start ? fmtDate(x.start) : '—') +
@@ -8254,41 +8267,110 @@ function mtkRenderList() {
         '<span class="row-wrap" style="gap:6px"><button class="btn btn-ghost btn-sm" data-act="mtkLog" data-id="' + esc(x.id) + '">' + icon('clock', 'i-sm') + esc(t('mtk_log')) + '</button>' +
         (canEdit ? '<button class="btn btn-soft btn-sm" data-act="mtkEdit" data-id="' + esc(x.id) + '">' + icon('edit', 'i-sm') + esc(t('mtk_update')) + '</button>' : '') + '</span></div></div></article>';
   }).join('') + '</div>' + (list.length > MTS.limit ? '<div style="text-align:center;margin:10px"><button class="btn btn-soft" data-act="mtkMore">' + esc(t('mtk_more', { n: list.length - MTS.limit })) + '</button></div>' : '');
+  mtkBulkBar();
 }
 ACT.mtkSt = el => { MTS.st = el.dataset.g; MTS.limit = 40; mtkRender(); };
 ACT.mtkCat = el => { MTS.cat = MTS.cat === el.dataset.c ? '' : el.dataset.c; MTS.limit = 40; mtkRender(); };
 ACT.mtkMore = () => { MTS.limit += 60; mtkRenderList(); };
+/* قالب المهمة: قوالب جاهزة بضغطة، وخيارات كأزرار (بدل القوائم)، وقسم «تستوجب مالية» بمبلغ يُدخل يدوياً */
+const MTS_TEMPLATES = [
+  ['تكييف', 'صيانة مكيف'], ['سباكة ومياه', 'إصلاح تسريب مياه'], ['كهرباء وإنارة', 'إصلاح كهرباء / إنارة'], ['أجهزة طبية', 'صيانة كرسي أسنان'],
+  ['أبواب وأقفال', 'صيانة باب / قفل'], ['سكن التمريض', 'متابعة سكن التمريض'], ['مشتريات', 'شراء'], ['نقل وتجهيز', 'نقل / تركيب'], ['الجودة وسباهي', 'متابعة متطلبات سباهي'], ['السلامة والحريق', 'صيانة أنظمة السلامة']
+];
+const MTS_PLACES = ['عيادة', 'الاستقبال', 'صالة الانتظار', 'الإدارة', 'سكن التمريض', 'دورات المياه', 'التعقيم', 'المستودع', 'السطح', 'المدخل والمواقف'];
+const pillsHtml = (name, list, cur, toneOf) => '<div class="mts-pills" data-pills="' + name + '">' + list.map(v => '<button type="button" class="mts-pill' + (v === cur ? ' on' : '') + '" data-v="' + esc(v) + '"' + (toneOf ? ' style="--tone:' + toneOf(v) + '"' : '') + '>' + esc(v || '—') + '</button>').join('') + '</div>';
+const pillsBind = (root, name, onChange) => { const box = root.querySelector('[data-pills="' + name + '"]'); if (!box) return () => ''; box.addEventListener('click', e => { const b = e.target.closest('.mts-pill'); if (!b) return; box.querySelectorAll('.mts-pill').forEach(x => x.classList.toggle('on', x === b)); onChange && onChange(b.dataset.v); }); return () => { const on = box.querySelector('.mts-pill.on'); return on ? on.dataset.v : ''; }; };
 ACT.mtkEdit = el => {
   const d = MTS.data, x = el.dataset.id ? d.tasks.find(k => k.id === el.dataset.id) : null;
-  const v = x || { title: '', branch: MTS.br || (d.branches.length === 1 ? d.branches[0] : ''), category: '', location: '', priority: '', status: 'جارٍ', progress: 0, notes: '', stopReason: '', due: '' };
-  const opt = (list, cur, blank) => (blank ? '<option value="">' + esc(blank) + '</option>' : '') + list.map(o => '<option' + (o === cur ? ' selected' : '') + '>' + esc(o) + '</option>').join('');
-  const m = openModal({ title: esc(t(x ? 'mtk_update' : 'mtk_new')), sub: x ? esc(x.title) : '', icon: 'clipboard',
-    body: '<div class="field"><label for="mkTitle">' + esc(t('mtk_title')) + '</label><input class="input" id="mkTitle" maxlength="200" value="' + esc(v.title) + '"></div>' +
-      '<div class="grid-2"><div class="field"><label for="mkBr">' + esc(t('branch')) + '</label><select class="select" id="mkBr">' + opt(d.branches, v.branch, '—') + '</select></div>' +
-      '<div class="field"><label for="mkCat">' + esc(t('mtk_cat')) + '</label><select class="select" id="mkCat">' + opt(d.categories, v.category, t('mtk_cat_auto')) + '</select></div></div>' +
-      '<div class="grid-2"><div class="field"><label for="mkLoc">' + esc(t('mtk_loc')) + '</label><input class="input" id="mkLoc" maxlength="120" value="' + esc(v.location) + '" placeholder="' + esc(t('mtk_loc_ph')) + '"></div>' +
-      '<div class="field"><label for="mkPri">' + esc(t('mtk_pri')) + '</label><select class="select" id="mkPri">' + opt(d.priorities, v.priority, '—') + '</select></div></div>' +
-      '<div class="grid-2"><div class="field"><label for="mkSt">' + esc(t('mtk_status')) + '</label><select class="select" id="mkSt">' + opt(d.statuses, v.status) + '</select></div>' +
-      '<div class="field"><label for="mkPg">' + esc(t('mtk_prog')) + ' <b id="mkPgV">' + v.progress + '%</b></label><input type="range" id="mkPg" min="0" max="100" step="5" value="' + v.progress + '"></div></div>' +
-      '<div class="field hidden" id="mkStopW"><label for="mkStop">' + esc(t('mtk_stop_reason')) + '</label><input class="input" id="mkStop" maxlength="300" value="' + esc(v.stopReason) + '"></div>' +
-      '<div class="field"><label for="mkNotes">' + esc(t('mtk_notes')) + '</label><textarea class="textarea" id="mkNotes" rows="4" maxlength="2000">' + esc(v.notes) + '</textarea></div>' +
-      '<div class="grid-2"><div class="field"><label for="mkCost">' + esc(t('mtk_val_one')) + '</label><input class="input" id="mkCost" inputmode="decimal" value="' + esc(v.cost || '') + '" placeholder="0"></div>' +
-      (d.canShare ? '<div class="field"><span class="label">' + esc(t('mtk_share_h')) + '</span><label class="row-wrap" style="gap:8px;min-height:42px"><input type="checkbox" class="check" id="mkShare"' + (v.costShared ? ' checked' : '') + '> ' + esc(t('mtk_share')) + '</label></div>' : '<div></div>') + '</div>' +
-      '<div class="grid-2"><div class="field"><label for="mkDue">' + esc(t('mtk_due')) + '</label><input class="input" type="date" id="mkDue" value="' + esc(v.due ? ymdOf(v.due) : '') + '"></div>' +
-      (x ? '<div class="field"><label for="mkNote">' + esc(t('mtk_change_note')) + '</label><input class="input" id="mkNote" maxlength="300"></div>' : '<div></div>') + '</div>' +
+  const v = x || { title: '', branch: MTS.br || (d.branches.length === 1 ? d.branches[0] : ''), category: '', location: '', priority: 'عادي', status: 'جارٍ', progress: 0, notes: '', stopReason: '', due: '', cost: 0, costShared: false, costNote: '' };
+  const locs = Array.from(new Set(MTS_PLACES.concat(d.tasks.map(k => k.location).filter(Boolean)))).slice(0, 14);
+  const m = openModal({ title: esc(t(x ? 'mtk_update' : 'mtk_new')), sub: x ? esc(x.title) : esc(t('mts_sub_new')), icon: 'clipboard',
+    body: (!x ? '<div class="mts-sec"><div class="mts-h">' + icon('zap', 'i-sm') + esc(t('mts_tpl')) + '</div><div class="mts-tpls">' + MTS_TEMPLATES.map(tp => '<button type="button" class="chip" data-tpl="' + esc(tp[1]) + '" data-cat="' + esc(tp[0]) + '">' + esc(tp[1]) + '</button>').join('') + '</div></div>' : '') +
+      '<div class="mts-sec"><div class="mts-h">' + icon('clipboard', 'i-sm') + esc(t('mts_what')) + '</div>' +
+        '<div class="field"><label for="mkTitle">' + esc(t('mtk_title')) + '</label><input class="input" id="mkTitle" maxlength="200" value="' + esc(v.title) + '" placeholder="' + esc(t('mts_title_ph')) + '"></div>' +
+        '<div class="field"><span class="label">' + esc(t('branch')) + '</span>' + pillsHtml('br', d.branches, v.branch) + '</div>' +
+        '<div class="field"><label for="mkLoc">' + esc(t('mtk_loc')) + '</label><input class="input" id="mkLoc" maxlength="120" value="' + esc(v.location) + '" placeholder="' + esc(t('mtk_loc_ph')) + '"><div class="mts-tpls" style="margin-top:6px">' + locs.map(l => '<button type="button" class="chip chip-sm" data-loc="' + esc(l) + '">' + esc(l) + '</button>').join('') + '</div></div>' +
+        '<div class="grid-2"><div class="field"><label for="mkCat">' + esc(t('mtk_cat')) + '</label><select class="select" id="mkCat"><option value="">' + esc(t('mtk_cat_auto')) + '</option>' + d.categories.map(c => '<option' + (c === v.category ? ' selected' : '') + '>' + esc(c) + '</option>').join('') + '</select></div>' +
+        '<div class="field"><span class="label">' + esc(t('mtk_pri')) + '</span>' + pillsHtml('pri', d.priorities, v.priority || 'عادي', p => p === 'عاجل' ? 'var(--t-red)' : p === 'مهم' ? 'var(--t-amber)' : 'var(--t-gray)') + '</div></div></div>' +
+      '<div class="mts-sec"><div class="mts-h">' + icon('activity', 'i-sm') + esc(t('mts_state')) + '</div>' +
+        pillsHtml('st', d.statuses, v.status, s2 => MTK_TONE[s2]) +
+        '<div class="field" style="margin-top:10px"><span class="label">' + esc(t('mtk_prog')) + '</span><div class="mts-pgbar" role="group" aria-label="' + esc(t('mtk_prog')) + '">' +
+          [10, 20, 30, 40, 50, 60, 70, 80, 90, 100].map(n => '<button type="button" class="mts-seg" data-pg="' + n + '" aria-label="' + n + '%"><span>' + n + '</span></button>').join('') + '</div>' +
+          '<div class="mts-pgnum"><button type="button" class="btn btn-soft btn-sm" data-pgstep="-5" aria-label="-5">−5</button><input class="input" id="mkPg" type="number" min="0" max="100" step="1" inputmode="numeric" value="' + v.progress + '"><b>%</b>' +
+          '<button type="button" class="btn btn-soft btn-sm" data-pgstep="5" aria-label="+5">+5</button><button type="button" class="btn btn-ghost btn-sm" data-pg="0">' + esc(t('mts_pg_zero')) + '</button></div></div>' +
+        '<div class="field hidden" id="mkStopW"><label for="mkStop">' + esc(t('mtk_stop_reason')) + '</label><input class="input" id="mkStop" maxlength="300" value="' + esc(v.stopReason) + '"></div>' +
+        '<div class="field"><label for="mkNotes">' + esc(t('mtk_notes')) + '</label><textarea class="textarea" id="mkNotes" rows="3" maxlength="2000">' + esc(v.notes) + '</textarea></div>' +
+        '<div class="grid-2"><div class="field"><label for="mkDue">' + esc(t('mtk_due')) + '</label><input class="input" type="date" id="mkDue" value="' + esc(v.due ? ymdOf(v.due) : '') + '"></div>' +
+        (x ? '<div class="field"><label for="mkNote">' + esc(t('mtk_change_note')) + '</label><input class="input" id="mkNote" maxlength="300"></div>' : '<div></div>') + '</div></div>' +
+      (!noPrices() ? '<div class="mts-sec mts-fin"><label class="row-wrap" style="gap:8px;cursor:pointer"><input type="checkbox" class="check" id="mkShare"' + (v.costShared ? ' checked' : '') + (d.canShare ? '' : ' disabled') + '> <b>' + icon('cart', 'i-sm') + esc(t('mts_fin')) + '</b></label>' +
+        '<div class="hint">' + esc(t('mts_fin_h')) + '</div>' +
+        '<div class="grid-2" id="mkFinW"><div class="field"><label for="mkCost">' + esc(t('mtk_val_one')) + '</label><input class="input" id="mkCost" inputmode="decimal" value="' + esc(v.cost || '') + '" placeholder="0"></div>' +
+        '<div class="field"><label for="mkCostNote">' + esc(t('mts_fin_note')) + '</label><input class="input" id="mkCostNote" maxlength="300" value="' + esc(v.costNote || '') + '" placeholder="' + esc(t('mts_fin_note_ph')) + '"></div></div></div>' : '') +
       '<div class="field-error hidden" id="mkErr">' + icon('alert', 'i-sm') + '<span></span></div>',
     foot: '<span class="spacer"></span><button class="btn" data-close>' + esc(t('close')) + '</button><button class="btn btn-primary" id="mkOk">' + icon('check', 'i-sm') + esc(t('save')) + '</button>' });
-  const st = $('#mkSt', m.el), pg = $('#mkPg', m.el);
-  const sync = () => { $('#mkStopW', m.el).classList.toggle('hidden', st.value !== 'متوقف'); if (st.value === 'مكتمل') pg.value = 100; $('#mkPgV', m.el).textContent = pg.value + '%'; };
-  st.addEventListener('change', sync); pg.addEventListener('input', () => { if (pg.value === '100') st.value = 'مكتمل'; else if (st.value === 'مكتمل') st.value = 'جارٍ'; sync(); }); sync();
-  $('#mkOk', m.el).addEventListener('click', e => {
-    const b = e.currentTarget, err = $('#mkErr', m.el); err.classList.add('hidden');
-    const p = { id: x ? x.id : '', title: $('#mkTitle', m.el).value.trim(), branch: $('#mkBr', m.el).value, category: $('#mkCat', m.el).value, location: $('#mkLoc', m.el).value.trim(),
-      priority: $('#mkPri', m.el).value, status: st.value, cost: $('#mkCost', m.el).value.trim(), costShared: $('#mkShare', m.el) ? $('#mkShare', m.el).checked : undefined, progress: Number(pg.value), stopReason: $('#mkStop', m.el).value.trim(), notes: $('#mkNotes', m.el).value.trim(), due: $('#mkDue', m.el).value, note: x ? $('#mkNote', m.el).value.trim() : '' };
+  const R = m.el, pg = $('#mkPg', R);
+  // شريط ١٠ خانات: كل خانة ١٠٪ — والرقم يقبل أي نسبة بالضبط
+  const setPg = n => { n = Math.max(0, Math.min(100, Math.round(Number(n) || 0))); pg.value = n; R.querySelectorAll('.mts-seg').forEach(b => { const v2 = Number(b.dataset.pg); b.classList.toggle('on', v2 <= n); b.classList.toggle('part', v2 > n && v2 - 10 < n); b.style.setProperty('--part', ((n - (v2 - 10)) * 10) + '%'); }); };
+  const afterPg = () => { if (Number(pg.value) === 100) stSet('مكتمل'); else if (getSt() === 'مكتمل') stSet('جارٍ'); sync(); };
+  R.querySelectorAll('[data-pgstep]').forEach(b => b.addEventListener('click', () => { setPg(Number(pg.value) + Number(b.dataset.pgstep)); afterPg(); }));
+  let getSt;
+  const stSet = v2 => { R.querySelectorAll('[data-pills="st"] .mts-pill').forEach(b => b.classList.toggle('on', b.dataset.v === v2)); };
+  const sync = () => { const st = getSt(); $('#mkStopW', R).classList.toggle('hidden', st !== 'متوقف'); if (st === 'مكتمل') setPg(100); };
+  getSt = pillsBind(R, 'st', sync);
+  const getBr = pillsBind(R, 'br'), getPri = pillsBind(R, 'pri');
+  R.querySelectorAll('[data-pg]').forEach(b => b.addEventListener('click', () => { setPg(Number(b.dataset.pg) === Number(pg.value) && b.dataset.pg !== '0' ? Number(b.dataset.pg) - 10 : b.dataset.pg); afterPg(); }));
+  pg.addEventListener('change', () => { setPg(pg.value); afterPg(); });
+  setPg(v.progress);
+  R.querySelectorAll('[data-tpl]').forEach(b => b.addEventListener('click', () => { const ti = $('#mkTitle', R); ti.value = b.dataset.tpl + ' '; ti.focus(); $('#mkCat', R).value = b.dataset.cat; }));
+  R.querySelectorAll('[data-loc]').forEach(b => b.addEventListener('click', () => { $('#mkLoc', R).value = b.dataset.loc + (b.dataset.loc === 'عيادة' ? ' ' : ''); $('#mkLoc', R).focus(); }));
+  const fin = $('#mkShare', R); if (fin) { const fs = () => $('#mkFinW', R).classList.toggle('mts-dim', !fin.checked); fin.addEventListener('change', fs); fs(); }
+  sync();
+  $('#mkOk', R).addEventListener('click', e => {
+    const b = e.currentTarget, err = $('#mkErr', R); err.classList.add('hidden');
+    const p = { id: x ? x.id : '', title: $('#mkTitle', R).value.trim(), branch: getBr(), category: $('#mkCat', R).value, location: $('#mkLoc', R).value.trim(), priority: getPri(), status: getSt(), progress: Number(pg.value),
+      stopReason: $('#mkStop', R).value.trim(), notes: $('#mkNotes', R).value.trim(), due: $('#mkDue', R).value, note: x ? $('#mkNote', R).value.trim() : '' };
+    if (fin) { p.costShared = fin.checked; p.cost = $('#mkCost', R).value.trim(); p.costNote = $('#mkCostNote', R).value.trim(); }
     busy(b, true);
     call('saveMaintTask', p).then(res => {
       busy(b, false); closeModal(m); toast(t('mtk_saved'), 'success');
       const i = MTS.data.tasks.findIndex(k => k.id === res.id); if (i === -1) MTS.data.tasks.unshift(res); else MTS.data.tasks[i] = res; mtkRender();
+    }).catch(er => { busy(b, false); err.querySelector('span').textContent = errMsg(er); err.classList.remove('hidden'); });
+  });
+};
+/* تحديد أكثر من مهمة وتحديثها مرة واحدة — مع ملاحظة عامة وملاحظة خاصة لكل مهمة */
+ACT.mtkSel = el => { const id = el.dataset.id; MTS.sel = MTS.sel || {}; if (el.checked) MTS.sel[id] = 1; else delete MTS.sel[id]; mtkBulkBar(); };
+ACT.mtkSelAll = el => { MTS.sel = MTS.sel || {}; mtkFiltered().slice(0, MTS.limit).forEach(x => { if (el.checked) MTS.sel[x.id] = 1; else delete MTS.sel[x.id]; }); mtkRenderList(); };
+ACT.mtkSelClear = () => { MTS.sel = {}; mtkRenderList(); };
+function mtkBulkBar() {
+  const bar = $('#mtkBulk'); if (!bar) return;
+  const n = Object.keys(MTS.sel || {}).length;
+  bar.classList.toggle('show', n > 0);
+  bar.innerHTML = n ? '<b>' + esc(t('mts_sel_n', { n: n })) + '</b><span class="spacer"></span><button class="btn btn-ghost btn-sm" data-act="mtkSelClear">' + esc(t('mts_sel_clear')) + '</button><button class="btn btn-primary btn-sm" data-act="mtkBulk">' + icon('refresh', 'i-sm') + esc(t('mts_bulk')) + '</button>' : '';
+}
+ACT.mtkBulk = () => {
+  const ids = Object.keys(MTS.sel || {}), list = ids.map(id => MTS.data.tasks.find(k => k.id === id)).filter(Boolean);
+  if (!list.length) return;
+  const m = openModal({ title: esc(t('mts_bulk')), sub: esc(t('mts_sel_n', { n: list.length })), icon: 'refresh',
+    body: '<div class="mts-sec"><div class="mts-h">' + esc(t('mts_bulk_st')) + '</div>' + pillsHtml('bst', [''].concat(MTS.data.statuses), '', s2 => s2 ? MTK_TONE[s2] : 'var(--t-gray)').replace('>—<', '>' + esc(t('mts_keep')) + '<') +
+        '<div class="field" style="margin-top:10px"><span class="label">' + esc(t('mtk_prog')) + '</span><div class="mts-pg">' + ['', 25, 50, 75, 100].map(n => '<button type="button" class="mts-pill' + (n === '' ? ' on' : '') + '" data-bpg="' + n + '">' + (n === '' ? esc(t('mts_keep')) : n + '%') + '</button>').join('') + '</div></div>' +
+        '<div class="field hidden" id="bkStopW"><label for="bkStop">' + esc(t('mtk_stop_reason')) + '</label><input class="input" id="bkStop" maxlength="300"></div>' +
+        '<div class="field"><label for="bkNote">' + esc(t('mts_bulk_note')) + '</label><input class="input" id="bkNote" maxlength="300" placeholder="' + esc(t('mts_bulk_note_ph')) + '"></div></div>' +
+      '<div class="mts-sec"><div class="mts-h">' + esc(t('mts_bulk_each')) + '</div><div class="mts-each">' + list.map(k => '<div class="mts-row"><div><b>' + esc(k.title) + '</b><div class="hint">' + esc(k.branch) + ' · <span style="color:' + MTK_TONE[k.status] + '">' + esc(k.status) + '</span> · ' + k.progress + '%</div></div>' +
+        '<input class="input" data-note="' + esc(k.id) + '" maxlength="300" placeholder="' + esc(t('mts_own_note')) + '"></div>').join('') + '</div></div>' +
+      '<div class="field-error hidden" id="bkErr">' + icon('alert', 'i-sm') + '<span></span></div>',
+    foot: '<span class="spacer"></span><button class="btn" data-close>' + esc(t('close')) + '</button><button class="btn btn-primary" id="bkOk">' + icon('check', 'i-sm') + esc(t('mts_bulk_go', { n: list.length })) + '</button>' });
+  const R = m.el;
+  const getSt = pillsBind(R, 'bst', v2 => { $('#bkStopW', R).classList.toggle('hidden', v2 !== 'متوقف'); });
+  let bpg = '';
+  R.querySelectorAll('[data-bpg]').forEach(b => b.addEventListener('click', () => { bpg = b.dataset.bpg; R.querySelectorAll('[data-bpg]').forEach(x => x.classList.toggle('on', x === b)); }));
+  $('#bkOk', R).addEventListener('click', e => {
+    const b = e.currentTarget, err = $('#bkErr', R); err.classList.add('hidden');
+    const notes = {}; R.querySelectorAll('[data-note]').forEach(i => { if (i.value.trim()) notes[i.dataset.note] = i.value.trim(); });
+    busy(b, true);
+    call('bulkUpdateMaintTasks', ids, { status: getSt(), progress: bpg, stopReason: $('#bkStop', R).value.trim(), note: $('#bkNote', R).value.trim(), notes: notes }).then(res => {
+      busy(b, false); closeModal(m); toast(t('mts_bulk_done', { n: res.updated }), 'success');
+      res.tasks.forEach(nt => { const i = MTS.data.tasks.findIndex(k => k.id === nt.id); if (i !== -1) MTS.data.tasks[i] = nt; });
+      MTS.sel = {}; mtkRender();
     }).catch(er => { busy(b, false); err.querySelector('span').textContent = errMsg(er); err.classList.remove('hidden'); });
   });
 };
@@ -8397,13 +8479,13 @@ ACT.mtkImport = () => {
     }).catch(er => { busy(b, false); err(errMsg(er)); });
   });
 };
-Object.assign(I18N.ar, { mtk_tab: 'مهام القسم', mtk_tab_tickets: 'بلاغات الفرع', mtk_val: 'قيمة المهام', mtk_val_fin: 'قيمة المهام المتاحة للمالية', mtk_val_one: 'القيمة (ر.س)', mtk_share_h: 'المالية', mtk_share: 'إتاحة رؤية القيمة للمالية', mtk_shared: 'متاحة للمالية', mtk_from_exec: 'من الإدارة التنفيذية', mtk_total: 'إجمالي المهام', mtk_done: 'مكتملة', mtk_rate: 'نسبة الإنجاز', mtk_work: 'جارية', mtk_plan: 'مخططة', mtk_stop: 'متوقفة', mtk_late: 'متأخرة / بلا تحديث', mtk_median: 'متوسط مدة الإنجاز', mtk_days: '{n} يوم',
+Object.assign(I18N.ar, { mtk_tab: 'مهام القسم', mtk_tab_tickets: 'بلاغات الفرع', mtk_val: 'قيمة المهام', mtk_val_fin: 'قيمة المهام المحالة للمالية', mts_sub_new: 'اختر قالباً جاهزاً أو اكتب العنوان', mts_tpl: 'قوالب سريعة', mts_what: 'المهمة والمكان', mts_title_ph: 'مثل: صيانة مكيف عيادة ٩', mts_state: 'الحالة والإنجاز', mts_fin: 'تستوجب مالية', mts_fin_h: 'تظهر للمالية والأدمن بالمبلغ المُدخل هنا للمراجعة والصرف', mts_fin_note: 'بيان المبلغ', mts_fin_note_ph: 'مثل: قطع غيار + أجور مقاول', mts_sel_all: 'تحديد الظاهر', mts_sel_n: '{n} مهمة محددة', mts_sel_clear: 'إلغاء التحديد', mts_bulk: 'تحديث المحدد', mts_bulk_st: 'الحالة الجديدة للكل', mts_keep: 'بدون تغيير', mts_bulk_note: 'ملاحظة عامة (تُضاف للكل)', mts_bulk_note_ph: 'مثل: تم المرور والمتابعة اليوم', mts_bulk_each: 'ملاحظة خاصة لكل مهمة (اختياري)', mts_own_note: 'ملاحظة لهذه المهمة فقط', mts_bulk_go: 'تحديث {n} مهمة', mts_bulk_done: 'تم تحديث {n} مهمة', mts_done_month: 'أُنجزت هذا الشهر', mts_pg_zero: 'تصفير', mts_on_time: 'الالتزام بالموعد', mts_urgent_open: 'عاجلة مفتوحة', mts_fin_n: 'تستوجب مالية', ERR_MTK_COST_REQUIRED: 'اكتب المبلغ — المهمة تستوجب مالية', mtk_val_one: 'القيمة (ر.س)', mtk_share_h: 'المالية', mtk_share: 'تستوجب مالية', mtk_shared: 'تستوجب مالية', mtk_from_exec: 'من الإدارة التنفيذية', mtk_total: 'إجمالي المهام', mtk_done: 'مكتملة', mtk_rate: 'نسبة الإنجاز', mtk_work: 'جارية', mtk_plan: 'مخططة', mtk_stop: 'متوقفة', mtk_late: 'متأخرة / بلا تحديث', mtk_median: 'متوسط مدة الإنجاز', mtk_days: '{n} يوم',
   mtk_by_branch: 'الإنجاز حسب الفرع', mtk_by_cat: 'حسب التصنيف', mtk_open_n: '{n} مفتوحة', mtk_g_open: 'المفتوحة', mtk_g_all: 'الكل', mtk_all_cats: 'كل التصنيفات', mtk_search: 'ابحث في المهام — مكيف، سكن، سباهي…', mtk_new: 'مهمة جديدة', mtk_import: 'استيراد من الشيت', mtk_update: 'تحديث المهمة',
   mtk_n: '{n} مهمة', mtk_overdue: 'تجاوزت الموعد', mtk_stale: 'بلا تحديث أسبوعين', mtk_stop_reason: 'سبب التوقف', mtk_start: 'البدء', mtk_done_at: 'الاكتمال', mtk_due: 'الموعد المستهدف', mtk_by: 'آخر تحديث: {n}', mtk_log: 'السجل', mtk_more: 'عرض المزيد ({n})',
   mtk_title: 'عنوان المهمة', mtk_cat: 'التصنيف', mtk_cat_auto: 'تلقائي من العنوان', mtk_loc: 'المكان', mtk_loc_ph: 'مثل: عيادة ٩، سكن التمريض، الاستقبال', mtk_pri: 'الأولوية', mtk_status: 'الحالة', mtk_prog: 'نسبة الإنجاز', mtk_notes: 'الوصف / آخر المستجدات', mtk_change_note: 'ملاحظة على التحديث (اختياري)', mtk_saved: 'حُفظت المهمة',
   mtk_id: 'المعرف', mtk_days_h: 'المدة (يوم)', mtk_by_h: 'آخر تحديث بواسطة', mtk_import_hint: 'ارفع ملف Excel الخاص بمهام القسم (تبويب «المهام» و«سجل_التعديلات»). المهام الموجودة بنفس المعرف تتحدث بدل ما تتكرر.', mtk_import_go: 'استيراد',
   mtk_import_prev: '{n} مهمة في الملف: {a} جديدة و{u} تتحدث · {l} سطر من سجل التعديلات', mtk_import_done: 'تم الاستيراد: {a} جديدة، {u} محدّثة، {l} سطر سجل', mtk_unknown_br: 'فروع غير مسجلة في النظام: {b} — أضفها من الإعدادات حتى تظهر لمدير الفرع', ERR_MTK_NO_SHEET: 'ما لقيت تبويب المهام في الملف (أعمدة العنوان والحالة)', ERR_BAD_FILE: 'الملف غير صالح — ارفع ملف ‎.xlsx' });
-Object.assign(I18N.en, { mtk_tab: 'Department tasks', mtk_tab_tickets: 'Branch tickets', mtk_val: 'Tasks value', mtk_val_fin: 'Value of tasks shared with finance', mtk_val_one: 'Value (SAR)', mtk_share_h: 'Finance', mtk_share: 'Let finance see the value', mtk_shared: 'Shared with finance', mtk_from_exec: 'From executive management', mtk_total: 'Total tasks', mtk_done: 'Completed', mtk_rate: 'Completion rate', mtk_work: 'In progress', mtk_plan: 'Planned', mtk_stop: 'Stopped', mtk_late: 'Overdue / stale', mtk_median: 'Median time to finish', mtk_days: '{n} d',
+Object.assign(I18N.en, { mtk_tab: 'Department tasks', mtk_tab_tickets: 'Branch tickets', mtk_val: 'Tasks value', mtk_val_fin: 'Value of tasks sent to finance', mts_sub_new: 'Pick a quick template or type the title', mts_tpl: 'Quick templates', mts_what: 'Task and place', mts_title_ph: 'e.g. AC repair clinic 9', mts_state: 'Status and progress', mts_fin: 'Needs finance', mts_fin_h: 'Shown to finance and admin with the amount entered here, for review and payment', mts_fin_note: 'What the amount is for', mts_fin_note_ph: 'e.g. spare parts + contractor', mts_sel_all: 'Select shown', mts_sel_n: '{n} task(s) selected', mts_sel_clear: 'Clear', mts_bulk: 'Update selected', mts_bulk_st: 'New status for all', mts_keep: 'No change', mts_bulk_note: 'Shared note (added to all)', mts_bulk_note_ph: 'e.g. checked and followed up today', mts_bulk_each: 'Own note per task (optional)', mts_own_note: 'Note for this task only', mts_bulk_go: 'Update {n} task(s)', mts_bulk_done: '{n} task(s) updated', mts_done_month: 'Done this month', mts_pg_zero: 'Reset', mts_on_time: 'On time', mts_urgent_open: 'Urgent open', mts_fin_n: 'Need finance', ERR_MTK_COST_REQUIRED: 'Enter the amount — the task needs finance', mtk_val_one: 'Value (SAR)', mtk_share_h: 'Finance', mtk_share: 'Needs finance', mtk_shared: 'Needs finance', mtk_from_exec: 'From executive management', mtk_total: 'Total tasks', mtk_done: 'Completed', mtk_rate: 'Completion rate', mtk_work: 'In progress', mtk_plan: 'Planned', mtk_stop: 'Stopped', mtk_late: 'Overdue / stale', mtk_median: 'Median time to finish', mtk_days: '{n} d',
   mtk_by_branch: 'Completion by branch', mtk_by_cat: 'By category', mtk_open_n: '{n} open', mtk_g_open: 'Open', mtk_g_all: 'All', mtk_all_cats: 'All categories', mtk_search: 'Search tasks — AC, housing, CBAHI…', mtk_new: 'New task', mtk_import: 'Import from sheet', mtk_update: 'Update task',
   mtk_n: '{n} task(s)', mtk_overdue: 'Past due', mtk_stale: 'No update for 2 weeks', mtk_stop_reason: 'Stop reason', mtk_start: 'Started', mtk_done_at: 'Completed', mtk_due: 'Target date', mtk_by: 'Last update: {n}', mtk_log: 'History', mtk_more: 'Show more ({n})',
   mtk_title: 'Task title', mtk_cat: 'Category', mtk_cat_auto: 'Auto from title', mtk_loc: 'Location', mtk_loc_ph: 'e.g. clinic 9, nurse housing, reception', mtk_pri: 'Priority', mtk_status: 'Status', mtk_prog: 'Progress', mtk_notes: 'Description / latest update', mtk_change_note: 'Note on this update (optional)', mtk_saved: 'Task saved',

@@ -4628,7 +4628,9 @@ test('maintenance department tasks: import from the sheet (upsert by id + histor
   assert.deepEqual(res.unknownBranches, [{ branch: 'الرس', count: 1 }]);
   // إعادة الاستيراد: تحديث لا تكرار، والسجل لا يتكرر
   sheet.tasks[1].progress = '75';
-  res = api(mt, 'importMaintTasks', sheet);
+  throwsCode(() => api(mt, 'importMaintTasks', sheet), 'ERR_FORBIDDEN'); // الاستيراد للأدمن فقط
+  assert.equal(api(mt, 'getMaintTasks').canImport, false);
+  res = api(adm, 'importMaintTasks', sheet);
   assert.deepEqual([res.added, res.updated, res.log], [0, 4, 0]);
   assert.equal(rows(gas, 'MaintTasks').length, 4);
   const all = api(mt, 'getMaintTasks');
@@ -4639,7 +4641,7 @@ test('maintenance department tasks: import from the sheet (upsert by id + histor
   assert.equal(byId('t_1').days, 4);
   // خاصة بين التنفيذي والأدمن والصيانة · مدير الفرع والجودة والممرضة لا · المالية ما أُتيح لها فقط
   const exv = api(ex, 'getMaintTasks'); assert.equal(exv.canEdit, true); assert.equal(exv.canShare, true); assert.equal(exv.tasks.length, 4);
-  assert.equal(api(mt, 'getMaintTasks').canShare, false);
+  assert.equal(api(mt, 'getMaintTasks').canShare, true); // «تستوجب مالية» متاحة للصيانة والتنفيذي
   for (const who of [bm, n, login('منى', '5555')]) throwsCode(() => api(who, 'getMaintTasks'), 'ERR_FORBIDDEN');
   throwsCode(() => api(bm, 'getMaintTaskLog', 't_1'), 'ERR_FORBIDDEN');
   const fin = login('نواف', '7777');
@@ -4652,11 +4654,23 @@ test('maintenance department tasks: import from the sheet (upsert by id + histor
   assert.deepEqual([fv.canEdit, fv.tasks.map(x => x.id)], [false, [exTask.id]]);
   assert.equal(fv.tasks[0].cost, 12500);
   throwsCode(() => api(fin, 'saveMaintTask', { id: exTask.id, title: 'x', branch: 'الرياض' }), 'ERR_FORBIDDEN');
-  // الصيانة لا تغيّر الإتاحة (التنفيذي فقط)
-  api(mt, 'saveMaintTask', { id: exTask.id, title: exTask.title, branch: 'الرياض', status: 'جارٍ', progress: 10, cost: '12500', costShared: false });
-  assert.equal(api(fin, 'getMaintTasks').tasks.length, 1, 'share toggle stays as executive set it');
+  // «تستوجب مالية»: الصيانة أيضاً تحيلها بمبلغ يُدخل يدوياً (والمبلغ إلزامي)
   api(ex, 'saveMaintTask', { id: exTask.id, title: exTask.title, branch: 'الرياض', status: 'جارٍ', progress: 10, costShared: false });
   assert.equal(api(fin, 'getMaintTasks').tasks.length, 0);
+  throwsCode(() => api(mt, 'saveMaintTask', { title: 'شراء قطع مكيف', branch: 'الرياض', costShared: true }), 'ERR_MTK_COST_REQUIRED');
+  const mf = api(mt, 'saveMaintTask', { title: 'شراء قطع مكيف', branch: 'الرياض', costShared: true, cost: '950', costNote: 'كمبروسر + أجور' });
+  const fv2 = api(fin, 'getMaintTasks').tasks;
+  assert.deepEqual(fv2.map(x => [x.id, x.cost, x.costNote]), [[mf.id, 950, 'كمبروسر + أجور']]);
+  // تحديث جماعي: حالة واحدة + ملاحظة عامة + ملاحظة خاصة لكل مهمة
+  throwsCode(() => api(fin, 'bulkUpdateMaintTasks', [mf.id], { status: 'مكتمل' }), 'ERR_FORBIDDEN');
+  throwsCode(() => api(mt, 'bulkUpdateMaintTasks', [mf.id, exTask.id], { status: 'متوقف' }), 'ERR_REASON_REQUIRED');
+  const bk = api(mt, 'bulkUpdateMaintTasks', [mf.id, exTask.id, 'nope'], { status: 'مكتمل', note: 'تم المرور اليوم', notes: { [mf.id]: 'استُلمت القطع' } });
+  assert.equal(bk.updated, 2);
+  const after = api(ex, 'getMaintTasks').tasks;
+  const a1 = after.find(x => x.id === mf.id), a2 = after.find(x => x.id === exTask.id);
+  assert.deepEqual([a1.status, a1.progress, a2.status], ['مكتمل', 100, 'مكتمل']);
+  assert.match(a1.notes, /تم المرور اليوم — استُلمت القطع/); assert.match(a2.notes, /تم المرور اليوم/); assert.ok(!/استُلمت القطع/.test(a2.notes));
+  assert.ok(api(mt, 'getMaintTaskLog', mf.id).some(l => l.action === 'تحديث جماعي' && /الحالة: جارٍ → مكتمل/.test(l.details)));
   // الصيانة تضيف وتحدّث: التوقف يحتاج سبب، 100% = مكتمل، والسجل يوثّق التغيير
   throwsCode(() => api(mt, 'saveMaintTask', { title: '', branch: 'الرياض' }), 'ERR_REQUIRED');
   throwsCode(() => api(mt, 'saveMaintTask', { title: 'x', branch: 'فرع وهمي' }), 'ERR_BRANCH_REQUIRED');

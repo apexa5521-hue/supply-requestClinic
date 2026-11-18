@@ -95,7 +95,7 @@ const SCHEMA = {
   // بلاغات الفرع (صيانة) وطلبات الفرع: يرفعها مدير الفرع، وينفذها دور «صيانة»، ويؤكد مدير الفرع الإصلاح ليُغلق
   // مهام قسم الصيانة والتشغيل (منقولة من شيت القسم): الصيانة تضيف وتحدّث، والإدارة ومدير الفرع يتابعون
   MaintTasks: ['TaskID', 'Title', 'Branch', 'Category', 'Location', 'Priority', 'Status', 'Progress', 'Notes', 'StopReason', 'StartDate', 'DoneDate', 'DueDate',
-               'TicketID', 'CreatedAt', 'CreatedBy', 'UpdatedAt', 'UpdatedBy', 'Cost', 'CostShared', 'Source'], // CostShared = نعم: المالية ترى المهمة وقيمتها للمراجعة · Source: الإدارة التنفيذية / الصيانة
+               'TicketID', 'CreatedAt', 'CreatedBy', 'UpdatedAt', 'UpdatedBy', 'Cost', 'CostShared', 'Source', 'CostNote'], // CostShared = نعم: «تستوجب مالية» — المالية والأدمن يرونها بقيمتها المُدخلة يدوياً · CostNote: بيان المبلغ · Source: الإدارة التنفيذية / الصيانة
   MaintTaskLog: ['Timestamp', 'TaskID', 'Action', 'Title', 'Branch', 'Details', 'Note', 'User'],
   BranchTickets: ['TicketID', 'Kind', 'Branch', 'Area', 'Clinic', 'Spot', 'Category', 'Priority', 'Stops', 'Description', 'Photos', 'Status',
                   'CreatedAt', 'CreatedBy', 'ApprovedAt', 'ApprovedBy', 'RejectNote', 'ReceivedAt', 'ReceivedBy', 'StartedAt', 'WaitNote',
@@ -790,7 +790,8 @@ const API_ = {
   getMaintTasks:             { screens: ['maintenance', 'admin', 'executive', 'finance'], fn: getMaintTasks_ },
   getMaintTaskLog:           { screens: ['maintenance', 'admin', 'executive', 'finance'], fn: getMaintTaskLog_ },
   saveMaintTask:             { screens: ['maintenance', 'admin', 'executive'], fn: saveMaintTask_ },
-  importMaintTasks:          { screens: ['maintenance', 'admin'], fn: importMaintTasks_ },
+  bulkUpdateMaintTasks:      { screens: ['maintenance', 'admin', 'executive'], fn: bulkUpdateMaintTasks_ },
+  importMaintTasks:          { screens: ['admin'], fn: importMaintTasks_ }, // الاستيراد للأدمن فقط — الصيانة لا تتحكم في البيانات المنقولة
   saveNotifyConfig:          { screens: [], perm: 'users', fn: saveNotifyConfig_ },
   getSetupStatus:            { screens: [], perm: 'users', fn: function () { return getSetupStatus_(); } },
   runSetupNow:               { screens: [], perm: 'users', fn: runSetupNow_ },
@@ -9886,7 +9887,7 @@ function mapMtk_(r, now) {
   const end = st === MTK_ST.DONE && done ? done : now;
   return { id: str_(r.TaskID), title: str_(r.Title), branch: str_(r.Branch), category: str_(r.Category) || mtkCategory_(r.Title), location: str_(r.Location),
     priority: str_(r.Priority), status: st, progress: Math.max(0, Math.min(100, Math.round(num_(r.Progress) || (st === MTK_ST.DONE ? 100 : 0)))),
-    cost: price_(r.Cost) || 0, costShared: isYes_(r.CostShared), source: str_(r.Source) || 'الصيانة',
+    cost: price_(r.Cost) || 0, costShared: isYes_(r.CostShared), costNote: str_(r.CostNote), source: str_(r.Source) || 'الصيانة',
     notes: str_(r.Notes), stopReason: str_(r.StopReason), start: r.StartDate || '', done: r.DoneDate || '', due: r.DueDate || '', ticket: str_(r.TicketID),
     createdAt: r.CreatedAt || '', createdBy: str_(r.CreatedBy), updatedAt: r.UpdatedAt || '', updatedBy: str_(r.UpdatedBy),
     days: start ? Math.max(0, Math.round((end - start) / 864e5)) : null,
@@ -9913,7 +9914,7 @@ function getMaintTasks_(user) {
     .filter(function (t) { return mtkVisible_(user, t); })
     .sort(function (a, b) { return (a.status === MTK_ST.DONE) - (b.status === MTK_ST.DONE) || toMs_(b.updatedAt || b.start) - toMs_(a.updatedAt || a.start); });
   const role = mtkRole_(user);
-  return { tasks: list, role: role, canEdit: role === 'maint' || role === 'exec', canShare: role === 'exec', canImport: role === 'maint' || user.screen === 'admin', statuses: MTK_STATUSES_,
+  return { tasks: list, role: role, canEdit: role === 'maint' || role === 'exec', canShare: role === 'maint' || role === 'exec', canImport: user.screen === 'admin', statuses: MTK_STATUSES_,
     categories: MTK_CAT_RULES_.map(function (x) { return x[0]; }).concat(['أخرى']), branches: getBranches_(), priorities: MT_PRIORITIES_ };
 }
 function getMaintTaskLog_(user, id) {
@@ -9942,7 +9943,9 @@ function saveMaintTask_(user, p) {
     StopReason: status === MTK_ST.STOP ? stopReason : '', DueDate: mtkDate_(p.due), UpdatedAt: now, UpdatedBy: user.name };
   if (p.cost !== undefined && p.cost !== '') { const c = price_(p.cost); if (isNaN(c) || c < 0 || c > PRICE_MAX) throw new Error('ERR_BAD_PRICE'); obj.Cost = c; }
   else if (p.cost === '') obj.Cost = '';
-  if (role === 'exec' && p.costShared !== undefined) obj.CostShared = p.costShared ? 'نعم' : ''; // الإتاحة للمالية: التنفيذي/الأدمن فقط
+  if (p.costShared !== undefined) obj.CostShared = p.costShared ? 'نعم' : ''; // «تستوجب مالية»: الصيانة أو التنفيذي — تظهر للمالية والأدمن
+  if (p.costNote !== undefined) obj.CostNote = clean_(p.costNote, 300);
+  if (obj.CostShared && !(Number(obj.Cost !== undefined ? obj.Cost : 0) > 0) && !(p.id)) throw new Error('ERR_MTK_COST_REQUIRED');
   let notifyNew = false;
   let res;
   withLock_(function () {
@@ -9954,7 +9957,8 @@ function saveMaintTask_(user, p) {
     if (row) {
       const before = mapMtk_(row, now.getTime()), ch = [];
       if (obj.Cost !== undefined && before.cost !== (Number(obj.Cost) || 0)) ch.push('القيمة: ' + before.cost + ' → ' + (Number(obj.Cost) || 0));
-      if (obj.CostShared !== undefined && before.costShared !== !!obj.CostShared) ch.push(obj.CostShared ? 'أُتيحت القيمة للمالية' : 'حُجبت القيمة عن المالية');
+      if (obj.CostShared !== undefined && before.costShared !== !!obj.CostShared) ch.push(obj.CostShared ? 'تستوجب مالية — أُحيلت للمالية' : 'أُلغيت الإحالة للمالية');
+      if (obj.CostShared && !(Number(obj.Cost !== undefined ? obj.Cost : before.cost) > 0)) throw new Error('ERR_MTK_COST_REQUIRED');
       if (before.status !== status) ch.push('الحالة: ' + before.status + ' → ' + status);
       if (before.progress !== progress) ch.push('الإنجاز: ' + before.progress + '% → ' + progress + '%');
       if (before.title !== title) ch.push('العنوان');
@@ -9981,9 +9985,53 @@ function saveMaintTask_(user, p) {
     en: { title: 'New task for maintenance', lead: title + ' — ' + branch, lines: [], foot: 'Open Maintenance → Department tasks. Automatic message.' } })); }
   return getMaintTasks_(user).tasks.filter(function (x) { return x.id === res; })[0];
 }
+/**
+ * تحديث عدة مهام دفعة واحدة (الصيانة/التنفيذي): حالة ونسبة مشتركة + ملاحظة عامة، وملاحظة خاصة لكل مهمة (اختياري)
+ * p = { status?, progress?, stopReason?, note?, notes: { taskId: 'ملاحظة' } }
+ */
+function bulkUpdateMaintTasks_(user, ids, p) {
+  const role = mtkRole_(user);
+  if (role !== 'maint' && role !== 'exec') throw new Error('ERR_FORBIDDEN');
+  p = p || {};
+  ids = (Array.isArray(ids) ? ids : []).map(str_).filter(String).slice(0, 300);
+  if (!ids.length) throw new Error('ERR_NO_ITEMS');
+  const status = MTK_STATUSES_.indexOf(str_(p.status)) !== -1 ? str_(p.status) : '';
+  const hasPg = p.progress !== undefined && p.progress !== '' && p.progress !== null;
+  const note = clean_(p.note, 300), notes = p.notes || {}, stopReason = clean_(p.stopReason, 300);
+  if (!status && !hasPg && !note && !Object.keys(notes).some(function (k) { return str_(notes[k]); })) throw new Error('ERR_REQUIRED');
+  if (status === MTK_ST.STOP && !stopReason && ids.some(function (id) { return !clean_(notes[id], 300); })) throw new Error('ERR_REASON_REQUIRED');
+  const now = new Date(), done = [];
+  withLock_(function () {
+    resetMemo_();
+    const t = tableWithCols_('MaintTasks'), byId = {};
+    t.rows.forEach(function (r) { byId[str_(r.TaskID)] = r; });
+    const ups = [], logs = [];
+    ids.forEach(function (id) {
+      const row = byId[id]; if (!row) return;
+      const before = mapMtk_(row, now.getTime());
+      let st = status || before.status, pg = hasPg ? Math.max(0, Math.min(100, Math.round(Number(p.progress) || 0))) : before.progress;
+      if (st === MTK_ST.DONE) pg = 100; else if (pg === 100) st = MTK_ST.DONE;
+      const own = clean_(notes[id], 300), obj = { Status: st, Progress: pg, UpdatedAt: now, UpdatedBy: user.name }, ch = [];
+      if (st !== before.status) ch.push('الحالة: ' + before.status + ' → ' + st);
+      if (pg !== before.progress) ch.push('الإنجاز: ' + before.progress + '% → ' + pg + '%');
+      if (st === MTK_ST.STOP) { obj.StopReason = stopReason || own; ch.push('سبب التوقف: ' + obj.StopReason); } else obj.StopReason = '';
+      if (st !== MTK_ST.PLAN && !row.StartDate) obj.StartDate = now;
+      obj.DoneDate = st === MTK_ST.DONE ? (before.status === MTK_ST.DONE && row.DoneDate ? row.DoneDate : now) : '';
+      if (own || note) obj.Notes = (before.notes ? before.notes + '\n' : '') + '• ' + Utilities.formatDate(now, TZ, 'yyyy-MM-dd') + ': ' + [note, own].filter(String).join(' — ');
+      ups.push({ row: row, obj: obj });
+      logs.push({ Timestamp: now, TaskID: id, Action: 'تحديث جماعي', Title: before.title, Branch: before.branch, Details: ch.join(' | ') || 'ملاحظة', Note: [note, own].filter(String).join(' — '), User: user.name });
+      done.push(id);
+    });
+    if (ups.length) setMany_(t, ups);
+    if (logs.length) appendMany_('MaintTaskLog', logs);
+  });
+  const all = getMaintTasks_(user).tasks;
+  return { updated: done.length, tasks: all.filter(function (x) { return done.indexOf(x.id) !== -1; }) };
+}
+
 /** استيراد من شيت القسم: tasks = صفوف «المهام» · log = صفوف «سجل_التعديلات» (التواريخ ISO من المتصفح) */
 function importMaintTasks_(user, payload) {
-  if (!(mtkRole_(user) === 'maint' || user.screen === 'admin')) throw new Error('ERR_FORBIDDEN');
+  if (user.screen !== 'admin') throw new Error('ERR_FORBIDDEN');
   payload = payload || {};
   const tasks = (Array.isArray(payload.tasks) ? payload.tasks : []).slice(0, 3000), log = (Array.isArray(payload.log) ? payload.log : []).slice(0, 10000);
   if (!tasks.length) throw new Error('ERR_NO_ITEMS');
