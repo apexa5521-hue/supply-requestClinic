@@ -1172,7 +1172,7 @@ function log(msg) { console.log('  ✔ ' + msg); }
   await page.waitForSelector('.modal #anClinic');
   await page.selectOption('.modal #anClinic', 'عيادة الجلدية 1');
   await page.selectOption('.modal #anItem', 'Handpiece Low Speed');
-  expect(await page.isVisible('.modal #anSerial') && !(await page.isVisible('.modal #anUnit')), 'unregistered clinic: the nurse types the serial (registered automatically)');
+  expect(await page.isVisible('.modal #anSerial') && !(await page.isVisible('.modal #anUnitW')), 'unregistered clinic: the nurse types the serial (registered automatically)');
   await page.keyboard.press('Escape');
   await page.waitForSelector('#asClinics [data-act="asReport"][data-serial="LS-101"]');
   await page.click('#asClinics [data-act="asReport"][data-serial="LS-101"]');
