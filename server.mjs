@@ -14,7 +14,7 @@ import { driveConfigFromEnv, driveViewUrl, driveAccessToken } from './server/dri
 import { backupFolder, uploadBackup, folderUrl, nightlyBackupDue, BACKUP_RETRY_MS } from './server/backup.mjs';
 import { googleAccessToken, mirrorToSheet, runExclusive } from './server/sync.mjs';
 import { Store, storageState, encodeGrid } from './server/store.mjs';
-import { readPublicKey, verifyTicket, UsedTickets } from './server/sso.mjs';
+import { readPublicKey, verifyTicket, UsedTickets, LinkCodes } from './server/sso.mjs';
 import { exportWorkbook, instantFromCell } from './server/workbook.mjs';
 import { mailConfigFromEnv, createMailer, createPusher, loadVapid, SERVICE_WORKER, MANIFEST, HEAD_TAGS } from './server/notify.mjs';
 const SHEET_TZ = process.env.SHEET_TZ || 'Asia/Riyadh';
@@ -127,6 +127,24 @@ app.post('/api', express.text({ type: '*/*', limit: '25mb' }), async (req, res) 
 const SSO_KEY = readPublicKey(process.env.SSO_PUBLIC_KEY);
 if (process.env.SSO_PUBLIC_KEY && !SSO_KEY) console.error('[sso] SSO_PUBLIC_KEY is not a valid PEM public key: single sign-on is off');
 const ssoUsed = new UsedTickets();
+const ssoLinks = new LinkCodes();
+// After the employee signed in with their own name and password (their Masar session), remember who they are
+// in the platform: from then on the platform opens Masar for them directly.
+app.post('/sso/link', express.json({ limit: '4kb' }), async (req, res) => {
+  const who = ssoLinks.take(req.body && req.body.code);
+  if (!who) return res.status(400).json({ ok: false, error: 'ERR_SSO_LINK_EXPIRED' });
+  try {
+    await ready;
+    if (bootError) throw bootError;
+    const name = await serial(async () => { const out = ctx.platformLinkApi_(String((req.body && req.body.token) || ''), who.org, who.email); await store.flush(gas); return String(out); });
+    console.log('[sso] linked', who.email, 'to', name);
+    res.json({ ok: true });
+  } catch (err) {
+    if (String((err && err.message) || err) === 'ERR_SESSION') return res.status(401).json({ ok: false, error: 'ERR_SESSION' });
+    console.error('[sso link]', err);
+    res.status(500).json({ ok: false, error: 'ERR_SERVER' });
+  }
+});
 app.post('/sso', express.json({ limit: '16kb' }), async (req, res) => {
   if (!SSO_KEY) return res.status(404).json({ ok: false, error: 'ERR_SSO_OFF' });
   const claims = verifyTicket(req.body && req.body.ticket, { key: SSO_KEY, audience: process.env.SSO_APP_ID || 'masar', used: ssoUsed });
@@ -135,11 +153,19 @@ app.post('/sso', express.json({ limit: '16kb' }), async (req, res) => {
     await ready;
     if (bootError) throw bootError;
     const plan = req.body && typeof req.body.plan === 'object' ? req.body.plan : null;
-    const data = await serial(async () => { const out = JSON.parse(JSON.stringify(ctx.ssoApi_(claims.sub, plan))); await store.flush(gas); return out; });
-    console.log('[sso] signed in from the platform:', claims.sub);
+    const byName = !!claims.sub.trim();
+    const data = await serial(async () => {
+      const out = JSON.parse(JSON.stringify(byName ? ctx.ssoApi_(claims.sub, plan) : ctx.ssoByEmailApi_(claims.org || '', claims.email, plan)));
+      await store.flush(gas); return out;
+    });
+    console.log('[sso] signed in from the platform:', byName ? claims.sub : claims.email);
     res.json({ ok: true, data });
   } catch (err) {
     const msg = String((err && err.message) || err);
+    if (msg === 'ERR_SSO_LINK') {
+      // not linked yet: one sign-in with the employee's own name and password links them (POST /sso/link)
+      return res.status(409).json({ ok: false, error: 'ERR_SSO_LINK', link: ssoLinks.create({ org: claims.org || '', email: claims.email }) });
+    }
     if (msg === 'ERR_SSO') { console.log('[sso] no Masar user named', JSON.stringify(claims.sub)); return res.status(401).json({ ok: false, error: 'ERR_SSO_USER' }); }
     console.error('[sso]', err);
     res.status(500).json({ ok: false, error: 'ERR_SERVER' });

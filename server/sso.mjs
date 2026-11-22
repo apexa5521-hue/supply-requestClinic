@@ -53,7 +53,31 @@ export function verifyTicket(ticket, { key, audience, used, now = Date.now() }) 
   if (!Number.isFinite(claims.exp) || !Number.isFinite(claims.iat)) return null;
   if (claims.exp + CLOCK_TOLERANCE < sec || claims.iat - CLOCK_TOLERANCE > sec) return null;
   if (claims.exp - claims.iat > MAX_TICKET_SECONDS) return null;
-  if (typeof claims.sub !== 'string' || !claims.sub.trim() || typeof claims.jti !== 'string' || !claims.jti) return null;
+  if (typeof claims.sub !== 'string' || typeof claims.jti !== 'string' || !claims.jti) return null;
+  // no user name: the platform does not know it yet, and names the employee's e-mail instead
+  if (!claims.sub.trim() && !(typeof claims.email === 'string' && claims.email.includes('@'))) return null;
   if (!used.claim(claims.jti, claims.exp)) return null;
   return claims;
+}
+
+/**
+ * A platform employee Masar does not know yet: a short-lived code that remembers their platform identity while
+ * they sign in once with their own name and password; that sign-in then links them (15 minutes, once).
+ */
+export class LinkCodes {
+  constructor(now = () => Date.now(), ttlMs = 15 * 60 * 1000) { this.codes = new Map(); this.now = now; this.ttlMs = ttlMs; }
+  create(identity) {
+    this.sweep();
+    const code = crypto.randomBytes(24).toString('base64url');
+    this.codes.set(code, { ...identity, exp: this.now() + this.ttlMs });
+    return code;
+  }
+  take(code) {
+    this.sweep();
+    const v = this.codes.get(String(code || ''));
+    if (!v) return null;
+    this.codes.delete(String(code));
+    return v;
+  }
+  sweep() { const t = this.now(); for (const [k, v] of this.codes) if (v.exp < t) this.codes.delete(k); }
 }

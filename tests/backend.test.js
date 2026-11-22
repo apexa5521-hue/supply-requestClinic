@@ -4579,3 +4579,21 @@ test('governance (quality/admin): late stages with due time, unsent items, flagg
   ctx.govDigest_(Date.now());
   assert.ok(gas.mails.some(m => /ملخص الحوكمة والمراقبة/.test(m.subject)), 'daily governance digest');
 });
+
+test('platform sign-in by e-mail: matched by the Users e-mail, otherwise linked by one own sign-in', () => {
+  const { ctx, login } = boot();
+  const run = f => JSON.parse(JSON.stringify(f()));
+  // the e-mail is in the Users sheet (once): opens that account directly
+  const sara = run(() => ctx.ssoByEmailApi_('apexcare', 'SARA@example.com', null));
+  assert.equal(sara.success, true);
+  assert.equal(sara.user.name, 'سارة');
+  // unknown e-mail: the employee must sign in once
+  assert.throws(() => ctx.ssoByEmailApi_('apexcare', 'reem.platform@apexcare.sa', null), /ERR_SSO_LINK/);
+  const token = login('ريم', '2222');
+  assert.throws(() => ctx.platformLinkApi_('not-a-session', 'apexcare', 'reem.platform@apexcare.sa'), /ERR_SESSION/);
+  assert.equal(ctx.platformLinkApi_(token, 'apexcare', 'reem.platform@apexcare.sa'), 'ريم');
+  const reem = run(() => ctx.ssoByEmailApi_('apexcare', 'reem.platform@apexcare.sa', null));
+  assert.equal(reem.user.name, 'ريم', 'linked from now on');
+  // another organization's link is its own
+  assert.throws(() => ctx.ssoByEmailApi_('other', 'reem.platform@apexcare.sa', null), /ERR_SSO_LINK/);
+});

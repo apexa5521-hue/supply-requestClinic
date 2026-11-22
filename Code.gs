@@ -1408,6 +1408,31 @@ function ssoApi_(name, preload) {
   }
 }
 
+/**
+ * دخول موحد بالبريد فقط: المنصة لا تعرف اسم الموظف في مسار بعد. يُعرف من ربط سابق، أو من بريده في
+ * ورقة Users إن كان مطابقاً لحساب واحد. وإلا ERR_SSO_LINK: يدخل الموظف باسمه ورقمه السري مرة واحدة فيُربط.
+ */
+function ssoByEmailApi_(org, email, preload) {
+  email = str_(email).toLowerCase();
+  if (!email || email.indexOf('@') < 0) throw new Error('ERR_SSO');
+  const linked = PropertiesService.getScriptProperties().getProperty(platformLinkKey_(org, email));
+  if (linked) return ssoApi_(linked, preload);
+  const rows = read_('Users').rows.filter(function (r) { return str_(r.Name) && str_(r.Email).toLowerCase() === email; });
+  if (rows.length === 1) return ssoApi_(str_(rows[0].Name), preload);
+  throw new Error('ERR_SSO_LINK');
+}
+
+function platformLinkKey_(org, email) { return 'platform_link:' + str_(org).toLowerCase() + ':' + str_(email).toLowerCase(); }
+
+/** يربط بريد الموظف في المنصة باسمه في مسار، بعد دخوله بنفسه (جلسته الحالية). يُرجع الاسم، أو يرمي ERR_SESSION */
+function platformLinkApi_(token, org, email) {
+  const raw = token && CacheService.getScriptCache().get('s:' + token);
+  if (!raw) throw new Error('ERR_SESSION');
+  const name = str_(JSON.parse(raw).name);
+  PropertiesService.getScriptProperties().setProperty(platformLinkKey_(org, email), name);
+  return name;
+}
+
 function logout_(token) {
   if (token) CacheService.getScriptCache().remove('s:' + token);
 }

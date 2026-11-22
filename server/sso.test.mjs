@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import crypto from 'node:crypto';
-import { verifyTicket, readPublicKey, UsedTickets, ISSUER } from './sso.mjs';
+import { verifyTicket, readPublicKey, UsedTickets, LinkCodes, ISSUER } from './sso.mjs';
 
 const pair = () => {
   const k = crypto.generateKeyPairSync('ec', { namedCurve: 'P-256' });
@@ -64,5 +64,21 @@ assert.equal(u.claim('a', 1000), true);
 assert.equal(u.claim('a', 1000), false);
 t = 1_000_001;
 assert.equal(u.claim('a', 2000), true);
+
+// no user name but the employee's e-mail: accepted (Masar finds or links the account); neither: refused
+assert.equal(check(sign({ sub: '', email: 'sara@apexcare.sa', org: 'apexcare' })).email, 'sara@apexcare.sa');
+assert.equal(check(sign({ sub: '', email: '' })), null);
+assert.equal(check(sign({ sub: '' })), null);
+
+// link codes: once, and only for 15 minutes
+let lt = 0;
+const codes = new LinkCodes(() => lt);
+const c = codes.create({ org: 'apexcare', email: 'a@b.sa' });
+assert.match(c, /^[\w-]{30,}$/);
+assert.deepEqual({ ...codes.take(c), exp: 0 }, { org: 'apexcare', email: 'a@b.sa', exp: 0 });
+assert.equal(codes.take(c), null, 'once');
+const c2 = codes.create({ org: 'x', email: 'y@z.sa' });
+lt = 16 * 60 * 1000;
+assert.equal(codes.take(c2), null, 'expired');
 
 console.log('sso tests ok');
