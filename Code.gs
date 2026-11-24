@@ -85,7 +85,7 @@ const SCHEMA = {
   // عُهدة العيادة: المعيار لكل عيادة، القطع المصروفة (بالرقم التسلسلي)، وبلاغات الأدوات
   // البوكسات: بوكس ثابت لكل طبيب (أو عيادة لمستهلكات العيادة) عليه QR برمز سري؛ وسجل كل حركة بالصورة
   Boxes:        ['BoxID', 'Owner', 'Branch', 'Token', 'Location', 'Status', 'Loads', 'Destination', 'LoadedAt', 'UpdatedAt', 'UpdatedBy', 'Photo', 'Notes', 'Driver', 'PickedBy', 'PickedAt'],
-  BoxMoves:     ['Timestamp', 'BoxID', 'Owner', 'From', 'To', 'Action', 'By', 'Photo', 'RequestID', 'Batch', 'ClientKey'],
+  BoxMoves:     ['Timestamp', 'BoxID', 'Owner', 'From', 'To', 'Action', 'By', 'Photo', 'RequestID', 'Batch', 'ClientKey', 'Driver', 'Spot'], // Driver: السواق المسند للشحنة · Spot: مكان التسليم بالضبط
   ClinicStandards: ['Clinic', 'Item', 'StandardQty', 'UpdatedBy', 'UpdatedAt'],
   // Doctor: الطبيب المصروفة عليه العهدة (فارغ = على العيادة) · RequestID: «REQ-…#الشحنة» إن صُرفت من طلب طبيب
   Assets:       ['AssetID', 'Item', 'Serial', 'Clinic', 'Branch', 'Qty', 'Status', 'IssuedAt', 'IssuedBy', 'Cost', 'TicketID', 'Notes', 'UpdatedAt', 'UpdatedBy', 'Doctor', 'RequestID'],
@@ -1470,9 +1470,10 @@ function ensureBox_(owner, user, branch, location) {
   append_('Boxes', { BoxID: id, Owner: owner, Branch: branch, Token: newToken_(), Location: location || BOX_HOME, Status: BX_ST.EMPTY, UpdatedAt: new Date(), UpdatedBy: user ? user.name : '' });
   return read_('Boxes').rows.filter(function (r) { return str_(r.BoxID) === id; })[0];
 }
-function addBoxMove_(box, from, to, action, by, photo, requestId, batch, clientKey) {
-  append_('BoxMoves', { Timestamp: new Date(), BoxID: str_(box.BoxID), Owner: str_(box.Owner), From: from, To: to, Action: action, By: by,
-    Photo: photo || '', RequestID: requestId || '', Batch: batch || '', ClientKey: clientKey || '' });
+function addBoxMove_(box, from, to, action, by, photo, requestId, batch, clientKey, extra) {
+  if (extra) tableWithCols_('BoxMoves');
+  append_('BoxMoves', Object.assign({ Timestamp: new Date(), BoxID: str_(box.BoxID), Owner: str_(box.Owner), From: from, To: to, Action: action, By: by,
+    Photo: photo || '', RequestID: requestId || '', Batch: batch || '', ClientKey: clientKey || '' }, extra || {}));
 }
 /** تحميل شحنة في البوكس (من writeShipment_ داخل القفل) — بوكس جديد يُكتب محمّلاً في سطر واحد */
 function loadBox_(req, batch, user, now, pick, quiet) {
@@ -1496,7 +1497,7 @@ function loadBox_(req, batch, user, now, pick, quiet) {
     append_('Boxes', { BoxID: row.BoxID, Owner: owner, Branch: dest, Token: newToken_(), Location: BOX_HOME, Status: BX_ST.READY, Loads: key, Destination: dest, LoadedAt: now, UpdatedAt: now, UpdatedBy: user.name, Driver: bp.driver || '' });
   }
   if (bp.driver) {
-    addBoxMove_(row, BOX_HOME, dest, 'توزيع على السواق', user.name + ' ← ' + bp.driver, '', req.id, batch);
+    addBoxMove_(row, BOX_HOME, dest, 'توزيع على السواق', user.name + ' ← ' + bp.driver, '', req.id, batch, '', { Driver: bp.driver });
     if (driverNames_().indexOf(bp.driver) === -1) writeDrivers_(driverNamesSaved_().concat([bp.driver]), user); // اسم حر يُحفظ للمرات القادمة
   }
   addBoxMove_(row, from, BOX_HOME, 'تحميل', user.name, '', req.id, batch);
@@ -1641,30 +1642,119 @@ function ensureDriverRole_() {
   if (ups.length) setMany_(u, ups);
   if (!old && !has && !t.rows.some(function (r) { return str_(r.Screen) === 'driver'; })) append_('Roles', { RoleName: DRIVER_ROLE_, Screen: 'driver' });
 }
+/**
+ * مهام النقل لكل شحنة (طلب#شحنة) — البوكس داخلي للتموين فقط، السواق يرى الطلب نفسه:
+ * المحمّلة في بوكس، لم تصل الفرع، ولم تُستلم، والطلب غير ملغي/مستلم. السواق المسند = المختار عند الإرسال (أو توزيع البوكس من التموين)
+ */
+function shipTasks_() {
+  const dl = deliveriesIndex_(), pk = pickupsIndex_(), asg = {};
+  read_('BoxMoves').rows.forEach(function (m) { if (str_(m.Action) === 'توزيع على السواق' && str_(m.RequestID) && str_(m.Driver)) asg[str_(m.RequestID) + '#' + Number(m.Batch)] = str_(m.Driver); });
+  const reqs = {};
+  read_('Requests').rows.forEach(function (r) { reqs[str_(r.RequestID)] = r; });
+  const out = [], seen = {};
+  read_('Boxes').rows.filter(function (r) { return str_(r.BoxID); }).forEach(function (row) {
+    const b = mapBox_(row);
+    b.loads.forEach(function (k) {
+      const id = k.split('#')[0], batch = Number(k.split('#')[1]) || 0, key = id + '#' + batch, r = reqs[id];
+      if (seen[key] || !r || dl[key]) return;
+      const st = str_(r.Status);
+      if (st === ST.RECEIVED || isOff_(st)) return;
+      seen[key] = true;
+      const p = pk[key];
+      out.push({ key: key, request: id, batch: batch, box: b.id, owner: b.owner, destination: b.destination || reqBranch_(r) || b.branch, clinic: str_(r.Clinic), nurse: str_(r.Nurse),
+        type: str_(r.Type), assigned: asg[key] || b.driver || '', pickedBy: p ? p.by : '', pickedAt: p ? p.at : '', loadedAt: b.loadedAt });
+    });
+  });
+  return out;
+}
 function getDriverBoard_(user) {
   const me = user.name;
-  const boxes = read_('Boxes').rows.filter(function (r) { return str_(r.BoxID); }).map(mapBox_);
-  const pending = boxes.filter(function (b) { return boxPending_(b) && (!b.driver || b.driver === me || b.pickedBy === me) && (!b.pickedBy || b.pickedBy === me); });
-  const out = pending.map(function (b) {
-    const loads = loadsInfo_(b.loads);
-    return { id: b.id, owner: b.owner, destination: b.destination || b.branch, location: b.location, status: b.status, assigned: b.driver, picked: b.pickedBy === me, pickedAt: b.pickedAt,
-      loadedAt: b.loadedAt, requests: loads.map(function (l) { return { id: l.request, batch: l.batch, clinic: l.clinic, nurse: l.nurse, type: l.type }; }), to: boxRecipients_(loads) };
-  }).sort(function (a, b) { return (b.picked - a.picked) || ((b.assigned === me) - (a.assigned === me)) || toMs_(a.loadedAt) - toMs_(b.loadedAt); });
+  const list = shipTasks_().filter(function (x) { return x.pickedBy ? x.pickedBy === me : (!x.assigned || x.assigned === me); }).map(function (x) {
+    return { key: x.key, request: x.request, batch: x.batch, destination: x.destination, clinic: x.clinic, nurse: x.nurse, emergency: isEmergencyType_(x.type), assigned: x.assigned, picked: !!x.pickedBy, pickedAt: x.pickedAt, loadedAt: x.loadedAt };
+  }).sort(function (a, b) { return (b.picked - a.picked) || (b.emergency - a.emergency) || ((b.assigned === me) - (a.assigned === me)) || toMs_(a.loadedAt) - toMs_(b.loadedAt); });
   const since = Date.now() - 7 * 864e5;
-  const done = read_('BoxMoves').rows.filter(function (m) { return str_(m.By) === me && str_(m.Action) === 'تسليم' && toMs_(m.Timestamp) > since; })
-    .map(function (m) { return { at: m.Timestamp, box: str_(m.BoxID), owner: str_(m.Owner), to: str_(m.To), request: str_(m.RequestID), batch: str_(m.Batch), photo: str_(m.Photo) }; })
+  const done = read_('BoxMoves').rows.filter(function (m) { return str_(m.By) === me && str_(m.Action) === 'تسليم' && str_(m.RequestID) && toMs_(m.Timestamp) > since; })
+    .map(function (m) { return { at: m.Timestamp, to: str_(m.To), request: str_(m.RequestID), batch: str_(m.Batch), photo: str_(m.Photo), spot: str_(m.Spot) }; })
     .sort(function (a, b) { return toMs_(b.at) - toMs_(a.at); }).slice(0, 40);
-  return { name: me, boxes: out, done: done, places: boxPlaces_() };
+  return { name: me, tasks: list, done: done, places: getBranches_() };
 }
+function driverTask_(key) {
+  const x = shipTasks_().filter(function (t) { return t.key === key; })[0];
+  if (x) return x;
+  if (deliveriesIndex_()[key]) throw new Error('ERR_BOX_DELIVERED');
+  throw new Error('ERR_NOT_FOUND');
+}
+/** «استلمت من التموين» لطلب (شحنة) واحد */
 function driverPickup_(user, p) {
   p = p || {};
-  DRIVER_USER_ = user;
-  try { return boxPickup_({ box: str_(p.box), clientKey: str_(p.clientKey) }); } finally { DRIVER_USER_ = null; }
+  const key = str_(p.key), me = user.name, clientKey = str_(p.clientKey).slice(0, 64);
+  let done = null, dup = false;
+  withLock_(function () {
+    resetMemo_();
+    const x = driverTask_(key);
+    if (x.pickedBy === me) { dup = true; return; }
+    if (x.pickedBy) throw new Error('ERR_BOX_PICKED');
+    if (x.assigned && x.assigned !== me) throw new Error('ERR_NOT_YOUR_BOX');
+    const t = read_('Boxes'), row = t.rows.filter(function (r) { return str_(r.BoxID) === x.box; })[0] || { BoxID: x.box, Owner: x.owner };
+    addBoxMove_(row, BOX_HOME, x.destination, 'استلام السواق', me, '', x.request, x.batch, clientKey, { Driver: me });
+    logAction_(x.request, 'استلم السواق ' + me + ' الطلب — الشحنة ' + x.batch + ' في الطريق إلى ' + x.destination, me);
+    append_('Comments', { Timestamp: new Date(), RequestID: x.request, Author: me, Role: 'نقل', Message: '🚚 استلم السواق ' + me + ' الطلب من التموين (الشحنة ' + x.batch + ') — في الطريق إلى ' + x.destination });
+    done = x;
+  });
+  if (dup) return { ok: true, duplicate: true };
+  const r = read_('Requests').rows.filter(function (q) { return str_(q.RequestID) === done.request; })[0];
+  if (r && str_(r.Nurse)) {
+    nk_('box_picked');
+    notifyUser_(str_(r.Nurse), 'جاري نقل طلبك ' + done.request + ' للفرع مع السواق ' + me + ' · In transit with driver ' + me, mailMsg_({ order: ['ar', 'en'], id: done.request, req: mapRequest_(r), step: 3,
+      ar: { title: 'جاري نقل طلبك إلى فرع ' + done.destination, lead: 'استلم السواق ' + me + ' طلبك (الشحنة ' + done.batch + ') من التموين.', btn: 'افتح الطلب', foot: 'يصلك تنبيه آخر عند وصوله للفرع. رسالة آلية.' },
+      en: { title: 'Your request is on the way to ' + done.destination, lead: 'Driver ' + me + ' picked up your request (shipment ' + done.batch + ') from procurement.', btn: 'Open request', foot: 'You will get another notice when it arrives. Automatic message.' } }));
+  }
+  return { ok: true };
 }
+/** «وصل الفرع» لطلب (شحنة) واحد: صورة إلزامية للمكان بالضبط + وصف المكان (اختياري) */
 function driverDeliver_(user, p) {
   p = p || {};
-  DRIVER_USER_ = user;
-  try { const r = boxDeliver_({ box: str_(p.box), to: str_(p.to), photo: p.photo, spot: p.spot, clientKey: str_(p.clientKey) }); delete r.box; return r; } finally { DRIVER_USER_ = null; }
+  const key = str_(p.key), me = user.name, to = str_(p.to), spot = clean_(p.spot, 120), clientKey = str_(p.clientKey).slice(0, 64);
+  if (clientKey && read_('BoxMoves').rows.some(function (m) { return str_(m.ClientKey) === clientKey && str_(m.Action) === 'تسليم'; })) return { ok: true, duplicate: true };
+  if (getBranches_().indexOf(to) === -1) throw new Error('ERR_BAD_PLACE');
+  const pre = driverTask_(key);
+  if (!pre.pickedBy) throw new Error('ERR_NOT_PICKED');
+  if (pre.pickedBy !== me) throw new Error('ERR_NOT_YOUR_BOX');
+  if (!p.photo) throw new Error('ERR_PHOTO_REQUIRED');
+  const photo = saveLabPhoto_(pre.request + '-' + pre.batch + '-' + Date.now(), p.photo);
+  let x = null;
+  withLock_(function () {
+    resetMemo_();
+    x = driverTask_(key);
+    if (x.pickedBy !== me) throw new Error('ERR_NOT_YOUR_BOX');
+    const now = new Date(), t = tableWithCols_('Boxes'), row = t.rows.filter(function (r) { return str_(r.BoxID) === x.box; })[0] || { BoxID: x.box, Owner: x.owner };
+    addBoxMove_(row, BOX_HOME, to, 'تسليم', me, photo, x.request, x.batch, clientKey, { Driver: me, Spot: spot });
+    logAction_(x.request, 'وصل الطلب فرع ' + to + (spot ? ' (' + spot + ')' : '') + ' — الشحنة ' + x.batch + ' — السواق ' + me, me);
+    append_('Comments', { Timestamp: now, RequestID: x.request, Author: me, Role: 'نقل', Message: '📦 وصل الطلب إلى فرع ' + to + (spot ? ' — المكان: ' + spot : '') + ' (الشحنة ' + x.batch + ') — بانتظار استلام الممرضة' });
+    // البوكس داخلي: إذا وصلت كل شحناته يُسجَّل في الفرع
+    if (row.Loads !== undefined) {
+      delete MEMO_.dlv;
+      const b = mapBox_(row), dl = deliveriesIndex_();
+      if (b.loads.length && b.loads.every(function (k) { return dl[k.split('#')[0] + '#' + Number(k.split('#')[1])]; }))
+        setMany_(t, [{ row: row, obj: Object.assign({ Location: to, Status: BX_ST.DELIVERED, Destination: '', UpdatedAt: now, UpdatedBy: me + ' (نقل)', Photo: photo }, BOX_TRIP_CLEAR_) }]);
+    }
+  });
+  notifyArrival_(x, to, me);
+  return { ok: true };
+}
+/** إبلاغ وصول شحنة للفرع: الممرضة (افحصي ووقّعي) + الطبيب والتشغيل وإدارة الفرع للمتابعة */
+function notifyArrival_(x, to, driver) {
+  const r = read_('Requests').rows.filter(function (q) { return str_(q.RequestID) === x.request; })[0];
+  if (!r) return;
+  nk_('box_arrived');
+  if (str_(r.Nurse)) notifyUser_(str_(r.Nurse), 'وصل طلبك ' + x.request + ' إلى فرع ' + to + ' · Arrived, check and sign', mailMsg_({ order: ['en', 'ar'], id: x.request, req: mapRequest_(r), step: 4,
+    en: { title: 'Your request reached the ' + to + ' branch', lead: 'Shipment ' + x.batch + ' was delivered by ' + driver + '.', action: 'Check the items, enter what you received, reject anything that does not match (with a photo), then sign.', btn: 'Open receipt', foot: 'Automatic message, please do not reply.' },
+    ar: { title: 'وصل طلبك إلى فرع ' + to, lead: 'سلّم السواق ' + driver + ' الشحنة ' + x.batch + '.', action: 'افحصي الأصناف، اكتبي الكمية المستلمة، ارفضي أي صنف غير مطابق مع صورة، ثم وقّعي.', btn: 'افتح الاستلام', foot: 'رسالة آلية، لا تردي عليها.' } }));
+  const br = reqBranch_(r) || to, doc = str_(r.Doctor), docAcc = doc ? doctorAccounts_()[doc] : '';
+  nk_('arrived_watch');
+  notifyNames_([docAcc].concat(opsManagers_(), branchManagers_(br)), 'وصل الطلب ' + x.request + ' إلى فرع ' + br + ' · Request arrived at the branch', mailMsg_({ order: ['ar', 'en'], id: x.request, req: mapRequest_(r), step: 4,
+    ar: { title: 'وصل الطلب إلى فرع ' + br, lead: 'سلّم السواق ' + driver + ' الشحنة ' + x.batch + '، والطلب بانتظار استلام الممرضة ' + str_(r.Nurse) + ' وتوقيعها.', btn: 'افتح الطلب', foot: 'وصلك هذا للمتابعة (الطبيب / التشغيل / إدارة الفرع). لا يحتاج منك إجراء.' },
+    en: { title: 'The request reached the ' + br + ' branch', lead: 'Driver ' + driver + ' delivered shipment ' + x.batch + '. It is waiting for nurse ' + str_(r.Nurse) + ' to receive and sign.', btn: 'Open request', foot: 'Sent for follow-up (doctor / operations / branch management). No action needed.' } }));
 }
 /** رمز رابط «الشحنات (السواق)» (يُنشأ مرة في Settings ← DriverToken، ويمكن تغييره من الشيت لإبطال الرابط القديم) */
 function driverToken_() {

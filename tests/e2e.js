@@ -709,22 +709,29 @@ function log(msg) { console.log('  ✔ ' + msg); }
   expect(await page.evaluate(() => S.view) === 'drive', 'driver account lands on «النقل» (Transport)');
   expect((await page.textContent('.drb-card .drb-dest')).includes(bx.destination) && (await page.textContent('.drb-card')).includes('التسليم إلى:'), 'driver sees the destination branch and the nurse to hand it to');
   expect(!/PROPHY|DENTAL|ر\.س/.test(await page.textContent('#drbList')), 'no items or prices on the driver page');
-  await page.click('.drb-card [data-act="drbPick"]');
-  await page.waitForSelector('.drb-card.on');
+  expect(await page.locator('.drb-card').count() === 2 && !(await page.textContent('#drbList')).includes('BOX-'), 'driver sees each shipment of the request (not the box)');
+  for (let i = 0; i < 2; i++) { await page.click('.drb-card [data-act="drbPick"] >> nth=0'); await page.waitForFunction(n => document.querySelectorAll('.drb-card.on').length === n, i + 1); }
   expect(await page.evaluate(() => __gas.dump('BoxMoves').filter(r => r[5] === 'استلام السواق').length) === 2, 'pickup logged for both shipments');
-  await page.click('.drb-card.on [data-act="drbArrive"]');
-  await page.waitForSelector('.modal #drbOk');
-  expect(await page.inputValue('.modal #drbTo') === bx.destination, 'destination branch preselected');
-  await page.click('.modal #drbOk');
-  expect((await page.textContent('.modal #arErr')).includes('إلزامية'), 'photo is required before «arrived at branch»');
-  await page.setInputFiles('.modal #drbFile', { name: 'box.png', mimeType: 'image/png', buffer: Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==', 'base64') });
-  await page.waitForSelector('.modal #drbPh img');
-  await page.fill('.modal #drbSpot', 'عند الاستقبال');
-  await shot(page, 'driver-deliver');
-  await page.click('.modal #drbOk');
-  await page.waitForSelector('#drbDone .drb-done');
+  for (let i = 0; i < 2; i++) {
+    await page.click('.drb-card.on [data-act="drbArrive"] >> nth=0');
+    await page.waitForSelector('.modal #drbOk');
+    expect(await page.inputValue('.modal #drbTo') === bx.destination, 'destination branch preselected');
+    if (i === 0) { await page.click('.modal #drbOk'); expect((await page.textContent('.modal #arErr')).includes('الصورة'), 'photo is required before «arrived at branch»'); }
+    await page.setInputFiles('.modal #drbFile', { name: 'box.png', mimeType: 'image/png', buffer: Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==', 'base64') });
+    await page.waitForSelector('.modal #drbPh img');
+    await page.fill('.modal #drbSpot', 'عند الاستقبال');
+    if (i === 0) await shot(page, 'driver-deliver');
+    await page.click('.modal #drbOk');
+    await page.waitForFunction(n => document.querySelectorAll('#drbDone .drb-done').length === n, i + 1);
+  }
   expect(await page.evaluate(() => __gas.dump('BoxMoves').filter(r => r[5] === 'تسليم').length) === 2, 'arrival logged for both shipments with photo');
-  expect((await page.textContent('#drbList')).includes('لا توجد شحنات'), 'nothing left for the driver');
+  expect((await page.textContent('#drbList')).includes('لا توجد طلبات'), 'nothing left for the driver');
+  // صفحة النقل بالبنغالي
+  await page.click('[data-act="drbLang"][data-l="bn"]');
+  await page.waitForFunction(() => document.documentElement.lang === 'bn' && (document.querySelector('#drbList') || {}).textContent);
+  expect((await page.textContent('#drbList')).includes('কোনো অর্ডার নেই'), 'transport page switches to Bengali');
+  await page.click('[data-act="drbLang"][data-l="ar"]');
+  await page.waitForFunction(() => document.documentElement.lang === 'ar');
   await shot(page, 'driver-done');
   await logout(page);
 
