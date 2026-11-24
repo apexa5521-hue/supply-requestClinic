@@ -749,6 +749,7 @@ const API_ = {
   bulkUpdateStatus:          { screens: ['procurement'], fn: bulkUpdateStatus_ },
   cancelRequests:            { screens: ['procurement'], fn: cancelRequests_ },
   cancelAsDuplicate:         { screens: ['procurement', 'admin'], fn: cancelAsDuplicate_ },
+  getProcOwners:             { screens: MGMT_SCREENS, fn: getProcOwners_ },
   getDoctorRequests:         { screens: ['doctor', 'branch'], fn: getDoctorRequests_ },
   getDoctorReviewContext:    { screens: ['doctor', 'procurement'].concat(MGMT), fn: function (user, id) { return { priceAccess: priceVisible_() ? 'all' : 'none', items: getRequestItemsWithCatalog_(user, id) }; } },
   getRequestItemsWithCatalog:{ screens: ['doctor', 'procurement'].concat(MGMT), fn: getRequestItemsWithCatalog_ },
@@ -4740,6 +4741,16 @@ function cancelAsDuplicate_(user, newId, oldId, note) {
     logAction_(oldId, m, user.name);
   });
   return { cancelled: newId, keep: oldId, lines: lines };
+}
+
+/** مسؤولو التموين لكل قسم (من «القسم» في حساب موظف التموين) — لعنوان قوائم المتابعة: الأسنان / الجلدية / عام */
+function getProcOwners_() {
+  const out = { 'أسنان': [], 'جلدية': [], '': [] };
+  read_('Users').rows.forEach(function (u) {
+    if (roleScreen_(u.Role) !== 'procurement' || !str_(u.Name) || /^(لا|no|0|false)$/i.test(str_(u.Active))) return;
+    out[normDept_(u.Department)].push(str_(u.Name));
+  });
+  return out;
 }
 
 function bulkUpdateStatus_(user, requestIds, newStatus, boxes) {

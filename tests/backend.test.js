@@ -4683,3 +4683,21 @@ test('maintenance department tasks: import from the sheet (upsert by id + histor
   assert.ok(log.some(l => /الحالة: جارٍ → مكتمل/.test(l.details) && /الإنجاز: 75% → 100%/.test(l.details) && l.note === 'تم الإصلاح' && l.by === 'صالح'));
   assert.equal(api(ex, 'getMaintTaskLog', 't_1').slice(-1)[0].action, 'إضافة');
 });
+
+test('procurement owners per department for follow-up lists (dental / derma / general); management only', () => {
+  const { api, login } = boot();
+  const adm = login('المدير', '1234');
+  api(adm, 'createUser', { name: 'أحمد', password: '5050', role: 'تموين', department: 'أسنان' });
+  api(adm, 'createUser', { name: 'وائل', password: '5051', role: 'تموين', department: 'جلدية' });
+  const o = api(adm, 'getProcOwners');
+  assert.deepEqual(o['أسنان'], ['أحمد']); assert.deepEqual(o['جلدية'], ['وائل']); assert.ok(o[''].includes('علي'));
+  assert.ok(api(login('فيصل', '6666'), 'getProcOwners'));
+  throwsCode(() => api(login('سارة', '1111'), 'getProcOwners'), 'ERR_FORBIDDEN');
+  // كل موظف تموين يرى طلبات قسمه فقط
+  const n = login('سارة', '1111');
+  api(n, 'createRequest', { clinic: 'عيادة الأسنان 1', doctor: 'د. نورة', type: 'شهري', items: [{ name: 'PROPHY PASTE', qty: 1 }] });
+  api(n, 'createRequest', { clinic: 'عيادة الجلدية 1', doctor: 'د. فهد', type: 'شهري', items: [{ name: 'PROPHY PASTE', qty: 1 }] });
+  const deps = tok => Array.from(new Set(api(tok, 'getRequests', {}).map(r => r.department))).sort();
+  assert.deepEqual(deps(login('أحمد', '5050')), ['أسنان']);
+  assert.deepEqual(deps(login('وائل', '5051')), ['جلدية']);
+});
