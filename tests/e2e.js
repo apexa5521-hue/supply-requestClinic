@@ -1488,7 +1488,7 @@ function log(msg) { console.log('  ✔ ' + msg); }
   expect(!tabErrors.length, 'every admin tab opens without errors' + (tabErrors.length ? ' — ' + tabErrors.join(' ; ') : ''));
   await openView(page, 'boxes');
   await page.waitForSelector('#bxList');
-  expect(!!(await page.$('#bxDrvUrl')), 'admin manages boxes (driver link visible, not read-only)');
+  expect(!!(await page.$('#bxDriver')) && !!(await page.$('[data-act="bxNew"]')), 'admin manages boxes (drivers card + new box, not read-only)');
   await openView(page, 'users');
   await page.waitForSelector('#uTable table');
   await shot(page, 'admin-users');
