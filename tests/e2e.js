@@ -686,7 +686,7 @@ function log(msg) { console.log('  ✔ ' + msg); }
   const bx = await page.evaluate(() => BX.data.boxes[0]);
   expect(await page.evaluate(() => { const ids = Array.from(document.querySelectorAll('#bxList .box-card .req-id')).map(e => e.textContent); return ids.length > 0; }), 'boxes listed (newest activity first)');
   expect(bx.status === 'جاهز للنقل' && bx.loads.length === 2 && bx.destination === bx.loads[0].branch, 'dispatch loaded the doctor box (2 shipments) → ready to deliver to the request branch');
-  expect((await page.inputValue('#bxDrvUrl')).includes('?driver='), 'procurement sees the driver tasks link');
+  expect(!(await page.$('#bxDrvUrl')) && (await page.textContent('#bxDriver').catch(() => '')) !== null, 'no public driver link any more (drivers use accounts)');
   await shot(page, 'proc-boxes');
   await page.click('#bxList [data-act="bxSticker"]');
   await page.waitForSelector('#printArea .sticker', { state: 'attached' });
@@ -700,67 +700,32 @@ function log(msg) { console.log('  ✔ ' + msg); }
   await page.click('#baOk');
   await page.waitForFunction(() => (document.querySelector('#bxList') || {}).textContent.includes('موزّعة على أبو فهد'));
   expect(await page.evaluate(() => BX.data.drivers.join()) === 'أبو فهد', 'procurement assigned the box to a driver; the name joins the drivers list');
-  // صفحة السواق: المهام ← البوكس ← المكان + صورة + اسم ← تسليم
-  // شبكة السواق الضعيفة: أول محاولتين تفشلان ← إعادة تلقائية بدون رسالة خطأ
-  await page.evaluate(() => {
-    window.__realCall = call; let fails = 2;
-    window.call = function (fn) { if (fn === 'driverTasks' && fails-- > 0) return Promise.reject(new Error('ERR_NETWORK')); return __realCall.apply(null, arguments); };
-  });
-  await page.evaluate(tk => showDriverTasks(tk), await page.evaluate(() => BX.data.driverToken));
-  await page.waitForSelector('.drv-task', { timeout: 15000 });
-  expect(!(await page.$('#driverView .empty')), 'driver tasks retry automatically after network failures');
-  // انقطاع كامل: تبقى آخر قائمة محفوظة ظاهرة مع تنبيه
-  await page.evaluate(() => { window.call = function (fn) { return fn === 'driverTasks' ? Promise.reject(new Error('ERR_SERVER')) : __realCall.apply(null, arguments); }; });
-  await page.click('[data-act="drvTasks"]');
-  await page.waitForFunction(() => document.querySelector('#driverView').textContent.includes('آخر قائمة محفوظة'));
-  expect(await page.isVisible('.drv-task') && (await page.textContent('#driverView')).includes('آخر قائمة محفوظة'), 'offline: last saved driver tasks stay visible with a notice');
-  await page.evaluate(() => { window.call = __realCall; });
-  await page.click('[data-act="drvTasks"]');
-  await page.waitForFunction(() => !document.querySelector('#driverView').textContent.includes('آخر قائمة محفوظة'));
-  expect((await page.textContent('.drv-task')).includes('من التموين إلى ' + bx.destination), 'driver tasks: box from procurement to the branch');
-  expect((await page.textContent('.drv-task')).includes('التسليم إلى:'), 'driver tasks show the nurse to hand the box to');
-  // التسليم بالمسح فقط: بطاقات المهام للعرض ولا تحمل رمز البوكس
-  expect(await page.isVisible('.drv-scan-hint') && await page.locator('.drv-task[data-act], button.drv-task').count() === 0, 'driver tasks are view-only: delivery only by scanning the box QR');
-  expect(await page.evaluate(tk => __realCall('driverTasks', { k: tk }).then(l => l.every(x => !x.k)), await page.evaluate(() => BX.data.driverToken)), 'driver tasks do not expose box keys');
-  // السواق يختار اسمه ← «استلمت الطلبية» ← البطاقة «مع السواق»
-  expect((await page.textContent('.drv-task')).includes('مخصصة لـ أبو فهد'), 'driver page shows who the shipment is assigned to');
-  await page.selectOption('#drvMe', 'أبو فهد');
-  await page.waitForFunction(() => (document.querySelector('.drv-task') || {}).textContent.includes('مخصصة لك'));
-  await page.click('.drv-task [data-act="drvPick"]');
-  await page.waitForSelector('.drv-task.picked');
-  expect((await page.textContent('.drv-task.picked')).includes('جاري النقل · السواق أبو فهد') && !(await page.$('.drv-task [data-act="drvPick"]')), 'driver picked it up with their name; no second pickup button');
+  // حساب السواق: يدخل ويرى الشحنة ووجهتها ولمن تُسلَّم ← «استلمت من التموين» ← «وصل الفرع» بصورة إلزامية
+  await page.evaluate(async () => { const tk = (await __api(null, 'login', ['المدير', '1234'])).token; await __api(tk, 'createUser', [{ name: 'أبو فهد', password: '8080', role: 'سواق' }]); });
+  expect(await page.evaluate(() => call('boxDeliver', { box: 'BOX-001', k: 'x' }).then(() => 'ok', e => String(e.message))) === 'ERR_DRIVER_LOGIN', 'old driver link pages are off');
+  await logout(page);
+  await login(page, 'أبو فهد', '8080');
+  await page.waitForSelector('.drb-card');
+  expect(await page.evaluate(() => S.view) === 'drive', 'driver account lands on «my deliveries»');
+  expect((await page.textContent('.drb-card .drb-dest')).includes(bx.destination) && (await page.textContent('.drb-card')).includes('التسليم إلى:'), 'driver sees the destination branch and the nurse to hand it to');
+  expect(!/PROPHY|DENTAL|ر\.س/.test(await page.textContent('#drbList')), 'no items or prices on the driver page');
+  await page.click('.drb-card [data-act="drbPick"]');
+  await page.waitForSelector('.drb-card.on');
   expect(await page.evaluate(() => __gas.dump('BoxMoves').filter(r => r[5] === 'استلام السواق').length) === 2, 'pickup logged for both shipments');
-  await page.evaluate(b => showDriverBox(b.id, b.k), bx);
-  await page.waitForSelector('#drvGo');
-  expect(await page.getAttribute('.drv-place[data-p="' + bx.destination + '"]', 'aria-pressed') === 'true', 'destination branch preselected');
-  expect(await page.isVisible('.drv-to.big') && (await page.textContent('.drv-to.big')).includes('التسليم إلى:'), 'scanned box page shows the nurse to hand it to');
-  expect(await page.isDisabled('.drv-place[data-p="التموين"]'), 'the place where the box already is cannot be chosen');
-  await page.click('.drv-lang[data-l="bn"]');
-  expect((await page.textContent('#drvGo')).includes('ডেলিভারি সম্পন্ন'), 'driver page switches to Bengali');
-  await page.click('.drv-lang[data-l="hi"]');
-  expect((await page.textContent('#drvGo')).includes('डिलीवरी पूरी हुई'), 'driver page switches to Hindi');
-  await page.click('.drv-lang[data-l="ar"]');
-  expect((await page.textContent('#drvGo')).includes('تم التوصيل'), 'Arabic button reads «تم التوصيل»');
-  expect(await page.inputValue('#drvName') === 'أبو فهد' && await page.getAttribute('#drvName', 'readonly') !== null, 'delivery name is locked to the driver who picked it up');
-  await page.click('#drvGo');
-  expect((await page.textContent('#drvErr')).includes('صوّر'), 'photo is required before delivery');
-  await page.setInputFiles('#drvFile', { name: 'box.png', mimeType: 'image/png', buffer: Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==', 'base64') });
-  await page.waitForSelector('#drvPhoto.has');
+  await page.click('.drb-card.on [data-act="drbArrive"]');
+  await page.waitForSelector('.modal #drbOk');
+  expect(await page.inputValue('.modal #drbTo') === bx.destination, 'destination branch preselected');
+  await page.click('.modal #drbOk');
+  expect((await page.textContent('.modal #arErr')).includes('إلزامية'), 'photo is required before «arrived at branch»');
+  await page.setInputFiles('.modal #drbFile', { name: 'box.png', mimeType: 'image/png', buffer: Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==', 'base64') });
+  await page.waitForSelector('.modal #drbPh img');
+  await page.fill('.modal #drbSpot', 'عند الاستقبال');
   await shot(page, 'driver-deliver');
-  await page.click('#drvGo');
-  await page.waitForSelector('.drv-done');
-  expect((await page.textContent('.drv-done')).includes('تم التسليم إلى ' + bx.destination), 'driver delivered with one tap');
-  expect(await page.evaluate(() => __gas.dump('BoxMoves').filter(r => r[5] === 'تسليم').length) === 2, 'delivery logged for both shipments with photo');
+  await page.click('.modal #drbOk');
+  await page.waitForSelector('#drbDone .drb-done');
+  expect(await page.evaluate(() => __gas.dump('BoxMoves').filter(r => r[5] === 'تسليم').length) === 2, 'arrival logged for both shipments with photo');
+  expect((await page.textContent('#drbList')).includes('لا توجد شحنات'), 'nothing left for the driver');
   await shot(page, 'driver-done');
-  // نفس الباركود بعد التسليم: صفحة مقفلة «تم التسليم» بلا زر تسليم، والخادم يرفض التسليم المكرر
-  await page.evaluate(b => showDriverBox(b.id, b.k), bx);
-  await page.waitForSelector('.drv-locked');
-  expect((await page.textContent('.drv-locked')).includes('تم التسليم') && (await page.textContent('.drv-locked')).includes('أبو فهد') && !(await page.$('#drvGo')),
-    'a used barcode opens locked «Delivered» with the last delivery, no deliver button');
-  expect(await page.evaluate(b => __realCall('boxDeliver', { box: b.id, k: b.k, to: 'التموين', driver: 'x', photo: 'data:image/png;base64,iVBORw0KGgo=' }).then(() => 'ok', e => String(e.message)), bx) === 'ERR_BOX_DELIVERED',
-    'server refuses delivering a box that has no pending task');
-  await shot(page, 'driver-locked');
-  await page.evaluate(() => { document.getElementById('driverView').remove(); document.getElementById('appShell').classList.remove('hidden'); });
   await logout(page);
 
   // ---------- Nurse receives ----------
@@ -1498,11 +1463,11 @@ function log(msg) { console.log('  ✔ ' + msg); }
   await shot(page, 'assets-dashboard', true);
   await logout(page);
 
-  // رابط السواق الخاطئ يفتح صفحة السواق برسالة واضحة (بدون شاشة الدخول)
+  // روابط السواق القديمة أُلغيت: الرابط يفتح شاشة الدخول (السواق يدخل بحسابه)
   {
-    const dp = await newPage({ viewport: { width: 390, height: 844 }, isMobile: true, query: '?driver=wrong-token' });
-    await dp.waitForSelector('#driverView .empty');
-    expect((await dp.textContent('#driverView')).includes('الرابط غير صالح') && await dp.isHidden('#loginView'), 'driver link opens the driver page without login (invalid token → clear message)');
+    const dp = await newPage({ viewport: { width: 390, height: 844 }, isMobile: true, query: '?driver=old-token' });
+    await dp.waitForSelector('#loginView:not(.hidden)');
+    expect(!(await dp.$('#driverView')), 'old driver link opens the login screen (drivers use accounts)');
     await dp.close();
   }
 
@@ -1523,7 +1488,7 @@ function log(msg) { console.log('  ✔ ' + msg); }
   expect(!tabErrors.length, 'every admin tab opens without errors' + (tabErrors.length ? ' — ' + tabErrors.join(' ; ') : ''));
   await openView(page, 'boxes');
   await page.waitForSelector('#bxList');
-  expect(!!(await page.$('#bxDrvUrl')), 'admin manages boxes (driver link visible, not read-only)');
+  expect(!!(await page.$('#bxDriver')) && !!(await page.$('[data-act="bxNew"]')), 'admin manages boxes (drivers card + new box, not read-only)');
   await openView(page, 'users');
   await page.waitForSelector('#uTable table');
   await shot(page, 'admin-users');
