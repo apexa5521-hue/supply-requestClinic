@@ -779,7 +779,7 @@ function log(msg) { console.log('  ✔ ' + msg); }
   await shot(page, 'nurse-receive-shipment-1');
   await page.click('#rOk');
   expect(await toastHas(page, 'تم استلام الشحنة #1'), 'shipment #1 received and signed');
-  expect(await page.evaluate(() => __gas.files.length) === 3, 'shipment #1 signature and receipt uploaded (+ the driver box photo)');
+  expect(await page.evaluate(() => __gas.files.length) === 4, 'shipment #1 signature and receipt uploaded (+ a driver photo per shipment)');
   // الشحنة 2 (الأخيرة) → إيصال موحّد
   await page.waitForSelector(`.req:has-text("${newId}") [data-act="receive"]:not(:has(.count-pill))`);
   await page.click(`.req:has-text("${newId}") [data-act="receive"]`);
