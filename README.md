@@ -363,3 +363,14 @@
 
   بدون هذه الأسرار تُتخطى الخطوة، ويُحدَّث Code.gs يدوياً (نسخ ثم New version).
 - **الخطة الأساسية (Render):** نفس الـ workflow يدمج `main` في فرع `production-postgresql`، وRender يعيد النشر منه تلقائياً.
+
+## صور Google Drive (النسخة التجريبية)
+
+الصور والمرفقات تُرفع إلى Google Drive لحساب المالك نفسه، وقاعدة البيانات تحفظ الرابط فقط.
+متغيرات Render:
+
+- `GOOGLE_OAUTH_CLIENT_ID` و`GOOGLE_OAUTH_CLIENT_SECRET`: من OAuth Client (نوع Desktop app) في Google Cloud، مع تفعيل Google Drive API.
+- `GOOGLE_OAUTH_REFRESH_TOKEN`: توكن التحديث للحساب المالك، بصلاحية `drive.file`.
+- `DRIVE_FOLDER_ID` (اختياري): مجلد الصور في Drive.
+
+بدون هذه المتغيرات تبقى الصور داخل قاعدة البيانات كما كانت. الملفات التي رُفعت إلى Drive تُخدَم عبر `/files/:id` بتحويل إلى Drive.
