@@ -2059,7 +2059,7 @@ test('arrival at the branch notifies doctor, operations and that branch manager;
   api(p, 'dispatchItems', id, ['DENTAL FLOSS']);
   const box = api(p, 'getBoxes').boxes[0];
   assert.equal(box.loads[0].type, 'شهري', 'box loads carry the request type (boxes filter)');
-  api(login('المدير', '1234'), 'createUser', { name: 'Nur', password: '7070', role: 'سواق' });
+  api(login('المدير', '1234'), 'createUser', { name: 'Nur', password: '7070', role: 'نقل' });
   const drv = login('Nur', '7070');
   api(drv, 'driverPickup', { box: box.id });
   gas.mails.length = 0;
@@ -2081,8 +2081,8 @@ test('arrival at the branch notifies doctor, operations and that branch manager;
 test('driver accounts: procurement picks the driver on send (account or free name), the driver sees destination, picks up, then «arrived» needs a photo; link pages are off', () => {
   const { api, login, gas } = boot();
   const reem = login('سارة', '1111'), p = login('علي', '3333'), adm = login('المدير', '1234');
-  api(adm, 'createUser', { name: 'Nur', password: '7070', role: 'سواق' });
-  api(adm, 'createUser', { name: 'D.Khalid', password: '7171', role: 'سواق' });
+  api(adm, 'createUser', { name: 'Nur', password: '7070', role: 'نقل' });
+  api(adm, 'createUser', { name: 'D.Khalid', password: '7171', role: 'نقل' });
   const nur = login('Nur', '7070'), dk = login('D.Khalid', '7171');
   const id = api(reem, 'createRequest', { doctor: 'د. خالد', type: 'طارئ', items: [{ name: 'PROPHY PASTE', qty: 2 }] }).id;
   api(login('د. خالد', '4444'), 'doctorReview', id, 'اعتمد');
@@ -2151,7 +2151,7 @@ test('boxes: dispatch loads the doctor box → driver scan delivers with photo �
   let lr = api(p, 'getRequests', {}).find(r => r.id === id);
   assert.deepEqual([lr.awaitingDelivery, lr.atBranch, lr.arrivedAt], [true, false, ''], 'sent, waiting for the driver');
   // حساب السواق: الشحنة ووجهتها بلا أسعار أو أصناف
-  api(login('المدير', '1234'), 'createUser', { name: 'أبو فهد', password: '7272', role: 'سواق' });
+  api(login('المدير', '1234'), 'createUser', { name: 'أبو فهد', password: '7272', role: 'نقل' });
   const drv = login('أبو فهد', '7272');
   const board = api(drv, 'getDriverBoard');
   assert.deepEqual(board.boxes.map(x => [x.id, x.destination]), [['BOX-001', 'جدة']]);
@@ -4701,4 +4701,21 @@ test('procurement owners per department for follow-up lists (dental / derma / ge
   const deps = tok => Array.from(new Set(api(tok, 'getRequests', {}).map(r => r.department))).sort();
   assert.deepEqual(deps(login('أحمد', '5050')), ['أسنان']);
   assert.deepEqual(deps(login('وائل', '5051')), ['جلدية']);
+});
+
+test('driver role is «نقل»: the old «سواق» role and its accounts are renamed once, and still log in', () => {
+  const { api, login, gas, ctx } = boot(g => {
+    const ss = g.globals.SpreadsheetApp.getActiveSpreadsheet();
+    ss.getSheetByName('Roles').appendRow(['سواق', 'driver']);
+    ss.getSheetByName('Users').appendRow(['Nur', '7070', 'سواق', '', '']);
+  });
+  // قبل الترحيل: الاسم القديم ما زال يدخل على شاشة النقل
+  assert.equal(api(null, 'login', 'Nur', '7070').user.screen, 'driver');
+  ctx.ensureDriverRole_();
+  assert.deepEqual(rows(gas, 'Roles').filter(r => r.Screen === 'driver').map(r => r.RoleName), ['نقل']);
+  assert.equal(rows(gas, 'Users').find(u => u.Name === 'Nur').Role, 'نقل');
+  ctx.ensureDriverRole_(); // مرة ثانية لا تكرر
+  assert.equal(rows(gas, 'Roles').filter(r => r.Screen === 'driver').length, 1);
+  const nur = login('Nur', '7070');
+  assert.deepEqual(api(nur, 'getDriverBoard').boxes, []);
 });

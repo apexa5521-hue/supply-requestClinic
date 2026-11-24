@@ -701,7 +701,7 @@ function log(msg) { console.log('  ✔ ' + msg); }
   await page.waitForFunction(() => (document.querySelector('#bxList') || {}).textContent.includes('موزّعة على أبو فهد'));
   expect(await page.evaluate(() => BX.data.drivers.join()) === 'أبو فهد', 'procurement assigned the box to a driver; the name joins the drivers list');
   // حساب السواق: يدخل ويرى الشحنة ووجهتها ولمن تُسلَّم ← «استلمت من التموين» ← «وصل الفرع» بصورة إلزامية
-  await page.evaluate(async () => { const tk = (await __api(null, 'login', ['المدير', '1234'])).token; await __api(tk, 'createUser', [{ name: 'أبو فهد', password: '8080', role: 'سواق' }]); });
+  await page.evaluate(async () => { const tk = (await __api(null, 'login', ['المدير', '1234'])).token; await __api(tk, 'createUser', [{ name: 'أبو فهد', password: '8080', role: 'نقل' }]); });
   expect(await page.evaluate(() => call('boxDeliver', { box: 'BOX-001', k: 'x' }).then(() => 'ok', e => String(e.message))) === 'ERR_DRIVER_LOGIN', 'old driver link pages are off');
   await logout(page);
   await login(page, 'أبو فهد', '8080');
