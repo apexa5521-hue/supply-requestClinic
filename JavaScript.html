@@ -1387,7 +1387,8 @@ const NAV = {
   lab:         [{ id: 'labboard', icon: 'flask', k: 'nav_lab_board' }, { id: 'labkpi', icon: 'chart', k: 'nav_lab_kpi' }, { id: 'new', icon: 'plus', k: 'nav_lab_supply' }, { id: 'mine', icon: 'clipboard', k: 'nav_mine' }, { id: 'settings', icon: 'layers', k: 'nav_settings' }],
   procurement: [{ id: 'requests', icon: 'package', k: 'nav_requests' }, { id: 'issues', icon: 'alert', k: 'nav_issues' }, { id: 'boxes', icon: 'truck', k: 'nav_boxes' }, { id: 'freeitems', icon: 'edit', k: 'nav_free_items' }, { id: 'catalog', icon: 'tag', k: 'nav_catalog' }, { id: 'rules', icon: 'calendar', k: 'nav_rules' }, { id: 'assets', icon: 'tool', k: 'nav_assets' }, { id: 'complaints', icon: 'alert', k: 'nav_complaints' }, { id: 'extorders', icon: 'cart', k: 'nav_ext_orders' }],
   doctor:      [{ id: 'reviews', icon: 'steth', k: 'nav_reviews' }, { id: 'labdoc', icon: 'flask', k: 'nav_lab' }, { id: 'assets', icon: 'tool', k: 'nav_assets' }],
-  maintenance: [{ id: 'maint', icon: 'tool', k: 'nav_maint' }]
+  maintenance: [{ id: 'maint', icon: 'tool', k: 'nav_maint' }],
+  driver:      [{ id: 'drive', icon: 'truck', k: 'nav_drive' }]
 };
 /* شاشات الإدارة (جودة / تنفيذية / مالية / أدمن): القائمة تُبنى من صلاحيات الدور التي يحددها الأدمن */
 const MGMT_SCREENS = ['quality', 'executive', 'finance', 'dashboard', 'branch', 'admin'];
@@ -4013,6 +4014,80 @@ ACT.dispatch = el => {
   }).catch(e => { busy(el, false); toast(errMsg(e), 'error'); });
   });
 };
+/* =====================================================================
+   حساب السواق: الشحنات المسندة له (أو غير المسندة) ووجهتها ولمن تُسلَّم — «استلمت من التموين» ثم «وصل الفرع» بصورة للمكان
+   ===================================================================== */
+const DRB = { data: null };
+VIEWS.drive = {
+  title: 'nav_drive', sub: 'sub_drive',
+  render() { return (S.driverLinkNote ? '<div class="alert info"><span class="alert-ic">' + icon('info') + '</span><span>' + esc(t('drv_link_off')) + '</span></div>' : '') + '<div id="drbList">' + skeletonList(2) + '</div><div id="drbDone"></div>'; },
+  mount() { S.driverLinkNote = false; drbLoad(); },
+  refresh() { drbLoad(true); }
+};
+function drbLoad(silent) {
+  return swr('getDriverBoard', [], d => { DRB.data = d; drbRender(); }, e => { if (!silent && $('#drbList')) $('#drbList').innerHTML = emptyState('alert', errMsg(e)); });
+}
+function drbRender() {
+  const d = DRB.data, box = $('#drbList'); if (!d || !box) return;
+  const mine = d.boxes.filter(b => b.picked), wait = d.boxes.filter(b => !b.picked);
+  const card = b => '<article class="card drb-card' + (b.picked ? ' on' : '') + (S.pendingBox === b.id ? ' focus' : '') + '" id="drb-' + esc(b.id) + '"><div class="card-body">' +
+    '<div class="between" style="gap:8px;flex-wrap:wrap"><div><div class="drb-dest">' + icon('pin') + esc(b.destination || '—') + '</div><div class="hint">' + esc(b.id) + ' · ' + esc(b.owner) + '</div></div>' +
+      '<span class="badge" style="--tone:' + (b.picked ? 'var(--t-indigo)' : b.status === 'مطلوب نقله' ? 'var(--t-amber)' : 'var(--t-blue)') + '"><i class="dot"></i>' + esc(t(b.picked ? 'drb_with_you' : b.status === 'مطلوب نقله' ? 'drb_move' : 'drb_ready')) + '</span></div>' +
+    (b.to && b.to.length ? '<div class="drb-to">' + icon('user', 'i-sm') + ' ' + esc(t('drv_to')) + ' ' + b.to.map(x => '<b>' + esc(x.nurse) + '</b>' + (x.clinic ? ' <span class="muted">— ' + esc(x.clinic) + '</span>' : '')).join('، ') + '</div>' : '') +
+    (b.requests.length ? '<div class="drb-reqs">' + b.requests.map(r => '<span class="tag">' + esc(r.id) + (r.type === 'طارئ' ? ' · ' + esc(t('type_emergency')) : '') + '</span>').join(' ') + '</div>' : '') +
+    (b.assigned && !b.picked ? '<div class="hint">' + icon('user', 'i-sm') + ' ' + esc(t('drb_assigned')) + '</div>' : '') +
+    '<div class="drb-actions">' + (b.picked
+      ? '<button class="btn btn-primary btn-lg" data-act="drbArrive" data-id="' + esc(b.id) + '">' + icon('image') + esc(t('drb_arrived')) + '</button>'
+      : '<button class="btn btn-tone btn-lg" style="--tone:var(--t-indigo)" data-act="drbPick" data-id="' + esc(b.id) + '">' + icon('truck') + esc(t('drb_pick')) + '</button>') + '</div></div></article>';
+  box.innerHTML = (mine.length ? '<h3 class="drb-h">' + icon('truck') + esc(t('drb_h_mine', { n: mine.length })) + '</h3>' + mine.map(card).join('') : '') +
+    (wait.length ? '<h3 class="drb-h">' + icon('package') + esc(t('drb_h_wait', { n: wait.length })) + '</h3>' + wait.map(card).join('') : '') +
+    (!d.boxes.length ? emptyState('checkc', t('drb_none')) : '');
+  const done = $('#drbDone');
+  if (done) done.innerHTML = d.done.length ? '<section class="card"><div class="card-head"><h3>' + icon('checkc') + esc(t('drb_done_h')) + '</h3></div><div class="card-body"><div class="list">' +
+    d.done.map(x => '<div class="between drb-done"><span><b>' + esc(x.to) + '</b> · ' + esc(x.owner) + (x.request ? ' · <span class="mono">' + esc(x.request) + '</span>' : '') + '</span><span class="hint">' + esc(fmtDateTime(x.at)) +
+      (x.photo ? ' · <a href="' + esc(x.photo) + '" target="_blank" rel="noopener">' + esc(t('drb_photo')) + '</a>' : '') + '</span></div>').join('') + '</div></div></section>' : '';
+  if (S.pendingBox) { const f = $('#drb-' + S.pendingBox); if (f) f.scrollIntoView({ block: 'center' }); S.pendingBox = ''; }
+}
+ACT.drbPick = el => {
+  busy(el, true);
+  call('driverPickup', { box: el.dataset.id, clientKey: uid() }).then(() => { toast(t('drb_pick_done'), 'success', 4000); drbLoad(); })
+    .catch(e => { busy(el, false); toast(errMsg(e), 'error'); drbLoad(true); });
+};
+ACT.drbArrive = el => {
+  const b = (DRB.data.boxes || []).find(x => x.id === el.dataset.id); if (!b) return;
+  const st = { photo: '', key: uid() };
+  const m = openModal({ title: esc(t('drb_arrived')), sub: esc(b.id + ' · ' + b.owner), icon: 'pin', size: 'sm',
+    body: '<div class="field"><label for="drbTo">' + esc(t('drb_place')) + '</label><select class="select" id="drbTo">' + DRB.data.places.filter(p2 => p2 !== b.location).map(p2 => '<option' + (p2 === b.destination ? ' selected' : '') + '>' + esc(p2) + '</option>').join('') + '</select></div>' +
+      '<div class="field" id="drbPhW"><span class="label">' + esc(t('drb_photo_h')) + ' <span class="hint as-ph-req req">· ' + esc(t('drb_photo_req')) + '</span></span><div class="row-wrap" id="drbPh">' +
+        '<label class="btn btn-tone btn-lg" style="--tone:var(--t-indigo)">' + icon('image') + esc(t('drb_take')) + '<input type="file" accept="image/*" capture="environment" hidden id="drbFile"></label></div></div>' +
+      '<div class="field"><label for="drbSpot">' + esc(t('drb_spot')) + '</label><input class="input" id="drbSpot" maxlength="120" placeholder="' + esc(t('drb_spot_ph')) + '"></div>' +
+      '<div class="field-error hidden" id="arErr">' + icon('alert', 'i-sm') + '<span></span></div>',
+    foot: '<span class="spacer"></span><button class="btn" data-close>' + esc(t('cancel')) + '</button><button class="btn btn-primary" id="drbOk">' + icon('check', 'i-sm') + esc(t('drb_confirm')) + '</button>' });
+  $('#drbFile', m.el).addEventListener('change', e => {
+    const f = e.target.files && e.target.files[0]; if (!f) return;
+    fileToJpeg(f).then(u => { st.photo = u; $('#drbPh', m.el).querySelectorAll('.lab-photo').forEach(x => x.remove()); $('#drbPh', m.el).insertAdjacentHTML('afterbegin', '<div class="lab-photo"><img src="' + u + '" alt=""></div>'); $('#drbPhW', m.el).classList.remove('as-need'); }).catch(er => toast(errMsg(er), 'error'));
+  });
+  $('#drbOk', m.el).addEventListener('click', e => {
+    if (!st.photo) return asFormFail(m, t('drb_photo_req'), '#drbPhW');
+    const btn = e.currentTarget; busy(btn, true);
+    const send = n => call('driverDeliver', { box: b.id, to: $('#drbTo', m.el).value, photo: st.photo, spot: $('#drbSpot', m.el).value.trim(), clientKey: st.key })
+      .catch(er => { if (n < 3 && ['ERR_NETWORK', 'ERR_BAD_RESPONSE', 'ERR_BUSY', 'ERR_TIMEOUT'].indexOf(errCode(er)) !== -1) return new Promise(r => setTimeout(r, 1500 * (n + 1))).then(() => send(n + 1)); throw er; });
+    send(0).then(() => { busy(btn, false); closeModal(m); toast(t('drb_arrived_done', { to: $('#drbTo', m.el) ? $('#drbTo', m.el).value : '' }), 'success', 5000); drbLoad(); })
+      .catch(er => { busy(btn, false); asFormFail(m, errMsg(er)); });
+  });
+};
+Object.assign(I18N.ar, { nav_drive: 'شحناتي', sub_drive: 'الشحنات الجاهزة لك في التموين ووجهتها — استلمها ثم سجّل وصولها للفرع بصورة', drb_ready: 'جاهزة في التموين', drb_move: 'مطلوب نقل البوكس', drb_with_you: 'معك — في الطريق',
+  drb_assigned: 'مسندة لك من التموين', drb_pick: 'استلمت من التموين', drb_pick_done: 'تم — الشحنة معك، وأُبلغت الممرضة أنها في الطريق', drb_arrived: 'وصل الفرع', drb_place: 'مكان التسليم', drb_photo_h: 'صورة البوكس في مكانه بالضبط',
+  drb_photo_req: 'إلزامية', drb_take: 'التقط صورة', drb_spot: 'المكان بالضبط (اختياري)', drb_spot_ph: 'مثل: عند الاستقبال، غرفة التعقيم، مكتب التمريض', drb_confirm: 'تأكيد الوصول', drb_arrived_done: 'تم تسجيل الوصول إلى {to} — أُبلغت الممرضة',
+  drb_h_mine: 'معك الآن ({n})', drb_h_wait: 'جاهزة للاستلام ({n})', drb_none: 'لا توجد شحنات لك الآن', drb_done_h: 'سلّمتها آخر 7 أيام', drb_photo: 'الصورة',
+  drv_link_off: 'روابط السواق القديمة أُلغيت — كل شحناتك هنا في حسابك', drv_acc_title: 'السواقين', drv_acc_hint: 'السواق يدخل بحسابه (دور «سواق») ويرى الشحنات ويسجّل الاستلام والوصول بصورة — اختر السواق عند الإرسال',
+  bxp_driver: 'السواق', bxp_driver_h: 'من الحسابات أو اكتب اسماً', bxp_driver_ph: 'اسم السواق', bxp_driver_any: 'أي سواق', ERR_DRIVER_LOGIN: 'روابط السواق أُلغيت — ادخل بحساب السواق' });
+Object.assign(I18N.en, { nav_drive: 'My deliveries', sub_drive: 'Shipments ready for you at procurement and where they go — pick up, then record the arrival with a photo', drb_ready: 'Ready at procurement', drb_move: 'Box move requested', drb_with_you: 'With you — on the way',
+  drb_assigned: 'Assigned to you by procurement', drb_pick: 'Picked up from procurement', drb_pick_done: 'Done — it is with you; the nurse was told it is on the way', drb_arrived: 'Arrived at branch', drb_place: 'Delivered to', drb_photo_h: 'Photo of the box exactly where you left it',
+  drb_photo_req: 'required', drb_take: 'Take photo', drb_spot: 'Exact spot (optional)', drb_spot_ph: 'e.g. reception, sterilization room, nursing office', drb_confirm: 'Confirm arrival', drb_arrived_done: 'Arrival at {to} recorded — the nurse was told',
+  drb_h_mine: 'With you now ({n})', drb_h_wait: 'Ready to pick up ({n})', drb_none: 'No shipments for you right now', drb_done_h: 'Delivered in the last 7 days', drb_photo: 'Photo',
+  drv_link_off: 'The old driver links are off — all your shipments are here in your account', drv_acc_title: 'Drivers', drv_acc_hint: 'Drivers log in with their own account (role «سواق»), see shipments and record pick-up and arrival with a photo — choose the driver when sending',
+  bxp_driver: 'Driver', bxp_driver_h: 'from accounts or type a name', bxp_driver_ph: 'Driver name', bxp_driver_any: 'Any driver', ERR_DRIVER_LOGIN: 'Driver links are off — log in with the driver account' });
 /* قبل الإرسال: صاحب البوكس وفرعه لكل طلب (من الطلب تلقائياً، قابل للتعديل) */
 function boxOf(owner, branch) {
   const list = (BX.data && BX.data.boxes) || [];
@@ -4033,6 +4108,8 @@ function boxPrompt(reqs) {
           '<div class="form-grid"><div class="field"><label>' + esc(t('bxp_owner')) + '</label><input class="input bxp-owner" list="bxpOwners" maxlength="120" value="' + esc(r.doctor || r.clinic || '') + '"></div>' +
           '<div class="field"><label>' + esc(t('bxp_branch')) + '</label><select class="select bxp-branch">' + brOpts(r.branch || clinicBranch(r.clinic)) + '</select></div></div>' +
           '<div class="hint bxp-hint"></div></div>').join('') +
+        '<div class="field bxp-drv"><label for="bxpDrv">' + icon('truck', 'i-sm') + esc(t('bxp_driver')) + ' <span class="hint">· ' + esc(t('bxp_driver_h')) + '</span></label>' +
+          '<div class="mts-pills" id="bxpDrvPills"></div><input class="input" id="bxpDrv" list="bxpDrvL" maxlength="60" placeholder="' + esc(t('bxp_driver_ph')) + '" value="' + esc(store.get('lastDriver', '')) + '"><datalist id="bxpDrvL"></datalist></div>' +
         '<div class="field-error hidden" id="bxpErr">' + icon('alert', 'i-sm') + '<span></span></div>',
       foot: '<span class="spacer"></span><button class="btn" data-close>' + esc(t('cancel')) + '</button><button class="btn btn-tone" style="--tone:var(--t-indigo)" id="bxpOk">' + icon('truck', 'i-sm') + esc(t('bxp_go')) + '</button>',
       onClose: () => { if (!done) resolve(null); } });
@@ -4042,14 +4119,21 @@ function boxPrompt(reqs) {
       $('.bxp-hint', row).innerHTML = !o || !BX.data ? '' : icon(bx ? 'package' : 'plus', 'i-sm') + ' ' + esc(bx ? t('bxp_existing', { id: bx.id }) : t('bxp_new'));
     });
     m.el.addEventListener('input', hints); m.el.addEventListener('change', hints);
-    if (BX.data) hints(); else call('getBoxes').then(d => { BX.data = d; hints(); }).catch(() => {});
+    const drvIn = $('#bxpDrv', m.el);
+    const drvList = () => { const names = (BX.data && BX.data.drivers) || []; $('#bxpDrvL', m.el).innerHTML = names.map(n => '<option value="' + esc(n) + '">').join('');
+      $('#bxpDrvPills', m.el).innerHTML = names.slice(0, 8).map(n => '<button type="button" class="mts-pill' + (n === drvIn.value ? ' on' : '') + '" data-v="' + esc(n) + '">' + icon('user', 'i-sm') + esc(n) + '</button>').join('') +
+        '<button type="button" class="mts-pill' + (!drvIn.value ? ' on' : '') + '" data-v="">' + esc(t('bxp_driver_any')) + '</button>'; };
+    $('#bxpDrvPills', m.el).addEventListener('click', e => { const b = e.target.closest('.mts-pill'); if (!b) return; drvIn.value = b.dataset.v; drvList(); });
+    drvIn.addEventListener('input', drvList);
+    if (BX.data) { hints(); drvList(); } else call('getBoxes').then(d => { BX.data = d; hints(); drvList(); }).catch(() => {});
     $('#bxpOk', m.el).addEventListener('click', () => {
       const out = {};
       for (const row of $$('.bxp-row', m.el)) {
         const o = $('.bxp-owner', row).value.trim();
         if (!o) { const x = $('#bxpErr', m.el); x.querySelector('span').textContent = t('ERR_REQUIRED'); x.classList.remove('hidden'); $('.bxp-owner', row).focus(); return; }
-        out[row.dataset.id] = { owner: o, branch: $('.bxp-branch', row).value };
+        out[row.dataset.id] = { owner: o, branch: $('.bxp-branch', row).value, driver: drvIn.value.trim() };
       }
+      store.set('lastDriver', drvIn.value.trim());
       done = true; closeModal(m); resolve(out);
     });
     const f = $('.bxp-owner', m.el); if (f) { f.focus(); f.select(); }
@@ -9452,7 +9536,7 @@ VIEWS.boxes = {
   title: 'nav_boxes', get sub() { return bxRO() ? 'sub_boxes_ro' : 'sub_boxes'; },
   render() {
     const ro = bxRO();
-    return (ro ? '' : '<section class="card"><div class="card-body between" style="gap:12px;flex-wrap:wrap"><div style="min-width:220px;flex:1"><h3 style="margin:0">' + icon('route') + esc(t('bx_driver_link')) + '</h3><div class="hint">' + esc(t('bx_driver_hint')) + '</div></div>' +
+    return (ro ? '' : '<section class="card"><div class="card-body between" style="gap:12px;flex-wrap:wrap"><div style="min-width:220px;flex:1"><h3 style="margin:0">' + icon('route') + esc(t('drv_acc_title')) + '</h3><div class="hint">' + esc(t('drv_acc_hint')) + '</div></div><div class="row-wrap" id="bxDriver"></div></div></section>') + (true ? '' : '<section class="card"><div class="card-body between" style="gap:12px;flex-wrap:wrap"><div style="min-width:220px;flex:1"><h3 style="margin:0">' + icon('route') + esc(t('bx_driver_link')) + '</h3><div class="hint">' + esc(t('bx_driver_hint')) + '</div></div>' +
         '<div class="row-wrap" id="bxDriver">' + skeletonList(1) + '</div></div></section>') +
       '<section class="card"><div class="card-head between" style="flex-wrap:wrap;gap:10px"><div id="bxChips"></div>' + (ro ? '' : '<div class="row-wrap">' +
         '<button class="btn btn-soft btn-sm" data-act="bxNew">' + icon('plus', 'i-sm') + esc(t('bx_new')) + '</button>' +
@@ -9471,9 +9555,7 @@ function bxLoad(silent) {
 ACT.bxQ = debounce(el => { BX.q = el.value.trim(); resetPage('bx'); bxRender(); }, 150);
 function bxRender() {
   const d = BX.data; if (!d || !$('#bxList')) return;
-  if ($('#bxDriver')) $('#bxDriver').innerHTML = '<input class="input mono" id="bxDrvUrl" dir="ltr" readonly style="min-width:240px;flex:1" value="' + esc(driverLink()) + '">' +
-    '<button class="btn btn-sm" data-act="bxCopy">' + icon('link', 'i-sm') + esc(t('bx_copy')) + '</button>' +
-    '<a class="btn btn-sm btn-ghost" href="' + esc(driverLink()) + '" target="_blank" rel="noopener">' + icon('ext', 'i-sm') + esc(t('drv_open')) + '</a>' +
+  if ($('#bxDriver')) $('#bxDriver').innerHTML = (d.drivers || []).map(n => '<span class="tag">' + icon('user', 'i-sm') + esc(n) + '</span>').join(' ') +
     (d.avgDeliveryHrs !== null && d.avgDeliveryHrs !== undefined ? '<span class="hint">' + icon('clock', 'i-sm') + ' ' + esc(t('bx_avg', { h: fmtNum(d.avgDeliveryHrs) })) + '</span>' : '');
   const all = d.boxes || [];
   $('#bxChips').innerHTML = chipsHtml(BX_GROUPS, BX.group, 'bxGroup', groupCounts(BX_GROUPS, all));
@@ -11626,8 +11708,9 @@ function showBackupBar() {
   const done = () => { const b = $('#boot'); b.classList.add('done'); setTimeout(() => b.remove(), 400); };
   // رابط السواق (QR البوكس أو رابط المهام): صفحة مستقلة بدون تسجيل دخول
   getUrlParams().then(p => {
-    if (p.box && p.k) { done(); showDriverBox(p.box, p.k, false); return; }
-    if (p.driver) { done(); showDriverTasks(p.driver); return; }
+    // روابط السواق القديمة (QR البوكس / رابط المهام) أُلغيت: السواق يدخل بحسابه — بعد الدخول يفتح البوكس الممسوح
+    if (p.box) S.pendingBox = String(p.box).slice(0, 20);
+    if (p.box || p.driver) S.driverLinkNote = true;
     // زر «افتح الطلب» في الإيميل: يفتح تفاصيل الطلب بعد الدخول
     if (p.req && /^[\w-]{3,40}$/.test(p.req)) S.pendingReq = p.req;
     // الرابط القديم (GitHub Pages) احتياطي فقط: نوجّه المستخدم للرابط الأساسي (Render)

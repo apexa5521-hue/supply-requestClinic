@@ -131,12 +131,12 @@ const DISPATCHABLE = [ST.APPROVED, ST.PREP, ST.VENDOR_WAIT, ST.VENDOR_RECV];
 const SUB_ST = { PENDING: 'بانتظار الطبيب', OK: 'معتمد', NO: 'مرفوض' };
 
 const REQUEST_TYPES = ['شهري', 'طارئ'];
-const SCREENS = ['nurse', 'procurement', 'doctor', 'lab', 'quality', 'executive', 'finance', 'dashboard', 'branch', 'admin', 'housekeeper', 'maintenance'];
+const SCREENS = ['nurse', 'procurement', 'doctor', 'lab', 'quality', 'executive', 'finance', 'dashboard', 'branch', 'admin', 'housekeeper', 'maintenance', 'driver'];
 /** شاشات الإدارة: ما يظهر فيها تحدده صلاحيات الدور (Permissions في تبويب Roles) */
 const MGMT_SCREENS = ['quality', 'executive', 'finance', 'dashboard', 'branch', 'admin'];
 const DEFAULT_ROLES = [
   ['ممرضة', 'nurse'], ['تموين', 'procurement'], ['طبيب', 'doctor'],
-  ['جودة', 'quality'], ['جوده', 'quality'], ['مالية', 'finance'], ['تنفيذي', 'executive'], ['أدمن', 'admin'], ['المعمل', 'lab'], ['مدير فرع', 'branch'], ['هاوس كيبر', 'housekeeper'], ['صيانة', 'maintenance'],
+  ['جودة', 'quality'], ['جوده', 'quality'], ['مالية', 'finance'], ['تنفيذي', 'executive'], ['أدمن', 'admin'], ['المعمل', 'lab'], ['مدير فرع', 'branch'], ['هاوس كيبر', 'housekeeper'], ['صيانة', 'maintenance'], ['سواق', 'driver'],
   // نفس آلية الهاوس كيبر (طلب لفرعه بموافقة مدير الفرع): مسؤول التعقيم ومسؤول الأشعة
   ['مسؤول التعقيم', 'housekeeper'], ['مسؤول الأشعة', 'housekeeper']
 ];
@@ -178,7 +178,7 @@ const COMPLAINT_TYPES = ['تأخير', 'نقص', 'زيادة', 'أخرى'];
  *  التجهيز التلقائي بعد النشر (مرة واحدة لكل إصدار) — بلا أي خطوة يدوية:
  *  تبويبات الإعداد (Settings / LabMaterials)، قائمة العيادات المعتمدة، المشغّلات (النسخ الليلي + onChange)
  * ===================================================================== */
-const SETUP_VERSION_ = '2026-11-setup-v14';
+const SETUP_VERSION_ = '2026-11-setup-v15';
 function autoSetup_() {
   try {
     const cache = CacheService.getScriptCache();
@@ -214,6 +214,7 @@ function runSetupSteps_(force) {
     ['doctors_live', 'صفحة «الأطباء — مباشر» للجودة والتنفيذي', function () { grantPerm_('doctors_live', ['executive', 'quality']); }],
     ['boxes_view', 'تبويب البوكسات (اطلاع) لمدراء الفروع والتنفيذي', function () { grantPerm_('boxes', ['branch', 'executive']); }],
     ['maint', 'بلاغات الفرع والصيانة: دور «صيانة» + الاطلاع للتنفيذي والجودة والمالية', function () { ensureMgmtRoles_(); grantPerm_('maint', ['executive', 'quality', 'finance']); }],
+    ['driver_role', 'دور «سواق» (حساب للسواق: يرى الشحنات ووجهتها، يستلم من التموين، ويسلّم الفرع بصورة)', ensureDriverRole_],
     ['ops_role', 'دور «مدير التشغيل» (يرى الأسعار والتقارير والمتابعة — بدل منح مدير الفرع الأسعار)', ensureOpsRole_],
     ['demo', 'أدوات العهدة التجريبية TEST101', function () { seedDemoAssets_(force); }],
     ['item_type', 'قائمة «مستهلك / ماتيريال» في عمود ItemType بالكتالوج', itemTypeDropdown_],
@@ -565,10 +566,8 @@ function apiCore_(token, fn, args) {
     if (fn === 'ping') { read_('Users'); getRoles_(); return true; }
     if (fn === 'batch') return batch_(token, args[0]);
     // صفحة السواق (بدون حساب): الرمز السري للبوكس أو لرابط المهام هو الصلاحية
-    if (fn === 'boxInfo') return sanitize_(boxInfo_(args[0]));
-    if (fn === 'boxDeliver') return sanitize_(boxDeliver_(args[0]));
-    if (fn === 'driverTasks') return sanitize_(driverTasks_(args[0]));
-    if (fn === 'boxPickup') return sanitize_(boxPickup_(args[0]));
+    // صفحات السواق بالرابط أُلغيت: السواق يدخل بحسابه (دور «سواق») — الرابط القديم والـ QR يطلبان تسجيل الدخول
+    if (fn === 'boxInfo' || fn === 'boxDeliver' || fn === 'driverTasks' || fn === 'boxPickup') throw new Error('ERR_DRIVER_LOGIN');
     const def = API_[fn];
     if (!def) throw new Error('ERR_UNKNOWN_FN');
     const user = session_(token);
@@ -845,6 +844,9 @@ const API_ = {
   getBoxes:                  { screens: ['procurement'], perm: 'boxes', fn: getBoxes_ },
   requestBoxMove:            { screens: ['procurement'], fn: requestBoxMove_ },
   assignBoxDriver:           { screens: ['procurement'], fn: assignBoxDriver_ },
+  getDriverBoard:            { screens: ['driver'], fn: getDriverBoard_ },
+  driverPickup:              { screens: ['driver'], fn: driverPickup_ },
+  driverDeliver:             { screens: ['driver'], fn: driverDeliver_ },
   saveDrivers:               { screens: ['procurement'], fn: saveDrivers_ },
   addBox:                    { screens: ['procurement'], fn: addBox_ },
   backfillBoxes:             { screens: ['procurement'], fn: backfillBoxes_ },
@@ -1440,7 +1442,7 @@ function boxPick_(req, pick) {
   const owner = clean_(pick.owner, 120) || boxOwnerOf_(req);
   const branch = str_(pick.branch) || str_(req.branch) || clinicBranch_(req.clinic);
   if (pick.branch && getBranches_().indexOf(branch) === -1) throw new Error('ERR_BAD_PLACE');
-  return { owner: owner, branch: branch };
+  return { owner: owner, branch: branch, driver: clean_(pick.driver, 60) };
 }
 /** بوكس واحد لكل (صاحب + فرع): نفس الطبيب في فرع آخر = بوكس آخر. البوكس القديم بلا فرع يُعتمد لأول فرع يُرسل له */
 function findBox_(rows, owner, branch) {
@@ -1486,10 +1488,15 @@ function loadBox_(req, batch, user, now, pick, quiet) {
     if (loads.indexOf(key) === -1) loads.push(key);
     // تحميل جديد = البوكس في التموين: يستلمه السواق من جديد (التوزيع على سواق يبقى إن كان قبل الاستلام)
     const keep = str_(row.PickedBy) ? BOX_TRIP_CLEAR_ : { PickedBy: '', PickedAt: '' };
-    setMany_(t, [{ row: row, obj: Object.assign({ Branch: dest, Location: BOX_HOME, Status: BX_ST.READY, Loads: loads.join(','), Destination: dest, LoadedAt: now, UpdatedAt: now, UpdatedBy: user.name }, keep) }]);
+    const drv = bp.driver ? { Driver: bp.driver } : {};
+    setMany_(t, [{ row: row, obj: Object.assign({ Branch: dest, Location: BOX_HOME, Status: BX_ST.READY, Loads: loads.join(','), Destination: dest, LoadedAt: now, UpdatedAt: now, UpdatedBy: user.name }, keep, drv) }]);
   } else {
     row = { BoxID: nextBoxId_(t.rows), Owner: owner };
-    append_('Boxes', { BoxID: row.BoxID, Owner: owner, Branch: dest, Token: newToken_(), Location: BOX_HOME, Status: BX_ST.READY, Loads: key, Destination: dest, LoadedAt: now, UpdatedAt: now, UpdatedBy: user.name });
+    append_('Boxes', { BoxID: row.BoxID, Owner: owner, Branch: dest, Token: newToken_(), Location: BOX_HOME, Status: BX_ST.READY, Loads: key, Destination: dest, LoadedAt: now, UpdatedAt: now, UpdatedBy: user.name, Driver: bp.driver || '' });
+  }
+  if (bp.driver) {
+    addBoxMove_(row, BOX_HOME, dest, 'توزيع على السواق', user.name + ' ← ' + bp.driver, '', req.id, batch);
+    if (driverNames_().indexOf(bp.driver) === -1) writeDrivers_(driverNamesSaved_().concat([bp.driver]), user); // اسم حر يُحفظ للمرات القادمة
   }
   addBoxMove_(row, from, BOX_HOME, 'تحميل', user.name, '', req.id, batch);
   if (quiet) return;
@@ -1513,10 +1520,12 @@ function unloadBox_(requestId, batch, by, why) {
 }
 /** مواقع التسليم المسموحة: الفروع + التموين */
 function boxPlaces_() { return [BOX_HOME].concat(getBranches_()); }
+let DRIVER_USER_ = null; // حساب السواق المسجّل دخوله: الصلاحية من الحساب لا من رمز الرابط
 function boxByToken_(p) {
   p = p || {};
   const id = str_(p.box), k = str_(p.k);
   const row = read_('Boxes').rows.filter(function (r) { return str_(r.BoxID) === id; })[0];
+  if (DRIVER_USER_) { if (!row) throw new Error('ERR_NOT_FOUND'); return row; }
   if (!row || !k || str_(row.Token) !== k) throw new Error('ERR_BAD_LINK');
   return row;
 }
@@ -1573,6 +1582,7 @@ function boxDeliver_(p) {
     // سُلِّم للتو من جوال آخر (نفس الـ QR مرتين): لا تسليم مكرر
     if (!boxPending_(b)) throw new Error('ERR_BOX_DELIVERED');
     if (!b.pickedBy) throw new Error('ERR_NOT_PICKED');
+    if (DRIVER_USER_ && b.pickedBy !== DRIVER_USER_.name) throw new Error('ERR_NOT_YOUR_BOX');
     driver = b.pickedBy;
     // البوكس موجود أصلاً في هذا المكان: لا تسليم مكرر
     if (to === b.location) throw new Error('ERR_SAME_PLACE');
@@ -1586,7 +1596,7 @@ function boxDeliver_(p) {
         addBoxMove_(row, b.location, to, 'تسليم', driver, photo, l.request, l.batch, clientKey);
         if (atBranch) {
           logAction_(l.request, 'وصل بوكس ' + b.owner + ' (' + b.id + ') فرع ' + to + ' — الشحنة ' + l.batch + ' — السواق ' + driver, driver);
-          append_('Comments', { Timestamp: now, RequestID: l.request, Author: driver, Role: 'سواق', Message: '📦 وصل البوكس ' + b.id + ' إلى فرع ' + to + ' (الشحنة ' + l.batch + ') — بانتظار الاستلام' });
+          append_('Comments', { Timestamp: now, RequestID: l.request, Author: driver, Role: 'سواق', Message: '📦 وصل البوكس ' + b.id + ' إلى فرع ' + to + (clean_(p.spot, 120) ? ' — المكان: ' + clean_(p.spot, 120) : '') + ' (الشحنة ' + l.batch + ') — بانتظار الاستلام' });
           notify.push(l);
         }
       });
@@ -1613,6 +1623,41 @@ function boxDeliver_(p) {
         btn: 'Open request', foot: 'Sent for follow-up (doctor / operations / branch management). No action needed.' } }));
   });
   return { ok: true, box: boxInfo_(p) };
+}
+/* =====================================================================
+ *  حساب السواق (دور «سواق»): بديل صفحات الرابط — يرى الشحنات المحمّلة ووجهتها ولمن تُسلَّم (بدون أصناف أو أسعار)،
+ *  «استلمت من التموين» ← في الطريق، ثم «وصل الفرع» بصورة إلزامية للمكان بالضبط (+ وصف المكان اختياري)
+ *  يرى: المسندة له + غير المسندة لأحد · المسندة لسواق آخر لا تظهر
+ * ===================================================================== */
+function ensureDriverRole_() {
+  const t = read_('Roles');
+  if (t.rows.some(function (r) { return str_(r.Screen) === 'driver'; })) return;
+  append_('Roles', { RoleName: 'سواق', Screen: 'driver' });
+}
+function getDriverBoard_(user) {
+  const me = user.name;
+  const boxes = read_('Boxes').rows.filter(function (r) { return str_(r.BoxID); }).map(mapBox_);
+  const pending = boxes.filter(function (b) { return boxPending_(b) && (!b.driver || b.driver === me || b.pickedBy === me) && (!b.pickedBy || b.pickedBy === me); });
+  const out = pending.map(function (b) {
+    const loads = loadsInfo_(b.loads);
+    return { id: b.id, owner: b.owner, destination: b.destination || b.branch, location: b.location, status: b.status, assigned: b.driver, picked: b.pickedBy === me, pickedAt: b.pickedAt,
+      loadedAt: b.loadedAt, requests: loads.map(function (l) { return { id: l.request, batch: l.batch, clinic: l.clinic, nurse: l.nurse, type: l.type }; }), to: boxRecipients_(loads) };
+  }).sort(function (a, b) { return (b.picked - a.picked) || ((b.assigned === me) - (a.assigned === me)) || toMs_(a.loadedAt) - toMs_(b.loadedAt); });
+  const since = Date.now() - 7 * 864e5;
+  const done = read_('BoxMoves').rows.filter(function (m) { return str_(m.By) === me && str_(m.Action) === 'تسليم' && toMs_(m.Timestamp) > since; })
+    .map(function (m) { return { at: m.Timestamp, box: str_(m.BoxID), owner: str_(m.Owner), to: str_(m.To), request: str_(m.RequestID), batch: str_(m.Batch), photo: str_(m.Photo) }; })
+    .sort(function (a, b) { return toMs_(b.at) - toMs_(a.at); }).slice(0, 40);
+  return { name: me, boxes: out, done: done, places: boxPlaces_() };
+}
+function driverPickup_(user, p) {
+  p = p || {};
+  DRIVER_USER_ = user;
+  try { return boxPickup_({ box: str_(p.box), clientKey: str_(p.clientKey) }); } finally { DRIVER_USER_ = null; }
+}
+function driverDeliver_(user, p) {
+  p = p || {};
+  DRIVER_USER_ = user;
+  try { const r = boxDeliver_({ box: str_(p.box), to: str_(p.to), photo: p.photo, spot: p.spot, clientKey: str_(p.clientKey) }); delete r.box; return r; } finally { DRIVER_USER_ = null; }
 }
 /** رمز رابط «الشحنات (السواق)» (يُنشأ مرة في Settings ← DriverToken، ويمكن تغييره من الشيت لإبطال الرابط القديم) */
 function driverToken_() {
@@ -1642,7 +1687,14 @@ function driverTasks_(p) {
  *  ← نعرف من شال الطلبية ومتى، قبل «وصل الفرع». بعد التسليم تُمسح الحقول (BOX_TRIP_CLEAR_).
  * ===================================================================== */
 /** أسماء السواقين (Settings ← Drivers، اسم في كل سطر أو مفصولة بفاصلة) */
+function driverAccounts_() {
+  return read_('Users').rows.filter(function (u) { return str_(u.Name) && roleScreen_(u.Role) === 'driver'; }).map(function (u) { return str_(u.Name); });
+}
 function driverNames_() {
+  const acc = driverAccounts_();
+  return acc.concat(driverNamesSaved_().filter(function (n) { return acc.indexOf(n) === -1; }));
+}
+function driverNamesSaved_() {
   const seen = {};
   return str_(getSetting_('Drivers', '')).split(/[\n,،]+/).map(function (x) { return clean_(x, 60); })
     .filter(function (x) { if (!x || seen[x]) return false; seen[x] = true; return true; });
@@ -1677,7 +1729,7 @@ function assignBoxDriver_(user, boxId, name) {
     if (name === b.driver) return;
     setMany_(t, [{ row: row, obj: { Driver: name, UpdatedAt: new Date(), UpdatedBy: user.name } }]);
     addBoxMove_(row, b.location, b.destination || b.location, name ? 'توزيع على السواق' : 'إلغاء التوزيع', user.name + (name ? ' ← ' + name : ''), '', '', '');
-    if (name && driverNames_().indexOf(name) === -1) writeDrivers_(driverNames_().concat([name]), user);
+    if (name && driverNames_().indexOf(name) === -1) writeDrivers_(driverNamesSaved_().concat([name]), user);
   });
   return true;
 }
@@ -1686,8 +1738,8 @@ function boxPickup_(p) {
   p = p || {};
   // من رابط الشحنات (رمز السواق) أو من مسح QR البوكس نفسه (رمز البوكس)
   const tk = str_(getSetting_('DriverToken', ''));
-  if (!(tk && str_(p.k) === tk)) boxByToken_(p);
-  const driver = clean_(p.driver, 60), clientKey = str_(p.clientKey).slice(0, 64);
+  if (!DRIVER_USER_ && !(tk && str_(p.k) === tk)) boxByToken_(p);
+  const driver = DRIVER_USER_ ? DRIVER_USER_.name : clean_(p.driver, 60), clientKey = str_(p.clientKey).slice(0, 64);
   if (!driver) throw new Error('ERR_DRIVER_NAME');
   const out = { ok: true };
   let picked = null;
