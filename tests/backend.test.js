@@ -191,7 +191,7 @@ test('config: nurse sees every clinic (own clinics flagged) and no prices; clini
   const proc = api(login('علي', '3333'), 'getConfig');
   assert.equal(proc.catalog.find(c => c.name === 'PROPHY PASTE').price, 60);
   assert.equal(proc.roles.length, 0, 'roles only for admin');
-  assert.equal(api(login('المدير', '1234'), 'getConfig').roles.length, 14);
+  assert.equal(api(login('المدير', '1234'), 'getConfig').roles.length, 15); // + «سواق»
 });
 
 test('createRequest: validation', () => {
@@ -1413,7 +1413,7 @@ test('setupSheets is idempotent and seeds defaults on an empty spreadsheet', () 
   ctx.setupSheets();
   ctx.setupSheets();
   assert.equal(gas.dump('Users').length, 2);
-  assert.equal(gas.dump('Roles').length, 15);
+  assert.equal(gas.dump('Roles').length, 16);
   assert.equal(gas.dump('ItemsCatalog').length, 18);
   const r = ctx.api(null, 'login', ['المدير', '1234']);
   assert.equal(r.user.screen, 'admin');
@@ -1492,7 +1492,8 @@ test('roles split: legacy quality/executive/finance migrate; executive keeps ful
     ]);
   });
   const q = login('منى', '5555');
-  assert.deepEqual(rows(gas, 'Roles').map(r => [r.RoleName, r.Screen]).sort(), [
+  assert.ok(rows(gas, 'Roles').some(r => r.Screen === 'driver'), 'driver role added');
+  assert.deepEqual(rows(gas, 'Roles').map(r => [r.RoleName, r.Screen]).filter(r => r[1] !== 'driver').sort(), [
     ['أدمن', 'admin'], ['ممرضة', 'nurse'], ['تموين', 'procurement'], ['جودة', 'quality'], ['تنفيذي', 'executive'], ['مالية', 'finance'], ['المعمل', 'lab'], ['مدير فرع', 'branch'], ['هاوس كيبر', 'housekeeper'], ['مسؤول التعقيم', 'housekeeper'], ['مسؤول الأشعة', 'housekeeper'], ['صيانة', 'maintenance'], ['مدير التشغيل', 'executive']].sort());
   const qc = api(q, 'getConfig');
   assert.equal(qc.user.screen, 'quality');
@@ -1712,7 +1713,7 @@ test('management roles (finance…) are added automatically when missing, so the
     g.seed('Users', ['Name', 'Password', 'Role', 'Clinic', 'Email'], [['المدير', '1234', 'أدمن', '', '']]);
   });
   const a = login('المدير', '1234');
-  const roles = api(a, 'getConfig').roles.map(r => r.name + ':' + r.screen).sort();
+  const roles = api(a, 'getConfig').roles.map(r => r.name + ':' + r.screen).filter(x => !/:driver$/.test(x)).sort();
   assert.deepEqual(roles, ['أدمن:admin', 'تموين:procurement', 'تنفيذي:executive', 'جودة:quality', 'طبيب:doctor', 'مالية:finance', 'ممرضة:nurse', 'المعمل:lab', 'مدير فرع:branch', 'هاوس كيبر:housekeeper', 'مسؤول التعقيم:housekeeper', 'مسؤول الأشعة:housekeeper', 'صيانة:maintenance', 'مدير التشغيل:executive'].sort());
   api(a, 'createUser', { name: 'المالية', password: '2468', role: 'مالية', email: 'finance@example.com' });
   const f = api(null, 'login', 'المالية', '2468');
@@ -2058,9 +2059,11 @@ test('arrival at the branch notifies doctor, operations and that branch manager;
   api(p, 'dispatchItems', id, ['DENTAL FLOSS']);
   const box = api(p, 'getBoxes').boxes[0];
   assert.equal(box.loads[0].type, 'شهري', 'box loads carry the request type (boxes filter)');
-  api(null, 'boxPickup', { box: box.id, k: box.k, driver: 'أبو فهد' }); // من مسح QR البوكس
+  api(login('المدير', '1234'), 'createUser', { name: 'Nur', password: '7070', role: 'سواق' });
+  const drv = login('Nur', '7070');
+  api(drv, 'driverPickup', { box: box.id });
   gas.mails.length = 0;
-  api(null, 'boxDeliver', { box: box.id, k: box.k, to: 'الرياض', photo: PNG, clientKey: 'dlv-arrive-1' });
+  api(drv, 'driverDeliver', { box: box.id, to: 'الرياض', photo: PNG, clientKey: 'dlv-arrive-1' });
   const arrived = to => gas.mails.some(m => m.to.indexOf(to) !== -1 && /وصل الطلب/.test(m.subject));
   assert.ok(gas.mails.some(m => m.to === 'sara@example.com' && /وصل بوكس طلبك/.test(m.subject)), 'nurse: box arrived, receive and sign');
   assert.ok(arrived('khaled@example.com') && arrived('ops@example.com') && arrived('bm-ruh@example.com'), 'doctor, operations and the request branch manager are told');
@@ -2075,52 +2078,62 @@ test('arrival at the branch notifies doctor, operations and that branch manager;
   assert.ok(JSON.stringify(types).includes('arrived_watch') && JSON.stringify(types).includes('received_watch'));
 });
 
-test('driver pickup: procurement assigns a driver, the driver taps «picked up» with their name, then delivery clears it', () => {
+test('driver accounts: procurement picks the driver on send (account or free name), the driver sees destination, picks up, then «arrived» needs a photo; link pages are off', () => {
   const { api, login, gas } = boot();
-  const reem = login('سارة', '1111'), p = login('علي', '3333');
+  const reem = login('سارة', '1111'), p = login('علي', '3333'), adm = login('المدير', '1234');
+  api(adm, 'createUser', { name: 'Nur', password: '7070', role: 'سواق' });
+  api(adm, 'createUser', { name: 'D.Khalid', password: '7171', role: 'سواق' });
+  const nur = login('Nur', '7070'), dk = login('D.Khalid', '7171');
   const id = api(reem, 'createRequest', { doctor: 'د. خالد', type: 'طارئ', items: [{ name: 'PROPHY PASTE', qty: 2 }] }).id;
   api(login('د. خالد', '4444'), 'doctorReview', id, 'اعتمد');
   api(p, 'bulkUpdateStatus', [id], 'قيد التجهيز');
-  api(p, 'dispatchItems', id, ['PROPHY PASTE']);
-  let bx = api(p, 'getBoxes');
-  const box = bx.boxes[0], tk = bx.driverToken;
-  assert.deepEqual(bx.drivers, []);
-  // القائمة القديمة (بدون v) تبقى كما هي للصفحات المفتوحة من قبل
-  assert.ok(Array.isArray(api(null, 'driverTasks', { k: tk })));
-  // التموين يوزّع على سواق ← يُضاف لقائمة السواقين
-  throwsCode(() => api(reem, 'assignBoxDriver', box.id, 'أبو فهد'), 'ERR_FORBIDDEN');
-  api(p, 'assignBoxDriver', box.id, 'أبو فهد');
-  bx = api(p, 'getBoxes');
-  assert.deepEqual([bx.boxes[0].driver, bx.drivers], ['أبو فهد', ['أبو فهد']]);
-  let dt = api(null, 'driverTasks', { k: tk, v: 2 });
-  assert.deepEqual([dt.drivers, dt.list[0].driver, dt.list[0].pickedBy], [['أبو فهد'], 'أبو فهد', '']);
-  // سواق آخر لا يستلمها، والرابط لازم
-  throwsCode(() => api(null, 'boxPickup', { k: 'x', box: box.id, driver: 'أبو فهد' }), 'ERR_BAD_LINK');
-  throwsCode(() => api(null, 'boxPickup', { k: tk, box: box.id, driver: '' }), 'ERR_DRIVER_NAME');
-  throwsCode(() => api(null, 'boxPickup', { k: tk, box: box.id, driver: 'سالم' }), 'ERR_NOT_YOUR_BOX');
+  // صفحات الرابط القديمة أُلغيت
+  for (const fn of ['driverTasks', 'boxInfo', 'boxPickup', 'boxDeliver']) throwsCode(() => api(null, fn, { k: 'x', box: 'BOX-001' }), 'ERR_DRIVER_LOGIN');
+  // قائمة السواقين = حسابات السواقين أولاً
+  assert.deepEqual(api(p, 'getBoxes').drivers, ['Nur', 'D.Khalid']);
+  // الإرسال مع اختيار السواق
+  api(p, 'dispatchItems', id, ['PROPHY PASTE'], { owner: 'د. خالد', branch: 'الرياض', driver: 'Nur' });
+  const box = api(p, 'getBoxes').boxes[0];
+  assert.equal(box.driver, 'Nur');
+  // السواق يرى الوجهة ولمن تُسلَّم — بلا أصناف أو أسعار · السواق الآخر لا يراها
+  const bd = api(nur, 'getDriverBoard');
+  assert.deepEqual(bd.boxes.map(x => [x.id, x.destination, x.assigned, x.picked]), [[box.id, 'الرياض', 'Nur', false]]);
+  assert.deepEqual(bd.boxes[0].requests.map(r => r.id), [id]);
+  assert.ok(bd.boxes[0].to[0].nurse === 'سارة' && !/PROPHY|price/.test(JSON.stringify(bd)));
+  assert.equal(api(dk, 'getDriverBoard').boxes.length, 0);
+  throwsCode(() => api(dk, 'driverPickup', { box: box.id }), 'ERR_NOT_YOUR_BOX');
+  throwsCode(() => api(reem, 'getDriverBoard'), 'ERR_FORBIDDEN');
+  // «وصل الفرع» قبل الاستلام لا · بعد الاستلام: الصورة إلزامية
+  throwsCode(() => api(nur, 'driverDeliver', { box: box.id, to: 'الرياض', photo: PNG }), 'ERR_NOT_PICKED');
   gas.mails.length = 0;
-  api(null, 'boxPickup', { k: tk, box: box.id, driver: 'أبو فهد', clientKey: 'pk-1' });
-  assert.equal(api(null, 'boxPickup', { k: tk, box: box.id, driver: 'أبو فهد', clientKey: 'pk-2' }).duplicate, true, 'double tap is ignored');
-  assert.equal(rows(gas, 'BoxMoves').filter(m => m.Action === 'استلام السواق').length, 1);
-  assert.ok(gas.mails.some(m => /جاري نقل طلبك .* مع السواق أبو فهد/.test(m.subject)), 'the nurse is told who carries it');
-  // بعد الاستلام: لا يُعاد التوزيع
-  throwsCode(() => api(p, 'assignBoxDriver', box.id, 'سالم'), 'ERR_BOX_PICKED');
-  dt = api(null, 'driverTasks', { k: tk, v: 2 });
-  assert.equal(dt.list[0].pickedBy, 'أبو فهد');
-  assert.ok(dt.list[0].pickedAt);
+  api(nur, 'driverPickup', { box: box.id, clientKey: 'pk-1' });
+  assert.equal(api(nur, 'driverPickup', { box: box.id, clientKey: 'pk-2' }).duplicate, true, 'double tap is ignored');
+  assert.ok(gas.mails.some(m => /جاري نقل طلبك .* مع السواق Nur/.test(m.subject)), 'the nurse is told who carries it');
+  assert.equal(api(nur, 'getDriverBoard').boxes[0].picked, true);
   let lr = api(p, 'getRequests', {}).find(r => r.id === id);
-  assert.deepEqual([lr.awaitingDelivery, lr.onTheWay && lr.onTheWay.by, lr.pickedBy, !!lr.pickedAt], [true, 'أبو فهد', 'أبو فهد', true], 'request shows «with driver»');
-  assert.ok(api(reem, 'getRequestDetail', id).pickedAt, 'timeline gets the pickup time');
-  assert.ok(api(reem, 'getComments', id).some(c => /استلم السواق أبو فهد/.test(c.message)));
-  // التسليم بالـ QR: يصل الفرع وتُمسح حقول الرحلة، ويبقى وقت الاستلام في التايم لاين
-  api(null, 'boxDeliver', { box: box.id, k: box.k, to: api(p, 'getBoxes').boxes[0].destination, driver: 'أبو فهد', photo: PNG, clientKey: 'dlv-pk-1' });
-  const after = api(p, 'getBoxes').boxes[0];
-  assert.deepEqual([after.status, after.driver, after.pickedBy], ['وصل الفرع', '', '']);
+  assert.deepEqual([lr.awaitingDelivery, lr.pickedBy], [true, 'Nur']);
+  throwsCode(() => api(nur, 'driverDeliver', { box: box.id, to: 'الرياض', photo: '' }), 'ERR_PHOTO_REQUIRED');
+  throwsCode(() => api(nur, 'driverDeliver', { box: box.id, to: 'الدمام', photo: PNG }), 'ERR_BAD_PLACE');
+  api(nur, 'driverDeliver', { box: box.id, to: 'الرياض', photo: PNG, spot: 'عند الاستقبال', clientKey: 'dl-1' });
   lr = api(p, 'getRequests', {}).find(r => r.id === id);
-  assert.deepEqual([lr.atBranch, lr.onTheWay, lr.pickedBy], [true, null, 'أبو فهد']);
-  // قائمة السواقين يحفظها التموين
-  assert.deepEqual(api(p, 'saveDrivers', ['سالم', ' أبو فهد ', 'سالم', '']).drivers, ['سالم', 'أبو فهد']);
-  assert.deepEqual(api(null, 'driverTasks', { k: tk, v: 2 }).drivers, ['سالم', 'أبو فهد']);
+  assert.deepEqual([lr.atBranch, !!lr.arrivedAt], [true, true]);
+  assert.ok(api(reem, 'getComments', id).some(c => /وصل البوكس .* المكان: عند الاستقبال/.test(c.message)));
+  const after = api(nur, 'getDriverBoard');
+  assert.deepEqual([after.boxes.length, after.done.length, after.done[0].request], [0, 1, id]);
+  // اسم حر وقت الإرسال يُحفظ في القائمة للمرات القادمة
+  const id2 = api(reem, 'createRequest', { doctor: 'د. نورة', type: 'طارئ', items: [{ name: 'PROPHY PASTE', qty: 1 }] }).id;
+  api(p, 'bulkUpdateStatus', [id2], 'قيد التجهيز');
+  api(p, 'dispatchItems', id2, ['PROPHY PASTE'], { owner: 'د. نورة', branch: 'الرياض', driver: 'سالم المؤقت' });
+  assert.deepEqual(api(p, 'getBoxes').drivers, ['Nur', 'D.Khalid', 'سالم المؤقت']);
+  // بدون سواق محدد: يراها كل السواقين، وأول من يستلم يأخذها
+  const id3 = api(reem, 'createRequest', { doctor: 'د. خالد', type: 'طارئ', items: [{ name: 'DENTAL FLOSS', qty: 1 }] }).id;
+  api(login('د. خالد', '4444'), 'doctorReview', id3, 'اعتمد');
+  api(p, 'bulkUpdateStatus', [id3], 'قيد التجهيز');
+  api(p, 'dispatchItems', id3, ['DENTAL FLOSS']);
+  assert.equal(api(nur, 'getDriverBoard').boxes.length, 1); assert.equal(api(dk, 'getDriverBoard').boxes.length, 1);
+  api(dk, 'driverPickup', { box: api(dk, 'getDriverBoard').boxes[0].id });
+  assert.equal(api(nur, 'getDriverBoard').boxes.length, 0, 'picked by another driver');
+  throwsCode(() => api(nur, 'driverDeliver', { box: api(dk, 'getDriverBoard').boxes[0].id, to: 'الرياض', photo: PNG }), 'ERR_NOT_YOUR_BOX');
 });
 
 test('boxes: dispatch loads the doctor box → driver scan delivers with photo → nurse receives → box stays; move on request', () => {
@@ -2137,41 +2150,29 @@ test('boxes: dispatch loads the doctor box → driver scan delivers with photo �
   assert.ok(box.k.length >= 24 && bx.driverToken.length >= 24);
   let lr = api(p, 'getRequests', {}).find(r => r.id === id);
   assert.deepEqual([lr.awaitingDelivery, lr.atBranch, lr.arrivedAt], [true, false, ''], 'sent, waiting for the driver');
-  // مهام السواق برابط سري
-  throwsCode(() => api(null, 'driverTasks', { k: 'wrong' }), 'ERR_BAD_LINK');
-  assert.deepEqual(api(null, 'driverTasks', { k: bx.driverToken }).map(x => [x.id, x.destination]), [['BOX-001', 'جدة']]);
-  // صفحة البوكس بالـ QR: بلا أسعار أو أصناف
-  throwsCode(() => api(null, 'boxInfo', { box: 'BOX-001', k: 'nope' }), 'ERR_BAD_LINK');
-  const info = api(null, 'boxInfo', { box: 'BOX-001', k: box.k });
-  assert.deepEqual(info.places, ['التموين', 'الرياض', 'جدة']);
-  assert.ok(!/PROPHY|price|سعر/.test(JSON.stringify(info)), 'no items or prices on the public page');
-  // السواق يعرف لمن يسلّم: الممرضة رافعة الطلب وعيادتها (في المهام وعند مسح الـ QR)
+  // حساب السواق: الشحنة ووجهتها بلا أسعار أو أصناف
+  api(login('المدير', '1234'), 'createUser', { name: 'أبو فهد', password: '7272', role: 'سواق' });
+  const drv = login('أبو فهد', '7272');
+  const board = api(drv, 'getDriverBoard');
+  assert.deepEqual(board.boxes.map(x => [x.id, x.destination]), [['BOX-001', 'جدة']]);
+  assert.deepEqual(board.places, ['التموين', 'الرياض', 'جدة']);
+  assert.ok(!/PROPHY|price|سعر/.test(JSON.stringify(board)), 'no items or prices for the driver');
   const rq = rows(gas, 'Requests').find(r => r.RequestID === id);
-  assert.deepEqual(info.to, [{ nurse: rq.Nurse, clinic: rq.Clinic }]);
-  assert.deepEqual(api(null, 'driverTasks', { k: bx.driverToken })[0].to, [{ nurse: rq.Nurse, clinic: rq.Clinic }]);
-  const d = { box: 'BOX-001', k: box.k, to: 'جدة', driver: 'أبو فهد', photo: PNG, clientKey: 'dlv-000001' };
-  // لا تسليم قبل «استلمت الطلبية» باسم السواق
-  throwsCode(() => api(null, 'boxDeliver', d), 'ERR_NOT_PICKED');
-  throwsCode(() => api(null, 'boxPickup', { box: 'BOX-001', k: 'bad', driver: 'أبو فهد' }), 'ERR_BAD_LINK');
-  api(null, 'boxPickup', { box: 'BOX-001', k: box.k, driver: 'أبو فهد' });
-  throwsCode(() => api(null, 'boxDeliver', Object.assign({}, d, { photo: '' })), 'ERR_PHOTO_REQUIRED');
-  throwsCode(() => api(null, 'boxDeliver', Object.assign({}, d, { to: 'الدمام' })), 'ERR_BAD_PLACE');
-  throwsCode(() => api(null, 'boxDeliver', Object.assign({}, d, { k: 'x' })), 'ERR_BAD_LINK');
-  throwsCode(() => api(null, 'boxDeliver', Object.assign({}, d, { to: 'التموين' })), 'ERR_SAME_PLACE');
-  // الاسم في التسليم = من استلمها (لا يُكتب اسم آخر وقت التسليم)
-  const res = api(null, 'boxDeliver', Object.assign({}, d, { driver: 'شخص آخر' }));
-  assert.deepEqual([res.box.status, res.box.location], ['وصل الفرع', 'جدة']);
+  assert.deepEqual(board.boxes[0].to, [{ nurse: rq.Nurse, clinic: rq.Clinic }]);
+  const d = { box: 'BOX-001', to: 'جدة', photo: PNG, clientKey: 'dlv-000001' };
+  throwsCode(() => api(drv, 'driverDeliver', d), 'ERR_NOT_PICKED');
+  api(drv, 'driverPickup', { box: 'BOX-001' });
+  throwsCode(() => api(drv, 'driverDeliver', Object.assign({}, d, { photo: '' })), 'ERR_PHOTO_REQUIRED');
+  throwsCode(() => api(drv, 'driverDeliver', Object.assign({}, d, { to: 'الدمام' })), 'ERR_BAD_PLACE');
+  throwsCode(() => api(drv, 'driverDeliver', Object.assign({}, d, { to: 'التموين' })), 'ERR_SAME_PLACE');
+  api(drv, 'driverDeliver', d);
+  assert.deepEqual([api(p, 'getBoxes').boxes[0].status, api(p, 'getBoxes').boxes[0].location], ['وصل الفرع', 'جدة']);
   lr = api(p, 'getRequests', {}).find(r => r.id === id);
   assert.deepEqual([lr.awaitingDelivery, lr.atBranch, !!lr.arrivedAt], [false, true, true], 'arrived at the branch, waiting for the nurse');
   assert.ok(api(reem, 'getRequestDetail', id).arrivedAt, 'timeline gets the «at branch» time');
-  assert.equal(api(null, 'boxDeliver', d).duplicate, true, 'double tap is ignored');
-  // نفس الباركود بعد التسليم: مقفل «تم التسليم» — لا تسليم ثانٍ لأي مكان حتى يُحمَّل البوكس أو يُطلب نقله
-  throwsCode(() => api(null, 'boxDeliver', Object.assign({}, d, { clientKey: 'dlv-000009' })), 'ERR_BOX_DELIVERED');
-  throwsCode(() => api(null, 'boxDeliver', Object.assign({}, d, { clientKey: 'dlv-000010', to: 'التموين' })), 'ERR_BOX_DELIVERED');
-  const used = api(null, 'boxInfo', { box: d.box, k: d.k });
-  assert.equal(used.pending, false);
-  assert.deepEqual([used.last.to, used.last.by], ['جدة', 'أبو فهد']);
-  assert.ok(api(null, 'driverTasks', { k: bx.driverToken }).every(x => x.k === undefined), 'task list never carries box keys');
+  assert.equal(api(drv, 'driverDeliver', d).duplicate, true, 'double tap is ignored');
+  throwsCode(() => api(drv, 'driverDeliver', Object.assign({}, d, { clientKey: 'dlv-000009' })), 'ERR_BOX_DELIVERED');
+  assert.ok(JSON.stringify(api(drv, 'getDriverBoard')).indexOf(box.k) === -1, 'driver board never carries box keys');
   assert.equal(rows(gas, 'BoxMoves').filter(m => m.Action === 'تسليم').length, 1);
   // الممرضة: الطلب «وصل الفرع» + تنبيه + تعليق
   const mine = api(reem, 'getMyRequests').find(r => r.id === id);
@@ -2185,7 +2186,7 @@ test('boxes: dispatch loads the doctor box → driver scan delivers with photo �
   assert.deepEqual([det.shipments[0].delivered.to, det.shipments[0].delivered.by], ['جدة', 'أبو فهد']);
   assert.ok(det.shipments[0].delivered.photo);
   assert.ok(api(reem, 'getComments', id).some(c => /وصل البوكس/.test(c.message)));
-  assert.deepEqual(api(null, 'driverTasks', { k: bx.driverToken }), [], 'nothing left to move');
+  assert.deepEqual(api(drv, 'getDriverBoard').boxes, [], 'nothing left to move');
   // الاستلام: البوكس يبقى في الفرع فارغاً
   api(reem, 'receiveShipment', id, 1, [{ name: 'PROPHY PASTE', qty: 2 }], 'ريم', '', '', '');
   bx = api(p, 'getBoxes');
@@ -2194,10 +2195,10 @@ test('boxes: dispatch loads the doctor box → driver scan delivers with photo �
   assert.equal(api(reem, 'getMyRequests').find(r => r.id === id).boxAt, undefined, 'no box line after receipt');
   // التموين يطلب إرجاعه ← مهمة للسواق ← تسليم للتموين بدون شحنة
   api(p, 'requestBoxMove', 'BOX-001', 'التموين');
-  assert.deepEqual(api(null, 'driverTasks', { k: bx.driverToken }).map(x => [x.id, x.status, x.location, x.destination]), [['BOX-001', 'مطلوب نقله', 'جدة', 'التموين']]);
-  throwsCode(() => api(null, 'boxDeliver', Object.assign({}, d, { to: 'التموين', clientKey: 'dlv-000002' })), 'ERR_NOT_PICKED');
-  api(null, 'boxPickup', { k: bx.driverToken, box: 'BOX-001', driver: 'أبو فهد' });
-  api(null, 'boxDeliver', Object.assign({}, d, { to: 'التموين', clientKey: 'dlv-000002' }));
+  assert.deepEqual(api(drv, 'getDriverBoard').boxes.map(x => [x.id, x.status, x.location, x.destination]), [['BOX-001', 'مطلوب نقله', 'جدة', 'التموين']]);
+  throwsCode(() => api(drv, 'driverDeliver', Object.assign({}, d, { to: 'التموين', clientKey: 'dlv-000002' })), 'ERR_NOT_PICKED');
+  api(drv, 'driverPickup', { box: 'BOX-001' });
+  api(drv, 'driverDeliver', Object.assign({}, d, { to: 'التموين', clientKey: 'dlv-000002' }));
   bx = api(p, 'getBoxes');
   assert.deepEqual([bx.boxes[0].status, bx.boxes[0].location], ['فارغ', 'التموين']);
   // الإرسال الثاني يحمّل نفس البوكس
@@ -3162,7 +3163,7 @@ test('settings in the app: admin edits clinics, labs, lists, keys, survey; finan
   const before = api(p, 'getBoxes').driverToken;
   api(a, 'rotateDriverToken');
   assert.notEqual(api(p, 'getBoxes').driverToken, before);
-  throwsCode(() => api(null, 'driverTasks', { k: before }), 'ERR_BAD_LINK');
+  throwsCode(() => api(null, 'driverTasks', { k: before }), 'ERR_DRIVER_LOGIN'); // صفحات الرابط أُلغيت
   // doctor billing basis from the doctor editor
   api(a, 'saveDoctor', 'د. نورة', { name: 'د. نورة', clinics: ['عيادة الأسنان 1'], billing: 'clinic' });
   assert.equal(rows(gas, 'Doctors').find(r => r.DoctorName === 'د. نورة').Billing, 'عيادة');
