@@ -136,7 +136,7 @@ const SCREENS = ['nurse', 'procurement', 'doctor', 'lab', 'quality', 'executive'
 const MGMT_SCREENS = ['quality', 'executive', 'finance', 'dashboard', 'branch', 'admin'];
 const DEFAULT_ROLES = [
   ['ممرضة', 'nurse'], ['تموين', 'procurement'], ['طبيب', 'doctor'],
-  ['جودة', 'quality'], ['جوده', 'quality'], ['مالية', 'finance'], ['تنفيذي', 'executive'], ['أدمن', 'admin'], ['المعمل', 'lab'], ['مدير فرع', 'branch'], ['هاوس كيبر', 'housekeeper'], ['صيانة', 'maintenance'], ['سواق', 'driver'],
+  ['جودة', 'quality'], ['جوده', 'quality'], ['مالية', 'finance'], ['تنفيذي', 'executive'], ['أدمن', 'admin'], ['المعمل', 'lab'], ['مدير فرع', 'branch'], ['هاوس كيبر', 'housekeeper'], ['صيانة', 'maintenance'], ['نقل', 'driver'],
   // نفس آلية الهاوس كيبر (طلب لفرعه بموافقة مدير الفرع): مسؤول التعقيم ومسؤول الأشعة
   ['مسؤول التعقيم', 'housekeeper'], ['مسؤول الأشعة', 'housekeeper']
 ];
@@ -178,7 +178,7 @@ const COMPLAINT_TYPES = ['تأخير', 'نقص', 'زيادة', 'أخرى'];
  *  التجهيز التلقائي بعد النشر (مرة واحدة لكل إصدار) — بلا أي خطوة يدوية:
  *  تبويبات الإعداد (Settings / LabMaterials)، قائمة العيادات المعتمدة، المشغّلات (النسخ الليلي + onChange)
  * ===================================================================== */
-const SETUP_VERSION_ = '2026-11-setup-v15';
+const SETUP_VERSION_ = '2026-11-setup-v16';
 function autoSetup_() {
   try {
     const cache = CacheService.getScriptCache();
@@ -214,7 +214,7 @@ function runSetupSteps_(force) {
     ['doctors_live', 'صفحة «الأطباء — مباشر» للجودة والتنفيذي', function () { grantPerm_('doctors_live', ['executive', 'quality']); }],
     ['boxes_view', 'تبويب البوكسات (اطلاع) لمدراء الفروع والتنفيذي', function () { grantPerm_('boxes', ['branch', 'executive']); }],
     ['maint', 'بلاغات الفرع والصيانة: دور «صيانة» + الاطلاع للتنفيذي والجودة والمالية', function () { ensureMgmtRoles_(); grantPerm_('maint', ['executive', 'quality', 'finance']); }],
-    ['driver_role', 'دور «سواق» (حساب للسواق: يرى الشحنات ووجهتها، يستلم من التموين، ويسلّم الفرع بصورة)', ensureDriverRole_],
+    ['driver_role', 'دور «نقل» (حساب السواق: يرى الشحنات ووجهتها، يستلم من التموين، ويسلّم الفرع بصورة) — ويُعاد تسمية «سواق» القديم', ensureDriverRole_],
     ['ops_role', 'دور «مدير التشغيل» (يرى الأسعار والتقارير والمتابعة — بدل منح مدير الفرع الأسعار)', ensureOpsRole_],
     ['demo', 'أدوات العهدة التجريبية TEST101', function () { seedDemoAssets_(force); }],
     ['item_type', 'قائمة «مستهلك / ماتيريال» في عمود ItemType بالكتالوج', itemTypeDropdown_],
@@ -1322,6 +1322,7 @@ function roleScreen_(roleName) {
   const r = getRoles_().filter(function (x) { return x.name === roleName; })[0];
   if (r && SCREENS.indexOf(r.screen) !== -1) return r.screen;
   const d = DEFAULT_ROLES.filter(function (x) { return x[0] === roleName; })[0];
+  if (!d && roleName === 'سواق') return 'driver'; // الاسم القديم لدور «نقل» قبل إعادة التسمية
   return d ? d[1] : '';
 }
 
@@ -1629,10 +1630,16 @@ function boxDeliver_(p) {
  *  «استلمت من التموين» ← في الطريق، ثم «وصل الفرع» بصورة إلزامية للمكان بالضبط (+ وصف المكان اختياري)
  *  يرى: المسندة له + غير المسندة لأحد · المسندة لسواق آخر لا تظهر
  * ===================================================================== */
+const DRIVER_ROLE_ = 'نقل', DRIVER_ROLE_OLD_ = 'سواق';
 function ensureDriverRole_() {
   const t = read_('Roles');
-  if (t.rows.some(function (r) { return str_(r.Screen) === 'driver'; })) return;
-  append_('Roles', { RoleName: 'سواق', Screen: 'driver' });
+  // اسم الدور «نقل» بدل «سواق»: إعادة تسمية الدور والحسابات المسجلة عليه (مرة واحدة)
+  const old = t.rows.filter(function (r) { return str_(r.RoleName) === DRIVER_ROLE_OLD_ && str_(r.Screen) === 'driver'; })[0];
+  const has = t.rows.some(function (r) { return str_(r.RoleName) === DRIVER_ROLE_ && str_(r.Screen) === 'driver'; });
+  if (old && !has) setMany_(t, [{ row: old, obj: { RoleName: DRIVER_ROLE_ } }]);
+  const u = read_('Users'), ups = u.rows.filter(function (r) { return str_(r.Role) === DRIVER_ROLE_OLD_; }).map(function (r) { return { row: r, obj: { Role: DRIVER_ROLE_ } }; });
+  if (ups.length) setMany_(u, ups);
+  if (!old && !has && !t.rows.some(function (r) { return str_(r.Screen) === 'driver'; })) append_('Roles', { RoleName: DRIVER_ROLE_, Screen: 'driver' });
 }
 function getDriverBoard_(user) {
   const me = user.name;
