@@ -1463,11 +1463,11 @@ function log(msg) { console.log('  ✔ ' + msg); }
   await shot(page, 'assets-dashboard', true);
   await logout(page);
 
-  // رابط السواق الخاطئ يفتح صفحة السواق برسالة واضحة (بدون شاشة الدخول)
+  // روابط السواق القديمة أُلغيت: الرابط يفتح شاشة الدخول (السواق يدخل بحسابه)
   {
-    const dp = await newPage({ viewport: { width: 390, height: 844 }, isMobile: true, query: '?driver=wrong-token' });
-    await dp.waitForSelector('#driverView .empty');
-    expect((await dp.textContent('#driverView')).includes('الرابط غير صالح') && await dp.isHidden('#loginView'), 'driver link opens the driver page without login (invalid token → clear message)');
+    const dp = await newPage({ viewport: { width: 390, height: 844 }, isMobile: true, query: '?driver=old-token' });
+    await dp.waitForSelector('#loginView:not(.hidden)');
+    expect(!(await dp.$('#driverView')), 'old driver link opens the login screen (drivers use accounts)');
     await dp.close();
   }
 
