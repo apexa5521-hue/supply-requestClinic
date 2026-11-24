@@ -1721,7 +1721,7 @@ function driverDeliver_(user, p) {
   if (!pre.pickedBy) throw new Error('ERR_NOT_PICKED');
   if (pre.pickedBy !== me) throw new Error('ERR_NOT_YOUR_BOX');
   if (!p.photo) throw new Error('ERR_PHOTO_REQUIRED');
-  const photo = saveLabPhoto_(pre.request + '-' + pre.batch + '-' + Date.now(), p.photo);
+  const photo = saveLabPhoto_('DRV-' + pre.request + '-' + pre.batch + '-' + Date.now(), p.photo);
   let x = null;
   withLock_(function () {
     resetMemo_();

@@ -790,7 +790,7 @@ function log(msg) { console.log('  ✔ ' + msg); }
   await shot(page, 'nurse-receive-last-shipment');
   await page.click('#rOk');
   expect(await toastHas(page, 'اكتمل استلام الطلب'), 'last shipment completes the request');
-  const files = await page.evaluate(() => __gas.files.filter(f => !/^BOX-/.test(f.name)).map(f => ({ name: f.name, bytes: f.bytes })));
+  const files = await page.evaluate(() => __gas.files.filter(f => !/^(BOX|DRV)-/.test(f.name)).map(f => ({ name: f.name, bytes: f.bytes })));
   const merged = files.find(f => f.name.endsWith('-receipt-all.png'));
   expect(files.length === 5 && merged, 'combined receipt saved with every shipment (5 files)');
   if (merged) fs.writeFileSync(path.join(OUT, 'combined-receipt.png'), Buffer.from(merged.bytes.map(b => b & 0xff)));
