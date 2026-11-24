@@ -706,7 +706,7 @@ function log(msg) { console.log('  ✔ ' + msg); }
   await logout(page);
   await login(page, 'أبو فهد', '8080');
   await page.waitForSelector('.drb-card');
-  expect(await page.evaluate(() => S.view) === 'drive', 'driver account lands on «my deliveries»');
+  expect(await page.evaluate(() => S.view) === 'drive', 'driver account lands on «النقل» (Transport)');
   expect((await page.textContent('.drb-card .drb-dest')).includes(bx.destination) && (await page.textContent('.drb-card')).includes('التسليم إلى:'), 'driver sees the destination branch and the nurse to hand it to');
   expect(!/PROPHY|DENTAL|ر\.س/.test(await page.textContent('#drbList')), 'no items or prices on the driver page');
   await page.click('.drb-card [data-act="drbPick"]');
